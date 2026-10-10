@@ -43,7 +43,6 @@
  * `onOutputFile` into the file manager, falling back to a download when the
  * board is standalone.
  */
-import { Button, CheckBox } from '@ziroeda/wx/controls.js';
 import { useState, type JSX } from 'react';
 import type { BOARD } from '../board.js';
 import { PLACE_FILE_EXPORTER, placeFileName } from '../exporters/place_file_exporter.js';
@@ -54,9 +53,6 @@ import {
   type JOB_EXPORT_PCB_POS_FILTER,
   type JOB_EXPORT_PCB_POS_FORMAT,
 } from '@ziroeda/common/jobs/job_export_pcb_pos.js';
-import { Combo } from '@ziroeda/wx/combobox.js';
-import { Icon } from '@ziroeda/common/widgets/icons.js';
-import { DialogShim } from '@ziroeda/common/dialog_shim.js';
 import {
   RPT_SEVERITY_ACTION,
   RPT_SEVERITY_ERROR,
@@ -64,7 +60,9 @@ import {
   RPT_SEVERITY_WARNING,
   type ReportLine,
 } from '@ziroeda/common';
-import { HtmlReportPanel, RPT_SEVERITY_ALL } from '@ziroeda/common/widgets/wx_html_report_panel.js';
+import { RPT_SEVERITY_ALL } from '@ziroeda/common/widgets/wx_html_report_panel.js';
+import { WxDirDialog } from '@ziroeda/wx/dirdlg.js';
+import { DIALOG_GEN_FOOTPRINT_POSITION_BASE } from './dialog_gen_footprint_position_file_base.js';
 
 interface Props {
   board: BOARD;
@@ -79,12 +77,6 @@ interface Props {
 }
 
 /** `m_formatCtrl`'s order: JOB_EXPORT_PCB_POS::FORMAT. */
-const FORMAT_CHOICES = [
-  { value: '0', label: 'Plain text' },
-  { value: '1', label: 'CSV' },
-  { value: '2', label: 'Gerber X3' },
-];
-const UNITS_CHOICES = ['Inches', 'Millimeters'].map((l, i) => ({ value: String(i), label: l }));
 
 const download = (name: string, bytes: Uint8Array): void => {
   const blob = new Blob([bytes as BlobPart], { type: 'application/octet-stream' });
@@ -105,7 +97,7 @@ export function DialogGenFootprintPosition({
   const variantNames = board.GetVariantNamesForUI();
   const [variant] = useState(0); // greyed: see the file comment.
   const [outputDir, setOutputDir] = useState('');
-  const [browseOpen, setBrowseOpen] = useState(false);
+  const [browsing, setBrowsing] = useState(false);
   const [format, setFormat] = useState('0');
   const [units, setUnits] = useState('1');
   const [onlySMD, setOnlySMD] = useState(false);
@@ -316,156 +308,53 @@ export function DialogGenFootprintPosition({
     report('Done.', RPT_SEVERITY_INFO);
   };
 
+  const check = (aValue: boolean, aSet: (aOn: boolean) => void, aEnabled = true) => ({
+    value: aValue,
+    enabled: aEnabled,
+    onChange: aSet,
+  });
+
   return (
-    <DialogShim title="Generate Placement Files" onClose={onClose}>
-      <div className="ze-modal-body" style={{ display: 'block', overflow: 'auto' }}>
-        <div
-          className="ze-genpos-field"
-          title="Not wired: place_file_exporter.ts does not filter by variant yet."
-        >
-          <span className="ze-genpos-label">Design variant:</span>
-          <Combo
-            value={String(variant)}
-            options={variantNames.map((n, i) => ({ value: String(i), label: n }))}
-            onChange={() => {}}
-            disabled
-            style={{ flex: 1 }}
-            ariaLabel="Design variant"
-          />
-        </div>
-        <div className="ze-genpos-row" onMouseDown={() => setBrowseOpen(false)}>
-          <span className="ze-genpos-label">Output directory:</span>
-          <input
-            className="ze-search"
-            style={{ flex: 1 }}
-            value={outputDir}
-            placeholder="Project folder"
-            title="Folder inside the project for the placement files (relative to the project). They appear in the file manager, where you can download them."
-            onChange={(e) => setOutputDir(e.target.value)}
-          />
-          <div style={{ position: 'relative' }}>
-            <button
-              type="button"
-              className="ze-btn sm"
-              title="Select output directory"
-              onMouseDown={(e) => {
-                e.stopPropagation();
-                setBrowseOpen((v) => !v);
-              }}
-            >
-              <Icon name="folder" size={14} />
-            </button>
-            {browseOpen && (
-              <div className="ze-folder-browse-popup" onMouseDown={(e) => e.stopPropagation()}>
-                {[
-                  '',
-                  ...[...new Set(projectFolders.filter(Boolean))].sort((a, b) =>
-                    a.localeCompare(b),
-                  ),
-                ].map((f) => (
-                  <div
-                    key={f || '.'}
-                    className="ze-menu-item ze-folder-browse-item"
-                    onClick={() => {
-                      setOutputDir(f);
-                      setBrowseOpen(false);
-                    }}
-                  >
-                    {f || 'Project folder'}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="ze-genpos-formatrow">
-          <div className="ze-genpos-field">
-            <span>Format:</span>
-            <Combo
-              value={format}
-              options={FORMAT_CHOICES}
-              onChange={changeFormat}
-              ariaLabel="Format"
-            />
-          </div>
-          <div className="ze-genpos-field">
-            <span>Units:</span>
-            <Combo
-              value={units}
-              options={UNITS_CHOICES}
-              onChange={setUnits}
-              disabled={isGerber}
-              ariaLabel="Units"
-            />
-          </div>
-        </div>
-
-        <div className="ze-genpos-checks">
-          <CheckBox
-            label="Include only SMD footprints"
-            checked={onlySMD}
-            disabled={!onlySMDEnabled}
-            onChange={(aChecked) => setOnlySMD(aChecked)}
-          />
-          <CheckBox
-            label="Exclude all footprints with through hole pads"
-            checked={excludeTH}
-            disabled={!excludeTHEnabled}
-            onChange={(aChecked) => setExcludeTH(aChecked)}
-          />
-          <CheckBox
-            label="Exclude all footprints with the Do Not Populate flag set"
-            checked={excludeDNP}
-            disabled={!excludeDNPEnabled}
-            onChange={(aChecked) => setExcludeDNP(aChecked)}
-          />
-          <CheckBox
-            label="Exclude all footprints with the Exclude from BOM flag set"
-            checked={excludeBOM}
-            disabled={!excludeBOMEnabled}
-            onChange={(aChecked) => setExcludeBOM(aChecked)}
-          />
-          <CheckBox
-            label="Include board edge layer"
-            checked={includeBoardEdge}
-            disabled={!isGerber}
-            onChange={(aChecked) => setIncludeBoardEdge(aChecked)}
-          />
-          <CheckBox
-            label="Use drill/place file origin"
-            checked={useDrillPlaceOrigin}
-            onChange={(aChecked) => setUseDrillPlaceOrigin(aChecked)}
-          />
-          <CheckBox
-            label="Use negative X coordinates for footprints on bottom layer"
-            checked={negateX}
-            disabled={!negateXEnabled}
-            onChange={(aChecked) => setNegateX(aChecked)}
-          />
-          <CheckBox
-            label="Generate single file with both front and back positions"
-            checked={singleFile}
-            disabled={isGerber}
-            onChange={(aChecked) => setSingleFile(aChecked)}
-          />
-        </div>
-
-        <div className="ze-genpos-report">
-          <HtmlReportPanel
-            lines={messages}
-            fileName="report.txt"
-            minHeight={120}
-            visibleSeverities={severities}
-            onVisibleSeveritiesChange={setSeverities}
-          />
-        </div>
-      </div>
-
-      <div className="ze-modal-footer">
-        <Button label="Close" onClick={onClose} />
-        <Button label="Generate Position File" isDefault onClick={generate} />
-      </div>
-    </DialogShim>
+    <>
+      <DIALOG_GEN_FOOTPRINT_POSITION_BASE
+        variants={variantNames}
+        m_variantChoiceCtrl={variant}
+        onVariant={() => {}}
+        variantEnabled={false}
+        variantTip="Not wired: place_file_exporter.ts does not filter by variant yet."
+        m_outputDirectoryName={outputDir}
+        onOutputDirectoryName={setOutputDir}
+        onOutputDirectoryBrowseClicked={() => setBrowsing(true)}
+        m_formatCtrl={Number(format)}
+        onFormat={(aIndex) => changeFormat(String(aIndex))}
+        m_unitsCtrl={Number(units)}
+        onUnits={(aIndex) => setUnits(String(aIndex))}
+        unitsEnabled={!isGerber}
+        m_onlySMD={check(onlySMD, setOnlySMD, onlySMDEnabled)}
+        m_excludeTH={check(excludeTH, setExcludeTH, excludeTHEnabled)}
+        m_excludeDNP={check(excludeDNP, setExcludeDNP, excludeDNPEnabled)}
+        m_excludeBOM={check(excludeBOM, setExcludeBOM, excludeBOMEnabled)}
+        m_cbIncludeBoardEdge={check(includeBoardEdge, setIncludeBoardEdge, isGerber)}
+        m_useDrillPlaceOrigin={check(useDrillPlaceOrigin, setUseDrillPlaceOrigin)}
+        m_negateXcb={check(negateX, setNegateX, negateXEnabled)}
+        m_singleFile={check(singleFile, setSingleFile, !isGerber)}
+        messages={messages}
+        visibleSeverities={severities}
+        onVisibleSeveritiesChange={setSeverities}
+        onGenerate={generate}
+        onCancel={onClose}
+      />
+      {browsing && (
+        <WxDirDialog
+          title="Select Output Directory"
+          folders={projectFolders}
+          initial={outputDir}
+          onDone={(aFolder) => {
+            setBrowsing(false);
+            if (aFolder !== null) setOutputDir(aFolder);
+          }}
+        />
+      )}
+    </>
   );
 }

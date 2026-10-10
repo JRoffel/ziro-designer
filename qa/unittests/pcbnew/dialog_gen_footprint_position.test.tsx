@@ -427,7 +427,7 @@ describe('DialogGenFootprintPosition', () => {
       />,
     );
 
-    fireEvent.change(screen.getByPlaceholderText('Project folder'), {
+    fireEvent.change(screen.getByLabelText('Output directory'), {
       target: { value: 'placement' },
     });
     fireEvent.click(screen.getByText('Generate Position File'));

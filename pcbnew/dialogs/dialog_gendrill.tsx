@@ -38,7 +38,6 @@
  * manager, falling back to a browser download when the board is standalone
  * (`plot-print-cloud-output` memory).
  */
-import { Button, CheckBox, RadioButton, StaticBox } from '@ziroeda/wx/controls.js';
 import { useState, type JSX } from 'react';
 import type { BOARD } from '../board.js';
 import { PCB_PLOT_PARAMS } from '../pcb_plot_params.js';
@@ -46,9 +45,8 @@ import { EXCELLON_WRITER } from '../exporters/gendrill_excellon_writer.js';
 import { GERBER_WRITER } from '../exporters/gendrill_gerber_writer.js';
 import { DRILL_PRECISION, ZEROS_FMT } from '../exporters/gendrill_writer_base.js';
 import { PLOT_FORMAT } from '@ziroeda/common/plotters/plotter.js';
-import { Combo } from '@ziroeda/wx/combobox.js';
-import { Icon } from '@ziroeda/common/widgets/icons.js';
-import { DialogShim } from '@ziroeda/common/dialog_shim.js';
+import { WxDirDialog } from '@ziroeda/wx/dirdlg.js';
+import { DIALOG_GENDRILL_BASE } from './dialog_gendrill_base.js';
 
 interface Props {
   board: BOARD;
@@ -67,22 +65,7 @@ interface Props {
 const PRECISION_INCHES = new DRILL_PRECISION(2, 4);
 const PRECISION_METRIC = new DRILL_PRECISION(3, 3);
 
-const ORIGIN_CHOICES = ['Absolute', 'Drill/place file origin'].map((l, i) => ({
-  value: String(i),
-  label: l,
-}));
-const UNITS_CHOICES = ['Millimeters', 'Inches'].map((l, i) => ({ value: String(i), label: l }));
-const ZEROS_CHOICES = [
-  'Decimal format (recommended)',
-  'Suppress leading zeros',
-  'Suppress trailing zeros',
-  'Keep zeros',
-].map((l, i) => ({ value: String(i), label: l }));
 /** `m_choiceDrillMap`'s order, and `genDrillAndMapFiles`'s `filefmt[]` beside it. */
-const MAP_CHOICES = ['Postscript', 'Gerber X2', 'DXF', 'SVG', 'PDF'].map((l, i) => ({
-  value: String(i),
-  label: l,
-}));
 const MAP_FORMATS = [
   PLOT_FORMAT.POST,
   PLOT_FORMAT.GERBER,
@@ -109,7 +92,7 @@ export function DialogGendrill({
 }: Props): JSX.Element {
   const [initial] = useState(() => board.GetPlotOptions());
   const [outputDir, setOutputDir] = useState(() => initial.GetOutputDirectory());
-  const [browseOpen, setBrowseOpen] = useState(false);
+  const [browsing, setBrowsing] = useState(false);
   const [origin, setOrigin] = useState(() => (initial.GetUseAuxOrigin() ? '1' : '0'));
   const [format, setFormat] = useState<'excellon' | 'gerberx2'>('excellon');
   const [generateTenting, setGenerateTenting] = useState(false);
@@ -232,186 +215,53 @@ export function DialogGendrill({
     if (!writer.GenDrillReportFile(name)) appendMsg(`Failed to create file '${name}'.`);
   };
 
+  const check = (aValue: boolean, aSet: (aOn: boolean) => void, aEnabled = true) => ({
+    value: aValue,
+    enabled: aEnabled,
+    onChange: aSet,
+  });
+  const choice = (aValue: string, aSet: (aValue: string) => void, aEnabled = true) => ({
+    value: Number(aValue),
+    enabled: aEnabled,
+    onChange: (aIndex: number) => aSet(String(aIndex)),
+  });
+
   return (
-    <DialogShim title="Generate Drill Files" onClose={onClose}>
-      <div className="ze-modal-body" style={{ display: 'block', overflow: 'auto' }}>
-        <div className="ze-gendrill-upper" onMouseDown={() => setBrowseOpen(false)}>
-          <span>Output folder:</span>
-          <input
-            className="ze-search"
-            style={{ flex: 1 }}
-            value={outputDir}
-            placeholder="Project folder"
-            title="Folder inside the project for the drill/map files (relative to the project). They appear in the file manager, where you can download them."
-            onChange={(e) => setOutputDir(e.target.value)}
-          />
-          <div style={{ position: 'relative' }}>
-            <button
-              type="button"
-              className="ze-btn sm"
-              title="Select output folder"
-              onMouseDown={(e) => {
-                e.stopPropagation();
-                setBrowseOpen((v) => !v);
-              }}
-            >
-              <Icon name="folder" size={14} />
-            </button>
-            {browseOpen && (
-              <div className="ze-folder-browse-popup" onMouseDown={(e) => e.stopPropagation()}>
-                {[
-                  '',
-                  ...[...new Set(projectFolders.filter(Boolean))].sort((a, b) =>
-                    a.localeCompare(b),
-                  ),
-                ].map((f) => (
-                  <div
-                    key={f || '.'}
-                    className="ze-menu-item ze-folder-browse-item"
-                    onClick={() => {
-                      setOutputDir(f);
-                      setBrowseOpen(false);
-                    }}
-                  >
-                    {f || 'Project folder'}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="ze-gendrill-columns" style={{ display: 'flex', alignItems: 'flex-start' }}>
-          {/* bLeftCol: "Format" is a wxStaticText + wxStaticLine, not a box. */}
-          <div className="ze-gendrill-col" style={{ flex: 1 }}>
-            <div className="ze-gendrill-headline">Format</div>
-            <hr className="ze-gendrill-rule" />
-            <RadioButton
-              label="Excellon"
-              name="ze-gendrill-fmt"
-              checked={excellonSelected}
-              onChange={() => setFormat('excellon')}
-            />
-            <div className="ze-gendrill-suboptions">
-              <CheckBox
-                label="Mirror Y axis"
-                checked={mirror}
-                disabled={!excellonSelected}
-                title={'Not recommended.\nUsed mostly by users who make the boards themselves.'}
-                onChange={(aChecked) => setMirror(aChecked)}
-              />
-              <CheckBox
-                label="Minimal header"
-                checked={minimal}
-                disabled={!excellonSelected}
-                title={
-                  'Not recommended.\nOnly use it for board houses which do not accept fully featured headers.'
-                }
-                onChange={(aChecked) => setMinimal(aChecked)}
-              />
-              <CheckBox
-                label="PTH and NPTH in single file"
-                checked={mergePTHNPTH}
-                disabled={!excellonSelected}
-                title={
-                  'Not recommended.\nOnly use for board houses which ask for merged PTH and NPTH into a single file.'
-                }
-                onChange={(aChecked) => setMergePTHNPTH(aChecked)}
-              />
-              <CheckBox
-                label="Use alternate drill mode for oval holes"
-                checked={altDrillMode}
-                disabled={!excellonSelected}
-                onChange={(aChecked) => setAltDrillMode(aChecked)}
-              />
-            </div>
-            <RadioButton
-              label="Gerber X2"
-              name="ze-gendrill-fmt"
-              checked={!excellonSelected}
-              onChange={() => setFormat('gerberx2')}
-            />
-            <div className="ze-gendrill-suboptions">
-              <CheckBox
-                label="Generate tenting layers"
-                checked={generateTenting}
-                disabled={excellonSelected}
-                onChange={(aChecked) => setGenerateTenting(aChecked)}
-              />
-            </div>
-            <div className="ze-gendrill-genmap">
-              <CheckBox
-                label="Generate map:"
-                checked={generateMap}
-                onChange={(aChecked) => setGenerateMap(aChecked)}
-              />
-              <Combo
-                value={mapFormat}
-                options={MAP_CHOICES}
-                onChange={setMapFormat}
-                disabled={!generateMap}
-                ariaLabel="Generate map format"
-              />
-            </div>
-          </div>
-
-          {/* bRightCol: "Options" is a wxStaticText + wxStaticLine too. */}
-          <div className="ze-gendrill-col" style={{ flex: '0 0 240px' }}>
-            <div className="ze-gendrill-headline">Options</div>
-            <hr className="ze-gendrill-rule" />
-            <div className="ze-gendrill-optrow">
-              <span className="ze-gendrill-optlabel">Origin:</span>
-              <Combo
-                value={origin}
-                options={ORIGIN_CHOICES}
-                onChange={setOrigin}
-                style={{ flex: 1 }}
-                ariaLabel="Origin"
-              />
-            </div>
-            <div className="ze-gendrill-optrow">
-              <span className="ze-gendrill-optlabel">Units:</span>
-              <Combo
-                value={units}
-                options={UNITS_CHOICES}
-                onChange={setUnits}
-                disabled={!excellonSelected}
-                style={{ flex: 1 }}
-                ariaLabel="Units"
-              />
-            </div>
-            <div className="ze-gendrill-optrow">
-              <span className="ze-gendrill-optlabel">Zeros:</span>
-              <Combo
-                value={zeros}
-                options={ZEROS_CHOICES}
-                onChange={setZeros}
-                disabled={!excellonSelected}
-                style={{ flex: 1 }}
-                ariaLabel="Zeros"
-              />
-            </div>
-            <div className="ze-gendrill-optrow" style={{ opacity: precisionEnabled ? 1 : 0.5 }}>
-              <span className="ze-gendrill-optlabel">Precision:</span>
-              <span>{precisionStr}</span>
-            </div>
-          </div>
-        </div>
-
-        <StaticBox label="Messages" className="ze-gendrill-messages">
-          <textarea readOnly value={messages.join('\n')} />
-        </StaticBox>
-      </div>
-
-      <div className="ze-modal-footer">
-        <Button
-          label="Generate Report File..."
-          className="ze-gendrill-report-btn"
-          onClick={generateReport}
+    <>
+      <DIALOG_GENDRILL_BASE
+        m_outputDirectoryName={outputDir}
+        onOutputDirectoryName={setOutputDir}
+        onOutputDirectoryBrowseClicked={() => setBrowsing(true)}
+        excellon={excellonSelected}
+        onFileFormatSelection={(aExcellon) => setFormat(aExcellon ? 'excellon' : 'gerberx2')}
+        m_Check_Mirror={check(mirror, setMirror, excellonSelected)}
+        m_Check_Minimal={check(minimal, setMinimal, excellonSelected)}
+        m_Check_Merge_PTH_NPTH={check(mergePTHNPTH, setMergePTHNPTH, excellonSelected)}
+        m_altDrillMode={check(altDrillMode, setAltDrillMode, excellonSelected)}
+        m_generateTentingLayers={check(generateTenting, setGenerateTenting, !excellonSelected)}
+        m_cbGenerateMap={check(generateMap, setGenerateMap)}
+        m_choiceDrillMap={choice(mapFormat, setMapFormat, generateMap)}
+        m_origin={choice(origin, setOrigin)}
+        m_units={choice(units, setUnits, excellonSelected)}
+        m_zeros={choice(zeros, setZeros, excellonSelected)}
+        precision={precisionStr}
+        precisionEnabled={precisionEnabled}
+        messages={messages.join('\n')}
+        onGenReportFile={generateReport}
+        onGenerate={generate}
+        onCancel={onClose}
+      />
+      {browsing && (
+        <WxDirDialog
+          title="Select Output Directory"
+          folders={projectFolders}
+          initial={outputDir}
+          onDone={(aFolder) => {
+            setBrowsing(false);
+            if (aFolder !== null) setOutputDir(aFolder);
+          }}
         />
-        <Button label="Close" onClick={onClose} />
-        <Button label="Generate" isDefault onClick={generate} />
-      </div>
-    </DialogShim>
+      )}
+    </>
   );
 }

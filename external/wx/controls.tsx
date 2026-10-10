@@ -253,3 +253,20 @@ export function HyperlinkCtrl({
     </button>
   );
 }
+
+/**
+ * A wxCheckBox member as a `_base` takes it: its value, the enable its onUpdateUI handler (or
+ * `Enable()`) gives it, and the change.
+ */
+export interface CHECK {
+  value: boolean;
+  enabled?: boolean;
+  onChange: (aOn: boolean) => void;
+}
+
+/** A wxChoice member as a `_base` takes it: its selection, enable, and change. */
+export interface CHOICE {
+  value: number;
+  enabled?: boolean;
+  onChange: (aIndex: number) => void;
+}

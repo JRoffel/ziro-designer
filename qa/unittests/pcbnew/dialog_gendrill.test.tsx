@@ -245,7 +245,7 @@ describe('DialogGendrill', () => {
       />,
     );
 
-    fireEvent.change(screen.getByPlaceholderText('Project folder'), {
+    fireEvent.change(screen.getByLabelText('Output folder'), {
       target: { value: 'drill' },
     });
     fireEvent.click(screen.getByText('Generate'));

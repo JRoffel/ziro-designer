@@ -86,7 +86,8 @@ const BASELINE: Record<(typeof AREAS)[number], Record<Kind, number>> = {
   // dialogs, merged in after being written before this ratchet existed; their session owns them
   // and moves them onto DialogShim. Not a licence: no other number here has ever gone up.
   // 10-10: the three export dialogs (IPC-2581, ODB++, VRML) on the sizers - 92/64/4/42 before.
-  pcbnew: { button: 83, checkbox: 58, select: 3, frame: 1, radio: 4, entry: 34, sbox: 61 },
+  // ... then the drill and position-file dialogs: button 83 -> 81, entry 34 -> 31.
+  pcbnew: { button: 81, checkbox: 58, select: 3, frame: 1, radio: 4, entry: 31, sbox: 61 },
 };
 
 function tsxFiles(aDir: string, aOut: string[] = []): string[] {
