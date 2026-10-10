@@ -9,7 +9,7 @@
  */
 
 import { WXK } from './wx_keycodes.js';
-import * as KIPLATFORM_UI from '@ziroeda/kiplatform/ui.js';
+import { wxSetMousePosition } from './utils.js';
 import {
   wxEVT_AUX1_DCLICK,
   wxEVT_AUX1_DOWN,
@@ -74,7 +74,10 @@ function setModifiers(
   aEvent.state.SetMetaDown(aDom.metaKey);
   // On GTK WXK_RAW_CONTROL is WXK_CONTROL
   aEvent.state.SetRawControlDown(aDom.ctrlKey);
-  KIPLATFORM_UI.RecordModifierState(aDom);
+  // The modifier state wxGetKeyState answers from (GTK keeps it; the page records each event's).
+  wxSetKeyState(WXK.WXK_CONTROL, aDom.ctrlKey);
+  wxSetKeyState(WXK.WXK_SHIFT, aDom.shiftKey);
+  wxSetKeyState(WXK.WXK_ALT, aDom.altKey);
 }
 
 /**
@@ -197,7 +200,7 @@ export function wxMouseEventFromDom(
   if (aKind === 'down') ev.m_clickCount = dclick ? 2 : 1;
   else if (aKind === 'up') ev.m_clickCount = 1;
 
-  KIPLATFORM_UI.SetMousePosition(aDom.pageX, aDom.pageY);
+  wxSetMousePosition(aDom.pageX, aDom.pageY);
 
   return ev;
 }
@@ -231,7 +234,7 @@ export function wxWheelEventFromDom(aTarget: HTMLElement, aDom: WheelEvent): wxM
 
   ev.m_wheelDelta = 120;
 
-  KIPLATFORM_UI.SetMousePosition(aDom.pageX, aDom.pageY);
+  wxSetMousePosition(aDom.pageX, aDom.pageY);
 
   return ev;
 }
@@ -389,4 +392,25 @@ if (typeof window !== 'undefined') {
   );
   // A button released after the page lost focus never sends its pointerup.
   window.addEventListener('blur', () => wxSetMouseButtons(0));
+}
+
+/**
+ * Key events whose default the page suppressed purely to stop the BROWSER acting on a combo the
+ * app claims (`claimBrowserHotkeys`), as GTK would never have offered it to the browser. A
+ * `WeakSet` rather than a flag on the event, so nothing is mutated and the entry dies with it.
+ */
+const SUPPRESSED = new WeakSet<object>();
+
+/** Record that the page, not a handler, prevented this event's default. */
+export function markBrowserSuppressed(e: object): void {
+  SUPPRESSED.add(e);
+}
+
+/**
+ * Did the page suppress this event's default, rather than a real handler claiming it? A
+ * dispatcher ignores `defaultPrevented` when this is true: the capture listener runs before
+ * every handler, which is not the same as the key having been acted on.
+ */
+export function wasBrowserSuppressed(e: object): boolean {
+  return SUPPRESSED.has(e);
 }

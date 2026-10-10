@@ -21,7 +21,7 @@
  */
 import type { ToolEntry } from '@ziroeda/common/tool/action_toolbar_types.js';
 import type { ToolbarDefaults } from '@ziroeda/common/tool/ui/toolbar_configuration.js';
-import type { Menu, MenuItem } from '@ziroeda/common/tool/action_menu_types.js';
+import type { Menu, MenuItem } from '@ziroeda/wx/menu.js';
 import { addClose } from '@ziroeda/common/tool/action_menu.js';
 import { standardHelpMenu } from '@ziroeda/common/eda_base_frame_help_menu.js';
 

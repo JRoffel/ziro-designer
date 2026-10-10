@@ -36,7 +36,7 @@
  */
 import { Button } from '@ziroeda/wx/controls.js';
 import { useEffect, useId, useRef, useState, type JSX } from 'react';
-import { Combo } from './wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import { SpinCtrl } from '@ziroeda/wx/spin_ctrl.js';
 import { GAL_SCREEN_DPI } from './kistatusbar_format.js';
 

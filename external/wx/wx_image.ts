@@ -7,7 +7,7 @@
  * `Rotate90`, `Mirror` and `ConvertToGreyscale`.
  *
  * PNG is decoded here (every colour type, bit depth and Adam7) and encoded
- * with `png_encoder.ts`. A JPEG is read for its size and JFIF density only —
+ * with `imagpng.ts`. A JPEG is read for its size and JFIF density only —
  * there is no JPEG decoder here, so a JPEG's pixels cannot be transformed;
  * `wxJPEGHandler` would decode them through libjpeg.
  *
@@ -18,7 +18,7 @@
  */
 
 import { inflateZlib } from './inflate.js';
-import { PNG_SIGNATURE, pngChunk, pngCrc32, zlibStored } from '@ziroeda/common/png_encoder.js';
+import { PNG_SIGNATURE, pngChunk, pngCrc32, zlibStored } from './imagpng.js';
 
 /** `wxImageResolution`. */
 export enum wxImageResolution {

@@ -12,16 +12,12 @@
  * list (so `GetNext()` means what it does in wx), and attributes keep their
  * insertion order.
  */
+import { wxXmlNodeType } from '@ziroeda/wx/xml.js';
 import { Prettify } from './io/kicad/kicad_io_utils.js';
 import { type OUTPUTFORMATTER, STRING_FORMATTER } from './richio.js';
 
-/** `wxXmlNodeType`, the two kinds an XNODE is used as. */
-export enum wxXmlNodeType {
-  wxXML_ELEMENT_NODE = 1,
-  wxXML_TEXT_NODE = 3,
-  wxXML_CDATA_SECTION_NODE = 4,
-  wxXML_DOCUMENT_NODE = 9,
-}
+// `wxXmlNodeType` is wx's (wx/xml/xml.h); XNODE derives from wxXmlNode.
+export { wxXmlNodeType };
 
 /**
  * `XATTR::VALUE_TYPE`, `std::variant<wxString, int, double>`. A JS number

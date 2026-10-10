@@ -15,6 +15,7 @@
     "@ziroeda/ai": "workspace:*",
     "@ziroeda/bitmap2component": "workspace:*",
     "@ziroeda/bitmaps_png": "workspace:*",
+    "@ziroeda/cairo": "workspace:*",
     "@ziroeda/common": "workspace:*",
     "@ziroeda/core": "workspace:*",
     "@ziroeda/cvpcb": "workspace:*",

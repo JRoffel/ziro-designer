@@ -9,48 +9,16 @@
  *
  * Only the ones a ported dialog uses are here so far.
  */
+import {
+  wxFILTER_EMPTY,
+  wxFILTER_EXCLUDE_CHAR_LIST,
+  wxTextValidator,
+} from '@ziroeda/wx/valtext.js';
 import { GetRefDesPrefix } from './refdes_utils.js';
 import { FIELD_T } from './template_fieldnames.js';
 
-/** `wxFILTER_EMPTY` (wx/valtext.h): an empty value is not valid. */
-export const wxFILTER_EMPTY = 0x1;
-/** `wxFILTER_EXCLUDE_CHAR_LIST` (wx/valtext.h): the excluded characters are not valid. */
-export const wxFILTER_EXCLUDE_CHAR_LIST = 0x200;
-
-/** `wxTextValidator( wxFILTER_EXCLUDE_CHAR_LIST )`, as far as KiCad uses it. */
-export class wxTextValidator {
-  private m_charExcludes = '';
-  private m_style: number;
-
-  constructor(aStyle = wxFILTER_EXCLUDE_CHAR_LIST) {
-    this.m_style = aStyle;
-  }
-
-  GetStyle(): number {
-    return this.m_style;
-  }
-
-  SetStyle(aStyle: number): void {
-    this.m_style = aStyle;
-  }
-
-  HasFlag(aFlag: number): boolean {
-    return (this.m_style & aFlag) !== 0;
-  }
-
-  SetCharExcludes(aChars: string): void {
-    this.m_charExcludes = aChars;
-  }
-
-  GetCharExcludes(): string {
-    return this.m_charExcludes;
-  }
-
-  /** The text with every excluded character dropped, as typing it would. */
-  Filter(aText: string): string {
-    return [...aText].filter((c) => !this.m_charExcludes.includes(c)).join('');
-  }
-}
+// `wxTextValidator` and its filter styles are wx's (external/wx/valtext.ts).
+export { wxFILTER_EMPTY, wxFILTER_EXCLUDE_CHAR_LIST, wxTextValidator };
 
 /**
  * `FOOTPRINT_NAME_VALIDATOR` (validators.cpp:45-53): the characters that

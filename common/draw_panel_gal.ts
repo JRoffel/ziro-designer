@@ -20,7 +20,7 @@ import { KICURSOR } from './gal/cursors.js';
 import { RENDER_TARGET } from './gal/definitions.js';
 import type { GAL_DISPLAY_OPTIONS } from './gal/gal_display_options.js';
 import { GAL, GAL_CONTEXT_LOCKER, GAL_DRAWING_CONTEXT } from './gal/graphics_abstraction_layer.js';
-import type { CANVAS_2D } from './gal/cairo/cairo_api.js';
+import type { CANVAS_2D } from '@ziroeda/cairo/cairo.js';
 import { CAIRO_GAL, type CAIRO_GAL_WINDOW } from './gal/cairo/cairo_gal.js';
 import { OPENGL_GAL, type OPENGL_GAL_CANVAS } from './gal/opengl/opengl_gal.js';
 import type { PAINTER } from './gal/painter.js';

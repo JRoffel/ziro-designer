@@ -19,7 +19,7 @@
 
 import { Button, CheckBox, RadioButton, TextCtrl } from '@ziroeda/wx/controls.js';
 import type { JSX } from 'react';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import { Icon } from '@ziroeda/common/widgets/icons.js';
 import type { PROJECT } from '@ziroeda/common/project.js';
 import {

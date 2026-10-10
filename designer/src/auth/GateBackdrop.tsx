@@ -23,7 +23,7 @@ import type { JSX } from 'react';
 import { EllipsizedField } from '@ziroeda/common/widgets/wx_ellipsized_static_text_ui.js';
 import { HomeLink } from '../ui/HomeLink.js';
 import { KiStatusBar } from '@ziroeda/common/widgets/kistatusbar.js';
-import { MenuBar, type Menu } from '@ziroeda/common/tool/action_menu_bar.js';
+import { MenuBar, type Menu } from '@ziroeda/wx/menu_ui.js';
 import { MGR_TOOLS, TILES, tileIcon } from '../home/launcher_tiles.js';
 import { managerTitle, projectStatusText } from '../home/manager_frame.js';
 import { mgrUrl } from '../home/project_tree_pane.js';

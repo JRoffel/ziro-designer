@@ -8,9 +8,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@ziroeda/common": "workspace:*",
-    "@ziroeda/include": "workspace:*",
-    "@ziroeda/kiplatform": "workspace:*",
+    "@ziroeda/cairo": "workspace:*",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

@@ -20,7 +20,7 @@ import { useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import { RcTreeView } from '@ziroeda/common/widgets/rc_tree_view.js';
 import type { RC_TREE_MODEL, RC_TREE_NODE, RC_TREE_VIEW_STATE } from '@ziroeda/common/rc_item.js';
 import { RC_TREE_NODE_TYPE } from '@ziroeda/common/rc_item.js';
-import { ContextMenu, type MenuItem } from '@ziroeda/common/tool/action_menu_bar.js';
+import { ContextMenu, type MenuItem } from '@ziroeda/wx/menu_ui.js';
 import { KiBitmapBundle } from '@ziroeda/common/bitmap.js';
 import { BITMAPS } from '@ziroeda/include/bitmaps/bitmaps_list.js';
 import { useModalEscape } from '@ziroeda/common/dialog_shim.js';

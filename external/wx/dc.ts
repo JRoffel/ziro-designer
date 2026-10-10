@@ -22,8 +22,8 @@
  * `wxDCImpl`'s `false` (gtk/print.h:214-312, dc.h:540).
  */
 
-import { type Color4d, COLOR4D_BLACK, toCss } from '@ziroeda/common/gal/color4d.js';
-import type { CANVAS_2D } from '@ziroeda/common/gal/cairo/cairo_api.js';
+import type { CANVAS_2D } from '@ziroeda/cairo/cairo.js';
+import { type wxColour, wxBLACK, wxColourToCss } from './colour.js';
 import type { WX_IMAGE } from './wx_image.js';
 
 export enum wxPenStyle {
@@ -46,13 +46,13 @@ export enum wxBrushStyle {
 /** `wxPen`: the colour, width, style and dashes GRSetColorPen gives it. */
 export class wxPen {
   private m_ok: boolean;
-  private m_colour: Color4d = COLOR4D_BLACK;
+  private m_colour: wxColour = wxBLACK;
   private m_width = 1;
   private m_style = wxPenStyle.wxPENSTYLE_SOLID;
   private m_dashes: number[] = [];
 
   /** `wxPen()` is not Ok until something is set; `wxPen( colour, width )` is. */
-  constructor(aColour?: Color4d, aWidth = 1, aStyle = wxPenStyle.wxPENSTYLE_SOLID) {
+  constructor(aColour?: wxColour, aWidth = 1, aStyle = wxPenStyle.wxPENSTYLE_SOLID) {
     this.m_ok = aColour !== undefined;
     if (aColour) this.m_colour = aColour;
     this.m_width = aWidth;
@@ -63,11 +63,11 @@ export class wxPen {
     return this.m_ok;
   }
 
-  GetColour(): Color4d {
+  GetColour(): wxColour {
     return this.m_colour;
   }
 
-  SetColour(aColour: Color4d): void {
+  SetColour(aColour: wxColour): void {
     this.m_colour = aColour;
     this.m_ok = true;
   }
@@ -101,14 +101,14 @@ export class wxPen {
 
 /** `wxBrush`: a colour, solid or transparent. */
 export class wxBrush {
-  private m_colour: Color4d = COLOR4D_BLACK;
+  private m_colour: wxColour = wxBLACK;
   private m_style = wxBrushStyle.wxBRUSHSTYLE_SOLID;
 
-  GetColour(): Color4d {
+  GetColour(): wxColour {
     return this.m_colour;
   }
 
-  SetColour(aColour: Color4d): void {
+  SetColour(aColour: wxColour): void {
     this.m_colour = aColour;
   }
 
@@ -131,9 +131,8 @@ export interface wxPoint {
 export const wxRound = (x: number): number => (x < 0 ? -Math.round(-x) : Math.round(x)) + 0;
 
 /**
- * The page canvas' 2D context: the cairo layer's `CANVAS_2D`, which
- * `CAIRO_PRINT_GAL` draws the same page with, and the two calls only a wxDC
- * makes.
+ * The page canvas' 2D context: Cairo's (`CANVAS_2D`, which wxGTK draws through and
+ * `CAIRO_PRINT_GAL` draws the same page with), and the two calls only a wxDC makes.
  */
 type WX_DC_2D = CANVAS_2D & Partial<Pick<CanvasRenderingContext2D, 'ellipse' | 'setLineDash'>>;
 
@@ -293,7 +292,7 @@ export class wxDC {
   private applyPen(): void {
     const ctx = this.ctx;
     const scale = Math.abs(this.m_userScaleX);
-    ctx.strokeStyle = toCss(this.m_pen.GetColour());
+    ctx.strokeStyle = wxColourToCss(this.m_pen.GetColour());
     ctx.lineWidth = Math.max(this.m_pen.GetWidth(), 0) * scale;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
@@ -342,7 +341,7 @@ export class wxDC {
     ctx.closePath();
 
     if (this.filling()) {
-      ctx.fillStyle = toCss(this.m_brush.GetColour());
+      ctx.fillStyle = wxColourToCss(this.m_brush.GetColour());
       ctx.fill('evenodd');
     }
 
@@ -390,7 +389,7 @@ export class wxDC {
 
     if (this.filling()) {
       ctx.closePath();
-      ctx.fillStyle = toCss(this.m_brush.GetColour());
+      ctx.fillStyle = wxColourToCss(this.m_brush.GetColour());
       ctx.fill();
     }
 
@@ -414,7 +413,7 @@ export class wxDC {
     else ctx.arc(dx + dw / 2, dy + dh / 2, Math.abs(dw / 2), 0, 2 * Math.PI);
 
     if (this.filling()) {
-      ctx.fillStyle = toCss(this.m_brush.GetColour());
+      ctx.fillStyle = wxColourToCss(this.m_brush.GetColour());
       ctx.fill();
     }
 

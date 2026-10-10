@@ -22,7 +22,7 @@ import {
 } from '../index.js';
 import * as sexpr from '@ziroeda/sexpr';
 import { GetAssociatedDocument } from '@ziroeda/common/eda_doc.js';
-import { MenuBar, type Menu } from '@ziroeda/common/tool/action_menu_bar.js';
+import { MenuBar, type Menu } from '@ziroeda/wx/menu_ui.js';
 import { Toolbar } from '@ziroeda/common/tool/action_toolbar.js';
 import { useStatusReadout } from '@ziroeda/common/use_status_readout.js';
 import { useKiDialog } from '@ziroeda/common/kidialog.js';

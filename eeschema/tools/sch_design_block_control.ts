@@ -19,7 +19,7 @@ import type { DESIGN_BLOCK_PANE } from '@ziroeda/common/widgets/design_block_pan
 import type { SCH_EDIT_FRAME } from '../sch_edit_frame.js';
 import { SCH_ACTIONS } from './sch_actions.js';
 import { type LibTreeNode, LibTreeNodeType } from '@ziroeda/common/lib_tree_model.js';
-import type { MenuItem } from '@ziroeda/common/tool/action_menu_types.js';
+import type { MenuItem } from '@ziroeda/wx/menu.js';
 import {
   type ConditionalEntry,
   evaluateConditionalMenu,

@@ -53,7 +53,7 @@ import type { COLOR_SETTINGS } from '@ziroeda/common/settings/color_settings.js'
 import { toCss } from '@ziroeda/common/gal/color4d.js';
 import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
 import { StdBitmapButton } from '@ziroeda/common/widgets/std_bitmap_button.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import type { PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import type { BOARD } from '../board.js';
 import {

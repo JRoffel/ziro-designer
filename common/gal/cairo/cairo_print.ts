@@ -35,7 +35,7 @@ import {
   cairo_surface_reference,
   type cairo_surface_t,
   type cairo_t,
-} from './cairo_api.js';
+} from '@ziroeda/cairo/cairo.js';
 import { CAIRO_GAL_BASE } from './cairo_gal.js';
 
 const COLOR4D = (r: number, g: number, b: number, a: number): Color4d => ({ r, g, b, a });

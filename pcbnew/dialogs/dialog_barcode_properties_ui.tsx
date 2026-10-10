@@ -30,7 +30,7 @@ import {
   type BarcodePreview,
   type BarcodeValues,
 } from './dialog_barcode_properties.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import { DialogShim } from '@ziroeda/common/dialog_shim.js';
 import { pcbUnitText, pcbUnitValue, unitLabel } from '../pcb_unit_binder.js';
 import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';

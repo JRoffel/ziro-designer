@@ -159,7 +159,7 @@ describe('shared grid + crosshair', () => {
     expect(src).not.toMatch(/gridSizesIU\(/);
     expect(src).toMatch(/fpCfg\.window\.grid\.sizes/);
     // ...and it is a `Combo`, never the browser's `<select>`.
-    expect(src).toMatch(/from '@ziroeda\/common\/widgets\/wx_combobox\.js'/);
+    expect(src).toMatch(/from '@ziroeda\/wx\/combobox\.js'/);
   });
 
   it('nobody keeps a private copy of DefaultGridSizeList', () => {

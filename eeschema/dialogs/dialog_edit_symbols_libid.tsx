@@ -24,7 +24,8 @@ import { DisplayInfoMessage } from '@ziroeda/common/confirm.js';
 import { DialogShim } from '@ziroeda/common/dialog_shim.js';
 import { SingleChoiceDialog } from '@ziroeda/common/dialogs/dialog_single_choice.js';
 import { wxGridSelectionModes } from '@ziroeda/wx/grid.js';
-import { useStringGrid, WxGridView } from '@ziroeda/wx/grid_ui.js';
+import { WxGridView } from '@ziroeda/wx/grid_ui.js';
+import { useStringGrid } from '@ziroeda/common/widgets/wx_grid.js';
 
 const COL_REFS = 0;
 const COL_CURR_LIBID = 1;

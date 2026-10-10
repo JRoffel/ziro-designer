@@ -31,7 +31,7 @@ import { type JSX, useLayoutEffect, useRef, useState } from 'react';
 import { pcbIUScale } from '@ziroeda/common/eda_units.js';
 import { GRID_TRICKS } from '@ziroeda/common/grid_tricks.js';
 import { UNITS_PROVIDER } from '@ziroeda/common/units_provider.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import { parseUnitValueDouble } from '@ziroeda/common/widgets/unit_binder.js';
 import { WX_GRID } from '@ziroeda/common/widgets/wx_grid.js';
 import {

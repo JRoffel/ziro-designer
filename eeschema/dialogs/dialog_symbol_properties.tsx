@@ -31,7 +31,7 @@ import { GRID_CELL_ICON_TEXT_RENDERER } from '@ziroeda/common/widgets/grid_icon_
 import type { GRID_TEXT_BUTTON_HOST } from '@ziroeda/common/widgets/grid_text_button_helpers.js';
 import { StdBitmapButton } from '@ziroeda/common/widgets/std_bitmap_button.js';
 import { WX_GRID, WX_GRID_TABLE_BASE } from '@ziroeda/common/widgets/wx_grid.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import {
   type wxAttrKind,
   type wxGridEvent,

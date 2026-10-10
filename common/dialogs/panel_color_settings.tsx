@@ -62,7 +62,8 @@ import {
   type ReactNode,
   type SetStateAction,
 } from 'react';
-import { Button, Check } from '@ziroeda/wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
+import { Check } from './pref_controls.js';
 import { ColorSwatch } from '../widgets/color_swatch.js';
 import { ThemeFolderDialog, type FolderFile, type ThemeFile } from '../launch_ext.js';
 import { WxTextEntryDialog } from '@ziroeda/wx/textdlg.js';
@@ -78,7 +79,7 @@ import {
 import type { UserColorTheme } from '../settings/color_theme_file.js';
 import type { Color4d } from '../index.js';
 import type { ColorThemeContents } from '../settings/color_theme_file.js';
-import { Sel } from '@ziroeda/wx/controls.js';
+import { Sel } from './pref_controls.js';
 import { BUILTIN_THEMES } from '../settings/builtin_color_themes.js';
 
 // ---------------------------------------------------------------------------

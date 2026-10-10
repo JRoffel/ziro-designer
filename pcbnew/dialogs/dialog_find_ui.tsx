@@ -16,7 +16,7 @@ import { DialogShim } from '@ziroeda/common/dialog_shim.js';
 import { KeyNameFromKeyCode } from '@ziroeda/common/hotkeys_basic.js';
 import { ACTIONS } from '@ziroeda/common/tool/actions.js';
 import { Button, CheckBox, HyperlinkCtrl, StaticLine } from '@ziroeda/wx/controls.js';
-import { TextCombo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { TextCombo } from '@ziroeda/wx/combobox.js';
 import type { DIALOG_FIND, FIND_OPTIONS } from './dialog_find.js';
 
 interface Props {

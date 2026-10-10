@@ -49,7 +49,7 @@ import type { GRID_TEXT_BUTTON_HOST } from '@ziroeda/common/widgets/grid_text_bu
 import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
 import { UNIT_BINDER, unitLabel } from '@ziroeda/common/widgets/unit_binder.js';
 import { WX_GRID } from '@ziroeda/common/widgets/wx_grid.js';
-import { TextCombo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { TextCombo } from '@ziroeda/wx/combobox.js';
 import {
   type wxGridEvent,
   wxEVT_GRID_CELL_CHANGING,

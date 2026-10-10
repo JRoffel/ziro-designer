@@ -33,7 +33,7 @@
  */
 
 import { useState, type JSX } from 'react';
-import { ContextMenu } from '@ziroeda/common/tool/action_menu_bar.js';
+import { ContextMenu } from '@ziroeda/wx/menu_ui.js';
 import {
   type GERBER_LAYER_WIDGET_ID,
   layerContextMenu,

@@ -19,7 +19,7 @@ import {
   footprintEditorMenus,
   type FootprintMenuConditions,
 } from '@ziroeda/pcbnew/menubar_footprint_editor.js';
-import type { Menu, MenuItem } from '@ziroeda/common/tool/action_menu_types.js';
+import type { Menu, MenuItem } from '@ziroeda/wx/menu.js';
 
 const find = (menus: Menu[], menu: string, label: string): MenuItem | undefined =>
   menus.find((m) => m.label === menu)?.items.find((i) => i.label === label);

@@ -10,7 +10,7 @@
 import type { JSX } from 'react';
 import { INDETERMINATE_ACTION } from './ui_common.js';
 import { BUNDLED_FONTS } from '../font/fontconfig.js';
-import { Combo, type ComboOption } from './wx_combobox.js';
+import { Combo, type ComboOption } from '@ziroeda/wx/combobox.js';
 
 /**
  * The families the catalogue holds, in the order `FONT_LIST_MANAGER` would

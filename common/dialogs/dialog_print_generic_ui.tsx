@@ -34,7 +34,7 @@
 import { CheckBox, RadioButton, StaticBox, TextCtrl } from '@ziroeda/wx/controls.js';
 import type { JSX, ReactNode } from 'react';
 import { DialogShim, StdDialogButtons } from '../dialog_shim.js';
-import { Combo } from '../widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import { useModalEscape } from '../dialog_shim.js';
 import type { PrintScaleMode } from './dialog_print_generic.js';
 

@@ -58,7 +58,7 @@
  * is therefore the one row whose label would be translated once catalogues
  * exist. Every other row reads the same in every locale by design.
  */
-import type { MenuItem } from './tool/action_menu_types.js';
+import type { MenuItem } from '@ziroeda/wx/menu.js';
 
 /** `LANGUAGE_DESCR` (include/pgm_base.h), minus the two wx integer ids. */
 export interface LanguageDescr {

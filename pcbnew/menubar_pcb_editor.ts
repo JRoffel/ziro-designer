@@ -49,7 +49,7 @@
  * (`ui/menu_hotkeys.ts`), which is `ACTION_CONDITIONS`' rule too.
  */
 
-import type { Menu } from '@ziroeda/common/tool/action_menu_types.js';
+import type { Menu } from '@ziroeda/wx/menu.js';
 import { browserSafeKey } from '@ziroeda/common/browser_reserved.js';
 import { addQuitOrClose } from '@ziroeda/common/tool/action_menu.js';
 import { standardHelpMenu } from '@ziroeda/common/eda_base_frame_help_menu.js';

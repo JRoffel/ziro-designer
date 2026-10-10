@@ -46,7 +46,7 @@ import { GetStandardColors } from './stackup_predefined_prms.js';
 import { BuildStackupReport } from './board_stackup_reporter.js';
 import { DialogDielectricMaterial, type Substrate } from './dialog_dielectric_list_manager.js';
 import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import { stringFromValue } from '@ziroeda/common/widgets/unit_binder.js';
 import { EdaListDialog } from '@ziroeda/common/dialogs/eda_list_dialog.js';
 import type { PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';

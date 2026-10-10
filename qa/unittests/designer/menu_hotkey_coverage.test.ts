@@ -40,7 +40,7 @@ import {
   UPSTREAM_QUIT_KEY,
 } from '@ziroeda/common/tool/action_menu.js';
 import { eventFromCombo } from '@ziroeda/designer/src/editors/schematic/hotkey_bindings.js';
-import type { Menu, MenuItem } from '@ziroeda/common/tool/action_menu_types.js';
+import type { Menu, MenuItem } from '@ziroeda/wx/menu.js';
 import { footprintViewerMenus } from '@ziroeda/pcbnew/toolbars_footprint_viewer.js';
 
 const SRC = fileURLToPath(new URL('../../../designer/src', import.meta.url));

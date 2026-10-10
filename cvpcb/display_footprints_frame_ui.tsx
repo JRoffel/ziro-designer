@@ -54,7 +54,7 @@ import {
   type StatusUnits,
 } from '@ziroeda/common/widgets/kistatusbar_format.js';
 import { MsgPanel, type MsgPanelItem } from '@ziroeda/common/widgets/msgpanel_ui.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import type { BOARD } from '@ziroeda/pcbnew/board.js';
 import type { FOOTPRINT_LIBRARY_ADAPTER } from '@ziroeda/pcbnew/footprint_library_adapter.js';
 import { usePcbDrawPanel } from '@ziroeda/pcbnew/browser/pcb_draw_panel_gal_host.js';

@@ -19,7 +19,7 @@
  *   - `toggle(id)` flips a CHECK setting (View toggles).
  */
 
-import type { Menu, MenuItem } from '@ziroeda/common/tool/action_menu_types.js';
+import type { Menu, MenuItem } from '@ziroeda/wx/menu.js';
 import { addQuitOrClose } from '@ziroeda/common/tool/action_menu.js';
 import { standardHelpMenu } from '@ziroeda/common/eda_base_frame_help_menu.js';
 import { setLanguageMenuItem } from '@ziroeda/common/eda_base_frame_language_menu.js';

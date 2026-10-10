@@ -49,7 +49,7 @@ import {
 import { buildViewer3DMenus } from '@ziroeda/3d-viewer/3d_menubar.js';
 import { buildMenus as buildSchMenus } from '@ziroeda/eeschema/menubar.js';
 import { buildHotkeySections } from '@ziroeda/designer/src/ui/hotkeys_inventory.js';
-import type { Menu, MenuItem } from '@ziroeda/common/tool/action_menu_types.js';
+import type { Menu, MenuItem } from '@ziroeda/wx/menu.js';
 
 const SRC = fileURLToPath(new URL('../../../designer/src', import.meta.url));
 const read = (rel: string): string => readFileSync(join(SRC, rel), 'utf8');

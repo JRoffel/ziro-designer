@@ -28,12 +28,9 @@ import {
   useRef,
   useState,
 } from 'react';
-import { GRID_TRICKS } from '@ziroeda/common/grid_tricks.js';
-import type { GRID_CELL_TEXT_BUTTON_VIEW } from '@ziroeda/common/widgets/grid_text_button_helpers.js';
-import { WX_GRID } from '@ziroeda/common/widgets/wx_grid.js';
-import { ContextMenu } from '@ziroeda/common/tool/action_menu_bar.js';
-import type { MenuItem } from '@ziroeda/common/tool/action_menu_types.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { ContextMenu } from './menu_ui.js';
+import type { MenuItem } from './menu.js';
+import { Combo } from './combobox.js';
 import { wxKeyEventFromDom } from './dom_events.js';
 import {
   wxEVT_GRID_CELL_LEFT_CLICK,
@@ -65,6 +62,17 @@ import {
 } from './wx_event.js';
 
 /** What a column needs beyond the model: its stated width (`SetColSize`), a floor. */
+/**
+ * An editor that draws a button at the entry's right (a `wxComboCtrl`'s button, which does not
+ * take the focus): what the view needs of it. KiCad's GRID_CELL_TEXT_BUTTON is one.
+ */
+export interface wxGridCellButtonView {
+  /** The button's bitmap, as an image URL. */
+  GetButtonBitmap(): string;
+  /** `OnButtonClick`: a button that opens another window answers when it closes. */
+  OnButtonClick(): void | Promise<void>;
+}
+
 export interface GRID_COLUMN_VIEW {
   width?: number;
   /** `wxALIGN_CENTER` on the column's attribute. */
@@ -116,7 +124,7 @@ export function WxGridView({
 }: {
   grid: wxGrid;
   /** The grid's GRID_TRICKS, for the cell tooltips. */
-  tricks?: GRID_TRICKS;
+  tricks?: { GetCellTooltip(aRow: number, aCol: number): string };
   columns?: readonly GRID_COLUMN_VIEW[];
   /** `SetupColumnAutosizer( aFlexibleCol )`: the column that takes the slack. */
   flexCol?: number;
@@ -349,7 +357,7 @@ export function WxGridView({
 
     // GRID_CELL_TEXT_BUTTON: the entry with a button at its right, which keeps
     // the focus in the entry (a wxComboCtrl's button does not take it).
-    const textButton = aEditor as wxGridCellEditor & Partial<GRID_CELL_TEXT_BUTTON_VIEW>;
+    const textButton = aEditor as wxGridCellEditor & Partial<wxGridCellButtonView>;
 
     if (textButton.GetButtonBitmap && textButton.OnButtonClick) {
       const bitmap = textButton.GetButtonBitmap();
@@ -531,75 +539,4 @@ export function WxGridView({
       )}
     </>
   );
-}
-
-/**
- * A WX_GRID over a string table, bound to a controlled list: the rows load
- * into the grid whenever `rows` changes from outside, and every change the
- * grid makes - an edit, a paste, a cut, an added or deleted row - comes back
- * through `onChange`. KiCad's dialogs read their grid on OK; ours are
- * controlled, so the reading happens after each redraw (`onUpdate`).
- */
-export function useStringGrid<T>(opts: {
-  labels: readonly string[];
-  mode?: wxGridSelectionModes;
-  rows: readonly T[];
-  toCells: (aRow: T) => readonly string[];
-  fromCells: (aCells: readonly string[], aIndex: number) => T;
-  onChange: (aRows: T[]) => void;
-  /** Column attributes, editors, read-only cells: run after each load. */
-  setup?: (aGrid: WX_GRID) => void;
-  /** GRID_TRICKS' add handler (Enter on the last row, a paste past the end). */
-  onAddRow?: (aGrid: WX_GRID) => void;
-}): { grid: WX_GRID; tricks: GRID_TRICKS; onUpdate: () => void } {
-  const optsRef = useRef(opts);
-  optsRef.current = opts;
-
-  const [{ grid, tricks }] = useState(() => {
-    const g = new WX_GRID();
-    g.SetTable(new wxGridStringTable(0, opts.labels.length), true, opts.mode);
-    opts.labels.forEach((label, c) => {
-      g.SetColLabelValue(c, label);
-    });
-    const t = new GRID_TRICKS(g, () => optsRef.current.onAddRow?.(g));
-    return { grid: g, tricks: t };
-  });
-
-  const read = (): string[][] =>
-    Array.from({ length: grid.GetNumberRows() }, (_, r) =>
-      Array.from({ length: grid.GetNumberCols() }, (_, c) => grid.GetCellValue(r, c)),
-    );
-
-  const last = useRef<string[][] | null>(null);
-  const cells = opts.rows.map((r) => [...opts.toCells(r)]);
-  const cellsKey = JSON.stringify(cells);
-
-  // TransferDataToWindow when the list changed from outside the grid.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: cellsKey is the content of cells; the grid is stable
-  useLayoutEffect(() => {
-    if (last.current !== null && cellsKey === JSON.stringify(last.current)) return;
-
-    grid.BeginBatch();
-    grid.ClearRows();
-    grid.AppendRows(cells.length);
-    cells.forEach((row, r) => {
-      row.forEach((v, c) => {
-        grid.GetTable()!.SetValue(r, c, v);
-      });
-    });
-    optsRef.current.setup?.(grid);
-    grid.EndBatch();
-    last.current = cells;
-  }, [cellsKey]);
-
-  const onUpdate = (): void => {
-    const now = read();
-
-    if (JSON.stringify(now) === JSON.stringify(last.current)) return;
-
-    last.current = now;
-    optsRef.current.onChange(now.map((row, i) => optsRef.current.fromCells(row, i)));
-  };
-
-  return { grid, tricks, onUpdate };
 }

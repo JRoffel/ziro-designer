@@ -50,7 +50,7 @@
 import { RadioButton } from '@ziroeda/wx/controls.js';
 import { useEffect, useRef, useState, type JSX } from 'react';
 import { measureTextWidth } from '@ziroeda/common/widgets/text_ctrl_width.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import { colorThemeOptions } from '@ziroeda/common/dialogs/panel_color_settings.js';
 import { usePcmVersion } from '../../../pcm/pcmStore.js';
 import { colorSettingsList } from '../../../prefs/color_settings_list.js';

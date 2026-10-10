@@ -12,6 +12,7 @@
   "dependencies": {
     "@bokuweb/zstd-wasm": "^0.0.27",
     "@ziroeda/bitmaps_png": "workspace:*",
+    "@ziroeda/cairo": "workspace:*",
     "@ziroeda/clipper2": "workspace:*",
     "@ziroeda/core": "workspace:*",
     "@ziroeda/include": "workspace:*",

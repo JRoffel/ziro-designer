@@ -13,7 +13,7 @@
 import { CheckBox, RadioButton, TextCtrl } from '@ziroeda/wx/controls.js';
 import { Fragment, type JSX, useEffect, useRef } from 'react';
 import { Slider } from '@ziroeda/common/widgets/slider.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import {
   LAYER_CHOICES,
   NOTEBOOK_PAGES,

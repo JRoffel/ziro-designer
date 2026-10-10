@@ -24,7 +24,8 @@ import {
   type wxGridEvent,
   wxGridSelectionModes,
 } from '@ziroeda/wx/grid.js';
-import { useStringGrid, WxGridView } from '@ziroeda/wx/grid_ui.js';
+import { WxGridView } from '@ziroeda/wx/grid_ui.js';
+import { useStringGrid } from '../widgets/wx_grid.js';
 import type { PROJECT } from '../project.js';
 import type { TextVar } from '../project/project_file.js';
 

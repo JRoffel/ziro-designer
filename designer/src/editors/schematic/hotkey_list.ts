@@ -17,7 +17,7 @@
  */
 
 import type { HotkeyOverrides } from './hotkey_bindings.js';
-import type { Menu, MenuItem } from '@ziroeda/common/tool/action_menu_types.js';
+import type { Menu, MenuItem } from '@ziroeda/wx/menu.js';
 import { HOTKEYS, HOTKEY_SECTIONS, actionName } from './hotkeys.js';
 import { acceleratorName, hotkeyListName } from '@ziroeda/common/tool/action_menu_key_names.js';
 

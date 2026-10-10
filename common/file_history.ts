@@ -60,7 +60,7 @@
  * Still to be retro-fitted: the Assign Footprints dialog and gerbview's four
  * separate histories, when those branches land.
  */
-import type { MenuItem } from './tool/action_menu_types.js';
+import type { MenuItem } from '@ziroeda/wx/menu.js';
 
 /**
  * `MAX_FILE_HISTORY_SIZE` (`include/id.h:50`). The hard ceiling the

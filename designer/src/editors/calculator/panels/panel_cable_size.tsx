@@ -31,7 +31,7 @@ import {
   cableRadiusFromVDrop,
   cableUpdateAll,
 } from '@ziroeda/pcb_calculator';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import { SingleChoiceDialog } from '@ziroeda/common/dialogs/dialog_single_choice.js';
 import {
   CABLE_LEN_UNITS,

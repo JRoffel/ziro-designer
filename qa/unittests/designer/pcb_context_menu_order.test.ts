@@ -25,7 +25,7 @@
  *   PCB_GROUP_TOOL           Grouping
  */
 import { beforeAll, describe, expect, it } from 'vitest';
-import type { MenuItem } from '@ziroeda/common/tool/action_menu_types.js';
+import type { MenuItem } from '@ziroeda/wx/menu.js';
 import { actionMenuItems } from '@ziroeda/common/tool/action_menu_popup.js';
 import { installPgm } from '@ziroeda/designer/src/editors/pcb/pcb_canvas.js';
 import type { BOARD_ITEM } from '@ziroeda/pcbnew/board_item.js';

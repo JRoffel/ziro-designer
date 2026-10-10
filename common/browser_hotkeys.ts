@@ -49,6 +49,7 @@
  * *declaration* site asking `browserSafeKey` what key to carry must not have to
  * pull the dispatcher in behind it. See that file's note.
  */
+import { markBrowserSuppressed, wasBrowserSuppressed } from '@ziroeda/wx/dom_events.js';
 import { comboFromEvent, type KeyLike } from './hotkeys_basic_keys.js';
 import { isBrowserReserved } from './browser_reserved.js';
 
@@ -145,24 +146,8 @@ export function planClaim(combos: Iterable<string>): ClaimResult & { lookup: Rea
  * Returns the split of what it took, and a function to remove the listener.
  * Safe to call with no `window`, where it plans and installs nothing.
  */
-/**
- * Events this module called `preventDefault()` on, purely to stop the browser.
- *
- * A `WeakSet` rather than a flag on the event, so nothing is mutated and the
- * entry dies with the event.
- */
-const SUPPRESSED = new WeakSet<object>();
-
-/**
- * Did *we* suppress this event's default, rather than a real handler claiming it?
- *
- * A dispatcher should ignore `defaultPrevented` when this is true: our capture
- * listener runs before every app handler and suppresses the browser's action for
- * every combo the app claims, which is not the same as the key having been acted on.
- */
-export function wasBrowserSuppressed(e: object): boolean {
-  return SUPPRESSED.has(e);
-}
+// The mark is the page's event plumbing (external/wx/dom_events.ts): wx's dialogs read it too.
+export { wasBrowserSuppressed };
 
 export function claimBrowserHotkeys(
   combos: Iterable<string>,
@@ -185,7 +170,7 @@ export function claimBrowserHotkeys(
     // other handler dealt with this" therefore stood down on all of them, and
     // no accelerator fired anywhere in the app. The mark lets it tell our own
     // browser-suppression apart from a real handler's.
-    SUPPRESSED.add(e);
+    markBrowserSuppressed(e);
     e.preventDefault();
   };
 

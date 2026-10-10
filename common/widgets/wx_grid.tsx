@@ -27,7 +27,7 @@
  * cell text — never by the editor. An `<input>`'s default `size` of 20 is a
  * width no wxGrid column has; see `UnitField`'s `size` for the same note.
  */
-import { type JSX, useRef, useState } from 'react';
+import { type JSX, useLayoutEffect, useRef, useState } from 'react';
 import type { EdaDataType, EdaUnits as EDA_UNITS_T } from '../eda_units.js';
 import { UNITS_PROVIDER } from '../units_provider.js';
 import {
@@ -42,8 +42,10 @@ import {
   type wxGridCellAttr,
   type wxGridEvent,
   wxGridSelectionModes,
+  wxGridStringTable,
   wxGridTableBase,
 } from '@ziroeda/wx/grid.js';
+import { GRID_TRICKS } from '../grid_tricks.js';
 import { type EdaIuScale, pcbIUScale } from '../index.js';
 import { isNullableEditor } from './grid_text_helpers.js';
 import { type EdaUnits, parseUnitValue, stringFromValue } from './unit_binder.js';
@@ -617,4 +619,75 @@ export class WX_GRID extends wxGrid {
       this.getUnitsProvider(aCol).StringFromOptionalValue(aValue, true, cellDataType),
     );
   }
+}
+
+/**
+ * A WX_GRID over a string table, bound to a controlled list: the rows load
+ * into the grid whenever `rows` changes from outside, and every change the
+ * grid makes - an edit, a paste, a cut, an added or deleted row - comes back
+ * through `onChange`. KiCad's dialogs read their grid on OK; ours are
+ * controlled, so the reading happens after each redraw (`onUpdate`).
+ */
+export function useStringGrid<T>(opts: {
+  labels: readonly string[];
+  mode?: wxGridSelectionModes;
+  rows: readonly T[];
+  toCells: (aRow: T) => readonly string[];
+  fromCells: (aCells: readonly string[], aIndex: number) => T;
+  onChange: (aRows: T[]) => void;
+  /** Column attributes, editors, read-only cells: run after each load. */
+  setup?: (aGrid: WX_GRID) => void;
+  /** GRID_TRICKS' add handler (Enter on the last row, a paste past the end). */
+  onAddRow?: (aGrid: WX_GRID) => void;
+}): { grid: WX_GRID; tricks: GRID_TRICKS; onUpdate: () => void } {
+  const optsRef = useRef(opts);
+  optsRef.current = opts;
+
+  const [{ grid, tricks }] = useState(() => {
+    const g = new WX_GRID();
+    g.SetTable(new wxGridStringTable(0, opts.labels.length), true, opts.mode);
+    opts.labels.forEach((label, c) => {
+      g.SetColLabelValue(c, label);
+    });
+    const t = new GRID_TRICKS(g, () => optsRef.current.onAddRow?.(g));
+    return { grid: g, tricks: t };
+  });
+
+  const read = (): string[][] =>
+    Array.from({ length: grid.GetNumberRows() }, (_, r) =>
+      Array.from({ length: grid.GetNumberCols() }, (_, c) => grid.GetCellValue(r, c)),
+    );
+
+  const last = useRef<string[][] | null>(null);
+  const cells = opts.rows.map((r) => [...opts.toCells(r)]);
+  const cellsKey = JSON.stringify(cells);
+
+  // TransferDataToWindow when the list changed from outside the grid.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: cellsKey is the content of cells; the grid is stable
+  useLayoutEffect(() => {
+    if (last.current !== null && cellsKey === JSON.stringify(last.current)) return;
+
+    grid.BeginBatch();
+    grid.ClearRows();
+    grid.AppendRows(cells.length);
+    cells.forEach((row, r) => {
+      row.forEach((v, c) => {
+        grid.GetTable()!.SetValue(r, c, v);
+      });
+    });
+    optsRef.current.setup?.(grid);
+    grid.EndBatch();
+    last.current = cells;
+  }, [cellsKey]);
+
+  const onUpdate = (): void => {
+    const now = read();
+
+    if (JSON.stringify(now) === JSON.stringify(last.current)) return;
+
+    last.current = now;
+    optsRef.current.onChange(now.map((row, i) => optsRef.current.fromCells(row, i)));
+  };
+
+  return { grid, tricks, onUpdate };
 }

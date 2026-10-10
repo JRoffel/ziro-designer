@@ -238,7 +238,7 @@ describe('the three pages, and the controls on them', () => {
     // not wxAUI's #373737. Its geometry is `resizeDock`, the same clamp
     // DockSash uses, so the sign rule is stated once.
     const sash = read('../../common/widgets/wx_splitter_window.tsx');
-    expect(sash).toContain("from './wx_aui_sash_geometry.js'");
+    expect(sash).toContain("from '@ziroeda/wx/wx_aui_sash_geometry.js'");
     expect(sash).toContain("className={`ze-sash ${vertical ? 'h' : 'v'}`}");
     expect(body(SHELL, '.ze-sash')).toMatch(/background:\s*var\(--splitter-sash\)/);
   });

@@ -34,7 +34,7 @@ import {
 import { RPT_SEVERITY_ERROR, type Reporter } from '@ziroeda/common/reporter.js';
 import { Icon } from '@ziroeda/common/widgets/icons.js';
 import { SpinCtrl } from '@ziroeda/wx/spin_ctrl.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import { wxTarOutputStream } from '@ziroeda/wx/tarstrm.js';
 import type { BOARD } from '../board.js';
 import { PCB_IO_ODBPP } from '../pcb_io/odbpp/pcb_io_odbpp.js';

@@ -6,7 +6,7 @@
  * TextCombo, the editable wxComboBox: free text in the entry, a drop-down of suggestions drawn
  * with the wxChoice popup, a pick replacing the text, Enter the dialog's default button.
  */
-import { TextCombo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { TextCombo } from '@ziroeda/wx/combobox.js';
 import { cleanup, fireEvent, render } from '@testing-library/react';
 import { useState } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';

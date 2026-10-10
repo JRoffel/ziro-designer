@@ -46,7 +46,7 @@ import { EXCELLON_WRITER } from '../exporters/gendrill_excellon_writer.js';
 import { GERBER_WRITER } from '../exporters/gendrill_gerber_writer.js';
 import { DRILL_PRECISION, ZEROS_FMT } from '../exporters/gendrill_writer_base.js';
 import { PLOT_FORMAT } from '@ziroeda/common/plotters/plotter.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import { Icon } from '@ziroeda/common/widgets/icons.js';
 import { DialogShim } from '@ziroeda/common/dialog_shim.js';
 

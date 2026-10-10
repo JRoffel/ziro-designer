@@ -82,7 +82,7 @@ import {
   symbolEditorMenus,
   type SymbolMenuHandlers,
 } from '@ziroeda/eeschema/symbol_editor/menubar_symbol_editor.js';
-import type { Menu, MenuItem } from '@ziroeda/common/tool/action_menu_types.js';
+import type { Menu, MenuItem } from '@ziroeda/wx/menu.js';
 
 /** A SYMBOL_EDIT_FRAME the moment it opens: no symbol, no library row, empty
  *  undo/redo stacks, the selection tool running. */

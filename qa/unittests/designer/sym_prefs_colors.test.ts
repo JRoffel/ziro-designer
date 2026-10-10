@@ -125,7 +125,7 @@ describe('the page', () => {
   it('is a native <select> nowhere', () => {
     // A wxChoice is a button with a popup. `Combo` is the shared widget.
     const src = read(PAGE);
-    expect(src).toContain("from '@ziroeda/common/widgets/wx_combobox.js'");
+    expect(src).toContain("from '@ziroeda/wx/combobox.js'");
     expect(src).not.toContain('<select');
   });
 

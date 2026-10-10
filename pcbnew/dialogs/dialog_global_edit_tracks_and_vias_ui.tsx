@@ -14,7 +14,7 @@ import { unitLabel } from '@ziroeda/common/eda_units.js';
 import { INDETERMINATE_ACTION } from '@ziroeda/common/widgets/ui_common.js';
 import type { UNIT_BINDER } from '@ziroeda/common/widgets/unit_binder.js';
 import { NetSelector } from '@ziroeda/common/widgets/net_selector.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import type {
   CHOICE,
   DIALOG_GLOBAL_EDIT_TRACKS_AND_VIAS,

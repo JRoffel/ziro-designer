@@ -6,7 +6,7 @@
  * `KIGFX::CAIRO_GAL_BASE`, the GAL drawn with Cairo, and `KIGFX::CAIRO_GAL`,
  * the one in a window - KiCad's software fallback when OpenGL is not there.
  *
- * Cairo is `cairo_api.ts`, a Canvas 2D context behind Cairo's own function
+ * Cairo is `external/cairo/cairo.ts` (<cairo.h>), a Canvas 2D context behind Cairo's own function
  * names, so the bodies below are the C++ call for call; what Canvas cannot do
  * as Cairo does is listed there, once.
  *
@@ -95,7 +95,7 @@ import {
   type cairo_t,
   cairo_translate,
   cairo_fill_rule_t,
-} from './cairo_api.js';
+} from '@ziroeda/cairo/cairo.js';
 import { CAIRO_COMPOSITOR } from './cairo_compositor.js';
 
 const { TARGET_CACHED, TARGET_NONCACHED, TARGET_OVERLAY, TARGET_TEMP } = RENDER_TARGET;

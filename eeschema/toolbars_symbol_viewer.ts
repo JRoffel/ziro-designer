@@ -9,7 +9,7 @@
  * window) the way `symbol_viewer_frame.ts` (the logic) is.
  */
 import type { ToolEntry } from '@ziroeda/common/tool/action_toolbar.js';
-import type { Menu } from '@ziroeda/common/tool/action_menu_types.js';
+import type { Menu } from '@ziroeda/wx/menu.js';
 import { addClose } from '@ziroeda/common/tool/action_menu.js';
 import { letterSubReference } from './fieldbox.js';
 

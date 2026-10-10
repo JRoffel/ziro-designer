@@ -40,7 +40,7 @@
  * action twice.
  */
 
-import type { Menu, MenuItem } from '@ziroeda/common/tool/action_menu_types.js';
+import type { Menu, MenuItem } from '@ziroeda/wx/menu.js';
 import { addClose } from '@ziroeda/common/tool/action_menu.js';
 import { browserSafeKey } from '@ziroeda/common/browser_reserved.js';
 import { standardHelpMenu } from '@ziroeda/common/eda_base_frame_help_menu.js';

@@ -15,8 +15,8 @@ import type { EDA_BASE_FRAME } from '../eda_base_frame.js';
 import * as KIPLATFORM_UI from '@ziroeda/kiplatform/ui.js';
 import { wxMenuEvent, wxMenuEventType, wxMenuItem } from '@ziroeda/wx/menu.js';
 import type { ACTION_MENU } from './action_menu.js';
-import { ContextMenu } from './action_menu_bar.js';
-import type { MenuItem } from './action_menu_types.js';
+import { ContextMenu } from '@ziroeda/wx/menu_ui.js';
+import type { MenuItem } from '@ziroeda/wx/menu.js';
 
 /** The first `&x` of a wx label: the mnemonic GTK underlines. */
 function mnemonicOf(aLabel: string): string | undefined {

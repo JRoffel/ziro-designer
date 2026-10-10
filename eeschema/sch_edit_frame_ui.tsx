@@ -221,7 +221,7 @@ import {
 import { Toolbar } from '@ziroeda/common/tool/action_toolbar.js';
 import { kicadSchematicWildcard } from '@ziroeda/common/wildcards_and_files_ext.js';
 import { RIGHT_TOOLBAR_COMMANDS, SCH_DEFAULT_TOOLBARS } from './toolbars_sch_editor.js';
-import { MenuBar, ContextMenu, type Menu } from '@ziroeda/common/tool/action_menu_bar.js';
+import { MenuBar, ContextMenu, type Menu } from '@ziroeda/wx/menu_ui.js';
 import { buildMenus } from './menubar.js';
 import {
   CONFIRMATION_CAPTION,

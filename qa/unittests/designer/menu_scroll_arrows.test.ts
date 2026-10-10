@@ -18,10 +18,10 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { NO_ARROWS, submenuEnds } from '@ziroeda/common/tool/action_menu_scroll.js';
+import { NO_ARROWS, submenuEnds } from '@ziroeda/wx/menu_ui.js';
 
 const MENUBAR = readFileSync(
-  fileURLToPath(new URL('../../../common/tool/action_menu_bar.tsx', import.meta.url)),
+  fileURLToPath(new URL('../../../external/wx/menu_ui.tsx', import.meta.url)),
   'utf8',
 );
 

@@ -40,7 +40,7 @@
  * reason.
  */
 import { PRODUCT } from './eda_base_frame_about_titles.js';
-import type { Menu, MenuItem } from './tool/action_menu_types.js';
+import type { Menu, MenuItem } from '@ziroeda/wx/menu.js';
 import { ACTIONS } from './tool/actions.js';
 import {
   REPORT_BUG_URL,

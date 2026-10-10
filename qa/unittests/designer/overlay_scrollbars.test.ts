@@ -89,7 +89,7 @@ describe('the native scrollbars are off, which is the zero-layout-cost half', ()
     // GTK-style end arrows. Drawing an overlay indicator over it would be the
     // one place in the app where the port is wrong.
     const menubar = readFileSync(
-      fileURLToPath(new URL('../../../common/tool/action_menu_bar.tsx', import.meta.url)),
+      fileURLToPath(new URL('../../../external/wx/menu_ui.tsx', import.meta.url)),
       'utf8',
     );
     expect(menubar).toMatch(/className="ze-submenu-scroll"[^>]*data-ze-no-overlay-scroll/);

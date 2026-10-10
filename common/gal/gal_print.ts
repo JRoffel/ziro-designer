@@ -13,7 +13,7 @@
  */
 
 import type { Vec2, VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
-import type { CAIRO_SURFACE_BACKING } from './cairo/cairo_api.js';
+import type { CAIRO_SURFACE_BACKING } from '@ziroeda/cairo/cairo.js';
 import { CAIRO_PRINT_CTX, CAIRO_PRINT_GAL } from './cairo/cairo_print.js';
 import type { GAL_DISPLAY_OPTIONS } from './gal_display_options.js';
 import type { GAL } from './graphics_abstraction_layer.js';

@@ -20,7 +20,7 @@ import {
 import { ACTIONS } from '@ziroeda/common/tool/actions.js';
 import { setLanguageMenuItem } from '@ziroeda/common/eda_base_frame_language_menu.js';
 import { addClose, addQuit } from '@ziroeda/common/tool/action_menu.js';
-import type { Menu, MenuItem } from '@ziroeda/common/tool/action_menu_types.js';
+import type { Menu, MenuItem } from '@ziroeda/wx/menu.js';
 
 export interface PlEditorMenuHandlers {
   /**

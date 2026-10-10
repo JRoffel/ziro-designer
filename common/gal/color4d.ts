@@ -8,6 +8,7 @@
  * The graphics importers need it too, and they are shared between the board
  * and the schematic, so it belongs where both can reach it.
  */
+import { wxColourToCss } from '@ziroeda/wx/colour.js';
 
 export interface Color4d {
   r: number;
@@ -307,11 +308,9 @@ export function parseColor4d(css: string): Color4d {
   return { r: 0, g: 0, b: 0, a: 1 };
 }
 
+/** The CSS colour wx paints a COLOR4D with: `COLOR4D::ToColour`, then wx's own conversion. */
 export function toCss(c: Color4d): string {
-  const ch = (v: number): number => Math.round(clamp01(v) * 255);
-  return c.a >= 1
-    ? `rgb(${ch(c.r)}, ${ch(c.g)}, ${ch(c.b)})`
-    : `rgba(${ch(c.r)}, ${ch(c.g)}, ${ch(c.b)}, ${Math.round(clamp01(c.a) * 1000) / 1000})`;
+  return wxColourToCss(c);
 }
 
 /** `COLOR4D::Distance`: the *squared* RGB distance, alpha ignored. */

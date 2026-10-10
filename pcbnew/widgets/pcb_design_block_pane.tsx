@@ -31,7 +31,7 @@ import {
   type DESIGN_BLOCK_PANE_FRAME,
 } from '@ziroeda/common/widgets/design_block_pane.js';
 import { PanelDesignBlockChooser } from '@ziroeda/common/widgets/panel_design_block_chooser_ui.js';
-import { Check } from '@ziroeda/wx/controls.js';
+import { Check } from '@ziroeda/common/dialogs/pref_controls.js';
 
 // Do not make these static; they need to respond to language changes
 export const REPEATED_PLACEMENT = 'Place repeated copies';

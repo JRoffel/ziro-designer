@@ -61,7 +61,7 @@ import {
   type ReactNode,
 } from 'react';
 import { placeComboPopup, type PopupBox } from './odcombo_popup.js';
-import { useModalEscape } from '@ziroeda/common/dialog_shim.js';
+import { useModalEscape } from './dialog.js';
 
 /**
  * One `wxItemContainer` entry: `Append( aLabel, new wxStringClientData( aValue ) )`.

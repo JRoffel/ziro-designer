@@ -27,7 +27,7 @@
  *     which is what collapses the gap a hidden block would otherwise leave —
  *     and why a menu whose middle conditions all fail has no double lines in it.
  */
-import type { MenuItem } from './action_menu_types.js';
+import type { MenuItem } from '@ziroeda/wx/menu.js';
 
 /** An entry and the rank it was filed under. */
 export interface RankedItem {

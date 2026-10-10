@@ -39,7 +39,7 @@ import {
   type HotkeyEvent,
 } from '@ziroeda/common/tool/action_menu_hotkeys.js';
 import { applyHotkeyOverrides } from '@ziroeda/designer/src/editors/schematic/hotkey_list.js';
-import type { Menu, MenuItem } from '@ziroeda/common/tool/action_menu_types.js';
+import type { Menu, MenuItem } from '@ziroeda/wx/menu.js';
 
 /**
  * The whole divergent set, transcribed here a second time on purpose.

@@ -12,7 +12,7 @@ import { CheckBox, StaticBox, TextCtrl } from '@ziroeda/wx/controls.js';
 import { type JSX, useState } from 'react';
 import { DialogShim, StdDialogButtons } from '@ziroeda/common/dialog_shim.js';
 import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import { pcbUnitText, pcbUnitValue, unitLabel } from '../pcb_unit_binder.js';
 import type {
   DIALOG_NON_COPPER_ZONES_EDITOR,

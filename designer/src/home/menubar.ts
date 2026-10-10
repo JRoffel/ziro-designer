@@ -10,7 +10,7 @@
  */
 
 import { IMPORT_FORMAT_ORDER, IMPORT_FORMATS, type ImportFormat } from './import_project.js';
-import type { Menu, MenuItem } from '@ziroeda/common/tool/action_menu_types.js';
+import type { Menu, MenuItem } from '@ziroeda/wx/menu.js';
 import { standardHelpMenu } from '@ziroeda/common/eda_base_frame_help_menu.js';
 import { DEFAULT_FILE_HISTORY_SIZE, openRecentMenuItem } from '@ziroeda/common/file_history.js';
 import { setLanguageMenuItem } from '@ziroeda/common/eda_base_frame_language_menu.js';

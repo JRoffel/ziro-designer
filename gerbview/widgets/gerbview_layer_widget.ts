@@ -14,7 +14,7 @@
  */
 
 import { LSET } from '@ziroeda/common/lset.js';
-import type { MenuItem } from '@ziroeda/common/tool/action_menu_types.js';
+import type { MenuItem } from '@ziroeda/wx/menu.js';
 import type { TOOL_ACTION } from '@ziroeda/common/tool/tool_action.js';
 import { GERBVIEW_ACTIONS } from '../tools/gerbview_actions.js';
 

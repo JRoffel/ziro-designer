@@ -43,7 +43,7 @@
  * `AddStandardHelpMenu` and `AddMenuLanguageList`.
  */
 
-import type { Menu, MenuItem } from '@ziroeda/common/tool/action_menu_types.js';
+import type { Menu, MenuItem } from '@ziroeda/wx/menu.js';
 import { addQuitOrClose } from '@ziroeda/common/tool/action_menu.js';
 import { ACTIONS } from '@ziroeda/common/tool/actions.js';
 import {

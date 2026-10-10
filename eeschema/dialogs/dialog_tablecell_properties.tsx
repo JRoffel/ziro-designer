@@ -35,7 +35,7 @@ import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js'
 import { INDETERMINATE_STATE } from '@ziroeda/common/widgets/ui_common.js';
 import { type CHECK_STATE, TriStateCheck } from '@ziroeda/wx/wx_checkbox.js';
 import { UNIT_BINDER, unitLabel } from '@ziroeda/common/widgets/unit_binder.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import { SCH_COMMIT } from '../sch_commit.js';
 import type { SCH_EDIT_FRAME } from '../sch_edit_frame.js';
 import type { SCH_TABLE } from '../sch_table.js';

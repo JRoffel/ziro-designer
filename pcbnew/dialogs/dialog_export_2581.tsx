@@ -43,7 +43,7 @@ import {
   JOB_EXPORT_PCB_IPC2581,
 } from '@ziroeda/common/jobs/job_export_pcb_ipc2581.js';
 import { useModalEscape } from '@ziroeda/common/dialog_shim.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import { Icon } from '@ziroeda/common/widgets/icons.js';
 import { SpinCtrl } from '@ziroeda/wx/spin_ctrl.js';
 import { HtmlReportPanel, RPT_SEVERITY_ALL } from '@ziroeda/common/widgets/wx_html_report_panel.js';

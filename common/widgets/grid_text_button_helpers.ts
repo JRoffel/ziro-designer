@@ -11,6 +11,7 @@
  *
  * The footprint, URL and path editors open other windows through a GRID_TEXT_BUTTON_HOST.
  */
+import type { wxGridCellButtonView } from '@ziroeda/wx/grid_ui.js';
 import { KiBitmapBundle } from '../bitmap.js';
 import { BITMAPS } from '@ziroeda/include/bitmaps/bitmaps_list.js';
 import type { wxGrid } from '@ziroeda/wx/grid.js';
@@ -19,12 +20,8 @@ import type { ChooserFilter } from '@ziroeda/wx/filedlg.js';
 import { GRID_CELL_TEXT_EDITOR } from './grid_text_helpers.js';
 
 /** What the view needs from a text-and-button editor. */
-export interface GRID_CELL_TEXT_BUTTON_VIEW {
-  /** The button's bitmap, as the bitmap store's URL. */
-  GetButtonBitmap(): string;
-  /** `OnButtonClick`: a button that opens another window answers when it closes. */
-  OnButtonClick(): void | Promise<void>;
-}
+/** What the grid view needs of an editor with a button (external/wx/grid_ui.tsx). */
+export type GRID_CELL_TEXT_BUTTON_VIEW = wxGridCellButtonView;
 
 /** `GRID_CELL_TEXT_BUTTON`: the text half; a subclass says what the button does. */
 export abstract class GRID_CELL_TEXT_BUTTON

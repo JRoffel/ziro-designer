@@ -56,7 +56,7 @@
  * yet, not ones that cannot be built; each says which in its tooltip.
  */
 import type { JSX } from 'react';
-import { Check, Group, Num, Radio, Sel } from '@ziroeda/wx/controls.js';
+import { Check, Group, Num, Radio, Sel } from './pref_controls.js';
 import { ZoomCorrectionCtrl, type ZoomCorrectionUnits } from '../widgets/zoom_correction_ctrl.js';
 import { useState } from 'react';
 import type { COMMON_SETTINGS_DRAFT } from '../settings/common_settings.js';

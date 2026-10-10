@@ -37,9 +37,9 @@ import type { JSX } from 'react';
 import type { Color4d } from '@ziroeda/common/gal/color4d.js';
 import type { BOARD } from '@ziroeda/pcbnew/board.js';
 import { LSET } from '@ziroeda/common/lset.js';
-import { Check } from '@ziroeda/wx/controls.js';
+import { Check } from '@ziroeda/common/dialogs/pref_controls.js';
 import { ColorSwatch } from '@ziroeda/common/widgets/color_swatch.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import { BitmapToggle } from '@ziroeda/common/widgets/bitmap_toggle.js';
 import { BITMAPS } from '@ziroeda/include/bitmaps/bitmaps_list.js';
 import {

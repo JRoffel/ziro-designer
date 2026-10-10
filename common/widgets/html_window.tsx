@@ -26,7 +26,7 @@
  * `HTML_MESSAGE_BOX`'s `messages` path exists for those.
  */
 import { type JSX, useRef, useState } from 'react';
-import { ContextMenu } from '../tool/action_menu_bar.js';
+import { ContextMenu } from '@ziroeda/wx/menu_ui.js';
 
 export function HtmlWindow({
   html,

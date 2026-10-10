@@ -14,8 +14,8 @@ import {
 import { Icon } from '../widgets/icons.js';
 import { toolbarIconUrl } from '../bitmap_store.js';
 import { toolbarButtonLabel, toolbarButtonTooltip } from './action_toolbar_actions.js';
-import { ContextMenu } from './action_menu_bar.js';
-import type { MenuItem } from './action_menu_types.js';
+import { ContextMenu } from '@ziroeda/wx/menu_ui.js';
+import type { MenuItem } from '@ziroeda/wx/menu.js';
 import { toolbarContextMenu } from './ui/toolbar_context_menu_registry.js';
 import { OVERFLOW_SIZE, visibleCount } from './action_toolbar_overflow.js';
 

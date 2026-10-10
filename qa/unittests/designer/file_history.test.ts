@@ -20,7 +20,7 @@ import {
 } from '@ziroeda/common/file_history.js';
 import { buildManagerMenus } from '@ziroeda/designer/src/home/menubar.js';
 import type { ProjectMeta } from '@ziroeda/designer/src/home/projectStore.js';
-import type { MenuItem } from '@ziroeda/common/tool/action_menu_types.js';
+import type { MenuItem } from '@ziroeda/wx/menu.js';
 
 /** An in-memory Storage, so no test touches the real localStorage. */
 function fakeStorage(seed?: Record<string, string>): FileHistoryStorage {

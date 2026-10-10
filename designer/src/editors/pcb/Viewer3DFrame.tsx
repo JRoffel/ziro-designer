@@ -41,7 +41,7 @@ import { showHotkeyList } from '@ziroeda/common/hotkeys_basic.js';
 import { ShowAboutDialog } from '@ziroeda/common/dialog_about/AboutDialog_main.js';
 import { ABOUT_TITLES } from '@ziroeda/common/eda_base_frame_about_titles.js';
 import type { BOARD_3D_HANDLE } from '@ziroeda/3d-viewer/viewer3d_types.js';
-import { MenuBar } from '@ziroeda/common/tool/action_menu_bar.js';
+import { MenuBar } from '@ziroeda/wx/menu_ui.js';
 import { Toolbar } from '@ziroeda/common/tool/action_toolbar.js';
 import { KiStatusBar } from '@ziroeda/common/widgets/kistatusbar.js';
 // From the types module, NOT from pcb3d.js: naming a type out of that file

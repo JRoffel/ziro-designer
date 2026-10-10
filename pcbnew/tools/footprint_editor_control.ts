@@ -46,7 +46,7 @@ import { PCB_ACTIONS } from './pcb_actions.js';
 import { PCB_TOOL_BASE } from './pcb_tool_base.js';
 import { BOARD, BOARD_USE } from '../board.js';
 import { DIALOG_FOOTPRINT_PROPERTIES_FP_EDITOR } from '../dialogs/dialog_footprint_properties_fp_editor.js';
-import type { MenuItem } from '@ziroeda/common/tool/action_menu_types.js';
+import type { MenuItem } from '@ziroeda/wx/menu.js';
 import { CheckPinnedStatus } from '@ziroeda/common/tool/library_editor_control.js';
 import {
   type ConditionalEntry,

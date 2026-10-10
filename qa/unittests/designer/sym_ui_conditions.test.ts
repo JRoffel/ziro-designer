@@ -56,7 +56,7 @@ import {
   type SymbolMenuConditions,
   type SymbolMenuHandlers,
 } from '@ziroeda/eeschema/symbol_editor/menubar_symbol_editor.js';
-import type { Menu, MenuItem } from '@ziroeda/common/tool/action_menu_types.js';
+import type { Menu, MenuItem } from '@ziroeda/wx/menu.js';
 import type { ToolEntry } from '@ziroeda/common/tool/action_toolbar_types.js';
 
 // ---------------------------------------------------------------------------

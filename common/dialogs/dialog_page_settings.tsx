@@ -51,7 +51,7 @@ import {
   type WksResolveContext,
   type WksSheet,
 } from '../index.js';
-import { Combo, type ComboOption } from '../widgets/wx_combobox.js';
+import { Combo, type ComboOption } from '@ziroeda/wx/combobox.js';
 import { UnitField } from '../widgets/unit_binder_ui.js';
 import type { EdaUnits } from '../widgets/unit_binder.js';
 import { DialogShim } from '../dialog_shim.js';

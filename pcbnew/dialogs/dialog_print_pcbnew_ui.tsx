@@ -17,8 +17,8 @@
 import { CheckBox } from '@ziroeda/wx/controls.js';
 import { type JSX, useState } from 'react';
 import { DIALOG_PRINT_GENERIC } from '@ziroeda/common/dialogs/dialog_print_generic_ui.js';
-import { ContextMenu } from '@ziroeda/common/tool/action_menu_bar.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { ContextMenu } from '@ziroeda/wx/menu_ui.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import { type DIALOG_PRINT_PCBNEW, PRINT_LAYER_MENU_ITEMS } from './dialog_print_pcbnew.js';
 
 export function DialogPcbPrint({

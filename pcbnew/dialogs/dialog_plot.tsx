@@ -38,7 +38,7 @@ import { PCB_LAYER_ID as LAYER } from '@ziroeda/common/layer_id.js';
 import { COLOR_SETTINGS } from '@ziroeda/common/settings/color_settings.js';
 import { DEFAULT_THEME, PgmOrNull } from '@ziroeda/common/pgm_base.js';
 import { pcbIUScale } from '@ziroeda/common/eda_units.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import { SpinCtrl } from '@ziroeda/wx/spin_ctrl.js';
 import { Reporter } from '@ziroeda/common/reporter.js';
 import {

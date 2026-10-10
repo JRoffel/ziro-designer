@@ -8,8 +8,7 @@
  * caller already handles that answer.
  */
 
-import { WXK } from '@ziroeda/wx/wx_keycodes.js';
-import { wxSetKeyState } from '@ziroeda/wx/wx_event.js';
+import { wxGetMousePosition } from '@ziroeda/wx/utils.js';
 
 /** `wxWindow` as the platform layer reaches it: the element, its client size and focus. */
 export interface KIPLATFORM_WINDOW {
@@ -18,46 +17,9 @@ export interface KIPLATFORM_WINDOW {
   SetFocus(): void;
 }
 
-/** The last pointer position the platform saw, in screen (page) coordinates. */
-let s_mousePosition = { x: 0, y: 0 };
-
-/**
- * Get the mouse position in screen coordinates: the position of the last
- * pointer event the panel forwarded to {@link SetMousePosition}.
- */
+/** `KIPLATFORM::UI::GetMousePosition` (port/wxgtk/ui.cpp:316): `wxGetMousePosition()`. */
 export function GetMousePosition(): { x: number; y: number } {
-  return { ...s_mousePosition };
-}
-
-/** The platform's half: the panel records every pointer event's page position here. */
-export function SetMousePosition(aX: number, aY: number): void {
-  s_mousePosition = { x: aX, y: aY };
-}
-
-/**
- * On GTK `wxGetMousePosition` asks the display server, so it knows the
- * pointer wherever it is - not only over a canvas that forwarded an event.
- * The page's equivalent is to watch the pointer at the window, capture phase,
- * so nothing that stops propagation can hide a move from it.
- */
-if (typeof window !== 'undefined') {
-  // Viewport coordinates: what a fixed-position popup is placed in, and the
-  // same as page coordinates here, since the app's page never scrolls.
-  const track = (e: PointerEvent): void => SetMousePosition(e.clientX, e.clientY);
-  window.addEventListener('pointermove', track, { capture: true, passive: true });
-  window.addEventListener('pointerdown', track, { capture: true, passive: true });
-}
-
-/** Record the modifier state carried by a DOM event, for `wxGetKeyState`. */
-export function RecordModifierState(aEvent: {
-  ctrlKey: boolean;
-  shiftKey: boolean;
-  altKey: boolean;
-}): void {
-  wxSetKeyState(WXK.WXK_CONTROL, aEvent.ctrlKey);
-  wxSetKeyState(WXK.WXK_SHIFT, aEvent.shiftKey);
-  wxSetKeyState(WXK.WXK_ALT, aEvent.altKey);
-  // On GTK WXK_RAW_CONTROL is WXK_CONTROL; the meta key is not a wx modifier there.
+  return wxGetMousePosition();
 }
 
 /**

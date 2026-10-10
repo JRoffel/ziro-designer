@@ -121,7 +121,7 @@ import { STRING_FORMATTER } from '@ziroeda/common/richio.js';
 import { handleUnsavedChanges, type UnsavedChangesResult } from '@ziroeda/common/confirm.js';
 import { PINNING_SYMBOL } from '@ziroeda/common/lib_tree_model_adapter.js';
 import { expandStackedPinNotation, strNumCmp } from '@ziroeda/common/string_utils.js';
-import type { MenuItem } from '@ziroeda/common/tool/action_menu_types.js';
+import type { MenuItem } from '@ziroeda/wx/menu.js';
 import {
   saveFootprintAssociation,
   type CvpcbSaveCommand,

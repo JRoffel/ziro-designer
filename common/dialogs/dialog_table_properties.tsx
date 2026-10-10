@@ -36,11 +36,12 @@
  * which of the two this is; the dialog only reports the choice.
  */
 
+import { bitmapUrl } from '../bitmap_store.js';
 import { TextCtrl } from '@ziroeda/wx/controls.js';
 import { useState, type JSX, type ReactNode } from 'react';
 import type { EdaIuScale } from '../eda_units.js';
 import { LINE_STYLE_NAMES } from '../stroke_params.js';
-import { Combo } from '../widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import { DialogShim, StdDialogButtons } from '../dialog_shim.js';
 import { useModalEscape } from '../dialog_shim.js';
 
@@ -189,7 +190,7 @@ export function DialogTableProperties<T extends SharedTableValues>({
         options={LINE_STYLE_NAMES.map((s) => ({
           value: s.value,
           label: s.label,
-          ...(s.bitmap ? { bitmap: s.bitmap } : {}),
+          ...(s.bitmap ? { bitmap: bitmapUrl(s.bitmap) } : {}),
         }))}
       />
     </label>

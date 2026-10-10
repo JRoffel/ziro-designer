@@ -27,7 +27,7 @@ import type { PCB_REFERENCE_IMAGE } from '@ziroeda/pcbnew/pcb_reference_image.js
 import { ParseBoard } from '@ziroeda/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.js';
 import { FALLBACK_PIXELS, imageSizeIU, iuPerPixel } from '@ziroeda/pcbnew/pcb_reference_image.js';
 import { DEFAULT_PPI, pngPPI, pngPixelSize } from '@ziroeda/wx/png_meta.js';
-import { pngCrc32 } from '@ziroeda/common/png_encoder.js';
+import { pngCrc32 } from '@ziroeda/wx/imagpng.js';
 import { WX_IMAGE } from '@ziroeda/wx/wx_image.js';
 import { pcbMmToIU as mmToIU } from '@ziroeda/common/eda_units.js';
 

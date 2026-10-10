@@ -17,7 +17,7 @@
 import { describe, expect, it } from 'vitest';
 import { DS_ITEM_TYPE } from '@ziroeda/common/drawing_sheet/ds_data_item.js';
 import { DS_DRAW_ITEM_LINE } from '@ziroeda/common/drawing_sheet/ds_draw_item.js';
-import type { Menu, MenuItem } from '@ziroeda/common/tool/action_menu_types.js';
+import type { Menu, MenuItem } from '@ziroeda/wx/menu.js';
 import { type TOOL_ACTION, TOOLBAR_STATE } from '@ziroeda/common/tool/tool_action.js';
 import { ACTIONS } from '@ziroeda/common/tool/actions.js';
 import {

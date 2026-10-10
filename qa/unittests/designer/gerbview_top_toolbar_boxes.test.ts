@@ -28,7 +28,7 @@ const read = (rel: string): string =>
   readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8');
 
 const SHELL = read('../../../common/widgets/shell.css');
-const COMBO = read('../../../common/widgets/wx_combobox.tsx');
+const COMBO = read('../../../external/wx/combobox.tsx');
 const VIEWER = read('../../../gerbview/gerbview_frame_ui.tsx');
 
 /**

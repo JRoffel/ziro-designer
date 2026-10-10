@@ -7,7 +7,7 @@
  */
 import { beforeAll, describe, expect, it } from 'vitest';
 import { PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
-import type { MenuItem } from '@ziroeda/common/tool/action_menu_types.js';
+import type { MenuItem } from '@ziroeda/wx/menu.js';
 import { installPgm } from '@ziroeda/designer/src/editors/pcb/pcb_canvas.js';
 import { BOARD, BOARD_LISTENER } from '@ziroeda/pcbnew/board.js';
 import { buildPcbMenus } from '@ziroeda/pcbnew/menubar_pcb_editor.js';

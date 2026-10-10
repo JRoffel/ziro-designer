@@ -54,7 +54,7 @@ import {
   type JOB_EXPORT_PCB_POS_FILTER,
   type JOB_EXPORT_PCB_POS_FORMAT,
 } from '@ziroeda/common/jobs/job_export_pcb_pos.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import { Icon } from '@ziroeda/common/widgets/icons.js';
 import { DialogShim } from '@ziroeda/common/dialog_shim.js';
 import {

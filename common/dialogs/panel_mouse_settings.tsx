@@ -34,8 +34,9 @@
  * on screen and the condition it warns about was never shown.
  */
 import type { JSX } from 'react';
-import { Button, Check, Group } from '@ziroeda/wx/controls.js';
-import { Combo } from '../widgets/wx_combobox.js';
+import { Button } from '@ziroeda/wx/controls.js';
+import { Check, Group } from './pref_controls.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import { Slider } from '../widgets/slider.js';
 import { KiBitmapBundle } from '../bitmap.js';
 import { BITMAPS } from '@ziroeda/include/bitmaps/bitmaps_list.js';

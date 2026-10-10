@@ -14,7 +14,7 @@ import { DialogShim, StdDialogButtons } from '@ziroeda/common/dialog_shim.js';
 import { unitLabel } from '@ziroeda/common/eda_units.js';
 import { NetSelector } from '@ziroeda/common/widgets/net_selector.js';
 import type { UNIT_BINDER } from '@ziroeda/common/widgets/unit_binder.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import {
   type DIALOG_GLOBAL_EDIT_TEARDROPS,
   TEARDROP_ACTION,

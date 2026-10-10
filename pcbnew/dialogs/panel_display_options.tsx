@@ -13,7 +13,7 @@
  * satisfies both, and this module names nothing of the designer.
  */
 import { useState, type ComponentProps, type JSX } from 'react';
-import { Check, Group, Sel } from '@ziroeda/wx/controls.js';
+import { Check, Group, Sel } from '@ziroeda/common/dialogs/pref_controls.js';
 import { CrossProbingGroup } from '@ziroeda/common/dialogs/cross_probing_group.js';
 import { PanelGalOptions } from '@ziroeda/common/dialogs/panel_gal_options.js';
 

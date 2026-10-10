@@ -61,6 +61,7 @@
  * text-variable auto-complete.
  */
 
+import { bitmapUrl } from '@ziroeda/common/bitmap_store.js';
 import { CheckBox } from '@ziroeda/wx/controls.js';
 import { useState, type JSX } from 'react';
 import { pcbIuToMM, pcbIUScale, pcbMmToIU } from '@ziroeda/common/eda_units.js';
@@ -68,7 +69,7 @@ import { parseUnitValue, stringFromValue, unitLabel } from '@ziroeda/common/widg
 import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
 import type { TextBoxValues } from './dialog_textbox_properties.js';
 import { LINE_STYLE_NAMES } from '@ziroeda/common/stroke_params.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import { DialogShim, StdDialogButtons } from '@ziroeda/common/dialog_shim.js';
 import { FontChoice } from '@ziroeda/common/widgets/font_choice.js';
 import {
@@ -280,7 +281,7 @@ export function DialogTextBoxProperties({
             options={LINE_STYLE_NAMES.map((s) => ({
               value: s.value,
               label: s.label,
-              ...(s.bitmap ? { bitmap: s.bitmap } : {}),
+              ...(s.bitmap ? { bitmap: bitmapUrl(s.bitmap) } : {}),
             }))}
           />
         </div>

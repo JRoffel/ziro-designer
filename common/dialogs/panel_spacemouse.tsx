@@ -58,7 +58,7 @@
  * to reset.
  */
 import type { JSX } from 'react';
-import { Check, Group } from '@ziroeda/wx/controls.js';
+import { Check, Group } from './pref_controls.js';
 import { Slider } from '../widgets/slider.js';
 import type { COMMON_SETTINGS_DRAFT } from '../settings/common_settings.js';
 

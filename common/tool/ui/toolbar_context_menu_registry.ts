@@ -45,7 +45,7 @@
  * Nothing here is React: it is the toolbar inventory's sibling, and `qa`'s
  * tsconfig compiles `.ts` only.
  */
-import type { MenuItem } from '../action_menu_types.js';
+import type { MenuItem } from '@ziroeda/wx/menu.js';
 import { toolbarActionMenuLabel, toolbarActionTooltip } from '../action_toolbar_actions.js';
 
 /**

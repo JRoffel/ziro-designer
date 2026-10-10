@@ -52,7 +52,7 @@ import {
   type VAlign,
 } from '@ziroeda/common/widgets/text_format_bar.js';
 import { UNIT_BINDER, unitLabel } from '@ziroeda/common/widgets/unit_binder.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { ANGLE_HORIZONTAL, ANGLE_VERTICAL } from '@ziroeda/kimath/src/geometry/eda_angle.js';
 import type { LIB_SYMBOL } from '../lib_symbol.js';

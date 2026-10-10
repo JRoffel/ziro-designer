@@ -31,7 +31,7 @@
 
 import { Button } from '@ziroeda/wx/controls.js';
 import { useCallback, useRef, useState, type JSX } from 'react';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import { useDismissOnOutside } from '@ziroeda/common/widgets/use_dismiss_on_outside.js';
 import { Icon } from '@ziroeda/common/widgets/icons.js';
 import { cloudBackend } from '../cloud/cloudStore.js';

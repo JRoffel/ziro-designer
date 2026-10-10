@@ -14,21 +14,15 @@
 import {
   type JSX,
   type KeyboardEvent as ReactKeyboardEvent,
-  type PointerEvent,
   type ReactNode,
   type RefObject,
   type CSSProperties,
   type Ref,
-  useEffect,
-  useImperativeHandle,
-  useLayoutEffect,
-  useRef,
-  useState,
 } from 'react';
+import { Dialog, isSingleLineEntry, pressDefaultButton } from '@ziroeda/wx/dialog.js';
 import { PgmOrNull } from './pgm_base.js';
 import { DIALOG_GEOMETRY_KEY } from './settings/common_settings.js';
 import { Button } from '@ziroeda/wx/controls.js';
-import { wasBrowserSuppressed } from './browser_hotkeys.js';
 
 // ---------------------------------------------------------------------------
 // finishDialogSettings / SetSizeHints: the size floor.
@@ -118,107 +112,15 @@ export function installDialogSizeHints(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Escape is wxID_CANCEL for the dialog in front: the hook a dialog calls.
+// Escape is wxID_CANCEL for the dialog in front: wxDialog's (external/wx/dialog.tsx).
 
-/**
- * Close this dialog when Esc is pressed and it is the topmost one.
- *
- * `cancel` is read through a ref rather than captured by the effect, because a
- * dialog's close handler is usually an inline arrow and so has a new identity
- * every render. Depending on it would re-register on each one, and each
- * re-registration moves the dialog to the top of the stack - so a repainting
- * background dialog would start swallowing the Esc meant for the one in front
- * of it.
- *
- * `enabled` is for a dialog that renders while closed. Passing `false`
- * unregisters it, so it does not sit on the stack absorbing the key.
- */
-export function useModalEscape(cancel: () => void, enabled = true): void {
-  const cancelRef = useRef(cancel);
-  cancelRef.current = cancel;
-
-  useEffect(() => {
-    if (!enabled) return undefined;
-    return pushModalCancel(() => cancelRef.current());
-  }, [enabled]);
-}
-
-// ---------------------------------------------------------------------------
-// ... and the stack it registers on, oldest dialog first.
-
-/** A dialog's cancel, while it is on screen. */
-type CancelFn = () => void;
-
-/**
- * The open dialogs, oldest first. A plain array rather than a Set because the
- * order is the whole point.
- */
-const stack: { cancel: CancelFn }[] = [];
-
-let listening = false;
-
-function onKeyDown(e: KeyboardEvent): void {
-  if (e.key !== 'Escape') return;
-  // `defaultPrevented` means someone already acted on this key — EXCEPT when it
-  // was our own browser suppression. `browser_hotkeys` runs in capture phase and
-  // calls `preventDefault()` on every combo the app CLAIMS, purely to stop the
-  // browser acting on it; the event is meant to carry on to us. Esc is a claimed
-  // combo, so by the time this listener runs `defaultPrevented` is already true
-  // and every dialog in the app stopped closing on Esc.
-  //
-  // `useMenuHotkeys` had the identical bug and was fixed; this consumer of
-  // `defaultPrevented` was missed, which is why the accelerators came back and
-  // Esc did not.
-  if (e.defaultPrevented && !wasBrowserSuppressed(e)) return;
-  const top = stack[stack.length - 1];
-  if (!top) return;
-  // Stop here rather than let it run on: an editor's key handler treats Esc as
-  // "cancel the current tool", and cancelling a tool because a dialog closed is
-  // an edit the user did not ask for.
-  e.preventDefault();
-  e.stopPropagation();
-  top.cancel();
-}
-
-function listen(): void {
-  if (listening || typeof window === 'undefined') return;
-  window.addEventListener('keydown', onKeyDown, true);
-  listening = true;
-}
-
-/**
- * Put a dialog's cancel on top of the stack, and return the function that takes
- * it off again.
- *
- * The unregister is idempotent and order-independent: a dialog closed from
- * underneath another - which happens when a whole editor unmounts - is removed
- * from wherever it sits rather than popped.
- */
-export function pushModalCancel(cancel: CancelFn): () => void {
-  listen();
-  const entry = { cancel };
-  stack.push(entry);
-  return () => {
-    const i = stack.indexOf(entry);
-    if (i !== -1) stack.splice(i, 1);
-  };
-}
-
-/** How many dialogs are open. For tests, and for anything that needs to know. */
-export const openModalCount = (): number => stack.length;
-
-/** Close the topmost dialog, as Esc does. Exported so the rule can be tested. */
-export function cancelTopModal(): boolean {
-  const top = stack[stack.length - 1];
-  if (!top) return false;
-  top.cancel();
-  return true;
-}
-
-/** Drop every registration. Tests only - a leaked entry would outlive its test. */
-export function resetModalStack(): void {
-  stack.length = 0;
-}
+export {
+  cancelTopModal,
+  openModalCount,
+  pushModalCancel,
+  resetModalStack,
+  useModalEscape,
+} from '@ziroeda/wx/dialog.js';
 
 // ---------------------------------------------------------------------------
 // The standard button row.
@@ -319,12 +221,6 @@ export function getDialogKeyFromTitle(aTitle: string): string {
   return aTitle;
 }
 
-/** A one-line text entry: what GTK's `activates-default` applies to. */
-function isSingleLineEntry(aEl: EventTarget | null): boolean {
-  if (!(aEl instanceof HTMLInputElement)) return false;
-  return ['', 'text', 'number', 'search', 'email', 'url', 'tel', 'password'].includes(aEl.type);
-}
-
 /** The height of the title bar a saved position must keep on screen (`FromDIP( 15 )`). */
 const TITLE_GRAB = 15; // [data] dialog_shim.cpp:549, the point tested inside the title bar
 
@@ -367,23 +263,19 @@ export interface DialogShimProps {
 }
 
 /**
- * `DIALOG_SHIM`'s window: the class every KiCad dialog derives from, so no dialog draws its own
- * frame. The chrome - face, border, the two rounded top corners, the window shadow, the 37px
- * title bar - is `.ze-modal`'s and `.ze-modal-header`'s; a dialog supplies its title and its
- * sizer tree and nothing else. What DIALOG_SHIM does on top of wxDialog:
+ * `DIALOG_SHIM`'s window: the class every KiCad dialog derives from, on wx's `wxDialog`
+ * (external/wx/dialog.tsx), which owns the frame, placement, moving, resizing, Escape and the
+ * default button. What DIALOG_SHIM adds on top:
  *
  * - `Show`: opens where it was last closed (`"__geometry"` in the common settings' dialog map),
- *   else centred over the frame (`Centre( wxBOTH )`); re-centred if the title bar would land
- *   off screen. `SaveControlState` writes the geometry back when it closes.
- * - Moves by its title bar, like any window; a modal one ignores a click outside it, as the
- *   desktop does.
- * - Enter in a one-line entry presses the default button (GTK's `activates-default`), unless
- *   the entry took the key itself (`wxTE_PROCESS_ENTER`: its handler calls preventDefault);
- *   Ctrl+Enter, and Shift+Enter in a one-line entry, is wxID_OK from anywhere (`OnCharHook`,
- *   dialog_shim.cpp:1789-1835).
+ *   else centred over the frame; re-centred if the title bar would land off screen. A saved size
+ *   can grow the dialog, never shrink it. `SaveControlState` writes the geometry back as it
+ *   closes.
  * - On the first paint the text in every entry is selected (`SelectAllInTextCtrls`) and focus
  *   goes to the initial target, or the dialog itself so its keys still work
  *   (`forceInitialFocus`).
+ * - `OnCharHook` (dialog_shim.cpp:1789-1835): Ctrl+Enter is wxID_OK from anywhere; a subclass's
+ *   override sees every key first.
  */
 export function DialogShim({
   title,
@@ -394,230 +286,73 @@ export function DialogShim({
   hashKey,
   resizable = true,
   style,
-  frameRef: outerFrameRef,
+  frameRef,
   onCharHook,
   children,
 }: DialogShimProps): JSX.Element {
-  const frameRef = useRef<HTMLDivElement>(null);
-  useImperativeHandle(outerFrameRef, () => frameRef.current!, []);
-  // The window's top-left; null until the first layout has placed it.
-  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
-  const posRef = useRef(pos);
-  posRef.current = pos;
-  const drag = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
-  // The window's size once the user (or a saved geometry) has set one; null while it is the
-  // fitted size. `minSize` is that fitted size, the floor a resize stops at.
-  const [size, setSize] = useState<{ w: number; h: number } | null>(null);
-  const sizeRef = useRef(size);
-  sizeRef.current = size;
-  const minSize = useRef({ w: 0, h: 0 });
-  const resize = useRef<{
-    edge: string;
-    x: number;
-    y: number;
-    ox: number;
-    oy: number;
-    w: number;
-    h: number;
-  } | null>(null);
   const key = hashKey ?? getDialogKeyFromTitle(title);
-  useModalEscape(onClose, !modeless);
+  const internals = PgmOrNull()?.GetCommonSettings()?.CsInternals?.() ?? null;
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: Show() runs once per showing; the key is read at that moment
-  useLayoutEffect(() => {
-    const frame = frameRef.current;
-    if (!frame) return;
-    const r = frame.getBoundingClientRect();
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const internals = PgmOrNull()?.GetCommonSettings()?.CsInternals?.() ?? null;
-    const saved = internals?.GetDialogControlValue(key, DIALOG_GEOMETRY_KEY);
-    let x = Math.round((vw - r.width) / 2);
-    let y = Math.round((vh - r.height) / 2);
+  return (
+    <Dialog
+      title={title}
+      onClose={onClose}
+      modeless={modeless}
+      resizable={resizable}
+      className={className}
+      style={style}
+      frameRef={frameRef}
+      placement={(aFitted, aView) => {
+        const saved = internals?.GetDialogControlValue(key, DIALOG_GEOMETRY_KEY);
 
-    minSize.current = { w: Math.round(r.width), h: Math.round(r.height) };
+        if (typeof saved !== 'object' || saved.w === 0 || saved.h === 0) return null;
 
-    if (typeof saved === 'object' && saved.w !== 0 && saved.h !== 0) {
-      // `std::max( GetSize(), restoredSize )`: a saved size can grow the dialog, never shrink it
-      // below what its content needs.
-      if (resizable && (saved.w > r.width || saved.h > r.height))
-        setSize({
-          w: Math.max(saved.w, Math.round(r.width)),
-          h: Math.max(saved.h, Math.round(r.height)),
-        });
+        // Re-center if the title bar would land on no display.
+        const grabX = saved.x + aFitted.w / 2;
+        const grabY = saved.y + TITLE_GRAB;
+        const onScreen = grabX >= 0 && grabX < aView.w && grabY >= 0 && grabY < aView.h;
 
-      // Re-center if the title bar would land on no display.
-      const grabX = saved.x + r.width / 2;
-      const grabY = saved.y + TITLE_GRAB;
-
-      if (grabX >= 0 && grabX < vw && grabY >= 0 && grabY < vh) {
-        x = saved.x;
-        y = saved.y;
-      }
-    }
-
-    setPos({ x, y });
-
-    // SelectAllInTextCtrls, then forceInitialFocus.
-    for (const input of frame.querySelectorAll('input')) {
-      if (isSingleLineEntry(input)) {
-        try {
-          input.setSelectionRange(0, input.value.length);
-        } catch {
-          /* a number entry has no selection API */
-        }
-      }
-    }
-
-    const target = initialFocus?.current;
-
-    if (target && target.offsetParent !== null) target.focus();
-    else if (!frame.contains(document.activeElement)) frame.focus();
-
-    return () => {
-      // SaveControlState: where it was and how big, as it closes.
-      const at = posRef.current;
-      const box = frame.getBoundingClientRect();
-
-      if (at && internals)
-        internals.SetDialogControlValue(key, DIALOG_GEOMETRY_KEY, {
-          x: at.x,
-          y: at.y,
-          w: Math.round(box.width),
-          h: Math.round(box.height),
-        });
-    };
-  }, []);
-
-  const onTitleDown = (e: PointerEvent<HTMLDivElement>): void => {
-    if (e.button !== 0 || !pos || (e.target as HTMLElement).closest('.x')) return;
-    drag.current = { x: e.clientX, y: e.clientY, ox: pos.x, oy: pos.y };
-    e.currentTarget.setPointerCapture(e.pointerId);
-  };
-  const onTitleMove = (e: PointerEvent<HTMLDivElement>): void => {
-    const d = drag.current;
-    if (d) setPos({ x: d.ox + e.clientX - d.x, y: d.oy + e.clientY - d.y });
-  };
-  const onTitleUp = (): void => {
-    drag.current = null;
-  };
-
-  const onGripDown =
-    (aEdge: string) =>
-    (e: PointerEvent<HTMLDivElement>): void => {
-      const frame = frameRef.current;
-      if (e.button !== 0 || !pos || !frame) return;
-      const r = frame.getBoundingClientRect();
-      resize.current = {
-        edge: aEdge,
-        x: e.clientX,
-        y: e.clientY,
-        ox: pos.x,
-        oy: pos.y,
-        w: r.width,
-        h: r.height,
-      };
-      e.currentTarget.setPointerCapture(e.pointerId);
-      e.stopPropagation();
-    };
-  const onGripMove = (e: PointerEvent<HTMLDivElement>): void => {
-    const g = resize.current;
-    if (!g) return;
-    const dx = e.clientX - g.x;
-    const dy = e.clientY - g.y;
-    const min = minSize.current;
-    let { w, h } = g;
-    let { ox: x, oy: y } = g;
-    if (g.edge.includes('e')) w = Math.max(min.w, g.w + dx);
-    if (g.edge.includes('s')) h = Math.max(min.h, g.h + dy);
-    if (g.edge.includes('w')) {
-      w = Math.max(min.w, g.w - dx);
-      x = g.ox + (g.w - w);
-    }
-    if (g.edge.includes('n')) {
-      h = Math.max(min.h, g.h - dy);
-      y = g.oy + (g.h - h);
-    }
-    setSize({ w: Math.round(w), h: Math.round(h) });
-    setPos({ x: Math.round(x), y: Math.round(y) });
-  };
-  const onGripUp = (): void => {
-    resize.current = null;
-  };
-
-  const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>): void => {
-    onCharHook?.(e);
-
-    if (e.defaultPrevented) return;
-
-    if (e.key === 'Escape' && modeless) {
-      e.preventDefault();
-      e.stopPropagation();
-      onClose();
-      return;
-    }
-
-    if (e.key !== 'Enter') return;
-
-    const entry = isSingleLineEntry(e.target);
-
-    // Enter in an entry, on the window itself (GtkWindow binds Return to activate-default when
-    // no widget takes it), or Ctrl/Shift+Enter anywhere: the default button, wxID_OK.
-    if (!(entry || e.target === frameRef.current || e.ctrlKey)) return;
-
-    const button = frameRef.current?.querySelector<HTMLButtonElement>(
-      '.ze-btn.primary:not(:disabled)',
-    );
-
-    if (!button) return;
-
-    e.preventDefault();
-    e.stopPropagation();
-    button.click();
-  };
-
-  const frame = (
-    <div
-      ref={frameRef}
-      className={`ze-modal ze-shim${modeless ? ' ze-modeless' : ''}${className ? ` ${className}` : ''}`}
-      // Where the window is: data the user put there, not chrome. Hidden for the one layout
-      // before it is placed.
-      style={{
-        ...style,
-        ...(size ? { width: size.w, height: size.h } : {}),
-        ...(pos ? { left: pos.x, top: pos.y } : { visibility: 'hidden' }),
+        return {
+          x: onScreen ? saved.x : Math.round((aView.w - aFitted.w) / 2),
+          y: onScreen ? saved.y : Math.round((aView.h - aFitted.h) / 2),
+          w: saved.w,
+          h: saved.h,
+        };
       }}
-      role="dialog"
-      aria-modal={!modeless}
-      aria-label={title}
-      tabIndex={-1}
-      onMouseDown={(e) => e.stopPropagation()}
-      onKeyDown={onKeyDown}
-    >
-      <div
-        className="ze-modal-header"
-        onPointerDown={onTitleDown}
-        onPointerMove={onTitleMove}
-        onPointerUp={onTitleUp}
-      >
-        {title}
-        <span className="x" title="Close" onClick={onClose}>
-          ✕
-        </span>
-      </div>
-      {children}
-      {resizable &&
-        (['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'] as const).map((edge) => (
-          <div
-            key={edge}
-            className={`ze-shim-grip ${edge}`}
-            onPointerDown={onGripDown(edge)}
-            onPointerMove={onGripMove}
-            onPointerUp={onGripUp}
-          />
-        ))}
-    </div>
-  );
+      onShown={(aFrame) => {
+        // SelectAllInTextCtrls, then forceInitialFocus.
+        for (const input of aFrame.querySelectorAll('input')) {
+          if (isSingleLineEntry(input)) {
+            try {
+              input.setSelectionRange(0, input.value.length);
+            } catch {
+              /* a number entry has no selection API */
+            }
+          }
+        }
 
-  return modeless ? frame : <div className="ze-modal-backdrop">{frame}</div>;
+        const target = initialFocus?.current;
+
+        if (target && target.offsetParent !== null) target.focus();
+        else if (!aFrame.contains(document.activeElement)) aFrame.focus();
+      }}
+      onClosing={(aRect) => {
+        // SaveControlState: where it was and how big, as it closes.
+        internals?.SetDialogControlValue(key, DIALOG_GEOMETRY_KEY, aRect);
+      }}
+      onCharHook={(e) => {
+        onCharHook?.(e);
+
+        if (e.defaultPrevented) return;
+
+        // Ctrl+Enter anywhere is wxID_OK (wxDialog itself handles Enter in an entry).
+        if (e.key === 'Enter' && e.ctrlKey && pressDefaultButton(e.currentTarget)) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }}
+    >
+      {children}
+    </Dialog>
+  );
 }

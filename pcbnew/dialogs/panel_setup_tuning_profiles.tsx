@@ -45,7 +45,7 @@ import type { PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import { UNITS_PROVIDER } from '@ziroeda/common/units_provider.js';
 import { KiROUND } from '@ziroeda/kimath/src/math/util.js';
 import type { BOARD_STACKUP } from '../board_stackup_manager/board_stackup.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import { StdBitmapButton } from '@ziroeda/common/widgets/std_bitmap_button.js';
 import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
 import { CalculationType, calculateTrackParameters } from './panel_setup_tuning_profile_info.js';

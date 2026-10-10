@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useState, type JSX } from 'react';
-import { MenuBar, type Menu } from '@ziroeda/common/tool/action_menu_bar.js';
+import { MenuBar, type Menu } from '@ziroeda/wx/menu_ui.js';
 import { PanelRegulator } from './panels/panel_regulator.js';
 import { PanelRCalculator } from './panels/panel_r_calculator.js';
 import { PanelElectricalSpacing } from './panels/panel_electrical_spacing.js';

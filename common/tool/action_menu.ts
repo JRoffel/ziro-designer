@@ -58,7 +58,7 @@
  * and lives in exactly one table.
  */
 import { browserSafeKey } from '../browser_reserved.js';
-import type { MenuItem } from './action_menu_types.js';
+import type { MenuItem } from '@ziroeda/wx/menu.js';
 import { BITMAPS } from '@ziroeda/include/bitmaps/bitmaps_list.js';
 import { main_id } from '../id.js';
 import {

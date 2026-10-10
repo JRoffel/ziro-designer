@@ -15,7 +15,7 @@ import {
   TRANSLATED_LANGUAGES,
 } from '@ziroeda/common/eda_base_frame_language_menu.js';
 import { buildManagerMenus } from '@ziroeda/designer/src/home/menubar.js';
-import type { MenuItem } from '@ziroeda/common/tool/action_menu_types.js';
+import type { MenuItem } from '@ziroeda/wx/menu.js';
 import type { ProjectMeta } from '@ziroeda/designer/src/home/projectStore.js';
 
 const menu = (over: Partial<Parameters<typeof setLanguageMenuItem>[0]> = {}): MenuItem =>

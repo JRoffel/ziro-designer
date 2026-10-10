@@ -45,7 +45,7 @@ import {
   type LineStyleToken,
 } from '@ziroeda/common/stroke_params.js';
 import { FontChoice } from '@ziroeda/common/widgets/font_choice.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import { DialogShim } from '@ziroeda/common/dialog_shim.js';
 import { FILL_T } from '@ziroeda/common/eda_shape.js';
 import { EDA_TEXT } from '@ziroeda/common/eda_text.js';

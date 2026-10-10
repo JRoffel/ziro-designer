@@ -48,7 +48,7 @@ import {
 } from '@ziroeda/common/layer_id.js';
 import { PgmOrNull } from '@ziroeda/common/pgm_base.js';
 import { ACTIONS } from '@ziroeda/common/tool/actions.js';
-import { MenuBar, type Menu } from '@ziroeda/common/tool/action_menu_bar.js';
+import { MenuBar, type Menu } from '@ziroeda/wx/menu_ui.js';
 import { ActionMenuPopup } from '@ziroeda/common/tool/action_menu_popup.js';
 import { Toolbar } from '@ziroeda/common/tool/action_toolbar.js';
 import type { TOOL_ACTION } from '@ziroeda/common/tool/tool_action.js';
@@ -59,7 +59,7 @@ import type { MSG_PANEL_ITEM } from '@ziroeda/common/widgets/msgpanel.js';
 import { MsgPanel } from '@ziroeda/common/widgets/msgpanel_ui.js';
 import { ensureTextCtrlWidth, measureTextWidth } from '@ziroeda/common/widgets/text_ctrl_width.js';
 import { DockSash } from '@ziroeda/wx/wx_aui_sash.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import { wxChoice } from '@ziroeda/wx/choice.js';
 import { wxPrinter } from '@ziroeda/wx/printer.js';
 import { s_tempFileSystem } from '@ziroeda/wx/filefn.js';

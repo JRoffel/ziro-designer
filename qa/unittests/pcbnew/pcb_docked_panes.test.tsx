@@ -20,7 +20,7 @@ import { SHAPE_T } from '@ziroeda/common/eda_shape.js';
 import { FRAME_T } from '@ziroeda/common/frame_type.js';
 import { SEARCH_PANE } from '@ziroeda/common/settings/app_settings.js';
 import { TOOL_MANAGER } from '@ziroeda/common/tool/tool_manager.js';
-import type { Menu, MenuItem } from '@ziroeda/common/tool/action_menu_types.js';
+import type { Menu, MenuItem } from '@ziroeda/wx/menu.js';
 import { BOARD } from '@ziroeda/pcbnew/board.js';
 import type { BOARD_ITEM_CONTAINER } from '@ziroeda/pcbnew/board_item_container.js';
 import { buildPcbMenus } from '@ziroeda/pcbnew/menubar_pcb_editor.js';

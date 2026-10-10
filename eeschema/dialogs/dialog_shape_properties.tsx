@@ -15,6 +15,7 @@
  * width of -1, KiCad's "no border at all", which is distinct from 0 meaning
  * "use the schematic default width".
  */
+import { bitmapUrl } from '@ziroeda/common/bitmap_store.js';
 import { Button, CheckBox } from '@ziroeda/wx/controls.js';
 import { useState, type JSX } from 'react';
 import { FILL_MODE_NAMES, FILL_MODE_TOKENS, iuToMM, mmToIU } from '@ziroeda/common';
@@ -32,7 +33,7 @@ import {
   stringFromValue,
   unitLabel,
 } from '@ziroeda/common/widgets/unit_binder.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import type { Color4d } from '@ziroeda/common/gal/color4d.js';
 import { LINE_STYLE, lineTypeNames } from '@ziroeda/common/stroke_params.js';
 import { SCH_COMMIT } from '../sch_commit.js';
@@ -181,7 +182,7 @@ export function DialogShapeProperties({
             options={LINE_STYLE_NAMES.map((x) => ({
               value: x.value,
               label: x.label,
-              ...(x.bitmap ? { bitmap: x.bitmap } : {}),
+              ...(x.bitmap ? { bitmap: bitmapUrl(x.bitmap) } : {}),
             }))}
           />
 

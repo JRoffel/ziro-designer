@@ -13,7 +13,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import type { MenuItem } from '@ziroeda/common/tool/action_menu_types.js';
+import type { MenuItem } from '@ziroeda/wx/menu.js';
 import { buildPcbMenus, type PcbMenuState } from '@ziroeda/pcbnew/menubar_pcb_editor.js';
 import { PCB_ACTIONS, MICROWAVE_FOOTPRINT_SHAPE } from '@ziroeda/pcbnew/tools/pcb_actions.js';
 

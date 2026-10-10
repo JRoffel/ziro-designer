@@ -25,7 +25,7 @@
 import { Button, CheckBox, TextCtrl } from '@ziroeda/wx/controls.js';
 import { useState, type JSX } from 'react';
 import type { ZoneValues } from './panel_zone_properties.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import { Infobar } from '@ziroeda/common/widgets/wx_infobar.js';
 import { NetSelector } from '@ziroeda/common/widgets/net_selector.js';
 import { pcbUnitText, pcbUnitValue, unitLabel } from '../pcb_unit_binder.js';

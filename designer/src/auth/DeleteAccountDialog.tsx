@@ -29,7 +29,7 @@
 import { Button, CheckBox } from '@ziroeda/wx/controls.js';
 import { useCallback, useEffect, useState, type FormEvent, type JSX } from 'react';
 import { cloudBackend } from '../cloud/cloudStore.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import { StdDialogButtons } from '@ziroeda/common/dialog_shim.js';
 import { DialogShim } from '@ziroeda/common/dialog_shim.js';
 import { DELETE_REASONS, validateDeleteAccountForm } from './delete_account_form.js';

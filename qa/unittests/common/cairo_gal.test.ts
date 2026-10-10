@@ -31,7 +31,7 @@ import {
   cairo_scale,
   type cairo_t,
   cairo_translate,
-} from '@ziroeda/common/gal/cairo/cairo_api.js';
+} from '@ziroeda/cairo/cairo.js';
 import {
   CAIRO_GAL,
   CAIRO_GAL_BASE,

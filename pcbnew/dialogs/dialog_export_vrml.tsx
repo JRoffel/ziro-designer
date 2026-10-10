@@ -31,7 +31,7 @@ import {
   type UNIT_BINDER_UNITS_PROVIDER,
 } from '@ziroeda/common/widgets/unit_binder.js';
 import { Icon } from '@ziroeda/common/widgets/icons.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 
 /** What BOARD_EDITOR_CONTROL::ExportVRML reads off the dialog on OK. */
 export interface VRML_DIALOG_RESULT {

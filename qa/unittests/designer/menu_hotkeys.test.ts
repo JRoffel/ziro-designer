@@ -20,7 +20,7 @@ import {
   parseAccelerator,
   type HotkeyEvent,
 } from '@ziroeda/common/tool/action_menu_hotkeys.js';
-import type { Menu } from '@ziroeda/common/tool/action_menu_types.js';
+import type { Menu } from '@ziroeda/wx/menu.js';
 
 /** A keyboard event with nothing held down, overridden per case. */
 const ev = (key: string, mods: Partial<HotkeyEvent> = {}): HotkeyEvent => ({

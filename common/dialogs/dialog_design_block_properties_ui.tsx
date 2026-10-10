@@ -32,7 +32,8 @@ import { DialogShim, StdDialogButtons } from '../dialog_shim.js';
 import { StdBitmapButton } from '../widgets/std_bitmap_button.js';
 import type { WX_GRID } from '../widgets/wx_grid.js';
 import { wxGridSelectionModes } from '@ziroeda/wx/grid.js';
-import { useStringGrid, WxGridView } from '@ziroeda/wx/grid_ui.js';
+import { WxGridView } from '@ziroeda/wx/grid_ui.js';
+import { useStringGrid } from '../widgets/wx_grid.js';
 import {
   DesignBlockPropertiesFromWindow,
   DesignBlockPropertiesToWindow,

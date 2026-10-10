@@ -33,7 +33,7 @@ import { DialogTableProperties } from '@ziroeda/common/dialogs/dialog_table_prop
 import { pcbIUScale } from '@ziroeda/common/eda_units.js';
 import { LSET } from '@ziroeda/common/lset.js';
 import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import type { BOARD } from './board.js';
 import {
   barcodePreview,

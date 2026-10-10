@@ -60,7 +60,7 @@ import { toHexString } from '../index.js';
 import { PG_CELL_RENDERER } from '../properties/pg_cell_renderer.js';
 import { PG_COLOR_EDITOR } from '../properties/pg_editors.js';
 import { ColorSwatch } from './color_swatch.js';
-import { Combo } from './wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import { Icon } from './icons.js';
 import './properties_panel.css';
 

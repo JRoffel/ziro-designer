@@ -26,7 +26,7 @@
  * — is how a menu quietly stops matching: the conditions end up spelled once in
  * the layout rather than once per row, and a rule that should vanish stays.
  */
-import type { MenuItem } from './action_menu_types.js';
+import type { MenuItem } from '@ziroeda/wx/menu.js';
 import { BITMAPS } from '@ziroeda/include/bitmaps/bitmaps_list.js';
 import { wxItemKind, wxMenuItem } from '@ziroeda/wx/menu.js';
 import { ACTION_MENU, type TOOL_INTERACTIVE_LIKE } from './action_menu.js';

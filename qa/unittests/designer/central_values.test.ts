@@ -829,7 +829,8 @@ const BASELINE: Record<string, { colours: number; metrics: number }> = {
   // that briefly put this at 684, now carries its [px] like the width beside it:
   // GRID_CELL_STATUS_ICON_RENDERER's wxART_BUTTON bitmap, 16 x 16.) Rescanned.
   'common/widgets': { colours: 127, metrics: 643 },
-  'common/tool': { colours: 0, metrics: 1 },
+  // 10-10: metrics 1 -> 0, the menu drawing's one literal went to external/wx with it.
+  'common/tool': { colours: 0, metrics: 0 },
   // metrics 0 -> 15 on 09-26: the stage-1 moves, 8 from `dialogs` and 7 from
   // `editors/schematic`. Nothing added or removed: 8 + 7 = 15.
   // 0/15 -> 2/19 on 09-26 (stage 2): what `dialogs` gave up, 2 + 4.
@@ -839,10 +840,14 @@ const BASELINE: Record<string, { colours: number; metrics: number }> = {
   // 1 -> 2 and 12 -> 18 (09-30): `lib_table_panel.tsx` moved here from `widgets`,
   // carrying its one colour and six metric literals; `widgets` fell by the same.
   // The total is unchanged.
-  'common/dialogs': { colours: 2, metrics: 18 },
+  // 10-10: colours 2 -> 3, the Preferences kit's colour left external/wx/controls.tsx with it
+  // (common/dialogs/pref_controls.tsx); not a new literal.
+  'common/dialogs': { colours: 3, metrics: 18 },
   // 09-26 (stage 3b): external/wx/controls.tsx (common/wx until 10-10), the wx controls the panels'
   // `_base` files instantiate, with the one colour `dialogs` gave up.
-  'external/wx': { colours: 1, metrics: 0 },
+  // 10-10: colours 1 -> 0 (the kit's, to common/dialogs); metrics 0 -> 1 (menu_ui.tsx's, from
+  // common/tool).
+  'external/wx': { colours: 0, metrics: 1 },
   // colours 6 -> 7: the opacity slider's #55585d track arrived here with
   // APPEARANCE_CONTROLS; it is the same literal `editors/pcb` lost, not a new
   // one. The panel's own stylesheet adds none: every length in

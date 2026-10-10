@@ -35,8 +35,8 @@
  * there too. Restoring them here would be a divergence, not a fix.
  */
 import { useMemo, useState, type JSX } from 'react';
-import { Check } from '@ziroeda/wx/controls.js';
-import { Combo } from '../widgets/wx_combobox.js';
+import { Check } from './pref_controls.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import { SplitButton } from '../widgets/split_button.js';
 import { StdBitmapButton } from '../widgets/std_bitmap_button.js';
 import { bitmapUrl, toolbarIconUrl } from '../bitmap_store.js';
@@ -60,7 +60,7 @@ import {
   type ToolbarLoc,
   type ToolbarSettings,
 } from '../tool/ui/toolbar_configuration.js';
-import type { MenuItem } from '../tool/action_menu_types.js';
+import type { MenuItem } from '@ziroeda/wx/menu.js';
 
 /** A selected tree node: a top-level index, and a child index inside a group. */
 interface TreeSel {

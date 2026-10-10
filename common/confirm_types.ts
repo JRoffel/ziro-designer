@@ -48,26 +48,12 @@ export const INFO_CAPTION = 'Information';
 export type YesNoResult = 'yes' | 'no';
 
 /**
- * GTK's stock labels, which `wxMessageDialog` uses unless `SetYesNoLabels`.
- *
- * `SetYesNoLabels` is the `labels` argument to {@link yesNoButtons}: it renames
- * the two buttons WITHOUT changing which is affirmative, so the answer a caller
- * gets back is still yes/no and the GTK order — negative first — still holds.
- * `LOCAL_HISTORY::RestoreCommit` (common/local_history.cpp:2262) is one user:
- * `dlg.SetYesNoLabels( _( "Restore" ), _( "Cancel" ) )`.
+ * GTK's stock labels, which `wxMessageDialog` uses unless `SetYesNoLabels`: wx's
+ * (external/wx/stockitem.ts). `SetYesNoLabels` is the `labels` argument to
+ * {@link yesNoButtons}: it renames the two buttons WITHOUT changing which is affirmative.
  */
-export const YES_LABEL = 'Yes';
-export const NO_LABEL = 'No';
-/** …and the one `wxOK` gets: the only button a bare wxMessageBox has, and the
- *  only button `DisplayErrorMessage` has. */
-export const OK_LABEL = 'OK';
-/**
- * …and `wxCANCEL`'s. NOT `NO_LABEL`: `wxOK | wxCANCEL` and `wxYES_NO` are
- * different style words with different stock labels, and a dialog that says
- * "No" where GTK says "Cancel" is the wrong dialog. [px] the probe reads
- * `&Cancel` off the built widget (`qa/probes/kidialog_probe.cpp`).
- */
-export const CANCEL_LABEL = 'Cancel';
+import { CANCEL_LABEL, NO_LABEL, OK_LABEL, YES_LABEL } from '@ziroeda/wx/stockitem.js';
+export { CANCEL_LABEL, NO_LABEL, OK_LABEL, YES_LABEL };
 
 /**
  * The `wxYES_NO` row in GTK order — negative first, affirmative last — with the

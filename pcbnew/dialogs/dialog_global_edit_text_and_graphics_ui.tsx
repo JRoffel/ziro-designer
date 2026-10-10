@@ -14,7 +14,7 @@ import { unitLabel } from '@ziroeda/common/eda_units.js';
 import { FontChoice } from '@ziroeda/common/widgets/font_choice.js';
 import { INDETERMINATE_ACTION } from '@ziroeda/common/widgets/ui_common.js';
 import type { UNIT_BINDER } from '@ziroeda/common/widgets/unit_binder.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import type {
   DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS,
   TRI_STATE,

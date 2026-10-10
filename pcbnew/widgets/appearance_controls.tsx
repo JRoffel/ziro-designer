@@ -46,7 +46,7 @@ import { useMemo, useRef, useState, type JSX } from 'react';
 import { COLOR4D_UNSPECIFIED, parseColor4d } from '@ziroeda/common/gal/color4d.js';
 import type { Color4d } from '@ziroeda/common/gal/color4d.js';
 import { ColorSwatch } from '@ziroeda/common/widgets/color_swatch.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import { Slider } from '@ziroeda/common/widgets/slider.js';
 import { Sash } from '@ziroeda/common/widgets/wx_splitter_window.js';
 // KiCad's own bitmaps, vendored under `assets/toolbar/`. Nothing in this panel

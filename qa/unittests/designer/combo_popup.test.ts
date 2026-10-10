@@ -22,13 +22,13 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { PAD_Y, ROW_H, popupTop } from '@ziroeda/common/widgets/wx_combobox_popup.js';
+import { PAD_Y, ROW_H, popupTop } from '@ziroeda/wx/combobox.js';
 
 const read = (rel: string): string =>
   readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8');
 
 const CSS = read('../../../common/widgets/shell.css');
-const TSX = read('../../../common/widgets/wx_combobox.tsx');
+const TSX = read('../../../external/wx/combobox.tsx');
 
 /** The body of one CSS rule, comments stripped so they cannot read as code. */
 function rule(selector: string): string {

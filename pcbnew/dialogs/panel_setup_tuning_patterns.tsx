@@ -18,7 +18,7 @@
 
 import { CheckBox, TextCtrl } from '@ziroeda/wx/controls.js';
 import type { JSX } from 'react';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 
 const icon = (name: string): string | undefined => svgUrl('tuning', name);
 

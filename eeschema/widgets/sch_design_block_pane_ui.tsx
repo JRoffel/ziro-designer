@@ -20,7 +20,7 @@ import type { DESIGN_BLOCK_LIBRARY_ADAPTER } from '@ziroeda/common/design_block_
 import type { LibTreeNode } from '@ziroeda/common/lib_tree_model.js';
 import type { LIBRARY_MANAGER } from '@ziroeda/common/libraries/library_manager.js';
 import { PanelDesignBlockChooser } from '@ziroeda/common/widgets/panel_design_block_chooser_ui.js';
-import { Check } from '@ziroeda/wx/controls.js';
+import { Check } from '@ziroeda/common/dialogs/pref_controls.js';
 import {
   type DESIGN_BLOCK_PLACEMENT_OPTIONS,
   SCH_DESIGN_BLOCK_PANE_CHECKBOXES,

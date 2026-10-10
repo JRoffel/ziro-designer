@@ -16,9 +16,9 @@
  * It was `dialog_add_color_theme.tsx`, written for that one caller.
  */
 import { useState, type JSX } from 'react';
-import { useModalEscape } from '@ziroeda/common/dialog_shim.js';
-import { OK_LABEL } from '@ziroeda/common/confirm_types.js';
-import type { wxTextValidator } from '@ziroeda/common/validators.js';
+import { Dialog } from './dialog.js';
+import { CANCEL_LABEL, OK_LABEL } from './stockitem.js';
+import type { wxTextValidator } from './valtext.js';
 
 export function WxTextEntryDialog({
   caption,
@@ -39,44 +39,44 @@ export function WxTextEntryDialog({
   onCancel: () => void;
   onConfirm: (text: string) => void;
 }): JSX.Element {
-  useModalEscape(onCancel);
   const [name, setName] = useState(value);
 
   const ok = name !== '';
 
   return (
-    <div className="ze-modal-backdrop">
-      <div className="ze-modal ze-newprjfolder ze-addtheme" role="dialog" aria-modal="true">
-        <div className="ze-modal-header">{caption}</div>
-        <div className="ze-modal-body ze-newprjfolder-body">
-          {/* biome-ignore lint/a11y/noLabelWithoutControl: the input is the control. */}
-          <label>
-            <span>{message}</span>
-            <input
-              className="ze-search"
-              autoFocus
-              value={name}
-              onChange={(e) =>
-                setName(validator ? validator.Filter(e.target.value) : e.target.value)
+    // wxTextEntryDialogStyle (wxOK | wxCANCEL | wxCENTRE): no resize border.
+    <Dialog
+      title={caption}
+      onClose={onCancel}
+      resizable={false}
+      className="ze-newprjfolder ze-addtheme"
+    >
+      <div className="ze-modal-body ze-newprjfolder-body">
+        {/* biome-ignore lint/a11y/noLabelWithoutControl: the input is the control. */}
+        <label>
+          <span>{message}</span>
+          <input
+            className="ze-search"
+            autoFocus
+            value={name}
+            onChange={(e) => setName(validator ? validator.Filter(e.target.value) : e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && ok) {
+                e.preventDefault();
+                onConfirm(name);
               }
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && ok) {
-                  e.preventDefault();
-                  onConfirm(name);
-                }
-              }}
-            />
-          </label>
-        </div>
-        <div className="ze-modal-footer">
-          <button type="button" className="ze-btn" onClick={onCancel}>
-            Cancel
-          </button>
-          <button type="button" className="ze-btn" disabled={!ok} onClick={() => onConfirm(name)}>
-            {OK_LABEL}
-          </button>
-        </div>
+            }}
+          />
+        </label>
       </div>
-    </div>
+      <div className="ze-modal-footer">
+        <button type="button" className="ze-btn" onClick={onCancel}>
+          {CANCEL_LABEL}
+        </button>
+        <button type="button" className="ze-btn" disabled={!ok} onClick={() => onConfirm(name)}>
+          {OK_LABEL}
+        </button>
+      </div>
+    </Dialog>
   );
 }

@@ -3,7 +3,7 @@
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
 import type { JSX, ReactNode } from 'react';
 import type { CROSS_PROBING_SETTINGS } from '../settings/app_settings.js';
-import { Check, Group } from '@ziroeda/wx/controls.js';
+import { Check, Group } from './pref_controls.js';
 
 /**
  * The "Cross-probing" group, written once because KiCad writes it twice: the

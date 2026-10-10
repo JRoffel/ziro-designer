@@ -29,8 +29,8 @@
  */
 import { Button } from '@ziroeda/wx/controls.js';
 import { useRef, useState, type JSX } from 'react';
-import { ContextMenu } from '../tool/action_menu_bar.js';
-import type { MenuItem } from '../tool/action_menu_types.js';
+import { ContextMenu } from '@ziroeda/wx/menu_ui.js';
+import type { MenuItem } from '@ziroeda/wx/menu.js';
 
 export interface SplitButtonProps {
   /** The label the wide half carries; `SetLabel( … )`. */

@@ -33,7 +33,7 @@ import {
 } from './dialog_tuning_pattern_properties.js';
 import { MeanderStyle, type MeanderSettings } from '../router/pns_meander.js';
 import { PnsRouterMode } from '../router/pns_router.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import { DialogShim } from '@ziroeda/common/dialog_shim.js';
 import { pcbUnitText, unitLabel } from '../pcb_unit_binder.js';
 import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';

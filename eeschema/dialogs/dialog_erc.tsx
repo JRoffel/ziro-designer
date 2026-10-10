@@ -13,7 +13,7 @@ import {
   type ErcSeverityLevel,
   type ErcViolation,
 } from '../index.js';
-import { ContextMenu, type MenuItem } from '@ziroeda/common/tool/action_menu_bar.js';
+import { ContextMenu, type MenuItem } from '@ziroeda/wx/menu_ui.js';
 import { ERC_PHASES } from '../index.js';
 import { KiBitmapBundle } from '@ziroeda/common/bitmap.js';
 import { BITMAPS } from '@ziroeda/include/bitmaps/bitmaps_list.js';

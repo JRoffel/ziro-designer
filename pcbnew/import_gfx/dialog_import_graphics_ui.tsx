@@ -12,7 +12,7 @@ import type { DXF_IMPORT_UNITS } from '@ziroeda/common/import_gfx/dxf_import_plu
 import type { PCB_LAYER_NAME } from '@ziroeda/common/layer_ids.js';
 import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
 import { DialogShim } from '@ziroeda/common/dialog_shim.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import { pcbUnitTextMM, pcbUnitValueMM, unitLabel } from '../pcb_unit_binder.js';
 import type { Imported, Params } from './dialog_import_graphics.js';
 import { DXF_UNIT_CHOICES } from './dialog_import_graphics.js';

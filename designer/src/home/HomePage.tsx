@@ -8,7 +8,7 @@ import { showDoc } from '@ziroeda/ai/doc_viewer.js';
 import type { Entry } from '../fs/filesystem.js';
 import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import { preloadBundle } from '../libraryPreload.js';
-import { MenuBar, type Menu } from '@ziroeda/common/tool/action_menu_bar.js';
+import { MenuBar, type Menu } from '@ziroeda/wx/menu_ui.js';
 import { HomeLink } from '../ui/HomeLink.js';
 import { AccountButton } from '../ui/AccountButton.js';
 import { adoptProjectKey, projectKeyFor } from '../cloud/session_keys.js';

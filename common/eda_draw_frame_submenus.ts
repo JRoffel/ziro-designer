@@ -25,7 +25,7 @@
  * Both are `ShowAlways`, so they are the one part of the menu that is there
  * whatever is selected — and order 1000 is what keeps them last.
  */
-import type { MenuItem } from './tool/action_menu_types.js';
+import type { MenuItem } from '@ziroeda/wx/menu.js';
 import { type ConditionalEntry, menuEntry, menuSeparator } from './tool/conditional_menu.js';
 import {
   isZoomPresetChecked,

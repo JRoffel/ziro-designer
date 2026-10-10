@@ -39,7 +39,7 @@ import {
 import { useModalEscape } from '@ziroeda/common/dialog_shim.js';
 import { MsgPanel } from '@ziroeda/common/widgets/msgpanel_ui.js';
 import { Sash } from '@ziroeda/common/widgets/wx_splitter_window.js';
-import { MenuBar } from '@ziroeda/common/tool/action_menu_bar.js';
+import { MenuBar } from '@ziroeda/wx/menu_ui.js';
 import { dispatchMenuHotkey } from '@ziroeda/common/tool/action_menu_hotkeys.js';
 import type { FocusLike } from '@ziroeda/common/browser_hotkeys.js';
 // LIB_TREE_MODEL_ADAPTER::GetPinningSymbol.

@@ -54,7 +54,7 @@ import {
   gridChoiceLabel,
 } from '@ziroeda/common/settings/grid_settings_ui.js';
 import { ACTIONS } from '@ziroeda/common/tool/actions.js';
-import { ContextMenu, type Menu, MenuBar } from '@ziroeda/common/tool/action_menu_bar.js';
+import { ContextMenu, type Menu, MenuBar } from '@ziroeda/wx/menu_ui.js';
 import { dispatchMenuHotkey, focusBlocksHotkey } from '@ziroeda/common/tool/action_menu_hotkeys.js';
 import { Toolbar } from '@ziroeda/common/tool/action_toolbar.js';
 import type { ToolEntry } from '@ziroeda/common/tool/action_toolbar_types.js';
@@ -72,7 +72,7 @@ import { KiStatusBar } from '@ziroeda/common/widgets/kistatusbar.js';
 import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
 import { MsgPanel, type MsgPanelItem } from '@ziroeda/common/widgets/msgpanel_ui.js';
 import { ProgressDialog } from '@ziroeda/common/widgets/wx_progress_reporters.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import type { ChooserFilter, OpenedFile } from '@ziroeda/wx/filedlg.js';
 import { WxTextEntryDialog } from '@ziroeda/wx/textdlg.js';
 import { kicadFootprintLibWildcard } from '@ziroeda/common/wildcards_and_files_ext.js';

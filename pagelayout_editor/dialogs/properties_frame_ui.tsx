@@ -27,7 +27,7 @@ import { COLOR4D_UNSPECIFIED, type Color4d, toCss } from '@ziroeda/common/gal/co
 import { DialogColorPicker } from '@ziroeda/common/dialogs/dialog_color_picker.js';
 import type { UNIT_BINDER } from '@ziroeda/common/widgets/unit_binder.js';
 import { BinderField } from '@ziroeda/common/widgets/unit_binder_ui.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import {
   CORNER_CHOICES,
   FONT_CHOICES,

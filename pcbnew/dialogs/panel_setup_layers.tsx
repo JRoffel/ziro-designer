@@ -38,7 +38,7 @@
 
 import { Button } from '@ziroeda/wx/controls.js';
 import { useState, type JSX } from 'react';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import { EdaListDialog } from '@ziroeda/common/dialogs/eda_list_dialog.js';
 import { IsCopperLayer, PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import { LSET } from '@ziroeda/common/lset.js';

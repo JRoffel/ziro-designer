@@ -30,7 +30,7 @@ import {
   type Viewer3DMenuState,
 } from '@ziroeda/3d-viewer/3d_menubar.js';
 import type { ToolButton, ToolEntry } from '@ziroeda/common/tool/action_toolbar_types.js';
-import type { MenuItem } from '@ziroeda/common/tool/action_menu_types.js';
+import type { MenuItem } from '@ziroeda/wx/menu.js';
 
 const buttons = (entries: readonly ToolEntry[]): ToolButton[] =>
   entries.flatMap((e) =>

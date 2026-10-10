@@ -16,7 +16,7 @@ import {
   type CAIRO_SURFACE_BACKING,
   type CANVAS_2D,
   cairo_set_surface_factory,
-} from '@ziroeda/common/gal/cairo/cairo_api.js';
+} from '@ziroeda/cairo/cairo.js';
 
 export type LogEntry = [string, ...unknown[]];
 

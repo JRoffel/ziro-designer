@@ -28,7 +28,8 @@
  * reads "Reset Version Control to Defaults" and has to have something to reset.
  */
 import type { JSX } from 'react';
-import { Check, Group, TextCtrl } from '@ziroeda/wx/controls.js';
+import { TextCtrl } from '@ziroeda/wx/controls.js';
+import { Check, Group } from '../pref_controls.js';
 import { SpinCtrl } from '@ziroeda/wx/spin_ctrl.js';
 import type { COMMON_SETTINGS_DRAFT } from '../../settings/common_settings.js';
 

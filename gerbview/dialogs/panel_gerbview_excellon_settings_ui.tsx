@@ -47,7 +47,7 @@
  * (`panel_gerbview_excellon_settings.cpp:32-36`).
  */
 import type { JSX } from 'react';
-import { Group, Radio, Sel } from '@ziroeda/wx/controls.js';
+import { Group, Radio, Sel } from '@ziroeda/common/dialogs/pref_controls.js';
 import type { GBR_PREFS_CONTEXT } from '../gerbview.js';
 import {
   EXCELLON_DIGIT_CHOICES,

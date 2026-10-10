@@ -22,7 +22,7 @@ import { GBR_TOP_TOOLBAR, GBR_LEFT_TOOLBAR } from '@ziroeda/gerbview/toolbars_ge
 import * as gerberToolbars from '@ziroeda/gerbview/toolbars_gerber.js';
 import { gerbviewMenus, type GerbviewMenuHandlers } from '@ziroeda/gerbview/menubar.js';
 import { standardHelpMenu } from '@ziroeda/common/eda_base_frame_help_menu.js';
-import type { Menu, MenuItem } from '@ziroeda/common/tool/action_menu_types.js';
+import type { Menu, MenuItem } from '@ziroeda/wx/menu.js';
 import type {
   ToolButton,
   ToolEntry,

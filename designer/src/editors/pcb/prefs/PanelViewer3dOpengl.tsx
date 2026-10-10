@@ -30,7 +30,7 @@
  * port has, and Akshay's call was to leave it.
  */
 import type { JSX } from 'react';
-import { Check, ColorRow, Group, Sel } from '@ziroeda/wx/controls.js';
+import { Check, ColorRow, Group, Sel } from '@ziroeda/common/dialogs/pref_controls.js';
 import { VIEWER3D_RENDER_DEFAULTS } from '../../../prefs/settings.js';
 import type { PrefsContext } from '../../../dialogs/prefs/types.js';
 

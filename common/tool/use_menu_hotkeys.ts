@@ -19,7 +19,7 @@
 import { useEffect, useRef } from 'react';
 import { dispatchMenuHotkey } from './action_menu_hotkeys.js';
 import { wasBrowserSuppressed, type FocusLike } from '../browser_hotkeys.js';
-import type { Menu } from './action_menu_types.js';
+import type { Menu } from '@ziroeda/wx/menu.js';
 
 /**
  * Dispatch this frame's menu accelerators while it is the frame on screen.

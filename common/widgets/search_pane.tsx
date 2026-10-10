@@ -32,7 +32,7 @@
  * `APP_SETTINGS_BASE::SEARCH_PANE::selection_zoom` — ticking one unticks the
  * other, and unticking both leaves `NONE` — then a separator and two more
  * independent toggles. It is built here from `MenuItem[]` handed to the
- * already-ported `ContextMenu` (`common/tool/action_menu_bar.js`), the same
+ * already-ported `ContextMenu` (`external/wx/menu_ui.tsx`), the same
  * popup every right-click menu and menu-bar drop-down in the app uses, rather
  * than a native `<select>` or a new popup component.
  *
@@ -43,8 +43,8 @@
  */
 import { useMemo, useRef, useState, type JSX } from 'react';
 import { bitmapUrl } from '../bitmap_store.js';
-import { ContextMenu } from '../tool/action_menu_bar.js';
-import type { MenuItem } from '../tool/action_menu_types.js';
+import { ContextMenu } from '@ziroeda/wx/menu_ui.js';
+import type { MenuItem } from '@ziroeda/wx/menu.js';
 import { SearchPaneTab } from './search_pane_tab.js';
 import type { SearchHandler, SearchPaneMenuState } from './search_pane_types.js';
 

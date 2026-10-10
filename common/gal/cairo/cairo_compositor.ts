@@ -7,7 +7,7 @@
  * different textures/surfaces) and later compositing into a single image
  * (Cairo flavour).
  *
- * A buffer is an image surface, which `cairo_api.ts` backs with a canvas: the
+ * A buffer is an image surface, which `external/cairo/cairo.ts` (<cairo.h>) backs with a canvas: the
  * `new uint8_t[m_bufferSize]()` pixel store is that canvas, and `memset` to
  * zero is a `clearRect`.
  */
@@ -36,7 +36,7 @@ import {
   cairo_surface_destroy,
   type cairo_surface_t,
   type cairo_t,
-} from './cairo_api.js';
+} from '@ziroeda/cairo/cairo.js';
 import { wxASSERT } from '@ziroeda/wx/wx_assert.js';
 
 /**

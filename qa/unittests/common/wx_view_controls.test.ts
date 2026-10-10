@@ -16,7 +16,7 @@ import { WXK } from '@ziroeda/wx/wx_keycodes.js';
 import type { Vec2, VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
 import { GAL_DISPLAY_OPTIONS, GRID_SNAPPING } from '@ziroeda/common/gal/gal_display_options.js';
 import { GAL } from '@ziroeda/common/gal/graphics_abstraction_layer.js';
-import * as KIPLATFORM_UI from '@ziroeda/kiplatform/ui.js';
+import { wxSetMousePosition } from '@ziroeda/wx/utils.js';
 import { MOUSE_DRAG_ACTION } from '@ziroeda/common/mouse_drag_action.js';
 import { type COMMON_SETTINGS_LIKE, PGM_BASE, SetPgm } from '@ziroeda/common/pgm_base.js';
 import { VIEW } from '@ziroeda/common/view/view.js';
@@ -273,12 +273,12 @@ function mouse(
   e.SetX(aX);
   e.SetY(aY);
   e.state.SetMiddleDown(!!aButtons.middle);
-  KIPLATFORM_UI.SetMousePosition(aX, aY);
+  wxSetMousePosition(aX, aY);
   return e;
 }
 
 beforeAll(() => {
-  KIPLATFORM_UI.SetMousePosition(400, 300);
+  wxSetMousePosition(400, 300);
 });
 
 describe('WX_VIEW_CONTROLS::onWheel', () => {

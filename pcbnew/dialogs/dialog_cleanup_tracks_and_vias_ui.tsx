@@ -12,7 +12,7 @@ import { type JSX, useEffect, useState, useSyncExternalStore } from 'react';
 import { DialogShim, StdDialogButtons } from '@ziroeda/common/dialog_shim.js';
 import { NetSelector } from '@ziroeda/common/widgets/net_selector.js';
 import { RcTreeView } from '@ziroeda/common/widgets/rc_tree_view.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import type { DIALOG_CLEANUP_TRACKS_AND_VIAS } from './dialog_cleanup_tracks_and_vias.js';
 
 export interface CLEANUP_LAYER_CHOICE {

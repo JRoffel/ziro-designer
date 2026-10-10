@@ -24,8 +24,51 @@
  * at does not move when the list appears. That is what `popupTop` computes.
  */
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type JSX } from 'react';
-import { popupTop } from './wx_combobox_popup.js';
-import { bitmapUrl } from '../bitmap_store.js';
+
+// ---- wxChoice's popup placement (was wx_combobox_popup.ts) ----
+/**
+ * Where a `Combo`'s drop-down list opens.
+ *
+ * Split out of `Combo.tsx` because this is the only part of the widget that can
+ * be tested without a DOM, and the test environment cannot reach into a `.tsx`.
+ */
+
+/**
+ * Row height and vertical padding, kept here so `popupTop` and the CSS agree.
+ *
+ * 30, not the 26 of a GtkMenu row. A `wxChoice`'s popup is not a menu and does
+ * not use menu metrics: measured on a real `pcb_calculator` combo, the
+ * highlighted row spans y=40..69 inside a content box of y=6..73 with 4px of
+ * padding, i.e. 30px per row. Ours was 26 because the value was taken from the
+ * drop-down menus next door.
+ */
+export const ROW_H = 30;
+export const PAD_Y = 4;
+
+/**
+ * The popup's top edge, in viewport coordinates.
+ *
+ * GTK's `wxChoice` opens its list *over* the closed box with the selected row
+ * covering it, so the value you are reading does not move when the list appears
+ * — unlike a native `<select>`, which drops the list below the box. Off-screen
+ * at either end the list slides back in rather than opening partly out of view,
+ * which is why a long list selected near its bottom still shows whole.
+ *
+ * @param buttonTop      top of the closed box, viewport coordinates
+ * @param index          index of the selected row
+ * @param count          number of rows
+ * @param viewportHeight `window.innerHeight`
+ */
+export function popupTop(
+  buttonTop: number,
+  index: number,
+  count: number,
+  viewportHeight: number,
+): number {
+  const height = count * ROW_H + PAD_Y * 2;
+  const wanted = buttonTop - PAD_Y - index * ROW_H;
+  return Math.max(4, Math.min(wanted, viewportHeight - 4 - height));
+}
 
 export interface ComboOption {
   /** Value handed back to `onChange`. */
@@ -57,8 +100,8 @@ export interface ComboOption {
    * (dialog_shape_properties.cpp:61) over `lineTypeNames`
    * (common/stroke_params.cpp:39-45).
    *
-   * The value is a bitmap NAME, resolved through `bitmapUrl` like every other
-   * KiCad bitmap we ship, so a call site never spells a path.
+   * The value is the image itself (a URL): the caller makes it, as KiCad's
+   * caller makes the bundle with `KiBitmapBundle` (here `bitmapUrl`).
    */
   bitmap?: string;
   /**
@@ -204,7 +247,7 @@ export function Combo({
           <span className="ze-combo-swatch" style={{ background: selected.swatch }} />
         )}
         {selected?.bitmap !== undefined && (
-          <img className="ze-combo-bitmap" src={bitmapUrl(selected.bitmap)} alt="" />
+          <img className="ze-combo-bitmap" src={selected.bitmap} alt="" />
         )}
         <span className="ze-combo-value">
           <span className="ze-combo-shown">{selected?.label ?? ''}</span>
@@ -242,9 +285,7 @@ export function Combo({
               {o.swatch !== undefined && (
                 <span className="ze-combo-swatch" style={{ background: o.swatch }} />
               )}
-              {o.bitmap !== undefined && (
-                <img className="ze-combo-bitmap" src={bitmapUrl(o.bitmap)} alt="" />
-              )}
+              {o.bitmap !== undefined && <img className="ze-combo-bitmap" src={o.bitmap} alt="" />}
               {o.label}
               {o.sample !== undefined && (
                 <span className="ze-combo-sample" style={{ fontFamily: o.sample.fontFamily }}>

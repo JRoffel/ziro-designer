@@ -22,7 +22,7 @@ import { LSET_NameToLayer } from '@ziroeda/common/layer_ids.js';
 import { type PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
 import { StdBitmapButton } from '@ziroeda/common/widgets/std_bitmap_button.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import { WX_GRID, WX_GRID_TABLE_BASE } from '@ziroeda/common/widgets/wx_grid.js';
 import {
   wxGRID_VALUE_NUMBER,

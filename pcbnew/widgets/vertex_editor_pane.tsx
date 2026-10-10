@@ -22,7 +22,7 @@ import { SHAPE_T } from '@ziroeda/common/eda_shape.js';
 import { COORD_TYPES_T } from '@ziroeda/common/origin_transforms.js';
 import type { ORIGIN_TRANSFORMS } from '@ziroeda/common/origin_transforms.js';
 import type { UNITS_PROVIDER } from '@ziroeda/common/units_provider.js';
-import { useStringGrid } from '@ziroeda/wx/grid_ui.js';
+import { useStringGrid } from '@ziroeda/common/widgets/wx_grid.js';
 import { WxGridView } from '@ziroeda/wx/grid_ui.js';
 import type { SHAPE_POLY_SET, VERTEX_INDEX } from '@ziroeda/kimath/src/geometry/shape_poly_set.js';
 import type { BOARD_ITEM } from '../board_item.js';

@@ -18,7 +18,7 @@
 import { TextCtrl } from '@ziroeda/wx/controls.js';
 import { useState, type JSX } from 'react';
 import { DialogShim } from '@ziroeda/common/dialog_shim.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
 import { pcbUnitText, pcbUnitValue, unitLabel } from '../pcb_unit_binder.js';
 import { TARGET_SHAPE_CHOICES, type TargetValues } from './dialog_target_properties.js';

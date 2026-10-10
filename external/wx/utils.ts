@@ -59,3 +59,28 @@ export function wxLaunchDefaultBrowser(aUrl: string): boolean {
  * silent; the callers' early returns are what matter.
  */
 export function wxBell(): void {}
+
+/** The last pointer position the display reported, in screen (page) coordinates. */
+let s_mousePosition = { x: 0, y: 0 };
+
+/**
+ * `wxGetMousePosition()`. On GTK it asks the display server, so it knows the pointer wherever
+ * it is, not only over a window that got an event. The page's equivalent is to watch the
+ * pointer at the window, capture phase, so nothing that stops propagation hides a move from it.
+ */
+export function wxGetMousePosition(): { x: number; y: number } {
+  return { ...s_mousePosition };
+}
+
+/** The display's half: every pointer event the page sees records its position here. */
+export function wxSetMousePosition(aX: number, aY: number): void {
+  s_mousePosition = { x: aX, y: aY };
+}
+
+if (typeof window !== 'undefined') {
+  // Viewport coordinates: what a fixed-position popup is placed in, and the
+  // same as page coordinates here, since the app's page never scrolls.
+  const track = (e: PointerEvent): void => wxSetMousePosition(e.clientX, e.clientY);
+  window.addEventListener('pointermove', track, { capture: true, passive: true });
+  window.addEventListener('pointerdown', track, { capture: true, passive: true });
+}

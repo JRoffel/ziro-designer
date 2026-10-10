@@ -18,7 +18,7 @@ import { Button } from '@ziroeda/wx/controls.js';
 import { useEffect, useState, type JSX, type Ref } from 'react';
 import { WX_HTML_REPORT_BOX } from '../widgets/wx_html_report_box.js';
 import { DialogShim } from '../dialog_shim.js';
-import { Combo } from '../widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import type {
   BOOK_REPORTER_PAGE,
   BOOK_REPORTER_PANEL_ITEM,

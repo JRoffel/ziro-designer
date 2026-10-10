@@ -73,7 +73,10 @@ const BASELINE: Record<(typeof AREAS)[number], Record<Kind, number>> = {
   '3d-viewer': { button: 0, checkbox: 0, select: 0, frame: 0, radio: 0, entry: 0, sbox: 0 },
   ai: { button: 7, checkbox: 0, select: 0, frame: 1, radio: 0, entry: 1, sbox: 0 },
   bitmap2component: { button: 4, checkbox: 0, select: 0, frame: 0, radio: 0, entry: 0, sbox: 4 },
-  common: { button: 47, checkbox: 8, select: 0, frame: 1, radio: 2, entry: 27, sbox: 4 },
+  // 10-10 tree move: button 47 -> 45 (the menu drawing went down into external/wx); checkbox
+  // 8 -> 9 and radio 2 -> 3 are the Preferences kit's Check/Radio, out of the exempt wx layer into
+  // common/dialogs/pref_controls.tsx - not new controls, now counted; the sweep deletes the kit.
+  common: { button: 45, checkbox: 9, select: 0, frame: 1, radio: 3, entry: 27, sbox: 4 },
   cvpcb: { button: 0, checkbox: 0, select: 0, frame: 1, radio: 0, entry: 1, sbox: 0 },
   designer: { button: 77, checkbox: 2, select: 0, frame: 0, radio: 5, entry: 25, sbox: 13 },
   eeschema: { button: 24, checkbox: 29, select: 9, frame: 1, radio: 13, entry: 61, sbox: 38 },
@@ -145,7 +148,7 @@ describe('dialogs are built from the central wx layer', () => {
     expect(layer).toMatch(/type="radio"/);
     expect(layer).toMatch(/<textarea\b/);
     expect(layer).toMatch(/<fieldset\b/);
-    expect(readFileSync(join(ROOT, 'common/dialog_shim.tsx'), 'utf8')).toContain(
+    expect(readFileSync(join(ROOT, 'external/wx/dialog.tsx'), 'utf8')).toContain(
       'className="ze-modal-header"',
     );
   });

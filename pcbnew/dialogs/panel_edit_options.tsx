@@ -14,7 +14,7 @@
  * names nothing of the designer.
  */
 import { useSyncExternalStore, type JSX } from 'react';
-import { Check, Group, Num, Radio, Sel } from '@ziroeda/wx/controls.js';
+import { Check, Group, Num, Radio, Sel } from '@ziroeda/common/dialogs/pref_controls.js';
 import { unitLabel } from '@ziroeda/common/eda_units.js';
 
 // ---------------------------------------------------------------------------

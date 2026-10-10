@@ -145,7 +145,7 @@
  */
 import { openModalCount } from '../dialog_shim.js';
 import { isTypingTarget, type FocusLike } from '../browser_hotkeys.js';
-import type { Menu, MenuItem } from './action_menu_types.js';
+import type { Menu, MenuItem } from '@ziroeda/wx/menu.js';
 
 /** A parsed accelerator: the modifier set, and the key it wants. */
 export interface Accelerator {

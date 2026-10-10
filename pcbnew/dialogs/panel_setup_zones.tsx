@@ -21,7 +21,7 @@
 
 import { CheckBox, TextCtrl } from '@ziroeda/wx/controls.js';
 import type { JSX } from 'react';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import { pcbIUScale } from '@ziroeda/common/eda_units.js';
 import type { BOARD } from '../board.js';
 import { ISLAND_REMOVAL_MODE, ZONE_BORDER_DISPLAY_STYLE } from '../zone_settings.js';

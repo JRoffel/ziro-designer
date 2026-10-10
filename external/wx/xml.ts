@@ -2,7 +2,7 @@
 // Copyright (C) 2026 ZiroEDA and contributors.
 // Portions derived from wxWidgets (src/xml/xml.cpp), wxWindows Library Licence.
 /**
- * `wxXmlDocument::Save( stream, indentstep )` over an XNODE tree: the writer
+ * `wxXmlDocument::Save( stream, indentstep )` over a node tree (KiCad's XNODE): the writer
  * `NETLIST_EXPORTER_XML::WriteNetlist` hands its `makeRoot()` tree to.
  *
  * The layout is wx's `OutputNode`: an element with no children closes itself
@@ -12,7 +12,26 @@
  * together (`<tstamps>a b c</tstamps>`). The closing tag gets its own line only
  * when the last child was not text.
  */
-import { type XNODE, wxXmlNodeType } from '@ziroeda/common/xnode.js';
+/** `wxXmlNodeType`, the kinds of node (wx/xml/xml.h). */
+export enum wxXmlNodeType {
+  wxXML_ELEMENT_NODE = 1,
+  wxXML_TEXT_NODE = 3,
+  wxXML_CDATA_SECTION_NODE = 4,
+  wxXML_DOCUMENT_NODE = 9,
+}
+
+/**
+ * What `wxXmlDocument::Save` reads of a node: wxXmlNode's own accessors. KiCad's XNODE derives
+ * from wxXmlNode, so it is one of these.
+ */
+export interface wxXmlSaveNode {
+  GetType(): wxXmlNodeType;
+  GetName(): string;
+  GetContent(): string;
+  GetChildren(): wxXmlSaveNode | null;
+  GetNext(): wxXmlSaveNode | null;
+  GetAttributes(): readonly { GetName(): string; GetValueText(): string }[];
+}
 
 /** wx's `OutputEscapedString`: text escapes `< > & \r`; an attribute also `" \t \n`. */
 function outputEscaped(aText: string, aAttribute: boolean): string {
@@ -47,7 +66,7 @@ function outputEscaped(aText: string, aAttribute: boolean): string {
 const indentation = (aIndent: number): string => `\n${' '.repeat(aIndent)}`;
 
 /** `OutputNode`. */
-function outputNode(aNode: XNODE, aIndent: number, aIndentStep: number): string {
+function outputNode(aNode: wxXmlSaveNode, aIndent: number, aIndentStep: number): string {
   if (aNode.GetType() === wxXmlNodeType.wxXML_TEXT_NODE)
     return outputEscaped(aNode.GetContent(), false);
 
@@ -62,9 +81,9 @@ function outputNode(aNode: XNODE, aIndent: number, aIndentStep: number): string 
 
   out += '>';
 
-  let prev: XNODE | null = null;
+  let prev: wxXmlSaveNode | null = null;
 
-  for (let n: XNODE | null = first; n; n = n.GetNext()) {
+  for (let n: wxXmlSaveNode | null = first; n; n = n.GetNext()) {
     if (aIndentStep >= 0 && n.GetType() !== wxXmlNodeType.wxXML_TEXT_NODE)
       out += indentation(aIndent + aIndentStep);
 
@@ -79,7 +98,7 @@ function outputNode(aNode: XNODE, aIndent: number, aIndentStep: number): string 
 }
 
 /** `wxXmlDocument::Save( stream, aIndentStep )` of a document whose root is `aRoot`. */
-export function wxXmlDocumentSave(aRoot: XNODE, aIndentStep = 2): string {
+export function wxXmlDocumentSave(aRoot: wxXmlSaveNode, aIndentStep = 2): string {
   return `<?xml version="1.0" encoding="UTF-8"?>\n${outputNode(aRoot, 0, aIndentStep)}\n`;
 }
 

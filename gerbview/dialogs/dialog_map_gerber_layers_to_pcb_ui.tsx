@@ -36,7 +36,7 @@ import { Button } from '@ziroeda/wx/controls.js';
 import { type JSX, useLayoutEffect, useReducer, useRef, useState } from 'react';
 import { DialogShim, StdDialogButtons } from '@ziroeda/common/dialog_shim.js';
 import { measureTextWidth } from '@ziroeda/common/widgets/text_ctrl_width.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import { GERBER_DRAWLAYERS_COUNT } from '@ziroeda/common/layer_id.js';
 import {
   COPPER_LAYERS_COUNT_CHOICES,

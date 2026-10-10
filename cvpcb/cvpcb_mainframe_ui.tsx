@@ -113,12 +113,7 @@ import {
   type SetStateAction,
 } from 'react';
 import type { Schematic } from '@ziroeda/eeschema';
-import {
-  ContextMenu,
-  MenuBar,
-  type Menu,
-  type MenuItem,
-} from '@ziroeda/common/tool/action_menu_bar.js';
+import { ContextMenu, MenuBar, type Menu, type MenuItem } from '@ziroeda/wx/menu_ui.js';
 import { Toolbar, type ToolEntry } from '@ziroeda/common/tool/action_toolbar.js';
 import {
   DisplayFootprintsFrame,

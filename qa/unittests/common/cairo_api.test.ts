@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 ZiroEDA and contributors.
 /**
- * `common/gal/cairo/cairo_api.ts`, Cairo's semantics on a Canvas 2D context.
+ * `external/cairo/cairo.ts` (<cairo.h>), Cairo's semantics on a Canvas 2D context.
  *
  * Every expectation here was put to the installed libcairo 1.18.0 through
  * pycairo - `qa/probes/cairo_semantics_probe.py`, whose numbered cases the
@@ -44,7 +44,7 @@ import {
   cairo_stroke,
   cairo_translate,
   cairoChannelByte,
-} from '@ziroeda/common/gal/cairo/cairo_api.js';
+} from '@ziroeda/cairo/cairo.js';
 import { fakeCanvas, paints, r9 } from './cairo_test_canvas.js';
 
 const PI = Math.PI;

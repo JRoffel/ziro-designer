@@ -30,7 +30,7 @@ import {
   zoomPresetLabel,
   isZoomPresetChecked,
 } from '@ziroeda/common/settings/zoom_settings.js';
-import type { MenuItem } from '@ziroeda/common/tool/action_menu_types.js';
+import type { MenuItem } from '@ziroeda/wx/menu.js';
 import { PL_EDITOR_DEFAULTS } from '@ziroeda/designer/src/prefs/settings.js';
 
 const noop = (): void => {};

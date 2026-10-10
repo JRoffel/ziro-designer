@@ -26,7 +26,7 @@ import {
   stringFromValue,
   unitLabel,
 } from '@ziroeda/common/widgets/unit_binder.js';
-import { TextCombo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { TextCombo } from '@ziroeda/wx/combobox.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { SCH_COMMIT } from '../sch_commit.js';
 import type { SCH_EDIT_FRAME } from '../sch_edit_frame.js';

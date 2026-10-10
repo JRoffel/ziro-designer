@@ -6,7 +6,7 @@
  * frames use them: a list of strings and a selection, filled and read by the
  * frame's own code (`UpdateGridSelectBox`, `OnSelectZoom`, GerbView's
  * highlight boxes). The model is this object; the page draws it through the
- * shared `Combo` (`common/widgets/wx_combobox.tsx`).
+ * shared `Combo` (`external/wx/combobox.tsx`).
  *
  * A change listener stands in for the repaint wx does on its own when the
  * list or the selection changes.

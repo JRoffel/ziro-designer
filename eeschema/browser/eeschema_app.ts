@@ -20,7 +20,7 @@ import type { ChooserFilter, OpenedFile } from '@ziroeda/wx/filedlg.js';
 import type { ToolEntry } from '@ziroeda/common/tool/action_toolbar_types.js';
 import type { ToolbarDefaults, ToolbarLoc } from '@ziroeda/common/tool/ui/toolbar_configuration.js';
 import type { KeyLike } from '@ziroeda/common/hotkeys_basic_keys.js';
-import type { Menu } from '@ziroeda/common/tool/action_menu_types.js';
+import type { Menu } from '@ziroeda/wx/menu.js';
 import type { LibSymbol, Schematic } from '../types.js';
 import type { CROSS_PROBING_SETTINGS } from '@ziroeda/common/settings/app_settings.js';
 import type { KIWAY } from '@ziroeda/common/kiway.js';

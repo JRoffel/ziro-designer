@@ -1,0 +1,10 @@
+{
+  "name": "@ziroeda/cairo",
+  "version": "0.0.0",
+  "description": "<cairo.h>: the part of Cairo KiCad's Cairo GAL calls, over the browser's Canvas 2D context. Outside KiCad's tree, as libcairo is.",
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  }
+}

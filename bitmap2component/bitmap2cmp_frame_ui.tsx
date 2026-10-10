@@ -15,7 +15,7 @@
  */
 
 import { type JSX, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { MenuBar, type Menu, type MenuItem } from '@ziroeda/common/tool/action_menu_bar.js';
+import { MenuBar, type Menu, type MenuItem } from '@ziroeda/wx/menu_ui.js';
 import { MessageDialogOk, MessageDialogYesNo } from '@ziroeda/common/dialogs/dialog_message.js';
 import type { MessageDialogIcon, YesNoResult } from '@ziroeda/common/confirm_types.js';
 import {

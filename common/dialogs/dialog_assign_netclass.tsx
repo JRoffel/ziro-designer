@@ -26,7 +26,7 @@ import { useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import { DialogShim, StdDialogButtons } from '../dialog_shim.js';
 import { netclassPatternMatches } from '../eda_pattern_match.js';
 import { strNumCmp } from '../string_utils.js';
-import { Combo } from '../widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import { WX_HTML_REPORT_BOX } from '../widgets/wx_html_report_box.js';
 import { useModalEscape } from '../dialog_shim.js';
 

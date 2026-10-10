@@ -158,8 +158,8 @@ export function makePcbSearchWiring(
 }
 
 import { Reporter, type ReportLine } from '@ziroeda/common';
-import { MenuBar, ContextMenu, type Menu } from '@ziroeda/common/tool/action_menu_bar.js';
-import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { MenuBar, ContextMenu, type Menu } from '@ziroeda/wx/menu_ui.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import { layerBoxLabel } from './pcb_layer_box_selector.js';
 import { Toolbar } from '@ziroeda/common/tool/action_toolbar.js';
 import { formatTitle, useDocumentTitle } from '@ziroeda/common/use_document_title.js';

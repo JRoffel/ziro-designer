@@ -60,7 +60,7 @@ import { type JSX, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { GRID_TRICKS } from '@ziroeda/common/grid_tricks.js';
 import { StdBitmapButton } from '@ziroeda/common/widgets/std_bitmap_button.js';
 import { WX_GRID, WX_GRID_TABLE_BASE } from '@ziroeda/common/widgets/wx_grid.js';
-import { Sel } from '@ziroeda/wx/controls.js';
+import { Sel } from '@ziroeda/common/dialogs/pref_controls.js';
 import {
   wxEVT_GRID_CELL_CHANGED,
   wxGRID_VALUE_NUMBER,

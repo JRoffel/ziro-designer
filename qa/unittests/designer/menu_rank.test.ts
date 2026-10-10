@@ -13,7 +13,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { assembleMenu, type RankedItem } from '@ziroeda/common/tool/action_menu_rank.js';
-import type { MenuItem } from '@ziroeda/common/tool/action_menu_types.js';
+import type { MenuItem } from '@ziroeda/wx/menu.js';
 
 /** The separators the schematic canvas menu declares. */
 const SEPS = [100, 101, 200, 300, 400, 401, 1000];
