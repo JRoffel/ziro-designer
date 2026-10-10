@@ -340,3 +340,7 @@ export function AddGerberX2Attribute(
 
   if (text !== '') aPlotter.AddLineToHeader(makeStringCompatX1(text, aUseX1CompatibilityMode));
 }
+
+/** `PLOT_MIN_SCALE` / `PLOT_MAX_SCALE` (pcbplot.h:58-59): the scale and fine-adjust limits. */
+export const PLOT_MIN_SCALE = 0.01;
+export const PLOT_MAX_SCALE = 100.0;

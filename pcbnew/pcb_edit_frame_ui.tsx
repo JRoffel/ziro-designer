@@ -7631,6 +7631,21 @@ export function PcbEditor({
             setPlotDlgOpen(false);
             frameRef.current?.GetToolManager()?.RunAction(PCB_ACTIONS.runDRC);
           }}
+          // CreateDrillFile: DIALOG_GENDRILL, over the plot dialog.
+          onCreateDrillFile={() => new Promise<void>((resolve) => setDrillDlg({ done: resolve }))}
+          // onBoardSetup: ShowBoardSetupDialog( _( "Solder Mask/Paste" ) ).
+          onBoardSetup={() => {
+            setBoardSetupPage('maskPaste');
+            setBoardSetupOpen(true);
+          }}
+          // m_zoneFillCheck: ZONE_FILLER_TOOL::CheckAllZones before plotting.
+          onCheckZones={async () => {
+            const frame = frameRef.current;
+            const filler = frame?.GetToolManager()?.FindTool('pcbnew.ZoneFiller') as {
+              CheckAllZones(aCaller: unknown): Promise<void>;
+            } | null;
+            await filler?.CheckAllZones(frame);
+          }}
           onClose={() => setPlotDlgOpen(false)}
         />
       )}

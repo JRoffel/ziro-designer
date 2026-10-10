@@ -16,6 +16,7 @@ import {
   CheckBox,
   RadioButton,
   StaticLine,
+  StaticText,
   TextCtrl,
 } from '@ziroeda/wx/controls.js';
 import {
@@ -126,7 +127,7 @@ function LabelledChoice({
   return (
     <>
       <SizerItem flag={labelFlag} border={5}>
-        <span aria-disabled={choice.enabled === false}>{label}</span>
+        <StaticText label={label} disabled={choice.enabled === false} />
       </SizerItem>
       <SizerItem flag={choiceFlag} border={5}>
         <Combo
@@ -320,11 +321,11 @@ export function DIALOG_GENDRILL_BASE(p: DIALOG_GENDRILL_BASE_PROPS): JSX.Element
                     <Spacer proportion={1} flag={wxEXPAND} border={5} />
                     <SizerItem flag={wxALIGN_CENTER_VERTICAL | wxLEFT} border={5}>
                       {/* m_precisionLabel */}
-                      <span aria-disabled={!p.precisionEnabled}>Precision:</span>
+                      <StaticText label="Precision:" disabled={!p.precisionEnabled} />
                     </SizerItem>
                     <SizerItem flag={wxALIGN_CENTER_VERTICAL | wxRIGHT} border={5}>
                       {/* m_staticTextPrecision */}
-                      <span aria-disabled={!p.precisionEnabled}>{p.precision}</span>
+                      <StaticText label={p.precision} disabled={!p.precisionEnabled} />
                     </SizerItem>
                     <Spacer proportion={1} flag={wxEXPAND} border={5} />
                   </FlexGridSizer>

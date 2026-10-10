@@ -12,7 +12,7 @@ import { StdBitmapButton } from '@ziroeda/common/widgets/std_bitmap_button.js';
 import { HtmlReportPanel } from '@ziroeda/common/widgets/wx_html_report_panel.js';
 import type { ReportLine } from '@ziroeda/common/reporter.js';
 import { Combo } from '@ziroeda/wx/combobox.js';
-import { type CHECK, CheckBox, TextCtrl } from '@ziroeda/wx/controls.js';
+import { type CHECK, CheckBox, StaticText, TextCtrl } from '@ziroeda/wx/controls.js';
 import {
   wxALIGN_CENTER_VERTICAL,
   wxALL,
@@ -167,7 +167,7 @@ export function DIALOG_GEN_FOOTPRINT_POSITION_BASE(
                 </SizerItem>
                 <SizerItem flag={wxALIGN_CENTER_VERTICAL | wxRIGHT} border={5}>
                   {/* m_unitsLabel: enabled with the units (onUpdateUIUnits) */}
-                  <span aria-disabled={!p.unitsEnabled}>Units:</span>
+                  <StaticText label="Units:" disabled={!p.unitsEnabled} />
                 </SizerItem>
                 <SizerItem flag={wxEXPAND | wxRIGHT | wxLEFT} border={5}>
                   {/* m_unitsCtrl */}

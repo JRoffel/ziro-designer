@@ -212,6 +212,33 @@ export function StaticBox({
   );
 }
 
+/**
+ * `wxStaticText`: a label. `Enable( false )` greys it as GTK's `label:disabled`; `Wrap( n )` breaks
+ * it at n pixels, otherwise it never wraps.
+ */
+export function StaticText({
+  label,
+  disabled,
+  wrap,
+  title,
+}: {
+  label: string;
+  disabled?: boolean;
+  /** `Wrap( width )`, in pixels; -1 or absent never wraps. */
+  wrap?: number;
+  title?: string;
+}): JSX.Element {
+  return (
+    <span
+      className={`ze-statictext${disabled ? ' disabled' : ''}${wrap && wrap > 0 ? ' wrapped' : ''}`}
+      style={wrap && wrap > 0 ? { maxWidth: wrap } : undefined}
+      title={title}
+    >
+      {label}
+    </span>
+  );
+}
+
 /** `wxStaticLine`: a GtkSeparator, horizontal unless `vertical` (wxLI_VERTICAL). */
 export function StaticLine({
   vertical,

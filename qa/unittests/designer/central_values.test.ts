@@ -332,7 +332,9 @@ const BASELINE: Record<string, { colours: number; metrics: number }> = {
   // FOOTPRINT_EDIT_FRAME; its old canvas placeholder and prompt styles went.
   // 22 -> 20 (10-08): the footprint frames' old Canvas2D canvas
   // (`pcb_draw_panel_gal_ui.tsx`) went; they draw on PCB_DRAW_PANEL_GAL.
-  'editors/pcb': { colours: 20, metrics: 114 },
+  // 10-10: colours 20 -> 19, metrics 114 -> 88 - DIALOG_PLOT's inline box/legend/row styles, gone
+  // with the dialog transcribed onto the sizers (dialog_plot_base.tsx).
+  'editors/pcb': { colours: 19, metrics: 88 },
   // At zero, and listed rather than absent: `prefs/` is the settings store, and
   // the one literal it had - the 3D viewer's `rgb(0,255,0)` selection colour -
   // is `PARAM<COLOR4D>( "render.opengl_selection_color", …, COLOR4D( 0, 1, 0, 1 ) )`
@@ -1437,7 +1439,8 @@ describe('the scan totals, so the numbers in the PR stay true', () => {
     // 278 -> 276 (10-10): pcbnew DIALOG_FIND's invented status and link greys, gone with its
     // CSS rebuilt from dialog_find_base.cpp.
     // 276 -> 275 (10-10): HK_PROMPT_DIALOG's invented var(--ze-border, #444) separator.
-    expect(SITES.filter((s) => s.kind === 'colours').length).toBe(275);
+    // 275 -> 274 (10-10): DIALOG_PLOT's browse popup shadow, gone with its inline styles.
+    expect(SITES.filter((s) => s.kind === 'colours').length).toBe(274);
     // 1657 -> 1649: the same sweep. A native colour input has no useful
     // default size, so eight of the sixteen sites gave theirs an inline
     // width and height; the shared swatch takes --swatch-*-w/h. Rescanned.
@@ -1656,7 +1659,9 @@ describe('the scan totals, so the numbers in the PR stay true', () => {
     // by its [data] borders.
     // 1054 -> 1039 (10-10): common/widgets 658 -> 643 - HK_PROMPT_DIALOG's inline paddings and
     // margins, replaced by its [data] Add() borders.
-    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(1039);
+    // 1039 -> 1013 (10-10): editors/pcb 114 -> 88 - DIALOG_PLOT's inline styles, replaced by its
+    // sizer tree (dialog_plot_base.tsx).
+    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(1013);
   });
 
   it('and the two agree with the per-area table, which is where they come from', () => {

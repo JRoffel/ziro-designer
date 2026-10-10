@@ -13469,6 +13469,15 @@ fieldset.ze-sbox-sizer > .ze-sizer {
   margin-right: 5px; /* [data] wxPickerBase::CreateBase: the entry's Border( wxRIGHT ), wxSizerFlags' default */
 }
 
+/* wxStaticText: Enable( false ) is GTK's label:disabled; Wrap( n ) lets it break (its width is
+   the n the dialog states, inline). */
+.ze-statictext.disabled {
+  color: var(--ctl-fg-disabled);
+}
+.ze-statictext.wrapped {
+  white-space: normal;
+}
+
 fieldset.ze-sbox {
   border: 1px solid var(--ctl-border);
   margin: 0;
