@@ -12,7 +12,12 @@ import { pcbMmToIU } from '@ziroeda/common/eda_units.js';
 import { escapeIpc } from '@ziroeda/common/string_utils.js';
 import type { EDA_ITEM } from '@ziroeda/common/eda_item.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
-import type { FOOTPRINT } from './footprint.js';
+import { type FOOTPRINT, FOOTPRINT_ATTR_T } from './footprint.js';
+import type { BOARD } from './board.js';
+import { COMPONENT, NETLIST } from './netlist_reader/pcb_netlist.js';
+import { STRING_FORMATTER } from '@ziroeda/common/richio.js';
+import { CTL_OMIT_FILTERS } from '@ziroeda/common/ctl_flags.js';
+import { kiidPathAsString } from '@ziroeda/common/kiid.js';
 import type { PAD } from './pad.js';
 import type { PCB_GROUP } from './pcb_group.js';
 
@@ -229,4 +234,62 @@ export function collectItemsForSyncParts(aItems: Iterable<EDA_ITEM>, aParts: Set
 /** A `std::set<wxString>`'s iteration order: by code point. */
 export function sortedSyncParts(aParts: ReadonlySet<string>): string[] {
   return [...aParts].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+}
+
+/**
+ * `PCB_EDIT_FRAME::KiwayMailIn`'s MAIL_PCB_GET_NETLIST case (cross-probing.cpp:539-587): the
+ * board's footprints as a pcb_netlist, the payload back-annotation reads. A function of the board
+ * so the browser can answer the mail with no board editor open (upstream opens pcbnew off
+ * screen), as headless_netlist does in the other direction.
+ */
+export function formatPcbNetlist(aBoard: BOARD): string {
+  const netlist = new NETLIST();
+  const sf = new STRING_FORMATTER();
+
+  for (const footprint of aBoard.Footprints()) {
+    if (footprint.GetAttributes() & FOOTPRINT_ATTR_T.FP_BOARD_ONLY) continue; // Don't add board-only footprints to the netlist
+
+    const component = new COMPONENT(
+      footprint.GetFPIDAsString(),
+      footprint.GetReference(),
+      footprint.GetValue(),
+      kiidPathAsString(footprint.GetPath()),
+      [],
+    );
+
+    for (const pad of footprint.Pads()) {
+      const netname = pad.GetShortNetname();
+
+      if (netname !== '')
+        component.AddNet(pad.GetNumber(), netname, pad.GetPinFunction(), pad.GetPinType());
+    }
+
+    const fields = new Map<string, string>();
+
+    for (const field of footprint.GetFields()) {
+      if (!field) continue;
+
+      fields.set(field.GetCanonicalName(), field.GetText());
+    }
+
+    component.SetFields(fields);
+
+    // Add DNP, Exclude from BOM, and Exclude from Position Files properties
+    const properties = new Map<string, string>();
+
+    if (footprint.GetAttributes() & FOOTPRINT_ATTR_T.FP_DNP) properties.set('dnp', '');
+
+    if (footprint.GetAttributes() & FOOTPRINT_ATTR_T.FP_EXCLUDE_FROM_BOM)
+      properties.set('exclude_from_bom', '');
+
+    if (footprint.GetAttributes() & FOOTPRINT_ATTR_T.FP_EXCLUDE_FROM_POS_FILES)
+      properties.set('exclude_from_pos_files', '');
+
+    component.SetProperties(properties);
+
+    netlist.AddComponent(component);
+  }
+
+  netlist.Format('pcb_netlist', sf, 0, CTL_OMIT_FILTERS);
+  return sf.GetString();
 }

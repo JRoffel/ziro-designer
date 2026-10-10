@@ -111,6 +111,7 @@ import { DisplayErrorMessage } from '@ziroeda/common/confirm.js';
 import { MICROWAVE_TOOL, type MICROWAVE_HOST } from './microwave/microwave_tool.js';
 import { PCB_VIEWER_TOOLS } from './tools/pcb_viewer_tools.js';
 import type { NETLIST } from './netlist_reader/pcb_netlist.js';
+import { formatPcbNetlist } from './cross-probing.js';
 import { type DIALOG_DRC_LIKE, DRC_TOOL } from './tools/drc_tool.js';
 import type { DRC_JOB_HOOKS, DRC_JOB_REQUEST } from './browser/drc_job.js';
 import { runDrcJobOffThread } from './browser/drc_runner.js';
@@ -2444,6 +2445,10 @@ export class PCB_EDIT_FRAME extends PCB_BASE_EDIT_FRAME {
 
       case MAIL_T.MAIL_PCB_UPDATE:
         this.hooks.updatePcbFromSchematic();
+        break;
+
+      case MAIL_T.MAIL_PCB_GET_NETLIST:
+        mail.SetPayload(formatPcbNetlist(this.GetBoard()!));
         break;
 
       default:
