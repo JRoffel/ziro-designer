@@ -19,7 +19,7 @@ import { DisplayErrorMessage } from '@ziroeda/common/confirm.js';
 import { DialogShim } from '@ziroeda/common/dialog_shim.js';
 import { GRID_TRICKS } from '@ziroeda/common/grid_tricks.js';
 import { LSET_NameToLayer } from '@ziroeda/common/layer_ids.js';
-import { type PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
+import type { PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
 import { StdBitmapButton } from '@ziroeda/common/widgets/std_bitmap_button.js';
 import { Combo } from '@ziroeda/wx/combobox.js';
@@ -29,6 +29,7 @@ import {
   wxGRID_VALUE_STRING,
   wxGridCellAttr,
   wxGridSelectionModes,
+  wxGridTableRequest,
 } from '@ziroeda/wx/grid.js';
 import { WxGridView } from '@ziroeda/wx/grid_ui.js';
 import type { FOOTPRINT, FP_3DMODEL } from '../footprint.js';
@@ -172,7 +173,13 @@ export function DialogFootprintPropertiesFpEditor({
   const modelsApi = useRef<PANEL_3D_MODEL_API | null>(null);
 
   const [fields] = useState(() =>
-    makeGrid(new PCB_FIELDS_GRID_TABLE(dialog.GetFrame().GetUnitsProvider(), initial.fields)),
+    makeGrid(
+      new PCB_FIELDS_GRID_TABLE(
+        dialog.GetFrame().GetUnitsProvider(),
+        initial.fields,
+        dialog.GetFrame(),
+      ),
+    ),
   );
   const [netTies] = useState(() => makeGrid(new STRING_LIST_TABLE([...initial.netTieGroups])));
   const [jumpers] = useState(() => makeGrid(new STRING_LIST_TABLE([...initial.jumperGroups])));
@@ -348,7 +355,12 @@ export function DialogFootprintPropertiesFpEditor({
               () =>
                 fields.grid.OnAddRow(() => {
                   fields.table.push_back(dialog.MakeNewField(fields.table.GetFields()));
-                  fields.table.AppendRows(1);
+                  // notify the grid
+                  fields.grid.ProcessTableMessage(
+                    wxGridTableRequest.wxGRIDTABLE_NOTIFY_ROWS_APPENDED,
+                    1,
+                    0,
+                  );
                   return [fields.table.GetNumberRows() - 1, 0];
                 }),
               false,

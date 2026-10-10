@@ -9,7 +9,10 @@ import { pcbIUScale } from '@ziroeda/common/eda_units.js';
 import { PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import { FLIP_DIRECTION } from '@ziroeda/core/mirror.js';
 import type { BOARD } from '@ziroeda/pcbnew/board.js';
-import { DIALOG_FOOTPRINT_PROPERTIES } from '@ziroeda/pcbnew/dialogs/dialog_footprint_properties.js';
+import {
+  DIALOG_FOOTPRINT_PROPERTIES,
+  type FootprintValues,
+} from '@ziroeda/pcbnew/dialogs/dialog_footprint_properties.js';
 import { FP_3DMODEL, FP_DNP, FP_SMD, FP_THROUGH_HOLE } from '@ziroeda/pcbnew/footprint.js';
 import { ParseBoard } from '@ziroeda/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.js';
 import { ZONE_CONNECTION } from '@ziroeda/pcbnew/zones.js';
@@ -21,6 +24,9 @@ let board: BOARD;
 let frame: TEST_PCB_FRAME;
 const fp = () => board.Footprints()[0]!;
 const dlg = () => new DIALOG_FOOTPRINT_PROPERTIES(frame, fp());
+/** A field's text in the window's grid. */
+const fieldText = (v: FootprintValues, aName: string): string | undefined =>
+  v.fields.find((f) => f.GetName() === aName)?.GetText();
 
 beforeEach(() => {
   board = ParseBoard(`(kicad_pcb (version 20241229) (generator "test")
@@ -36,9 +42,10 @@ beforeEach(() => {
 
 describe('DIALOG_FOOTPRINT_PROPERTIES', () => {
   it('reads the footprint', () => {
-    expect(dlg().TransferDataToWindow()).toMatchObject({
-      reference: 'R1',
-      value: '10k',
+    const v = dlg().TransferDataToWindow();
+    expect(fieldText(v, 'Reference')).toBe('R1');
+    expect(fieldText(v, 'Value')).toBe('10k');
+    expect(v).toMatchObject({
       x: MM(10),
       y: MM(20),
       orientation: 90,
@@ -54,11 +61,11 @@ describe('DIALOG_FOOTPRINT_PROPERTIES', () => {
 
   it('writes back as one undo step', () => {
     const v = dlg().TransferDataToWindow();
+    v.fields.find((f) => f.GetName() === 'Reference')!.SetText('R7');
+    v.fields.find((f) => f.GetName() === 'Value')!.SetText('22k');
     expect(
       dlg().TransferDataFromWindow({
         ...v,
-        reference: 'R7',
-        value: '22k',
         x: MM(15),
         footprintType: 'through_hole',
         doNotPopulate: false,
@@ -119,9 +126,9 @@ describe('DIALOG_FOOTPRINT_PROPERTIES', () => {
   });
 
   it('leaves the courtyard exemption alone: it is not this dialog’s', () => {
-    const v = dlg().TransferDataToWindow();
-    dlg().TransferDataFromWindow({ ...v, allowMissingCourtyard: true });
-    expect(fp().AllowMissingCourtyard()).toBe(false);
+    fp().SetAllowMissingCourtyard(true);
+    dlg().TransferDataFromWindow(dlg().TransferDataToWindow());
+    expect(fp().AllowMissingCourtyard()).toBe(true);
   });
 
   it("copies the 3D Models page's list onto the footprint, in the same undo step", () => {

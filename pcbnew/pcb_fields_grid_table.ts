@@ -15,14 +15,9 @@
  * What is deliberately not here, because it is a window/view concern with no
  * headless counterpart to build on:
  *
- * - The specific cell editors/renderers upstream's `GetAttr` assigns per
- *   column — `GRID_CELL_LAYER_RENDERER`/`GRID_CELL_LAYER_SELECTOR` (Layer),
- *   `GRID_CELL_COMBOBOX` (Orientation), `GRID_CELL_URL_EDITOR` /
- *   `GRID_CELL_TEXT_EDITOR` with a `FIELD_VALIDATOR` (Value). `GetAttr` below
- *   still reports which columns are read-only, boolean-checkbox or
- *   centre-aligned — everything a caller's cell-attr *provider*
- *   (`WX_GRID_TABLE_BASE.enhanceAttr`) can layer a real editor over — but
- *   constructs no editor widgets itself.
+ * - The Value column's editors: `GRID_CELL_URL_EDITOR` / `GRID_CELL_TEXT_EDITOR` with a
+ *   `FIELD_VALIDATOR`. The Layer column's renderer and selector and the Orientation
+ *   column's GRID_CELL_COMBOBOX are built in the constructor, as upstream's are.
  * - `NUMERIC_EVALUATOR` (`m_eval`/`onUnitsChanged`): `WX_GRID`'s own port
  *   already documents this gap for every auto-eval column, not just this
  *   table's.
@@ -36,7 +31,12 @@ import { WX_GRID_TABLE_BASE } from '@ziroeda/common/widgets/wx_grid.js';
 import { type wxAttrKind, wxGridCellAttr } from '@ziroeda/wx/grid.js';
 import { EDA_ANGLE } from '@ziroeda/kimath/src/geometry/eda_angle.js';
 import { IsBackLayer, ToLAYER_ID } from '@ziroeda/common/layer_id.js';
-import { PCB_FIELD } from './pcb_field.js';
+import type { PCB_FIELD } from './pcb_field.js';
+import { toCssColor } from '@ziroeda/common/gal/color4d.js';
+import { GRID_CELL_COMBOBOX } from '@ziroeda/common/widgets/grid_combobox.js';
+import { GRID_CELL_LAYER_RENDERER, GRID_CELL_LAYER_SELECTOR } from './grid_layer_box_helpers.js';
+import type { PCB_BASE_FRAME } from './pcb_base_frame.js';
+import { PCB_LAYER_PRESENTATION } from './pcb_layer_presentation.js';
 
 /** `PCB_FIELDS_COL_ORDER` (`pcb_fields_grid_table.h:36`). */
 export enum PCB_FIELDS_COL_ORDER {
@@ -60,6 +60,9 @@ export enum PCB_FIELDS_COL_ORDER {
 
 const { PFC_COUNT } = PCB_FIELDS_COL_ORDER;
 
+/** `g_menuOrientations`: the four angles, each with `EDA_UNIT_UTILS::GetText( DEGREES )`. [data] */
+const g_menuOrientations: readonly string[] = ['0°', '90°', '-90°', '180°'];
+
 /**
  * `AngleValueFromString` has no port; a bare degree number is the same
  * "typed as-is" contract `WX_GRID`'s un-evaluated auto-eval columns keep.
@@ -78,11 +81,47 @@ function parseOrientationText(aText: string): EDA_ANGLE {
 export class PCB_FIELDS_GRID_TABLE extends WX_GRID_TABLE_BASE {
   protected m_fields: PCB_FIELD[];
   private readonly m_unitsProvider: UNITS_PROVIDER;
+  /** `m_orientationColAttr`: a GRID_CELL_COMBOBOX over g_menuOrientations. */
+  private readonly m_orientationColAttr: wxGridCellAttr;
+  /** `m_layerColAttr`: the frame's layer renderer and selector; null with no frame to ask. */
+  private readonly m_layerColAttr: wxGridCellAttr | null = null;
 
-  constructor(aUnitsProvider: UNITS_PROVIDER, aFields: readonly PCB_FIELD[] = []) {
+  /**
+   * `aFrame` is upstream's `m_frame` as the layer column asks it - the board's enabled layers
+   * and their colours. Without one the column stays a plain string.
+   */
+  constructor(
+    aUnitsProvider: UNITS_PROVIDER,
+    aFields: readonly PCB_FIELD[] = [],
+    aFrame: PCB_BASE_FRAME | null = null,
+  ) {
     super();
     this.m_unitsProvider = aUnitsProvider;
     this.m_fields = [...aFields];
+
+    this.m_orientationColAttr = new wxGridCellAttr();
+    this.m_orientationColAttr.SetEditor(new GRID_CELL_COMBOBOX(g_menuOrientations));
+
+    if (aFrame) {
+      const presentation = new PCB_LAYER_PRESENTATION(aFrame);
+      const present = (aLayer: number) => ({
+        label: presentation.getLayerName(aLayer),
+        swatch: toCssColor(presentation.DrawColorSwatch(aLayer)),
+      });
+
+      this.m_layerColAttr = new wxGridCellAttr();
+      this.m_layerColAttr.SetRenderer(new GRID_CELL_LAYER_RENDERER(present));
+      // GRID_CELL_LAYER_SELECTOR( m_frame, {} ): every enabled layer, none forbidden.
+      this.m_layerColAttr.SetEditor(
+        new GRID_CELL_LAYER_SELECTOR(() =>
+          aFrame
+            .GetBoard()!
+            .GetEnabledLayers()
+            .UIOrder()
+            .map((layer) => ({ layer, ...present(layer) })),
+        ),
+      );
+    }
   }
 
   /** The row data, for a caller to read back after edits (`*this` upstream). */
@@ -94,6 +133,15 @@ export class PCB_FIELDS_GRID_TABLE extends WX_GRID_TABLE_BASE {
   }
   push_back(aField: PCB_FIELD): void {
     this.m_fields.push(aField);
+  }
+  /** `erase( begin() + aRow )`; the caller tells the grid (`wxGRIDTABLE_NOTIFY_ROWS_DELETED`). */
+  erase(aRow: number): void {
+    this.m_fields.splice(aRow, 1);
+  }
+  /** wxGridTableBase::DeleteRows, for a caller that deletes through the table. */
+  override DeleteRows(aPos = 0, aNumRows = 1): boolean {
+    this.m_fields.splice(aPos, aNumRows);
+    return true;
   }
   at(aRow: number): PCB_FIELD {
     return this.m_fields[aRow]!;
@@ -207,6 +255,14 @@ export class PCB_FIELDS_GRID_TABLE extends WX_GRID_TABLE_BASE {
       case PCB_FIELDS_COL_ORDER.PFC_MIRRORED:
         attr = new wxGridCellAttr();
         attr.SetAlignment(1 /* wxALIGN_CENTER */, 1);
+        break;
+
+      case PCB_FIELDS_COL_ORDER.PFC_ORIENTATION:
+        attr = this.m_orientationColAttr.Clone();
+        break;
+
+      case PCB_FIELDS_COL_ORDER.PFC_LAYER:
+        if (this.m_layerColAttr) attr = this.m_layerColAttr.Clone();
         break;
 
       default:

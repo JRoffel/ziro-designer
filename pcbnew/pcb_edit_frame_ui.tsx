@@ -338,7 +338,6 @@ import { BOX2I } from '@ziroeda/kimath/src/math/box2.js';
 import { DialogTrackViaProperties } from './dialogs/dialog_track_via_properties.js';
 import { DialogCopperZones } from './dialogs/dialog_copper_zones.js';
 import { PcbOneLayerSelector, SelectCopperLayerPairDialog } from './sel_layer.js';
-import { DialogFootprintProperties } from './dialogs/dialog_footprint_properties_ui.js';
 import { DialogFootprintAssociations } from './dialogs/dialog_footprint_associations_ui.js';
 import { DialogMapLayers } from './dialogs/dialog_map_layers.js';
 import type {
@@ -351,9 +350,9 @@ import { DialogImportNetlist, type ImportNetlistOptions } from './dialogs/dialog
 import { loadNetlist as readNetlistText } from './netlist_reader/netlist_reader.js';
 import type { INPUT_LAYER_DESC } from './pcb_io/common/plugin_common_layer_mapping.js';
 import type { PCB_LAYER_ID as MapLayersLayerId } from '@ziroeda/common/layer_id.js';
-import type {
-  DIALOG_FOOTPRINT_PROPERTIES,
-  FootprintValues,
+import {
+  type DIALOG_FOOTPRINT_PROPERTIES,
+  DialogFootprintProperties,
 } from './dialogs/dialog_footprint_properties.js';
 import { DIALOG_COPPER_ZONE, type ZoneValues } from './dialogs/panel_zone_properties.js';
 import {
@@ -4969,17 +4968,6 @@ export function PcbEditor({
     [askKiDialog, trackViaDlg],
   );
 
-  /** DIALOG_FOOTPRINT_PROPERTIES::TransferDataFromWindow. */
-  const applyFootprintEdit = useCallback(
-    (values: FootprintValues) => {
-      const dlg = fpPropsDlg;
-      setFpPropsDlg(null);
-      // DIALOG_FOOTPRINT_PROPERTIES on the live FOOTPRINT: one BOARD_COMMIT.
-      dlg?.TransferDataFromWindow(values);
-    },
-    [fpPropsDlg],
-  );
-
   /** PANEL_ZONE_PROPERTIES::TransferDataFromWindow. */
   const applyZoneEdit = useCallback(
     (values: ZoneValues) => {
@@ -7718,11 +7706,11 @@ export function PcbEditor({
       {itemDialogs.node}
       {fpPropsDlg && frameRef.current && (
         <DialogFootprintProperties
-          units={unitLabel}
-          initial={fpPropsDlg.TransferDataToWindow()}
-          libId={fpPropsDlg.GetFootprint().GetFPID().Format()}
-          onApply={applyFootprintEdit}
-          onClose={() => setFpPropsDlg(null)}
+          dlg={fpPropsDlg}
+          onClose={() => {
+            setFpPropsDlg(null);
+            frameRef.current?.FootprintPropertiesDialogClosed(fpPropsDlg);
+          }}
           model3d={(() => {
             const kfp = fpPropsDlg.GetFootprint();
             const frame = frameRef.current!;
@@ -7744,7 +7732,6 @@ export function PcbEditor({
               onModify: () => {},
             };
             return {
-              footprint: kfp,
               host,
               renderPreview: (models, _selected, version) =>
                 ModelPreview3D({ footprint: kfp, models, version }),

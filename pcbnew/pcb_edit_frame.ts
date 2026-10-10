@@ -67,7 +67,11 @@ import { PnsMode, type RoutingSettings } from './router/pns_routing_settings.js'
 import { PAD } from './pad.js';
 import { DIALOG_REFERENCE_IMAGE_PROPERTIES } from './dialogs/dialog_reference_image_properties.js';
 import { DIALOG_PAD_PROPERTIES } from './dialogs/dialog_pad_properties.js';
-import { DIALOG_FOOTPRINT_PROPERTIES } from './dialogs/dialog_footprint_properties.js';
+import {
+  DIALOG_FOOTPRINT_PROPERTIES,
+  FP_PROPS_RETVALUE,
+} from './dialogs/dialog_footprint_properties.js';
+import type { FOOTPRINT_EDIT_FRAME } from './footprint_edit_frame.js';
 import { DIALOG_DIMENSION_PROPERTIES } from './dialogs/dialog_dimension_properties.js';
 import { DIALOG_SHAPE_PROPERTIES } from './dialogs/dialog_shape_properties.js';
 import { DIALOG_TARGET_PROPERTIES } from './dialogs/dialog_target_properties.js';
@@ -1354,6 +1358,40 @@ export class PCB_EDIT_FRAME extends PCB_BASE_EDIT_FRAME {
   /** `PCB_EDIT_FRAME::ShowFootprintPropertiesDialog( FOOTPRINT* aFootprint )`. */
   ShowFootprintPropertiesDialog(aFootprint: FOOTPRINT): void {
     this.hooks.showFootprintPropertiesDialog?.(new DIALOG_FOOTPRINT_PROPERTIES(this, aFootprint));
+  }
+
+  /**
+   * `ShowFootprintPropertiesDialog`'s tail (pcb_edit_frame.cpp:2399-2440), once ShowQuasiModal
+   * has returned: a refresh on OK, the exchange dialog for Update / Change, the footprint editor
+   * for the two Edit buttons.
+   */
+  FootprintPropertiesDialogClosed(aDialog: DIALOG_FOOTPRINT_PROPERTIES): void {
+    const footprint = aDialog.GetFootprint();
+    const retvalue = aDialog.GetReturnValue();
+
+    if (retvalue === FP_PROPS_RETVALUE.FP_PROPS_OK) {
+      // If something edited, push a refresh request
+      this.GetCanvas()?.Refresh();
+    } else if (
+      retvalue === FP_PROPS_RETVALUE.FP_PROPS_EDIT_BOARD_FP ||
+      retvalue === FP_PROPS_RETVALUE.FP_PROPS_EDIT_LIBRARY_FP
+    ) {
+      const kiway = this.Kiway();
+
+      if (kiway?.Player(FRAME_T.FRAME_FOOTPRINT_EDITOR)) {
+        const fp_editor = kiway.GetPlayerFrame(
+          FRAME_T.FRAME_FOOTPRINT_EDITOR,
+        ) as FOOTPRINT_EDIT_FRAME | null;
+
+        // EDIT_BOARD_FP's LoadFootprintFromBoard is not ported: the editor opens as it was.
+        if (retvalue === FP_PROPS_RETVALUE.FP_PROPS_EDIT_LIBRARY_FP)
+          void fp_editor?.LoadFootprintFromLibrary(footprint.GetFPID());
+      }
+    } else if (retvalue === FP_PROPS_RETVALUE.FP_PROPS_UPDATE_FP) {
+      this.ShowExchangeFootprintsDialog(footprint, true, true);
+    } else if (retvalue === FP_PROPS_RETVALUE.FP_PROPS_CHANGE_FP) {
+      this.ShowExchangeFootprintsDialog(footprint, false, true);
+    }
   }
   /** `PCB_BASE_EDIT_FRAME::ShowGraphicItemPropertiesDialog( PCB_SHAPE* aShape )`. */
   /** A save-mode wxFileDialog with a customize hook's one checkbox; see the hook. */
