@@ -143,6 +143,18 @@ describe('BoxSizer items', () => {
     expect(item('a', container).classList.contains('ze-szi-fill')).toBe(true);
   });
 
+  it("minSize is the window's SetMinSize, -1 leaving that axis alone", () => {
+    const { container } = render(
+      <BoxSizer orient={wxHORIZONTAL}>
+        <SizerItem minSize={[350, -1]}>
+          <span data-testid="m" />
+        </SizerItem>
+      </BoxSizer>,
+    );
+    expect(item('m', container).style.minWidth).toBe('350px');
+    expect(item('m', container).style.minHeight).toBe('');
+  });
+
   it('a hidden item takes no space at all', () => {
     const { container } = render(
       <BoxSizer orient={wxVERTICAL}>

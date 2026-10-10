@@ -23,15 +23,14 @@
  * not ported yet.
  */
 import { useState, type JSX } from 'react';
-import { useModalEscape } from '@ziroeda/common/dialog_shim.js';
 import { COORD_TYPES_T } from '@ziroeda/common/origin_transforms.js';
 import { unitLabel } from '@ziroeda/common/eda_units.js';
+import { WxDirDialog } from '@ziroeda/wx/dirdlg.js';
+import { DIALOG_EXPORT_VRML_BASE } from './dialog_export_vrml_base.js';
 import {
   UNIT_BINDER,
   type UNIT_BINDER_UNITS_PROVIDER,
 } from '@ziroeda/common/widgets/unit_binder.js';
-import { Icon } from '@ziroeda/common/widgets/icons.js';
-import { Combo } from '@ziroeda/wx/combobox.js';
 
 /** What BOARD_EDITOR_CONTROL::ExportVRML reads off the dialog on OK. */
 export interface VRML_DIALOG_RESULT {
@@ -53,13 +52,6 @@ export interface VRML_DIALOG_RESULT {
 // this is the mm to VRML scaling factor for mm, 0.1 inch, and inch
 const SCALE_LIST = [1.0, 0.001, 10.0 / 25.4, 1.0 / 25.4];
 
-const UNITS_CHOICES = [
-  { value: '0', label: 'mm' },
-  { value: '1', label: 'meter' },
-  { value: '2', label: '0.1 inch' },
-  { value: '3', label: 'inch' },
-];
-
 interface Props {
   /** `dlg.FilePicker()->SetPath( path )`. */
   initialPath: string;
@@ -69,6 +61,8 @@ interface Props {
   fileExists: (aPath: string) => boolean;
   confirmOverwrite: () => Promise<boolean>;
   onClose: (aResult: VRML_DIALOG_RESULT | null) => void;
+  /** Folders in the project, for the file picker's Browse (wxDirDialog). */
+  projectFolders?: readonly string[];
 }
 
 export function DialogExportVrml({
@@ -77,16 +71,17 @@ export function DialogExportVrml({
   fileExists,
   confirmOverwrite,
   onClose,
+  projectFolders,
 }: Props): JSX.Element {
   const cancel = (): void => onClose(null);
-  useModalEscape(cancel);
 
   const [path, setPath] = useState(initialPath);
   const [subdir, setSubdir] = useState('shapes3D');
   const [userOrigin, setUserOrigin] = useState(true);
   const [xText, setXText] = useState('0');
   const [yText, setYText] = useState('0');
-  const [units, setUnits] = useState('1');
+  const [units, setUnits] = useState(1);
+  const [browsing, setBrowsing] = useState(false);
   const [noDNP, setNoDNP] = useState(false);
   const [noUnspecified, setNoUnspecified] = useState(false);
 
@@ -114,7 +109,7 @@ export function DialogExportVrml({
       userDefinedOrigin: userOrigin,
       xRefMM: mm(binders.x.GetIntValue()),
       yRefMM: mm(binders.y.GetIntValue()),
-      scale: SCALE_LIST[Number(units)]!,
+      scale: SCALE_LIST[units]!,
       noUnspecified,
       noDNP,
       copyFiles: false,
@@ -123,115 +118,48 @@ export function DialogExportVrml({
   };
 
   return (
-    <div className="ze-modal-backdrop" onMouseDown={cancel}>
-      <div className="ze-modal" onMouseDown={(e) => e.stopPropagation()}>
-        <div className="ze-modal-header">
-          VRML Export Options
-          <span className="x" title="Close" onClick={cancel}>
-            ✕
-          </span>
-        </div>
-        <div className="ze-modal-body" style={{ display: 'block', overflow: 'auto' }}>
-          <div className="ze-genpos-label">File name:</div>
-          <div className="ze-genpos-row">
-            <input
-              className="ze-search"
-              style={{ flex: 1 }}
-              value={path}
-              aria-label="File name"
-              onChange={(e) => setPath(e.target.value)}
-            />
-            <button type="button" className="ze-btn sm" title="Save VRML Board File" disabled>
-              <Icon name="folder" size={14} />
-            </button>
-          </div>
-          <div className="ze-genpos-label">Footprint 3D model path:</div>
-          <div className="ze-genpos-row">
-            <input
-              className="ze-search"
-              style={{ flex: 1 }}
-              value={subdir}
-              aria-label="Footprint 3D model path"
-              onChange={(e) => setSubdir(e.target.value)}
-            />
-          </div>
-
-          <label className="ze-genpos-field">
-            <input
-              type="checkbox"
-              checked={userOrigin}
-              onChange={(e) => setUserOrigin(e.target.checked)}
-            />
-            User defined origin
-          </label>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'auto 1fr auto',
-              // [data] `new wxFlexGridSizer( 0, 3, 3, 0 )`: a 3 px vgap.
-              gap: 3,
-              // [data] `bSizerOptions->Add( fgSizerOptions, 0, wxEXPAND|wxRIGHT|wxLEFT, 20 )`.
-              margin: '0 20px',
-            }}
-          >
-            <span className="ze-genpos-label">X:</span>
-            <input
-              className="ze-search"
-              value={xText}
-              aria-label="X"
-              disabled={!userOrigin}
-              onChange={(e) => setXText(e.target.value)}
-            />
-            <span>{unitWord}</span>
-            <span className="ze-genpos-label">Y:</span>
-            <input
-              className="ze-search"
-              value={yText}
-              aria-label="Y"
-              disabled={!userOrigin}
-              onChange={(e) => setYText(e.target.value)}
-            />
-            <span>{unitWord}</span>
-          </div>
-          <div className="ze-genpos-field">
-            <span className="ze-genpos-label">Units:</span>
-            <Combo value={units} options={UNITS_CHOICES} onChange={setUnits} ariaLabel="Units" />
-          </div>
-
-          <label className="ze-genpos-field">
-            <input type="checkbox" checked={noDNP} onChange={(e) => setNoDNP(e.target.checked)} />
-            Ignore 'Do not populate' components
-          </label>
-          <label className="ze-genpos-field">
-            <input
-              type="checkbox"
-              checked={noUnspecified}
-              onChange={(e) => setNoUnspecified(e.target.checked)}
-            />
-            Ignore 'Unspecified' components
-          </label>
-          <label
-            className="ze-genpos-field"
-            title="Copy 3D model files into the 3D model path folder (not available yet)"
-          >
-            <input type="checkbox" checked={false} disabled />
-            Copy 3D model files to 3D model path
-          </label>
-          <label className="ze-genpos-field">
-            <input type="checkbox" checked={false} disabled />
-            Use relative paths to model files in board VRML file
-          </label>
-        </div>
-
-        <div className="ze-modal-footer">
-          <button type="button" className="ze-btn" onClick={cancel}>
-            Cancel
-          </button>
-          <button type="button" className="ze-btn primary" onClick={() => void onOK()}>
-            OK
-          </button>
-        </div>
-      </div>
-    </div>
+    <>
+      <DIALOG_EXPORT_VRML_BASE
+        m_filePicker={path}
+        onFilePicker={setPath}
+        onBrowse={projectFolders ? () => setBrowsing(true) : undefined}
+        m_SubdirNameCtrl={subdir}
+        onSubdirName={setSubdir}
+        m_cbUserDefinedOrigin={userOrigin}
+        onUserDefinedOrigin={setUserOrigin}
+        m_VRML_Xref={xText}
+        onXref={setXText}
+        m_VRML_Yref={yText}
+        onYref={setYText}
+        unitsLabel={unitWord}
+        m_unitsChoice={units}
+        onUnitsChoice={setUnits}
+        m_cbRemoveDNP={noDNP}
+        onRemoveDNP={setNoDNP}
+        m_cbRemoveUnspecified={noUnspecified}
+        onRemoveUnspecified={setNoUnspecified}
+        m_cbCopyFiles={false}
+        onCopyFiles={() => {}}
+        copyFilesEnabled={false}
+        m_cbUseRelativePaths={false}
+        onUseRelativePaths={() => {}}
+        useRelativePathsEnabled={false}
+        onOK={() => void onOK()}
+        onCancel={cancel}
+      />
+      {browsing && projectFolders && (
+        <WxDirDialog
+          title="Save VRML Board File"
+          folders={projectFolders}
+          initial={path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : ''}
+          onDone={(aFolder) => {
+            setBrowsing(false);
+            if (aFolder === null) return;
+            const base = path.substring(path.lastIndexOf('/') + 1);
+            setPath(aFolder ? `${aFolder}/${base}` : base);
+          }}
+        />
+      )}
+    </>
   );
 }

@@ -85,7 +85,8 @@ const BASELINE: Record<(typeof AREAS)[number], Record<Kind, number>> = {
   // +9 buttons, +6 checkboxes, +3 frames (10-10): pcb-exports' IPC-2581, ODB++ and VRML export
   // dialogs, merged in after being written before this ratchet existed; their session owns them
   // and moves them onto DialogShim. Not a licence: no other number here has ever gone up.
-  pcbnew: { button: 92, checkbox: 64, select: 3, frame: 4, radio: 4, entry: 42, sbox: 61 },
+  // 10-10: the three export dialogs (IPC-2581, ODB++, VRML) on the sizers - 92/64/4/42 before.
+  pcbnew: { button: 83, checkbox: 58, select: 3, frame: 1, radio: 4, entry: 34, sbox: 61 },
 };
 
 function tsxFiles(aDir: string, aOut: string[] = []): string[] {

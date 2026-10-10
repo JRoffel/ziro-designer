@@ -13459,6 +13459,16 @@ fieldset.ze-sbox-sizer > .ze-sizer {
   flex: 1 0 auto;
 }
 
+/* wxFilePickerCtrl with wxFLP_USE_TEXTCTRL: the entry takes the width, the button its own. */
+.ze-filepicker {
+  display: flex;
+  align-items: center;
+}
+.ze-filepicker > :first-child {
+  flex: 1 0 auto;
+  margin-right: 5px; /* [data] wxPickerBase::CreateBase: the entry's Border( wxRIGHT ), wxSizerFlags' default */
+}
+
 fieldset.ze-sbox {
   border: 1px solid var(--ctl-border);
   margin: 0;
@@ -18574,13 +18584,6 @@ fieldset.ze-import-netlist-options {
 /* ---------------------------------------------------------------------------
    DIALOG_GEN_FOOTPRINT_POSITION (dialog_gen_footprint_position_file_base.cpp).
    File > Fabrication Outputs > Component Placement (.pos, .gbr)... */
-.ze-genpos-top {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: 5px; /* [data] `fgSizerTop`, `wxFlexGridSizer( 0, 2, 5, 5 )` */
-  margin: 5px; /* [data] `m_MainSizer->Add( fgSizerTop, 0, wxALL|wxEXPAND, 5 )` */
-  align-items: center;
-}
 .ze-genpos-row {
   display: flex;
   align-items: center;

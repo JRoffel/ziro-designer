@@ -24,7 +24,6 @@
 import { gzipSync, zipSync } from 'fflate';
 import { useState, type JSX } from 'react';
 import { DisplayErrorMessage } from '@ziroeda/common/confirm.js';
-import { useModalEscape } from '@ziroeda/common/dialog_shim.js';
 import { IO_ERROR } from '@ziroeda/common/exceptions.js';
 import {
   JOB_EXPORT_PCB_ODB,
@@ -32,12 +31,11 @@ import {
   ODB_UNITS,
 } from '@ziroeda/common/jobs/job_export_pcb_odb.js';
 import { RPT_SEVERITY_ERROR, type Reporter } from '@ziroeda/common/reporter.js';
-import { Icon } from '@ziroeda/common/widgets/icons.js';
-import { SpinCtrl } from '@ziroeda/wx/spin_ctrl.js';
-import { Combo } from '@ziroeda/wx/combobox.js';
 import { wxTarOutputStream } from '@ziroeda/wx/tarstrm.js';
 import type { BOARD } from '../board.js';
 import { PCB_IO_ODBPP } from '../pcb_io/odbpp/pcb_io_odbpp.js';
+import { DIALOG_EXPORT_ODBPP_BASE } from './dialog_export_odbpp_base.js';
+import { WxDirDialog } from '@ziroeda/wx/dirdlg.js';
 
 /** What the dialog hands BOARD_EDITOR_CONTROL::GenerateODBPPFiles on OK. */
 export interface ODBPP_DIALOG_RESULT {
@@ -62,16 +60,6 @@ interface Props {
   projectFolders?: readonly string[];
   onClose: (aResult: ODBPP_DIALOG_RESULT | null) => void;
 }
-
-const UNITS_CHOICES = [
-  { value: '0', label: 'Millimeters' },
-  { value: '1', label: 'Inches' },
-];
-const COMPRESS_CHOICES = [
-  { value: '0', label: 'None' },
-  { value: '1', label: 'ZIP' },
-  { value: '2', label: 'TGZ' },
-];
 
 /** `wxFileName( fn ).IsDir()`: a path that ends in a separator. */
 const isDir = (aPath: string): boolean => aPath.endsWith('/') || aPath.endsWith('\\');
@@ -185,28 +173,30 @@ export async function GenerateODBPPFiles(
   }
 }
 
+/**
+ * `DIALOG_EXPORT_ODBPP`: the settings it collects and the checks onOKClick makes. The window is
+ * DIALOG_EXPORT_ODBPP_BASE; Browse asks wxDirDialog for the folder and keeps the file name, as
+ * the output lands in the project's file manager.
+ */
 export function DialogExportOdbpp({ fileName, projectFolders = [], onClose }: Props): JSX.Element {
-  const cancel = (): void => onClose(null);
-  useModalEscape(cancel);
-
   // TransferDataToWindow(): <board>-odb.zip, then OnFmtChoiceOptionChanged.
-  const [compress, setCompress] = useState(String(ODB_COMPRESSION.ZIP));
+  const [compress, setCompress] = useState<number>(ODB_COMPRESSION.ZIP);
   const [outputFileName, setOutputFileName] = useState(() => {
     const base = (fileName || 'board.kicad_pcb').split('/').pop()!;
     const stem = base.includes('.') ? base.substring(0, base.lastIndexOf('.')) : base;
     return OnFmtChoiceOptionChanged(`${stem}-odb.zip`, ODB_COMPRESSION.ZIP);
   });
-  const [browseOpen, setBrowseOpen] = useState(false);
-  const [units, setUnits] = useState('0');
+  const [units, setUnits] = useState(0);
   const [precision, setPrecision] = useState(6);
+  const [browsing, setBrowsing] = useState(false);
 
-  const onFormatChoice = (aValue: string): void => {
-    setCompress(aValue);
-    setOutputFileName((p) => OnFmtChoiceOptionChanged(p, Number(aValue) as ODB_COMPRESSION));
+  const onFormatChoice = (aIndex: number): void => {
+    setCompress(aIndex);
+    setOutputFileName((p) => OnFmtChoiceOptionChanged(p, aIndex as ODB_COMPRESSION));
   };
 
   // onOKClick: the name must suit the format.
-  const onOK = (): void => {
+  const onOKClick = (): void => {
     const fn = outputFileName;
 
     if (fn === '') {
@@ -214,7 +204,7 @@ export function DialogExportOdbpp({ fileName, projectFolders = [], onClose }: Pr
       return;
     }
 
-    const mode = Number(compress) as ODB_COMPRESSION;
+    const mode = compress as ODB_COMPRESSION;
     const extension = extOf(fn);
 
     if (
@@ -228,118 +218,46 @@ export function DialogExportOdbpp({ fileName, projectFolders = [], onClose }: Pr
 
     onClose({
       outputPath: fn,
-      units: units === '0' ? 'mm' : 'inch',
+      units: units === 0 ? 'mm' : 'inch',
       precision,
       compressFormat: mode,
     });
   };
 
+  // The folder part of the output name, for wxDirDialog's defaultPath.
+  const trimmed = outputFileName.replace(/\/+$/, '');
+  const folder = trimmed.includes('/') ? trimmed.substring(0, trimmed.lastIndexOf('/')) : '';
+
   return (
-    <div className="ze-modal-backdrop" onMouseDown={cancel}>
-      <div className="ze-modal" onMouseDown={(e) => e.stopPropagation()}>
-        <div className="ze-modal-header">
-          Export ODB++
-          <span className="x" title="Close" onClick={cancel}>
-            ✕
-          </span>
-        </div>
-        <div className="ze-modal-body" style={{ display: 'block', overflow: 'auto' }}>
-          <div className="ze-genpos-row" onMouseDown={() => setBrowseOpen(false)}>
-            <span className="ze-genpos-label">Output file:</span>
-            <input
-              className="ze-search"
-              style={{
-                flex: 1,
-                // [data] `m_outputFileName->SetMinSize( wxSize( 350,-1 ) )`.
-                minWidth: 350,
-              }}
-              value={outputFileName}
-              title={
-                'Enter a filename if you do not want to use default file names\n' +
-                'Can be used only when printing the current sheet'
-              }
-              onChange={(e) => setOutputFileName(e.target.value)}
-            />
-            <div style={{ position: 'relative' }}>
-              <button
-                type="button"
-                className="ze-btn sm"
-                title="Export ODB++ File"
-                onMouseDown={(e) => {
-                  e.stopPropagation();
-                  setBrowseOpen((v) => !v);
-                }}
-              >
-                <Icon name="folder" size={14} />
-              </button>
-              {browseOpen && (
-                <div className="ze-folder-browse-popup" onMouseDown={(e) => e.stopPropagation()}>
-                  {[
-                    '',
-                    ...[...new Set(projectFolders.filter(Boolean))].sort((a, b) =>
-                      a < b ? -1 : a > b ? 1 : 0,
-                    ),
-                  ].map((f) => (
-                    <div
-                      key={f || '.'}
-                      className="ze-menu-item ze-folder-browse-item"
-                      onClick={() => {
-                        const trimmed = outputFileName.replace(/\/+$/, '');
-                        const base = trimmed.substring(trimmed.lastIndexOf('/') + 1);
-                        const tail = isDir(outputFileName) ? '/' : '';
-                        setOutputFileName(f ? `${f}/${base}${tail}` : `${base}${tail}`);
-                        setBrowseOpen(false);
-                      }}
-                    >
-                      {f || 'Project folder'}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="ze-genpos-field">
-            <span className="ze-genpos-label">Units:</span>
-            <Combo value={units} options={UNITS_CHOICES} onChange={setUnits} ariaLabel="Units" />
-          </div>
-          <div
-            className="ze-genpos-field"
-            title="The number of values following the decimal separator"
-          >
-            <span className="ze-genpos-label">Precision:</span>
-            <SpinCtrl
-              value={precision}
-              onChange={setPrecision}
-              min={2}
-              max={16}
-              ariaLabel="Precision"
-            />
-          </div>
-          <div
-            className="ze-genpos-field"
-            title="Select the format to compress the output ODB++ files"
-          >
-            <span className="ze-genpos-label">Compression format:</span>
-            <Combo
-              value={compress}
-              options={COMPRESS_CHOICES}
-              onChange={onFormatChoice}
-              ariaLabel="Compression format"
-            />
-          </div>
-        </div>
-
-        <div className="ze-modal-footer">
-          <button type="button" className="ze-btn" onClick={cancel}>
-            Cancel
-          </button>
-          <button type="button" className="ze-btn primary" onClick={onOK}>
-            OK
-          </button>
-        </div>
-      </div>
-    </div>
+    <>
+      <DIALOG_EXPORT_ODBPP_BASE
+        m_outputFileName={outputFileName}
+        onOutputFileName={setOutputFileName}
+        m_choiceUnits={units}
+        onChoiceUnits={setUnits}
+        m_precision={precision}
+        onPrecision={setPrecision}
+        m_choiceCompress={compress}
+        onFormatChoice={onFormatChoice}
+        onBrowseClicked={() => setBrowsing(true)}
+        onOKClick={onOKClick}
+        onCancel={() => onClose(null)}
+      />
+      {browsing && (
+        <WxDirDialog
+          title="Export ODB++ File"
+          folders={projectFolders}
+          initial={folder}
+          onDone={(aFolder) => {
+            setBrowsing(false);
+            if (aFolder === null) return;
+            const base = trimmed.substring(trimmed.lastIndexOf('/') + 1);
+            const tail = isDir(outputFileName) ? '/' : '';
+            setOutputFileName(aFolder ? `${aFolder}/${base}${tail}` : `${base}${tail}`);
+          }}
+        />
+      )}
+    </>
   );
 }
 

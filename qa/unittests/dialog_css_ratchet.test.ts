@@ -24,7 +24,10 @@ const BASELINE: Record<string, number> = {
   eeschema: 142,
   gerbview: 31,
   pagelayout_editor: 14,
-  pcbnew: 477,
+  // 477 -> 482 (10-10): not new CSS. ze-genpos-row/-label/-field/-formatrow were shared with the
+  // three export dialogs, which moved onto the sizers; DIALOG_GEN_FOOTPRINT_POSITION is now their
+  // only user, so they count as its own until it is converted.
+  pcbnew: 482,
 };
 
 const git = (...aSpecs: string[]): string[] =>

@@ -42,11 +42,9 @@ import {
   IPC2581_VERSION,
   JOB_EXPORT_PCB_IPC2581,
 } from '@ziroeda/common/jobs/job_export_pcb_ipc2581.js';
-import { useModalEscape } from '@ziroeda/common/dialog_shim.js';
-import { Combo } from '@ziroeda/wx/combobox.js';
-import { Icon } from '@ziroeda/common/widgets/icons.js';
-import { SpinCtrl } from '@ziroeda/wx/spin_ctrl.js';
-import { HtmlReportPanel, RPT_SEVERITY_ALL } from '@ziroeda/common/widgets/wx_html_report_panel.js';
+import { RPT_SEVERITY_ALL } from '@ziroeda/common/widgets/wx_html_report_panel.js';
+import { WxDirDialog } from '@ziroeda/wx/dirdlg.js';
+import { DIALOG_EXPORT_2581_BASE } from './dialog_export_2581_base.js';
 import type { BOARD } from '../board.js';
 import { PCB_IO_IPC2581 } from '../pcb_io/ipc2581/pcb_io_ipc2581.js';
 
@@ -61,15 +59,6 @@ interface Props {
   onOutputFile?: (path: string, bytes: Uint8Array, mime: string) => void;
   onClose: () => void;
 }
-
-const UNITS_CHOICES = [
-  { value: '0', label: 'Millimeters' },
-  { value: '1', label: 'Inches' },
-];
-const VERSION_CHOICES = [
-  { value: '0', label: 'B' },
-  { value: '1', label: 'C' },
-];
 
 const download = (name: string, bytes: Uint8Array): void => {
   const blob = new Blob([bytes as BlobPart], { type: 'application/octet-stream' });
@@ -161,8 +150,6 @@ export function DialogExport2581({
   onOutputFile,
   onClose,
 }: Props): JSX.Element {
-  useModalEscape(onClose);
-
   // init(): every field name of every footprint, sorted (std::set).
   const fieldNames = useMemo(() => {
     const options = new Set<string>();
@@ -181,10 +168,10 @@ export function DialogExport2581({
   const defaultPath = (): string =>
     setExt((fileName || 'board.kicad_pcb').split('/').pop()!, 'xml');
   const [outputFileName, setOutputFileName] = useState(defaultPath);
-  const [browseOpen, setBrowseOpen] = useState(false);
-  const [units, setUnits] = useState('0');
+  const [browsing, setBrowsing] = useState(false);
+  const [units, setUnits] = useState(0);
   const [precision, setPrecision] = useState(6);
-  const [version, setVersion] = useState('1');
+  const [version, setVersion] = useState(1);
   const [compress, setCompress] = useState(false);
   const [bomRev, setBomRev] = useState(() => (bom ? bom.bomRev || bom.schRevision : ''));
   // Upstream selects the saved internal ID column in m_choiceMPN, not m_oemRef (a slip in
@@ -280,8 +267,8 @@ export function DialogExport2581({
     job.m_colMfg = mfgEnabled ? mfg : '';
     job.m_colMfgPn = mpn;
     job.m_bomRev = bomRev;
-    job.m_version = version === '0' ? IPC2581_VERSION.B : IPC2581_VERSION.C;
-    job.m_units = units === '0' ? IPC2581_UNITS.MM : IPC2581_UNITS.INCH;
+    job.m_version = version === 0 ? IPC2581_VERSION.B : IPC2581_VERSION.C;
+    job.m_units = units === 0 ? IPC2581_UNITS.MM : IPC2581_UNITS.INCH;
     job.m_precision = precision;
     job.m_compress = compress;
 
@@ -317,212 +304,62 @@ export function DialogExport2581({
     ...fieldNames.map((n) => ({ value: n, label: n })),
   ];
 
+  // The folder part of the output name, for wxDirDialog's defaultPath.
+  const folder = outputFileName.includes('/')
+    ? outputFileName.substring(0, outputFileName.lastIndexOf('/'))
+    : '';
+
   return (
-    <div className="ze-modal-backdrop" onMouseDown={onClose}>
-      <div className="ze-modal" onMouseDown={(e) => e.stopPropagation()}>
-        <div className="ze-modal-header">
-          Export IPC-2581
-          <span className="x" title="Close" onClick={onClose}>
-            ✕
-          </span>
-        </div>
-        <div className="ze-modal-body" style={{ display: 'block', overflow: 'auto' }}>
-          <div className="ze-genpos-row" onMouseDown={() => setBrowseOpen(false)}>
-            <span className="ze-genpos-label">File:</span>
-            <input
-              className="ze-search"
-              style={{ flex: 1, minWidth: 350 }}
-              value={outputFileName}
-              title={
-                'Enter a filename if you do not want to use default file names\n' +
-                'Can be used only when printing the current sheet'
-              }
-              onChange={(e) => setOutputFileName(e.target.value)}
-            />
-            <div style={{ position: 'relative' }}>
-              <button
-                type="button"
-                className="ze-btn sm"
-                title="Export IPC-2581 File"
-                onMouseDown={(e) => {
-                  e.stopPropagation();
-                  setBrowseOpen((v) => !v);
-                }}
-              >
-                <Icon name="folder" size={14} />
-              </button>
-              {browseOpen && (
-                <div className="ze-folder-browse-popup" onMouseDown={(e) => e.stopPropagation()}>
-                  {[
-                    '',
-                    ...[...new Set(projectFolders.filter(Boolean))].sort((a, b) =>
-                      a < b ? -1 : a > b ? 1 : 0,
-                    ),
-                  ].map((f) => (
-                    <div
-                      key={f || '.'}
-                      className="ze-menu-item ze-folder-browse-item"
-                      onClick={() => {
-                        const base = outputFileName.substring(outputFileName.lastIndexOf('/') + 1);
-                        setOutputFileName(f ? `${f}/${base}` : base);
-                        setBrowseOpen(false);
-                      }}
-                    >
-                      {f || 'Project folder'}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="ze-genpos-formatrow">
-            <div className="ze-pref-group" style={{ flex: 1 }}>
-              <div className="ze-pref-group-title">File Format</div>
-              <div className="ze-pref-group-body">
-                <div className="ze-genpos-field">
-                  <span className="ze-genpos-label">Units:</span>
-                  <Combo
-                    value={units}
-                    options={UNITS_CHOICES}
-                    onChange={setUnits}
-                    ariaLabel="Units"
-                  />
-                </div>
-                <div
-                  className="ze-genpos-field"
-                  title="The number of values following the decimal separator"
-                >
-                  <span className="ze-genpos-label">Precision:</span>
-                  <SpinCtrl
-                    value={precision}
-                    onChange={setPrecision}
-                    min={4}
-                    max={10}
-                    ariaLabel="Precision"
-                  />
-                </div>
-                <div className="ze-genpos-field">
-                  <span className="ze-genpos-label">Version:</span>
-                  <Combo
-                    value={version}
-                    options={VERSION_CHOICES}
-                    onChange={setVersion}
-                    ariaLabel="Version"
-                  />
-                </div>
-                <label className="ze-check" title="Compress output into 'zip' file">
-                  <input
-                    type="checkbox"
-                    checked={compress}
-                    onChange={(e) => changeCompress(e.target.checked)}
-                  />
-                  Compress output
-                </label>
-              </div>
-            </div>
-
-            <div className="ze-pref-group" style={{ flex: 1 }}>
-              <div className="ze-pref-group-title">BOM Columns</div>
-              <div className="ze-pref-group-body">
-                <div
-                  className="ze-genpos-field"
-                  title="Revision string for the BOM section. Auto-populated from schematic title block revision"
-                >
-                  <span className="ze-genpos-label">BOM revision:</span>
-                  <input
-                    className="ze-search"
-                    style={{ flex: 1 }}
-                    value={bomRev}
-                    onChange={(e) => setBomRev(e.target.value)}
-                  />
-                </div>
-                <div
-                  className="ze-genpos-field"
-                  title={
-                    'Part ID number used internally during design.\nThis number must be unique to each part.'
-                  }
-                >
-                  <span className="ze-genpos-label">Internal ID:</span>
-                  <Combo
-                    value={oemRef}
-                    options={options('Generate unique')}
-                    onChange={setOemRef}
-                    style={{ flex: 1 }}
-                    ariaLabel="Internal ID"
-                  />
-                </div>
-                <div
-                  className="ze-genpos-field"
-                  title="Column containing the manufacturer part number"
-                >
-                  <span className="ze-genpos-label">Manufacturer P/N:</span>
-                  <Combo
-                    value={mpn}
-                    options={options('Omit')}
-                    onChange={changeMpn}
-                    style={{ flex: 1 }}
-                    ariaLabel="Manufacturer P/N"
-                  />
-                </div>
-                <div className="ze-genpos-field">
-                  <span className="ze-genpos-label">Manufacturer:</span>
-                  <Combo
-                    value={mfgEnabled ? mfg : ''}
-                    options={options('N/A')}
-                    onChange={setMfg}
-                    disabled={!mfgEnabled}
-                    style={{ flex: 1 }}
-                    ariaLabel="Manufacturer"
-                  />
-                </div>
-                <div
-                  className="ze-genpos-field"
-                  title="Column containing the distributor part number"
-                >
-                  <span className="ze-genpos-label">Distributor P/N:</span>
-                  <Combo
-                    value={distPN}
-                    options={options('Omit')}
-                    onChange={changeDistPN}
-                    style={{ flex: 1 }}
-                    ariaLabel="Distributor P/N"
-                  />
-                </div>
-                <div className="ze-genpos-field">
-                  <span className="ze-genpos-label">Distributor:</span>
-                  <input
-                    className="ze-search"
-                    style={{ flex: 1 }}
-                    value={distributor}
-                    disabled={!distEnabled}
-                    onChange={(e) => setDistributor(e.target.value)}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="ze-genpos-report">
-            <HtmlReportPanel
-              lines={messages}
-              fileName="report.txt"
-              minHeight={150}
-              visibleSeverities={severities}
-              onVisibleSeveritiesChange={setSeverities}
-            />
-          </div>
-        </div>
-
-        <div className="ze-modal-footer">
-          <button type="button" className="ze-btn" onClick={onClose}>
-            Close
-          </button>
-          <button type="button" className="ze-btn primary" onClick={onExport}>
-            Export
-          </button>
-        </div>
-      </div>
-    </div>
+    <>
+      <DIALOG_EXPORT_2581_BASE
+        m_outputFileName={outputFileName}
+        onOutputFileName={setOutputFileName}
+        onBrowseClicked={() => setBrowsing(true)}
+        m_choiceUnits={units}
+        onChoiceUnits={setUnits}
+        m_precision={precision}
+        onPrecision={setPrecision}
+        m_versionChoice={version}
+        onVersionChoice={setVersion}
+        m_cbCompress={compress}
+        onCompressCheck={changeCompress}
+        m_textBomRev={bomRev}
+        onBomRev={setBomRev}
+        m_oemRef={oemRef}
+        oemRefOptions={options('Generate unique')}
+        onOemRef={setOemRef}
+        m_choiceMPN={mpn}
+        mpnOptions={options('Omit')}
+        onMfgPNChange={changeMpn}
+        m_choiceMfg={mfg}
+        mfgOptions={options('N/A')}
+        onMfg={setMfg}
+        mfgEnabled={mfgEnabled}
+        m_choiceDistPN={distPN}
+        distPNOptions={options('Omit')}
+        onDistPNChange={changeDistPN}
+        m_textDistributor={distributor}
+        onDistributor={setDistributor}
+        distributorEnabled={distEnabled}
+        messages={messages}
+        visibleSeverities={severities}
+        onVisibleSeveritiesChange={setSeverities}
+        onOKClick={onExport}
+        onCancel={onClose}
+      />
+      {browsing && (
+        <WxDirDialog
+          title="IPC-2581 XML File"
+          folders={projectFolders}
+          initial={folder}
+          onDone={(aFolder) => {
+            setBrowsing(false);
+            if (aFolder === null) return;
+            const base = outputFileName.substring(outputFileName.lastIndexOf('/') + 1);
+            setOutputFileName(aFolder ? `${aFolder}/${base}` : base);
+          }}
+        />
+      )}
+    </>
   );
 }

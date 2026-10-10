@@ -49,7 +49,6 @@ import {
   type wxGridCellEditor,
   wxGridEvent,
   wxGridSelectionModes,
-  wxGridStringTable,
 } from './grid.js';
 import { type wxMenu, wxMenuItem } from './menu.js';
 import {

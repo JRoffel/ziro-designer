@@ -8252,6 +8252,7 @@ export function PcbEditor({
       {vrmlDlg && frameRef.current && (
         <DialogExportVrml
           initialPath={vrmlDlg.path}
+          projectFolders={projectFolders}
           unitsProvider={frameRef.current}
           fileExists={(aPath) => frameRef.current?.FileExists(aPath) ?? false}
           confirmOverwrite={() => IsOK('Are you sure you want to overwrite the existing file?')}
