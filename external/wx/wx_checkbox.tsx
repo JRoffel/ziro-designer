@@ -10,15 +10,32 @@ import { type JSX, useEffect, useRef } from 'react';
 /** `wxCheckBoxState`: true is wxCHK_CHECKED, false wxCHK_UNCHECKED, null wxCHK_UNDETERMINED. */
 export type CHECK_STATE = boolean | null;
 
-/** A wxCHK_3STATE wxCheckBox: a click cycles checked, unchecked, undetermined. */
+/** A three-state wxCheckBox member (`wxCHK_3STATE`), as a `_base` takes it. */
+export interface CHECK3 {
+  value: CHECK_STATE;
+  enabled?: boolean;
+  onChange: (aValue: CHECK_STATE) => void;
+}
+
+/**
+ * A wxCHK_3STATE wxCheckBox. With `wxCHK_ALLOW_3RD_STATE_FOR_USER` (the default) a click walks
+ * unchecked -> checked -> undetermined -> unchecked, as wxCheckBoxBase's next state does; without
+ * it the user only toggles between the two, and undetermined is the program's to set.
+ */
 export function TriStateCheck({
   label,
   value,
   onChange,
+  allowThirdStateForUser = true,
+  disabled,
+  title,
 }: {
   label: string;
   value: CHECK_STATE;
   onChange: (aValue: CHECK_STATE) => void;
+  allowThirdStateForUser?: boolean;
+  disabled?: boolean;
+  title?: string;
 }): JSX.Element {
   const ref = useRef<HTMLInputElement>(null);
 
@@ -26,13 +43,18 @@ export function TriStateCheck({
     if (ref.current) ref.current.indeterminate = value === null;
   }, [value]);
 
+  const next = (): CHECK_STATE =>
+    value === false ? true : value === true ? (allowThirdStateForUser ? null : false) : false;
+
   return (
-    <label className="ze-check">
+    <label className="ze-check" title={title}>
       <input
         ref={ref}
         type="checkbox"
         checked={value === true}
-        onChange={() => onChange(value === false ? true : value === true ? null : false)}
+        aria-checked={value === null ? 'mixed' : value}
+        disabled={disabled}
+        onChange={() => onChange(next())}
       />
       {label}
     </label>

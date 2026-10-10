@@ -36,6 +36,13 @@
  */
 import { hotkeyListKey } from '@ziroeda/common/tool/action_menu_key_names.js';
 import { NAMED_KEYS } from '@ziroeda/common/tool/action_menu_hotkeys.js';
+import type { Color4d } from '@ziroeda/common/gal/color4d.js';
+import { type PCB_LAYER_ID, UNDEFINED_LAYER } from '@ziroeda/common/layer_id.js';
+import { LSET_Name } from '@ziroeda/common/layer_ids.js';
+import { LSET } from '@ziroeda/common/lset.js';
+import { LAYER_BOX_SELECTOR } from '@ziroeda/common/widgets/layer_box_selector.js';
+import type { PCB_BASE_FRAME } from './pcb_base_frame.js';
+import { PCB_LAYER_PRESENTATION } from './pcb_layer_presentation.js';
 
 /**
  * The copper layers that carry a `DefaultHotkey`, written the way every other
@@ -84,4 +91,93 @@ export function layerBoxLabel(name: string, layerId: string): string {
 
   // `if( !keyname.IsEmpty() )` — no hotkey, no parentheses.
   return key ? `${name} (${hotkeyListKey(key)})` : name;
+}
+
+/**
+ * One `Append( layername, wxBitmapBundle::FromBitmaps( bitmaps ), (void*) layerid )`. The bitmap is
+ * `DrawColorSwatch( bmp, layerid )`; the undefined-layer row is appended with `wxNullBitmap`.
+ */
+export interface PCB_LAYER_BOX_ROW {
+  name: string;
+  /** The swatch, or null for wxNullBitmap. */
+  swatch: Color4d | null;
+  /** The client data: the layer id. */
+  layerid: number;
+}
+
+/**
+ * `PCB_LAYER_BOX_SELECTOR` (pcbnew/pcb_layer_box_selector.h/.cpp): a layer list in a
+ * wxBitmapComboBox, for the board frames' toolbar and the dialogs that pick a layer.
+ */
+export class PCB_LAYER_BOX_SELECTOR extends LAYER_BOX_SELECTOR<PCB_LAYER_BOX_ROW> {
+  private m_boardFrame: PCB_BASE_FRAME | null = null;
+  private m_layerMaskDisable = new LSET(); // A mask to remove some (not allowed) layers
+  private m_showNotEnabledBrdlayers = false; // true to list all allowed layers
+  private m_undefinedLayerName = ''; // if not empty add an item with this name which sets
+  // the layer to UNDEFINED_LAYER
+  private readonly m_layerPresentation = new PCB_LAYER_PRESENTATION(null); // The parent isn't always the frame
+
+  /** Set a frame, needed to get the board, or null for the footprint editor's all layers. */
+  SetBoardFrame(aFrame: PCB_BASE_FRAME | null): void {
+    this.m_boardFrame = aFrame;
+    this.m_layerPresentation.SetBoardFrame(this.m_boardFrame);
+  }
+
+  /** Allow (or not) the layers not activated for the current board to be shown. */
+  ShowNonActivatedLayers(aShow: boolean): void {
+    this.m_showNotEnabledBrdlayers = aShow;
+  }
+
+  SetNotAllowedLayerSet(aMask: LSET): void {
+    this.m_layerMaskDisable = aMask;
+  }
+
+  SetUndefinedLayerName(aName: string): void {
+    this.m_undefinedLayerName = aName;
+  }
+
+  // Reload the Layers
+  Resync(): void {
+    this.Clear();
+
+    const notDisabled = this.m_layerMaskDisable.not();
+    const show = LSET.AllCuMask().or(LSET.AllNonCuMask()).and(notDisabled);
+    const activated = this.getEnabledLayers().and(notDisabled);
+    let layerstatus: string;
+
+    for (const layerid of show.UIOrder()) {
+      if (!this.m_showNotEnabledBrdlayers && !activated.Contains(layerid)) continue;
+      else if (!activated.Contains(layerid)) layerstatus = ' (not activated)';
+      else layerstatus = '';
+
+      let layername = this.m_layerPresentation.getLayerName(layerid) + layerstatus;
+
+      // `AddHotkeyName( layername, LayerIDToAction( layerid )->GetHotKey(), IS_COMMENT )`
+      if (this.m_layerhotkeys) layername = layerBoxLabel(layername, LSET_Name(layerid));
+
+      this.Append({
+        name: layername,
+        swatch: this.m_layerPresentation.DrawColorSwatch(layerid),
+        layerid,
+      });
+    }
+
+    if (this.m_undefinedLayerName !== '')
+      this.Append({ name: this.m_undefinedLayerName, swatch: null, layerid: UNDEFINED_LAYER });
+
+    // The best-size dance (select row 0, measure, set the min size, deselect) leaves the
+    // selection at wxNOT_FOUND; the width is the Combo's own.
+    this.SetSelection(-1);
+  }
+
+  // Returns true if the layer id is enabled (i.e. is it should be displayed)
+  protected isLayerEnabled(aLayer: number): boolean {
+    return this.getEnabledLayers().Contains(aLayer as PCB_LAYER_ID);
+  }
+
+  private getEnabledLayers(): LSET {
+    if (this.m_boardFrame) return this.m_boardFrame.GetBoard()!.GetEnabledLayers();
+
+    return LSET.AllLayersMask(); // footprintEditorLayers
+  }
 }

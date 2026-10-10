@@ -77,9 +77,9 @@ import {
   FormatBoardAsync,
   ParseBoard,
 } from './pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.js';
-import { type SelectionFilter } from './dialogs/dialog_filter_selection.js';
+import type { SelectionFilter } from './dialogs/dialog_filter_selection.js';
 import { BOARD_NETLIST_UPDATER } from './netlist_reader/board_netlist_updater.js';
-import { type NETLIST } from './netlist_reader/pcb_netlist.js';
+import type { NETLIST } from './netlist_reader/pcb_netlist.js';
 import { DialogImportGraphics } from './import_gfx/dialog_import_graphics.js';
 import { IsCopperLayer } from '@ziroeda/common/layer_ids.js';
 import type { BOARD_CONNECTED_ITEM } from './board_connected_item.js';
@@ -226,7 +226,7 @@ import { DialogGlobalEditTeardrops } from './dialogs/dialog_global_edit_teardrop
 import { BuildBomTextFromBoard } from './build_BOM_from_board.js';
 import { DialogBoardStatistics } from './dialogs/dialog_board_statistics.js';
 import { DialogFilterSelection } from './dialogs/dialog_filter_selection_ui.js';
-import { type MOVE_EXACT_VALUES, ROTATION_ANCHOR } from './tools/edit_tool.js';
+import type { MOVE_EXACT_VALUES, ROTATION_ANCHOR } from './tools/edit_tool.js';
 import type { DOGBONE_PARAMETERS } from './tools/item_modification_routine.js';
 import type { TOOL_ACTION } from '@ziroeda/common/tool/tool_action.js';
 import type { BOX2I as KBOX2I } from '@ziroeda/kimath/src/math/box2.js';
@@ -335,7 +335,7 @@ import { PCB_GRID_HELPER, type PcbGridState } from './tools/pcb_grid_helper.js';
 import { drawConstructionGeom } from '@ziroeda/common/preview_items/construction_geom.js';
 import { drawSnapIndicator } from '@ziroeda/common/preview_items/snap_indicator.js';
 import { BOX2I } from '@ziroeda/kimath/src/math/box2.js';
-import { DialogTrackViaProperties } from './dialogs/dialog_track_via_properties_ui.js';
+import { DialogTrackViaProperties } from './dialogs/dialog_track_via_properties.js';
 import { DialogCopperZones } from './dialogs/dialog_copper_zones.js';
 import { PcbOneLayerSelector, SelectCopperLayerPairDialog } from './sel_layer.js';
 import { DialogFootprintProperties } from './dialogs/dialog_footprint_properties_ui.js';
@@ -351,9 +351,9 @@ import { DialogImportNetlist, type ImportNetlistOptions } from './dialogs/dialog
 import { loadNetlist as readNetlistText } from './netlist_reader/netlist_reader.js';
 import type { INPUT_LAYER_DESC } from './pcb_io/common/plugin_common_layer_mapping.js';
 import type { PCB_LAYER_ID as MapLayersLayerId } from '@ziroeda/common/layer_id.js';
-import {
+import type {
   DIALOG_FOOTPRINT_PROPERTIES,
-  type FootprintValues,
+  FootprintValues,
 } from './dialogs/dialog_footprint_properties.js';
 import { DIALOG_COPPER_ZONE, type ZoneValues } from './dialogs/panel_zone_properties.js';
 import {
@@ -365,7 +365,7 @@ import type { DIALOG_GLOBAL_EDIT_TEARDROPS } from './dialogs/dialog_global_edit_
 import { DisplayErrorMessage, IsOK } from '@ziroeda/common/confirm.js';
 import { EDA_ANGLE, EDA_ANGLE_T } from '@ziroeda/kimath/src/geometry/eda_angle.js';
 import { ARRAY_TOOL } from './tools/array_tool.js';
-import { PCB_SELECTION } from './tools/pcb_selection.js';
+import type { PCB_SELECTION } from './tools/pcb_selection.js';
 import { PCB_ACTIONS } from './tools/pcb_actions.js';
 import { MwavePolygonalShapeDlg } from './microwave/microwave_polygon_ui.js';
 import {
@@ -4940,25 +4940,33 @@ export function PcbEditor({
   const fillAllZonesRef = useRef(fillAllZones);
   fillAllZonesRef.current = fillAllZones;
 
+  /**
+   * The dialog `new DIALOG_TRACK_VIA_PROPERTIES( this, selection )` opened on: one instance for the
+   * window and for OK, as the padstack edits live on it.
+   */
+  const trackViaDlg = useMemo(
+    () =>
+      trackViaItems && frameRef.current
+        ? new DIALOG_TRACK_VIA_PROPERTIES(frameRef.current, trackViaItems)
+        : null,
+    [trackViaItems],
+  );
+
   /** DIALOG_TRACK_VIA_PROPERTIES::TransferDataFromWindow. */
   const applyTrackViaEdit = useCallback(
     (values: TrackViaValues) => {
-      const frame = frameRef.current;
-      const items = trackViaItems;
-      if (!frame || !items) {
+      if (!trackViaDlg) {
         setTrackViaItems(null);
         return;
       }
-      // DIALOG_TRACK_VIA_PROPERTIES on the live items: one BOARD_COMMIT. A
-      // refused OK leaves the dialog up behind its error, as DisplayError does.
-      void new DIALOG_TRACK_VIA_PROPERTIES(frame, items)
-        .TransferDataFromWindow(values, askKiDialog)
-        .then((r) => {
-          if (r.ok) setTrackViaItems(null);
-          else if (r.message) DisplayErrorMessage(r.message);
-        });
+      // One BOARD_COMMIT on the live items. A refused OK leaves the dialog up behind its
+      // error, as DisplayError does.
+      void trackViaDlg.TransferDataFromWindow(values, askKiDialog).then((r) => {
+        if (r.ok) setTrackViaItems(null);
+        else if (r.message) DisplayErrorMessage(r.message);
+      });
     },
-    [askKiDialog, trackViaItems],
+    [askKiDialog, trackViaDlg],
   );
 
   /** DIALOG_FOOTPRINT_PROPERTIES::TransferDataFromWindow. */
@@ -7829,27 +7837,14 @@ export function PcbEditor({
             onClose={() => setZoneProps(null)}
           />
         )}
-      {trackViaItems &&
-        board &&
-        frameRef.current &&
-        (() => {
-          const dlg = new DIALOG_TRACK_VIA_PROPERTIES(frameRef.current!, trackViaItems);
-          return (
-            <DialogTrackViaProperties
-              initial={dlg.TransferDataToWindow()}
-              hasTracks={dlg.m_tracks}
-              hasVias={dlg.m_vias}
-              nets={netNamesByCode(frameRef.current?.GetBoard())}
-              layers={enabledLayerNames(frameRef.current?.GetBoard()).filter((n) =>
-                /\.Cu$/.test(n),
-              )}
-              trackWidths={trackWidthList}
-              viaSizes={viaSizeList}
-              onApply={applyTrackViaEdit}
-              onClose={() => setTrackViaItems(null)}
-            />
-          );
-        })()}
+      {trackViaDlg && board && frameRef.current && (
+        <DialogTrackViaProperties
+          dlg={trackViaDlg}
+          frame={frameRef.current}
+          onApply={applyTrackViaEdit}
+          onClose={() => setTrackViaItems(null)}
+        />
+      )}
       {layerPairDialogOpen && frameRef.current && frameRef.current.GetBoard() && (
         <SelectCopperLayerPairDialog
           board={frameRef.current.GetBoard()!}

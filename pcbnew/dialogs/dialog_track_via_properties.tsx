@@ -12,10 +12,24 @@
  * That is the entire reason this is not a simple form — a blank width box means
  * "leave each track's own width alone", not "set the width to zero".
  *
- * The decision logic lives here so it can be tested without a UI.
+ * The class is the dialog's logic, testable without a window; `DialogTrackViaProperties` below
+ * is the window's state and handlers over DIALOG_TRACK_VIA_PROPERTIES_BASE.
  */
+import { type JSX, useEffect, useReducer, useState } from 'react';
 import type { EDA_ITEM } from '@ziroeda/common/eda_item.js';
+import { toCssColor } from '@ziroeda/common/gal/color4d.js';
+import { unitLabel } from '@ziroeda/common/eda_units.js';
+import { COORD_TYPES_T } from '@ziroeda/common/origin_transforms.js';
+import { UNIT_BINDER } from '@ziroeda/common/widgets/unit_binder.js';
+import type { CHECK3, CHECK_STATE } from '@ziroeda/wx/wx_checkbox.js';
+import { PCB_LAYER_BOX_SELECTOR } from '../pcb_layer_box_selector.js';
+import {
+  DIALOG_TRACK_VIA_PROPERTIES_BASE,
+  type LAYERBOX,
+  type UNIT,
+} from './dialog_track_via_properties_base.js';
 import { PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
+import { LSET } from '@ziroeda/common/lset.js';
 import { LSET_Name, LSET_NameToLayer } from '@ziroeda/common/layer_ids.js';
 import { pcbIUScale, stringFromValue } from '@ziroeda/common/eda_units.js';
 import type { KiDialogRequest } from '@ziroeda/common/kidialog.js';
@@ -35,13 +49,18 @@ import {
   PAD_DRILL_SHAPE,
   PADSTACK,
   PADSTACK_DRILL_PROPS,
+  PADSTACK_MODE,
   PADSTACK_POST_MACHINING_PROPS,
   UNCONNECTED_LAYER_MODE,
 } from '../padstack.js';
 import type { PCB_BASE_EDIT_FRAME } from '../pcb_base_edit_frame.js';
 import { GEOMETRY_MIN_SIZE, PCB_TRACK, PCB_VIA } from '../pcb_track.js';
 import { VIATYPE } from '../pcb_track_types.js';
-import { IPC4761_PRESET, VIA_PROTECTION_UI_MIXIN } from '../via_protection_ui_mixin.js';
+import {
+  IPC4761_NAMES,
+  IPC4761_PRESET,
+  VIA_PROTECTION_UI_MIXIN,
+} from '../via_protection_ui_mixin.js';
 import type { TransferResult } from './dialog_text_properties.js';
 import type { UnconnectedLayerMode } from './dialog_pad_properties.js';
 
@@ -405,9 +424,9 @@ export type TrackViaAsk = (aRequest: KiDialogRequest) => KiDialogResult | Promis
  *    NOT_POST_MACHINED over an unset mode (:1429-1462). So OK on vias of
  *    mixed diameter or drill gives them the first via's.
  *
- * Not ported: the padstack mode and per-layer diameter controls (the edit
- * layer stays PADSTACK::ALL_LAYERS), the predefined-size lists, and the
- * control-enable handlers.
+ * The padstack mode and edit layer (onPadstackModeChanged, onEditLayerChanged,
+ * afterPadstackModeChanged) are the methods below; the window's other handlers are the
+ * component's (dialog_track_via_properties.tsx).
  */
 export class DIALOG_TRACK_VIA_PROPERTIES extends VIA_PROTECTION_UI_MIXIN {
   private readonly m_frame: PCB_BASE_EDIT_FRAME;
@@ -419,8 +438,10 @@ export class DIALOG_TRACK_VIA_PROPERTIES extends VIA_PROTECTION_UI_MIXIN {
   /** Temporary padstack of the edited via(s): the first via's. */
   private readonly m_viaStack: PADSTACK | null;
   /** The currently-shown copper layer of the edited via(s). */
-  private readonly m_editLayer: PCB_LAYER_ID = PADSTACK.ALL_LAYERS;
-  private readonly m_padstackDirty = false;
+  private m_editLayer: PCB_LAYER_ID = PADSTACK.ALL_LAYERS;
+  private m_padstackDirty = false;
+  /** `m_editLayerCtrlMap`: m_cbEditLayer's row -> the layer it edits. */
+  private m_editLayerCtrlMap = new Map<number, PCB_LAYER_ID>([[0, PADSTACK.ALL_LAYERS]]);
 
   constructor(aFrame: PCB_BASE_EDIT_FRAME, aItems: Iterable<EDA_ITEM>) {
     super();
@@ -439,6 +460,120 @@ export class DIALOG_TRACK_VIA_PROPERTIES extends VIA_PROTECTION_UI_MIXIN {
     this.m_tracks = tracks;
     this.m_vias = viaStack !== null;
     this.m_viaStack = viaStack;
+  }
+
+  /**
+   * `afterPadstackModeChanged` (:1795-1858): m_cbPadstackMode's row, m_cbEditLayer's rows and
+   * enable, and which row shows m_editLayer. The edit layer moves to INNER_LAYERS when the mode
+   * no longer has the layer it was on.
+   */
+  PadstackWindow(): {
+    mode: number;
+    editLayers: string[];
+    editLayer: number;
+    editEnabled: boolean;
+  } {
+    const stack = this.m_viaStack;
+    const board = this.m_frame.GetBoard();
+
+    if (!stack || !board)
+      return { mode: 0, editLayers: ['All layers'], editLayer: 0, editEnabled: false };
+
+    let labels: string[];
+
+    switch (stack.Mode()) {
+      case PADSTACK_MODE.FRONT_INNER_BACK:
+        labels = [
+          board.GetLayerName(PCB_LAYER_ID.F_Cu),
+          'Inner Layers',
+          board.GetLayerName(PCB_LAYER_ID.B_Cu),
+        ];
+        this.m_editLayerCtrlMap = new Map([
+          [0, PCB_LAYER_ID.F_Cu],
+          [1, PADSTACK.INNER_LAYERS],
+          [2, PCB_LAYER_ID.B_Cu],
+        ]);
+
+        if (this.m_editLayer !== PCB_LAYER_ID.F_Cu && this.m_editLayer !== PCB_LAYER_ID.B_Cu)
+          this.m_editLayer = PADSTACK.INNER_LAYERS;
+
+        break;
+
+      case PADSTACK_MODE.CUSTOM: {
+        const layers = LSET.AllCuMask().and(board.GetEnabledLayers()).UIOrder();
+        labels = layers.map((l) => board.GetLayerName(l));
+        this.m_editLayerCtrlMap = new Map(layers.map((l, i) => [i, l] as const));
+        break;
+      }
+
+      default:
+        labels = ['All layers'];
+        this.m_editLayer = PADSTACK.ALL_LAYERS;
+        this.m_editLayerCtrlMap = new Map([[0, PADSTACK.ALL_LAYERS]]);
+    }
+
+    let row = 0;
+
+    for (const [idx, layer] of this.m_editLayerCtrlMap) {
+      if (layer === this.m_editLayer) {
+        row = idx;
+        break;
+      }
+    }
+
+    return {
+      mode: stack.Mode(),
+      editLayers: labels,
+      editLayer: row,
+      editEnabled: stack.Mode() !== PADSTACK_MODE.NORMAL,
+    };
+  }
+
+  /** `onPadstackModeChanged` (:1724-1739): the row's mode onto the temporary padstack. */
+  SetPadstackMode(aRow: number): void {
+    if (!this.m_viaStack) return;
+
+    this.m_viaStack.SetMode(
+      aRow === 1
+        ? PADSTACK_MODE.FRONT_INNER_BACK
+        : aRow === 2
+          ? PADSTACK_MODE.CUSTOM
+          : PADSTACK_MODE.NORMAL,
+    );
+    this.m_padstackDirty = true;
+  }
+
+  /**
+   * `onEditLayerChanged` (:1742-1792): save the shown diameter onto the layer it was for, move
+   * to the row's layer, and return that layer's diameter for m_viaDiameter.
+   */
+  SetEditLayer(aRow: number, aShownDiameter: number | undefined): number {
+    const stack = this.m_viaStack!;
+
+    if (aShownDiameter !== undefined) {
+      const currentSize = stack.Size(this.m_editLayer);
+
+      if (currentSize.x !== aShownDiameter || currentSize.y !== aShownDiameter) {
+        stack.SetSize({ x: aShownDiameter, y: aShownDiameter }, this.m_editLayer);
+        this.m_padstackDirty = true;
+      }
+    }
+
+    switch (stack.Mode()) {
+      case PADSTACK_MODE.FRONT_INNER_BACK:
+        this.m_editLayer =
+          aRow === 1 ? PADSTACK.INNER_LAYERS : aRow === 2 ? PCB_LAYER_ID.B_Cu : PCB_LAYER_ID.F_Cu;
+        break;
+
+      case PADSTACK_MODE.CUSTOM:
+        this.m_editLayer = this.m_editLayerCtrlMap.get(Math.max(0, aRow)) ?? PCB_LAYER_ID.F_Cu;
+        break;
+
+      default:
+        this.m_editLayer = PADSTACK.ALL_LAYERS;
+    }
+
+    return stack.Size(this.m_editLayer).x;
   }
 
   TransferDataToWindow(): TrackViaValues {
@@ -1110,4 +1245,550 @@ export class DIALOG_TRACK_VIA_PROPERTIES extends VIA_PROTECTION_UI_MIXIN {
     commit.Push('Edit Track/Via Properties');
     return { ok: true };
   }
+}
+
+// ---- The window: DIALOG_TRACK_VIA_PROPERTIES over DIALOG_TRACK_VIA_PROPERTIES_BASE ----
+
+export interface DialogTrackViaPropertiesProps {
+  /** The dialog the window was opened on: its padstack edits are applied by the same instance. */
+  dlg: DIALOG_TRACK_VIA_PROPERTIES;
+  /** `m_frame`: the binders' units and origin, the board, the design settings. */
+  frame: PCB_BASE_EDIT_FRAME;
+  /** OK: the window, for `dlg.TransferDataFromWindow`. */
+  onApply: (aValues: TrackViaValues) => void;
+  onClose: () => void;
+}
+
+/** wxCHK_3STATE's Get3StateValue as the window holds it: undefined is wxCHK_UNDETERMINED. */
+const toCheck = (v: boolean | undefined): CHECK_STATE => (v === undefined ? null : v);
+const fromCheck = (v: CHECK_STATE): boolean | undefined => (v === null ? undefined : v);
+
+const VIA_KINDS: readonly ViaKind[] = ['through', 'micro', 'blind', 'buried'];
+const POST_MACHINE_ROWS: readonly PostMachineChoice[] = ['none', 'countersink', 'counterbore'];
+const ANNULAR_KINDS: readonly UnconnectedLayerMode[] = ANNULAR_ROWS.map(([, k]) => k);
+/** The IPC-4761 rows the constructor appends: every preset before CUSTOM. */
+const PROTECTION_ROWS: readonly IPC4761_PRESET[] = [...IPC4761_NAMES.keys()]
+  .filter((p) => p < IPC4761_PRESET.CUSTOM)
+  .sort((a, b) => a - b);
+
+type BinderKey =
+  | 'trackStartX'
+  | 'trackStartY'
+  | 'trackEndX'
+  | 'trackEndY'
+  | 'trackWidth'
+  | 'trackMaskMargin'
+  | 'viaX'
+  | 'viaY'
+  | 'viaDiameter'
+  | 'viaDrill'
+  | 'backdrillFrontSize'
+  | 'backdrillBackSize'
+  | 'topPostMachineSize1'
+  | 'topPostMachineSize2'
+  | 'bottomPostMachineSize1'
+  | 'bottomPostMachineSize2'
+  | 'teardropHDPercent'
+  | 'teardropLenPercent'
+  | 'teardropMaxLen'
+  | 'teardropWidthPercent'
+  | 'teardropMaxWidth';
+
+/** A binder's text for a window value: undefined is INDETERMINATE, null an empty box. */
+function setBinder(aBinder: UNIT_BINDER, aValue: number | null | undefined, aDouble = false): void {
+  if (aValue === undefined) aBinder.SetText(INDETERMINATE_STATE);
+  else if (aValue === null) aBinder.SetText('');
+  else if (aDouble) aBinder.SetDoubleValue(aValue);
+  else aBinder.SetValue(aValue);
+}
+
+/** The binder read back: INDETERMINATE is undefined, an empty box null. */
+function readBinder(aBinder: UNIT_BINDER, aDouble = false): number | null | undefined {
+  if (aBinder.IsIndeterminate()) return undefined;
+  if (aBinder.GetText().trim() === '') return null;
+  return aDouble ? aBinder.GetDoubleValue() : aBinder.GetValue();
+}
+
+/** A PCB_LAYER_BOX_SELECTOR as `SetLayersHotkeys( false )`, `SetNotAllowedLayerSet( AllNonCuMask )`. */
+function copperLayerBox(aFrame: PCB_BASE_EDIT_FRAME, aUndefinedName = ''): PCB_LAYER_BOX_SELECTOR {
+  const box = new PCB_LAYER_BOX_SELECTOR();
+  box.SetLayersHotkeys(false);
+  box.SetNotAllowedLayerSet(LSET.AllNonCuMask());
+  box.SetBoardFrame(aFrame);
+  if (aUndefinedName) box.SetUndefinedLayerName(aUndefinedName);
+  box.Resync();
+  return box;
+}
+
+const layerRows = (aBox: PCB_LAYER_BOX_SELECTOR) =>
+  aBox.GetRows().map((r) => ({
+    value: String(r.layerid),
+    label: r.name,
+    swatch: r.swatch ? toCssColor(r.swatch) : undefined,
+  }));
+
+export function DialogTrackViaProperties({
+  dlg,
+  frame,
+  onApply,
+  onClose,
+}: DialogTrackViaPropertiesProps): JSX.Element {
+  const board = frame.GetBoard()!;
+  const ds = frame.GetDesignSettings();
+  const userUnits = (): string => unitLabel(frame.GetUserUnits());
+  const fmt = (aValue: number): string => frame.GetUnitsProvider().StringFromValue(aValue, false);
+
+  // The binders keep their own text; a render reads it back.
+  const [, bump] = useReducer((n: number) => n + 1, 0);
+
+  // TransferDataToWindow, once: the window the constructor and TransferDataToWindow leave.
+  const [init] = useState(() => {
+    const w = dlg.TransferDataToWindow();
+    const b = (label: string) => new UNIT_BINDER(frame, label);
+    const binders: Record<BinderKey, UNIT_BINDER> = {
+      trackStartX: b('Start X:'),
+      trackStartY: b('Y:'),
+      trackEndX: b('End X:'),
+      trackEndY: b('Y:'),
+      trackWidth: b('Track width:'),
+      trackMaskMargin: b('Expansion:'),
+      viaX: b('Position X:'),
+      viaY: b('Y:'),
+      viaDiameter: b('Via diameter:'),
+      viaDrill: b('Via hole:'),
+      backdrillFrontSize: b('Top backdrill size:'),
+      backdrillBackSize: b('Bottom backdrill size:'),
+      topPostMachineSize1: b('Size:'),
+      topPostMachineSize2: b('Angle:'),
+      bottomPostMachineSize1: b('Size:'),
+      bottomPostMachineSize2: b('Angle:'),
+      teardropHDPercent: b('Maximum track width:'),
+      teardropLenPercent: b('Best length (L):'),
+      teardropMaxLen: b('Maximum length (L):'),
+      teardropWidthPercent: b('Best width (W):'),
+      teardropMaxWidth: b('Maximum width (W):'),
+    };
+
+    binders.teardropHDPercent.SetUnits('percent');
+    binders.teardropLenPercent.SetUnits('percent');
+    binders.teardropWidthPercent.SetUnits('percent');
+
+    // Configure display origin transforms
+    binders.trackStartX.SetCoordType(COORD_TYPES_T.ABS_X_COORD);
+    binders.trackStartY.SetCoordType(COORD_TYPES_T.ABS_Y_COORD);
+    binders.trackEndX.SetCoordType(COORD_TYPES_T.ABS_X_COORD);
+    binders.trackEndY.SetCoordType(COORD_TYPES_T.ABS_Y_COORD);
+    binders.viaX.SetCoordType(COORD_TYPES_T.ABS_X_COORD);
+    binders.viaY.SetCoordType(COORD_TYPES_T.ABS_Y_COORD);
+
+    setBinder(binders.trackStartX, w.startX);
+    setBinder(binders.trackStartY, w.startY);
+    setBinder(binders.trackEndX, w.endX);
+    setBinder(binders.trackEndY, w.endY);
+    setBinder(binders.trackWidth, w.trackWidth);
+    // null is an empty box: "use the Board Setup value".
+    setBinder(binders.trackMaskMargin, w.maskMargin);
+    setBinder(binders.viaX, w.viaX);
+    setBinder(binders.viaY, w.viaY);
+    setBinder(binders.viaDiameter, w.viaDiameter);
+    setBinder(binders.viaDrill, w.viaDrill);
+    setBinder(binders.backdrillFrontSize, w.backdrillFrontSize);
+    setBinder(binders.backdrillBackSize, w.backdrillBackSize);
+    setBinder(binders.topPostMachineSize1, w.topPostMachineSize1);
+    setBinder(binders.bottomPostMachineSize1, w.bottomPostMachineSize1);
+
+    // Size 2 is degrees for a countersink, a depth otherwise.
+    const sinkTop = w.topPostMachine === 'countersink';
+    const sinkBottom = w.bottomPostMachine === 'countersink';
+    binders.topPostMachineSize2.SetUnits(sinkTop ? 'degrees' : frame.GetUserUnits());
+    binders.bottomPostMachineSize2.SetUnits(sinkBottom ? 'degrees' : frame.GetUserUnits());
+    setBinder(binders.topPostMachineSize2, w.topPostMachineSize2, sinkTop);
+    setBinder(binders.bottomPostMachineSize2, w.bottomPostMachineSize2, sinkBottom);
+
+    setBinder(binders.teardropHDPercent, w.tdFilterPct, true);
+    setBinder(binders.teardropLenPercent, w.tdBestLengthPct, true);
+    setBinder(binders.teardropMaxLen, w.tdMaxLen);
+    setBinder(binders.teardropWidthPercent, w.tdBestWidthPct, true);
+    setBinder(binders.teardropMaxWidth, w.tdMaxWidth);
+
+    const layerBoxes = {
+      track: copperLayerBox(frame),
+      viaStart: copperLayerBox(frame),
+      viaEnd: copperLayerBox(frame),
+      backdrillFront: copperLayerBox(frame, 'None'),
+      backdrillBack: copperLayerBox(frame, 'None'),
+    };
+
+    return { w, binders, layerBoxes };
+  });
+  const { binders: B, layerBoxes } = init;
+
+  // The window's non-binder controls.
+  const [w, setW] = useState<TrackViaValues>(init.w);
+  const set = (aPatch: Partial<TrackViaValues>): void => setW((p) => ({ ...p, ...aPatch }));
+
+  /** The rows of the predefined lists (`TransferDataToWindow`, `onUnitsChanged`): 0 is the netclass placeholder. */
+  const trackWidthRows = ds.m_TrackWidthList
+    .slice(1)
+    .map((width, i) => ({ value: String(i), label: fmt(width) }));
+  const viaSizeRows = ds.m_ViasDimensionsList.slice(1).map((d, i) => ({
+    value: String(i),
+    label: `${fmt(d.m_Diameter)} / ${fmt(d.m_Drill)}`,
+  }));
+
+  const [trackWidthSel, setTrackWidthSel] = useState(() =>
+    w.trackWidth === undefined ? -1 : ds.m_TrackWidthList.slice(1).indexOf(w.trackWidth),
+  );
+  const [viaSizeSel, setViaSizeSel] = useState(() =>
+    ds.m_ViasDimensionsList
+      .slice(1)
+      .findIndex((d) => d.m_Diameter === w.viaDiameter && d.m_Drill === w.viaDrill),
+  );
+
+  const [padstack, setPadstack] = useState(() => dlg.PadstackWindow());
+
+  // The net selector is disabled to re-inforce "Automatically update via nets", but not when
+  // tracks are also selected.
+  const netEnabled = !(dlg.m_vias && !dlg.m_tracks && w.viaNotFree === true);
+
+  // ----- onTrackEdit -----
+  const trackLayer = layerOf(w.layer);
+  const externalCuLayer = trackLayer === PCB_LAYER_ID.F_Cu || trackLayer === PCB_LAYER_ID.B_Cu;
+  const showMaskMargin = externalCuLayer && w.hasMask === true;
+
+  // ----- onViaEdit / getLayerDepth -----
+  const viaTypeRow = w.viaType === undefined ? -1 : VIA_KINDS.indexOf(w.viaType);
+  const getLayerDepth = (
+    aViaTypeRow = viaTypeRow,
+    aStart = w.startLayer,
+    aEnd = w.endLayer,
+  ): number => {
+    if (aViaTypeRow <= 0) return board.GetCopperLayerCount() - 1;
+
+    const startLayer = layerOf(aStart);
+    const endLayer = layerOf(aEnd);
+
+    if (startLayer < 0 || endLayer < 0) return board.GetCopperLayerCount() - 1;
+    return board.LayerDepth(startLayer, endLayer);
+  };
+
+  /** `onViaEdit`: a through via's layers are F_Cu / B_Cu, fixed. */
+  const onViaEdit = (aPatch: Partial<TrackViaValues>): void => {
+    setViaSizeSel(-1);
+    const next = { ...w, ...aPatch };
+
+    if (next.viaType === 'through') {
+      next.startLayer = LSET_Name(PCB_LAYER_ID.F_Cu);
+      next.endLayer = LSET_Name(PCB_LAYER_ID.B_Cu);
+    }
+
+    setW(next);
+  };
+  // `m_ViaStartLayer->Enable( viaType != THROUGH )`: a mixed type leaves them enabled.
+  const viaLayersEnabled = viaTypeRow !== 0;
+
+  // ----- onBackdrillChange -----
+  const backdrillRow = w.backdrill ?? -1;
+  const enableTop = backdrillRow === 2 || backdrillRow === 3;
+  const enableBottom = backdrillRow === 1 || backdrillRow === 3;
+
+  const onBackdrillChange = (aRow: number): void => {
+    const top = aRow === 2 || aRow === 3;
+    const bottom = aRow === 1 || aRow === 3;
+    const patch: Partial<TrackViaValues> = {
+      backdrill: aRow < 0 ? undefined : (aRow as BACKDRILL_MODE),
+    };
+
+    if (top) {
+      if (layerOf(w.backdrillFrontLayer) === PCB_LAYER_ID.UNDEFINED_LAYER)
+        patch.backdrillFrontLayer = LSET_Name(PCB_LAYER_ID.F_Cu);
+
+      // Initialize backdrill slightly larger than main drill (see PADSTACK::SetBackdrillMode())
+      if (B.backdrillFrontSize.GetIntValue() === 0)
+        B.backdrillFrontSize.SetValue(KiROUND(B.viaDrill.GetIntValue() * 1.1));
+    }
+
+    if (bottom) {
+      if (layerOf(w.backdrillBackLayer) === PCB_LAYER_ID.UNDEFINED_LAYER)
+        patch.backdrillBackLayer = LSET_Name(PCB_LAYER_ID.B_Cu);
+
+      if (B.backdrillBackSize.GetIntValue() === 0)
+        B.backdrillBackSize.SetValue(KiROUND(B.viaDrill.GetIntValue() * 1.1));
+    }
+
+    set(patch);
+  };
+
+  // ----- onTop/BottomPostMachineChange -----
+  const onPostMachineChange = (aSide: 'top' | 'bottom', aRow: number): void => {
+    const size2 = aSide === 'top' ? B.topPostMachineSize2 : B.bottomPostMachineSize2;
+
+    if (aRow === 1) {
+      // Countersink
+      size2.SetUnits('degrees');
+
+      if (size2.IsIndeterminate() || size2.GetDoubleValue() === 0) size2.SetDoubleValue(82.0);
+    } else if (aRow === 2) {
+      // Counterbore
+      size2.SetUnits(frame.GetUserUnits());
+    } else {
+      size2.SetUnits('degrees');
+    }
+
+    const choice = aRow < 0 ? undefined : POST_MACHINE_ROWS[aRow];
+    set(aSide === 'top' ? { topPostMachine: choice } : { bottomPostMachine: choice });
+  };
+
+  // TransferDataToWindow's tail: onBackdrillChange, onTop/BottomPostMachineChange.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs once, as the C++ tail does
+  useEffect(() => {
+    onBackdrillChange(backdrillRow);
+    onPostMachineChange(
+      'top',
+      w.topPostMachine === undefined ? -1 : POST_MACHINE_ROWS.indexOf(w.topPostMachine),
+    );
+    onPostMachineChange(
+      'bottom',
+      w.bottomPostMachine === undefined ? -1 : POST_MACHINE_ROWS.indexOf(w.bottomPostMachine),
+    );
+  }, []);
+
+  const postMachineWindow = (aSide: 'top' | 'bottom') => {
+    const choice = aSide === 'top' ? w.topPostMachine : w.bottomPostMachine;
+    const row = choice === undefined ? -1 : POST_MACHINE_ROWS.indexOf(choice);
+    // 0: None, 1: Countersink, 2: Counterbore; a mixed (-1) row leaves them enabled.
+    const enable = row !== 0;
+    const size1 = aSide === 'top' ? B.topPostMachineSize1 : B.bottomPostMachineSize1;
+    const size2 = aSide === 'top' ? B.topPostMachineSize2 : B.bottomPostMachineSize2;
+    const bore = row === 2;
+
+    return {
+      choice: {
+        value: row,
+        onChange: (aRow: number) => onPostMachineChange(aSide, aRow),
+      },
+      size1: unit(size1, enable),
+      size2: {
+        ...unit(size2, enable),
+        label: bore ? 'Depth:' : 'Angle:',
+        units: bore ? userUnits() : 'deg',
+      },
+    };
+  };
+
+  /** A binder as the base draws it: its text, enable and units label. */
+  function unit(aBinder: UNIT_BINDER, aEnabled = true, aOnChange?: (aText: string) => void): UNIT {
+    return {
+      value: aBinder.GetText(),
+      enabled: aEnabled,
+      units: aBinder.GetUnits() === 'percent' ? '%' : unitLabel(aBinder.GetUnits()),
+      onChange: (aText) => {
+        aBinder.SetText(aText);
+        aOnChange?.(aText);
+        bump();
+      },
+    };
+  }
+
+  const layerBox = (
+    aBox: PCB_LAYER_BOX_SELECTOR,
+    aValue: string | undefined,
+    aEnabled: boolean,
+    aOnChange: (aLayer: string | undefined) => void,
+  ): LAYERBOX => ({
+    rows: layerRows(aBox),
+    value: String(layerOf(aValue)),
+    enabled: aEnabled,
+    onChange: (v) => aOnChange(layerName(Number(v))),
+  });
+
+  const check = (
+    aValue: boolean | undefined,
+    aOnChange: (v: boolean | undefined) => void,
+    aEnabled = true,
+  ): CHECK3 => ({
+    value: toCheck(aValue),
+    enabled: aEnabled,
+    onChange: (v) => aOnChange(fromCheck(v)),
+  });
+
+  /** TransferDataFromWindow's read of the window. */
+  const onOK = (): void => {
+    const top = w.topPostMachine === 'countersink';
+    const bottom = w.bottomPostMachine === 'countersink';
+    const num = (b: UNIT_BINDER, aDouble = false): number | undefined =>
+      readBinder(b, aDouble) ?? undefined;
+
+    onApply({
+      ...w,
+      startX: num(B.trackStartX),
+      startY: num(B.trackStartY),
+      endX: num(B.trackEndX),
+      endY: num(B.trackEndY),
+      trackWidth: num(B.trackWidth),
+      maskMargin: readBinder(B.trackMaskMargin),
+      viaX: num(B.viaX),
+      viaY: num(B.viaY),
+      viaDiameter: num(B.viaDiameter),
+      viaDrill: num(B.viaDrill),
+      backdrillFrontSize: readBinder(B.backdrillFrontSize),
+      backdrillBackSize: readBinder(B.backdrillBackSize),
+      topPostMachineSize1: readBinder(B.topPostMachineSize1),
+      topPostMachineSize2: readBinder(B.topPostMachineSize2, top),
+      bottomPostMachineSize1: readBinder(B.bottomPostMachineSize1),
+      bottomPostMachineSize2: readBinder(B.bottomPostMachineSize2, bottom),
+      tdFilterPct: num(B.teardropHDPercent, true),
+      tdBestLengthPct: num(B.teardropLenPercent, true),
+      tdMaxLen: num(B.teardropMaxLen),
+      tdBestWidthPct: num(B.teardropWidthPercent, true),
+      tdMaxWidth: num(B.teardropMaxWidth),
+    });
+  };
+
+  const teardropsEnabled = !board.LegacyTeardrops();
+
+  return (
+    <DIALOG_TRACK_VIA_PROPERTIES_BASE
+      net={{
+        netInfo: new Map(
+          [...board.GetNetInfo().NetsByNetcode()].map(
+            ([code, net]) => [code, net.GetNetname()] as const,
+          ),
+        ),
+        netcode: w.net ?? -1,
+        indeterminateString: INDETERMINATE_STATE,
+        enabled: netEnabled,
+        // onNetSelector: picking a net turns "Automatically update via nets" off.
+        onChange: (aNet) => set({ net: aNet, viaNotFree: false }),
+      }}
+      m_viaNotFree={check(w.viaNotFree, (v) => set({ viaNotFree: v }))}
+      viaNotFreeShown={dlg.m_vias}
+      m_lockedCbox={check(w.locked, (v) => set({ locked: v }))}
+      tracksShown={dlg.m_tracks}
+      m_trackStartX={unit(B.trackStartX)}
+      m_trackStartY={unit(B.trackStartY)}
+      m_trackEndX={unit(B.trackEndX)}
+      m_trackEndY={unit(B.trackEndY)}
+      m_predefinedTrackWidthsCtrl={{
+        rows: trackWidthRows,
+        value: trackWidthSel,
+        // onWidthSelect: the row's text into the width box.
+        onChange: (aRow) => {
+          setTrackWidthSel(aRow);
+          B.trackWidth.SetText(trackWidthRows[aRow]?.label ?? '');
+          bump();
+        },
+      }}
+      predefinedTrackWidthsUnits={userUnits()}
+      // onWidthEdit: SetStringSelection, which leaves the selection when no row matches.
+      m_trackWidth={unit(B.trackWidth, true, (aText) => {
+        const row = trackWidthRows.findIndex((r) => r.label === aText);
+        if (row >= 0) setTrackWidthSel(row);
+      })}
+      m_TrackLayerCtrl={layerBox(layerBoxes.track, w.layer, true, (l) => set({ layer: l }))}
+      techLayersEnabled={externalCuLayer}
+      m_trackHasSolderMask={check(w.hasMask, (v) => set({ hasMask: v }), externalCuLayer)}
+      m_trackMaskMargin={unit(B.trackMaskMargin, showMaskMargin)}
+      viasShown={dlg.m_vias}
+      m_viaX={unit(B.viaX)}
+      m_viaY={unit(B.viaY)}
+      m_predefinedViaSizesCtrl={{
+        rows: viaSizeRows,
+        value: viaSizeSel,
+        // onViaSelect: ChangeValue, so onViaEdit does not run.
+        onChange: (aRow) => {
+          const d = ds.m_ViasDimensionsList[aRow + 1];
+          if (!d) return;
+          B.viaDiameter.ChangeValue(d.m_Diameter);
+          B.viaDrill.ChangeValue(d.m_Drill);
+          setViaSizeSel(aRow);
+        },
+      }}
+      predefinedViaSizesUnits={userUnits()}
+      m_cbPadstackMode={{
+        value: padstack.mode,
+        onChange: (aRow) => {
+          dlg.SetPadstackMode(aRow);
+          setPadstack(dlg.PadstackWindow());
+        },
+      }}
+      m_cbEditLayer={{
+        rows: padstack.editLayers.map((label, i) => ({ value: String(i), label })),
+        value: padstack.editLayer,
+        enabled: padstack.editEnabled,
+        onChange: (aRow) => {
+          const shown = B.viaDiameter.IsIndeterminate() ? undefined : B.viaDiameter.GetIntValue();
+          B.viaDiameter.SetValue(dlg.SetEditLayer(aRow, shown));
+          setPadstack({ ...padstack, editLayer: aRow });
+        },
+      }}
+      m_viaDiameter={unit(B.viaDiameter, true, () => setViaSizeSel(-1))}
+      m_viaDrill={unit(B.viaDrill, true, () => setViaSizeSel(-1))}
+      m_ViaTypeChoice={{
+        value: viaTypeRow,
+        onChange: (aRow) => onViaEdit({ viaType: VIA_KINDS[aRow] }),
+      }}
+      m_ViaStartLayer={layerBox(layerBoxes.viaStart, w.startLayer, viaLayersEnabled, (l) =>
+        onViaEdit({ startLayer: l }),
+      )}
+      m_ViaEndLayer={layerBox(layerBoxes.viaEnd, w.endLayer, viaLayersEnabled, (l) =>
+        onViaEdit({ endLayer: l }),
+      )}
+      annularRingsShown={getLayerDepth() > 1}
+      m_annularRingsCtrl={{
+        value: w.annularRings === undefined ? -1 : ANNULAR_KINDS.indexOf(w.annularRings),
+        onChange: (aRow) => set({ annularRings: ANNULAR_KINDS[aRow] }),
+      }}
+      m_protectionFeatures={{
+        // An INDETERMINATE row is appended when the selection's presets disagree.
+        rows: [
+          ...PROTECTION_ROWS.map((p, i) => ({
+            value: String(i),
+            label: IPC4761_NAMES.get(p) ?? 'Unknown choice',
+          })),
+          ...(init.w.protection === undefined
+            ? [{ value: String(PROTECTION_ROWS.length), label: INDETERMINATE_STATE }]
+            : []),
+        ],
+        value:
+          w.protection === undefined
+            ? PROTECTION_ROWS.length
+            : PROTECTION_ROWS.indexOf(w.protection),
+        onChange: (aRow) => set({ protection: PROTECTION_ROWS[aRow] }),
+      }}
+      m_backdrillChoice={{ value: backdrillRow, onChange: onBackdrillChange }}
+      m_backdrillFrontSize={unit(B.backdrillFrontSize, enableTop)}
+      m_backdrillFrontLayer={layerBox(
+        layerBoxes.backdrillFront,
+        w.backdrillFrontLayer,
+        enableTop,
+        (l) => onViaEdit({ backdrillFrontLayer: l }),
+      )}
+      m_backdrillBackSize={unit(B.backdrillBackSize, enableBottom)}
+      m_backdrillBackLayer={layerBox(
+        layerBoxes.backdrillBack,
+        w.backdrillBackLayer,
+        enableBottom,
+        (l) => onViaEdit({ backdrillBackLayer: l }),
+      )}
+      m_topPostMachine={postMachineWindow('top').choice}
+      m_topPostMachineSize1={postMachineWindow('top').size1}
+      m_topPostMachineSize2={postMachineWindow('top').size2}
+      m_bottomPostMachine={postMachineWindow('bottom').choice}
+      m_bottomPostMachineSize1={postMachineWindow('bottom').size1}
+      m_bottomPostMachineSize2={postMachineWindow('bottom').size2}
+      legacyTeardropsShown={board.LegacyTeardrops()}
+      teardropsEnabled={teardropsEnabled}
+      m_cbTeardrops={check(w.tdEnabled, (v) => set({ tdEnabled: v }))}
+      m_cbTeardropsUseNextTrack={check(w.tdAllowTwoTracks, (v) => set({ tdAllowTwoTracks: v }))}
+      m_teardropHDPercent={unit(B.teardropHDPercent)}
+      m_teardropLenPercent={unit(B.teardropLenPercent)}
+      m_teardropMaxLen={unit(B.teardropMaxLen)}
+      m_teardropWidthPercent={unit(B.teardropWidthPercent)}
+      m_teardropMaxWidth={unit(B.teardropMaxWidth)}
+      m_curvedEdges={check(w.tdCurvedEdges, (v) => set({ tdCurvedEdges: v }))}
+      onOK={onOK}
+      onCancel={onClose}
+    />
+  );
 }
