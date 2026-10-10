@@ -21,7 +21,7 @@ const BASELINE: Record<string, number> = {
   common: 194,
   cvpcb: 8,
   designer: 138,
-  eeschema: 142,
+  eeschema: 140, // -2 (10-11): e74819168's Increment Annotations dropped two classes
   gerbview: 31,
   pagelayout_editor: 14,
   // 477 -> 465 (10-10): the drill and position-file dialogs on the sizers.
