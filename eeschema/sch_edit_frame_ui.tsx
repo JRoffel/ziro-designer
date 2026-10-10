@@ -247,10 +247,7 @@ import {
   type SheetRef,
 } from './tools/sch_navigate_tool.js';
 import { DIALOG_SCH_FIND, DialogSchFind } from './dialogs/dialog_sch_find.js';
-import {
-  DialogIncrementAnnotations,
-  type IncrementAnnotationsResult,
-} from './dialogs/dialog_increment_annotations.js';
+import { DIALOG_INCREMENT_ANNOTATIONS_BASE } from './dialogs/dialog_increment_annotations_base.js';
 import {
   DialogGlobalEditTextAndGraphics,
   DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS,
@@ -6810,12 +6807,9 @@ export function SchematicEditor({
               />
             )}
             {incrementDialog && (
-              <DialogIncrementAnnotations
-                onOk={(r) => {
-                  // TransferDataFromWindow into the tool's values.
-                  incrementDialog.values.firstRefDes = r.startRef;
-                  incrementDialog.values.increment = r.increment;
-                  incrementDialog.values.allSheets = r.allSheets;
+              <DIALOG_INCREMENT_ANNOTATIONS_BASE
+                values={incrementDialog.values}
+                onOk={() => {
                   setIncrementDialog(null);
                   incrementDialog.resolve(wxID_OK);
                   // The tool's commit can touch every sheet; once it has run (after this answer's
