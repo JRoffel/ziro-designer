@@ -146,7 +146,7 @@ describe('the standard button row', () => {
     expect(uses).toHaveLength(3);
     // OK alone is the default button (SetAffirmativeButton).
     expect(uses.filter((u) => /\bisDefault\b/.test(u))).toEqual([uses[2]]);
-    const button = read('../../common/wx/controls.tsx');
+    const button = read('../../external/wx/controls.tsx');
     const tag =
       button.slice(button.indexOf('export function Button(')).match(/<button[^>]*>/)?.[0] ?? '';
     expect(tag).toContain('type="button"');

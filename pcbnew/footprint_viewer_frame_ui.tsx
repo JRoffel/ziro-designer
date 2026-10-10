@@ -56,13 +56,13 @@ import { wasBrowserSuppressed } from '@ziroeda/common/browser_hotkeys.js';
 import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
 import { MsgPanel, type MsgPanelItem } from '@ziroeda/common/widgets/msgpanel_ui.js';
 import { KISTATUSBAR_FIELDS, KiStatusBar } from '@ziroeda/common/widgets/kistatusbar.js';
-import { DockSash } from '@ziroeda/common/widgets/wx_aui_sash.js';
+import { DockSash } from '@ziroeda/wx/wx_aui_sash.js';
 import {
   WxListBox,
   listBoxGetBaseString,
   wxNOT_FOUND,
 } from '@ziroeda/common/widgets/wx_listbox.js';
-import { WxSearchCtrl } from '@ziroeda/common/widgets/wx_search_ctrl.js';
+import { WxSearchCtrl } from '@ziroeda/wx/wx_search_ctrl.js';
 import { showHotkeyList } from '@ziroeda/common/hotkeys_basic.js';
 import { ShowAboutDialog } from '@ziroeda/common/dialog_about/AboutDialog_main.js';
 import { ABOUT_TITLES } from '@ziroeda/common/eda_base_frame_about_titles.js';

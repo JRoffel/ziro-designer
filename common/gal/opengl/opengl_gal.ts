@@ -23,7 +23,7 @@ import { GetArcToSegmentCount } from '@ziroeda/kimath/src/geometry/geometry_util
 import type { SHAPE_LINE_CHAIN } from '@ziroeda/kimath/src/geometry/shape_line_chain.js';
 import { SHAPE_POLY_SET } from '@ziroeda/kimath/src/geometry/shape_poly_set.js';
 import { BezierPoly } from '@ziroeda/kimath/src/bezier_curves.js';
-import { cos, sin } from '@ziroeda/kimath/src/math/libm.js';
+import { cos, sin } from '@ziroeda/libc/libm.js';
 import libtess from '@ziroeda/kimath/src/thirdparty/vendor/libtess.js';
 import { ADVANCED_CFG } from '../../advanced_config.js';
 import type { BITMAP_BASE } from '../../bitmap_base.js';
@@ -52,7 +52,7 @@ import { checkGlError } from './utils.js';
 import { SHADER_MODE } from './vertex_common.js';
 import { VERTEX_ITEM } from './vertex_item.js';
 import { VERTEX_MANAGER } from './vertex_manager.js';
-import { wxASSERT } from '@ziroeda/core/wx_assert.js';
+import { wxASSERT } from '@ziroeda/wx/wx_assert.js';
 
 const { SHADER_NONE, SHADER_FILLED_CIRCLE, SHADER_STROKED_CIRCLE, SHADER_FONT, SHADER_HOLE_WALL } =
   SHADER_MODE;

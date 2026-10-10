@@ -70,7 +70,7 @@
  */
 import { useEffect, useRef, type JSX } from 'react';
 import { DialogShim } from '@ziroeda/common/dialog_shim.js';
-import { Button, CheckBox, HyperlinkCtrl, StaticLine } from '@ziroeda/common/wx/controls.js';
+import { Button, CheckBox, HyperlinkCtrl, StaticLine } from '@ziroeda/wx/controls.js';
 import { KeyNameFromKeyCode } from '@ziroeda/common/hotkeys_basic.js';
 import { TextCombo } from '@ziroeda/common/widgets/wx_combobox.js';
 import type { MatchMode, SchSearchData } from '../tools/sch_find_replace_tool.js';

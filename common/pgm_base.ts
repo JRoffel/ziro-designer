@@ -16,7 +16,7 @@ import type { MOUSE_DRAG_ACTION } from './mouse_drag_action.js';
 import { PROJECT_VAR_NAME } from './project.js';
 import type { COMMON_SETTINGS_ENVIRONMENT } from './settings/common_settings.js';
 import { ENV_VAR_MAP } from './settings/environment.js';
-import { wxGetEnv, wxSetEnv } from './wx/utils.js';
+import { wxGetEnv, wxSetEnv } from '@ziroeda/wx/utils.js';
 import type { COLOR_SETTINGS } from './settings/color_settings.js';
 
 /** `COMMON_SETTINGS`, the slice the GAL, the panel and the view controls read. */

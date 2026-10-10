@@ -53,9 +53,9 @@ import {
 import { SYNC_HANDLER } from '@ziroeda/common/tool/tool_interactive.js';
 import type { VIEW_CONTROLS } from '@ziroeda/common/view/view_controls.js';
 import { VIEW_UPDATE_FLAGS } from '@ziroeda/common/view/view_item.js';
-import { wxGetKeyState } from '@ziroeda/common/wx/wx_event.js';
-import { wxBell } from '@ziroeda/common/wx/utils.js';
-import { WXK } from '@ziroeda/core/wx_keycodes.js';
+import { wxGetKeyState } from '@ziroeda/wx/wx_event.js';
+import { wxBell } from '@ziroeda/wx/utils.js';
+import { WXK } from '@ziroeda/wx/wx_keycodes.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { ANGLE_90, EDA_ANGLE } from '@ziroeda/kimath/src/geometry/eda_angle.js';
 import { SEG } from '@ziroeda/kimath/src/geometry/seg.js';

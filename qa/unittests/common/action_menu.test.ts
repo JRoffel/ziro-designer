@@ -19,7 +19,7 @@
  *       shown is a CLONE; closing unselected sends CHOICE -1 then CLOSED.
  */
 import { describe, expect, it } from 'vitest';
-import { BITMAPS } from '@ziroeda/common/bitmaps/bitmaps_list.js';
+import { BITMAPS } from '@ziroeda/include/bitmaps/bitmaps_list.js';
 import { main_id } from '@ziroeda/common/id.js';
 import { ACTION_MENU } from '@ziroeda/common/tool/action_menu.js';
 import { ACTIONS } from '@ziroeda/common/tool/actions.js';
@@ -34,7 +34,7 @@ import {
   type TOOL_EVENT,
 } from '@ziroeda/common/tool/tool_event.js';
 import { TOOL_MANAGER } from '@ziroeda/common/tool/tool_manager.js';
-import { wxMenuEvent, wxMenuEventType } from '@ziroeda/common/wx/menu.js';
+import { wxMenuEvent, wxMenuEventType } from '@ziroeda/wx/menu.js';
 import { gerbIUScale } from '@ziroeda/common/eda_units.js';
 import { GRID_MENU } from '@ziroeda/common/tool/grid_menu.js';
 import { ZOOM_MENU } from '@ziroeda/common/tool/zoom_menu.js';

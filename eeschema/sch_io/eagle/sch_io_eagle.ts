@@ -86,7 +86,7 @@ import {
   KiCadSchematicFileExtension,
   KiCadSymbolLibFileExtension,
 } from '@ziroeda/common/wildcards_and_files_ext.js';
-import { wxXmlDocumentLoad, wxXmlParseError, type wxXmlNode } from '@ziroeda/common/wx/xml.js';
+import { wxXmlDocumentLoad, wxXmlParseError, type wxXmlNode } from '@ziroeda/wx/xml.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { ANGLE_VERTICAL, EDA_ANGLE } from '@ziroeda/kimath/src/geometry/eda_angle.js';
 import { SEG } from '@ziroeda/kimath/src/geometry/seg.js';

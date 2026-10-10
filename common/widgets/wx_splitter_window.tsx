@@ -29,7 +29,7 @@
  */
 
 import type { PointerEvent as ReactPointerEvent } from 'react';
-import { resizeDock, type DockEdge } from './wx_aui_sash_geometry.js';
+import { resizeDock, type DockEdge } from '@ziroeda/wx/wx_aui_sash_geometry.js';
 
 export interface SashProps {
   /**

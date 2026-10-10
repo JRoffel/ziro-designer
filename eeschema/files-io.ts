@@ -32,15 +32,15 @@ import {
   wxICON_EXCLAMATION,
   wxICON_WARNING,
   wxOK,
-} from '@ziroeda/common/wx/defs.js';
+} from '@ziroeda/wx/defs.js';
 import {
   wxDirExists,
   wxFileExists,
   wxIsDirWritable,
   wxMkdir,
   wxWriteFileSync,
-} from '@ziroeda/common/wx/filefn.js';
-import { wxID_CANCEL } from '@ziroeda/common/wx/menu.js';
+} from '@ziroeda/wx/filefn.js';
+import { wxID_CANCEL } from '@ziroeda/wx/menu.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { SEXPR_SCHEMATIC_FILE_VERSION } from './sch_file_versions.js';
 import type { JsonValue } from '@ziroeda/common/settings/json_settings_internals.js';

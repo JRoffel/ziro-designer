@@ -38,7 +38,7 @@ import { SHAPE_T } from '@ziroeda/common/eda_shape.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { FLIP_DIRECTION } from '@ziroeda/core/mirror.js';
 import { SHAPE_POLY_SET } from '@ziroeda/kimath/src/geometry/shape_poly_set.js';
-import { stdSort } from '@ziroeda/kimath/src/clipper2/clipper.core.js';
+import { stdSort } from '@ziroeda/clipper2/clipper.core.js';
 import type { EDA_ITEM } from '@ziroeda/common/eda_item.js';
 import { HASH_FLAGS, hash_fp_item } from '../hash_eda.js';
 import { shortest } from '@ziroeda/common/plotters/fmt.js';

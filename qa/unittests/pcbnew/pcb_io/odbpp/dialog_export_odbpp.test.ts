@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { JOB_EXPORT_PCB_ODB, ODB_COMPRESSION } from '@ziroeda/common/jobs/job_export_pcb_odb.js';
-import { wxZipInputStream } from '@ziroeda/common/wx/zipstrm.js';
+import { wxZipInputStream } from '@ziroeda/wx/zipstrm.js';
 import {
   GenerateODBPPFiles,
   OnFmtChoiceOptionChanged,

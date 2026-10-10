@@ -31,7 +31,7 @@
  * pin-to-pin warnings, the no-connect checks, and the single-pin label check.
  */
 
-import { wxMatches } from '@ziroeda/common/wx/wxstring.js';
+import { wxMatches } from '@ziroeda/wx/wxstring.js';
 import {
   ExpandEnvVarSubstitutions,
   ResolveShownText,
@@ -2149,7 +2149,7 @@ import { SCH_SCREENS } from '../sch_screen.js';
 import type { SCH_SHEET } from '../sch_sheet.js';
 import type { SCH_PIN } from '../sch_pin.js';
 import { LIB_ID as LIB_ID_LIVE } from '@ziroeda/common/lib_id.js';
-import { wxCmp } from '@ziroeda/common/wx/wxstring.js';
+import { wxCmp } from '@ziroeda/wx/wxstring.js';
 import type { SCH_LABEL_BASE } from '../sch_label.js';
 import type { SCH_FIELD } from '../sch_field.js';
 import type { SCH_SHEET_PATH as SCH_SHEET_PATH_LIVE } from '../sch_sheet_path.js';

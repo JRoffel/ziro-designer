@@ -38,7 +38,7 @@
  * values still ride through untouched, because the file still carries them.
  */
 
-import { Button } from '@ziroeda/common/wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
 import { useState, type JSX } from 'react';
 import type { ZoneValues } from './panel_zone_properties.js';
 import { PanelZoneProperties } from './panel_zone_properties_ui.js';

@@ -11,9 +11,9 @@
  */
 import type { EDA_ITEM } from '@ziroeda/common/eda_item.js';
 import { strNumCmp } from '@ziroeda/common/string_utils.js';
-import { wxButton } from '@ziroeda/common/wx/button.js';
-import { type wxDataViewItem, wxDataViewCtrl } from '@ziroeda/common/wx/dataview.js';
-import type { wxNotebook } from '@ziroeda/common/wx/notebook.js';
+import { wxButton } from '@ziroeda/wx/button.js';
+import { type wxDataViewItem, wxDataViewCtrl } from '@ziroeda/wx/dataview.js';
+import type { wxNotebook } from '@ziroeda/wx/notebook.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import type { SCH_HIERLABEL } from '../sch_label.js';
 import type { SCH_SHEET } from '../sch_sheet.js';

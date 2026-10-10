@@ -67,7 +67,7 @@ import {
   KiCadSchematicFileExtension,
   KiCadSymbolLibFileExtension,
 } from '@ziroeda/common/wildcards_and_files_ext.js';
-import { inflateZlib } from '@ziroeda/common/wx/inflate.js';
+import { inflateZlib } from '@ziroeda/wx/inflate.js';
 import type { KIID } from '@ziroeda/common/kiid.js';
 import { niluuid } from '@ziroeda/common/kiid.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';

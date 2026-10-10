@@ -28,7 +28,7 @@
  * Settings persist to the `tools.pns` block of the pcbnew settings, which is
  * where KiCad's own NESTED_SETTINGS puts them (pns_tool_base.cpp:103).
  */
-import { RadioButton } from '@ziroeda/common/wx/controls.js';
+import { RadioButton } from '@ziroeda/wx/controls.js';
 import { useState, type JSX } from 'react';
 import {
   PnsMode,

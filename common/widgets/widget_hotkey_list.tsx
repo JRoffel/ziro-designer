@@ -12,15 +12,15 @@
  * overrides map, which is the `HOTKEY_STORE` both share upstream.
  */
 
-import { Button, StaticLine } from '../wx/controls.js';
+import { Button, StaticLine } from '@ziroeda/wx/controls.js';
 import { useEffect, useMemo, useState, type JSX } from 'react';
 import { filterHotkeys, hotkeyConflicts, type HotkeySection } from '../hotkey_store.js';
 import { isBrowserReserved } from '../browser_hotkeys.js';
 import { comboFromEvent, isReservedHotkey } from '../hotkeys_basic_keys.js';
 import { DialogShim } from '../dialog_shim.js';
 import { DisplayErrorMessage, ShowKicadMessageDialog } from '../confirm.js';
-import { wxNO_DEFAULT, wxYES_NO } from '../wx/defs.js';
-import { wxID_YES } from '../wx/menu.js';
+import { wxNO_DEFAULT, wxYES_NO } from '@ziroeda/wx/defs.js';
+import { wxID_YES } from '@ziroeda/wx/menu.js';
 
 /** A row being rebound: HK_PROMPT_DIALOG's subject. */
 interface Prompt {

@@ -33,7 +33,7 @@ import { FIELD_T } from '@ziroeda/common/template_fieldnames.js';
 import { Pgm, PgmOrNull } from '@ziroeda/common/pgm_base.js';
 import { GetDefaultVariantName } from '@ziroeda/common/string_utils.js';
 import type { SINGLE_CHOICE_ARG } from './tools/assign_footprints.js';
-import type { ChooserFilter } from '@ziroeda/common/wx/filedlg.js';
+import type { ChooserFilter } from '@ziroeda/wx/filedlg.js';
 import {
   PROJECT_FILE_EXTENSION,
   TOP_LEVEL_SHEET_INFO,
@@ -42,12 +42,7 @@ import type { SCH_SELECTION_FILTER_OPTIONS } from '@ziroeda/common/project/proje
 import { BASE_SCREEN } from '@ziroeda/common/base_screen.js';
 import { FILENAME_RESOLVER } from '@ziroeda/common/filename_resolver.js';
 import { DS_DATA_MODEL } from '@ziroeda/common/drawing_sheet/ds_data_model.js';
-import {
-  wxDirExists,
-  wxFileExists,
-  wxIsDirWritable,
-  wxWriteFileSync,
-} from '@ziroeda/common/wx/filefn.js';
+import { wxDirExists, wxFileExists, wxIsDirWritable, wxWriteFileSync } from '@ziroeda/wx/filefn.js';
 import type { SCHEMATIC_SETTINGS } from './schematic_settings.js';
 import type { FILEDLG_HOOK_SAVE_PROJECT } from './files-io.js';
 import type { FILEDLG_HOOK_NEW_LIBRARY } from '@ziroeda/common/widgets/filedlg_hook_new_library.js';
@@ -94,7 +89,7 @@ import {
 } from '@ziroeda/common/use_document_title.js';
 import { FRAME_T } from '@ziroeda/common/frame_type.js';
 import type { KIWAY_MAIL_EVENT } from '@ziroeda/common/kiway_mail.js';
-import { STRTOK, strncpyLine } from '@ziroeda/common/libc/string.js';
+import { STRTOK, strncpyLine } from '@ziroeda/libc/string.js';
 import { MAIL_T } from '@ziroeda/common/mail_type.js';
 import type {
   APP_SETTINGS_BASE,
@@ -108,13 +103,13 @@ import type { SCH_CONNECTION } from './sch_connection.js';
 import { COMMON_CONTROL } from '@ziroeda/common/tool/common_control.js';
 import { COMMON_TOOLS } from '@ziroeda/common/tool/common_tools.js';
 import { TOOL_DISPATCHER } from '@ziroeda/common/tool/tool_dispatcher.js';
-import type { wxEvent } from '@ziroeda/common/wx/wx_event.js';
+import type { wxEvent } from '@ziroeda/wx/wx_event.js';
 import { ZOOM_TOOL } from '@ziroeda/common/tool/zoom_tool.js';
 import { PICKER_TOOL } from '@ziroeda/common/tool/picker_tool.js';
 import { SCH_SELECTION_TOOL } from './tools/sch_selection_tool.js';
 import { findItemsFromSyncSelection } from './cross-probing.js';
 import type { KIID } from '@ziroeda/common/kiid.js';
-import { wxID_CANCEL, wxID_OK } from '@ziroeda/common/wx/menu.js';
+import { wxID_CANCEL, wxID_OK } from '@ziroeda/wx/menu.js';
 import { EVENTS } from '@ziroeda/common/tool/tool_event.js';
 import { VIEW_UPDATE_FLAGS } from '@ziroeda/common/view/view_item.js';
 import { TOOL_MANAGER } from '@ziroeda/common/tool/tool_manager.js';

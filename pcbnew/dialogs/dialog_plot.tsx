@@ -23,7 +23,7 @@
  * is written exactly as KiCad writes them to disk; "Download a copy to this
  * computer" additionally streams the set out as a zip.
  */
-import { Button, TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { Button, TextCtrl } from '@ziroeda/wx/controls.js';
 import { useMemo, useRef, useState, type JSX } from 'react';
 import { zipSync, zlibSync, strToU8 } from 'fflate';
 import { PCB_PLOTTER } from '../pcb_plotter.js';
@@ -39,7 +39,7 @@ import { COLOR_SETTINGS } from '@ziroeda/common/settings/color_settings.js';
 import { DEFAULT_THEME, PgmOrNull } from '@ziroeda/common/pgm_base.js';
 import { pcbIUScale } from '@ziroeda/common/eda_units.js';
 import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
-import { SpinCtrl } from '@ziroeda/common/widgets/spin_ctrl.js';
+import { SpinCtrl } from '@ziroeda/wx/spin_ctrl.js';
 import { Reporter } from '@ziroeda/common/reporter.js';
 import {
   RPT_SEVERITY_ACTION,

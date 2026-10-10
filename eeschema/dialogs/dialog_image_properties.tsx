@@ -13,7 +13,7 @@
  * effectively impossible to find on the canvas, and one over 6000 pixels is
  * accepted only after a confirmation, since that is 20 inches of paper.
  */
-import { Button } from '@ziroeda/common/wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
 import { CheckValues, PANEL_IMAGE_EDITOR } from '@ziroeda/common/dialogs/panel_image_editor.js';
 import { MessageDialogError, MessageDialogYesNo } from '@ziroeda/common/dialogs/dialog_message.js';
 import { useState, type JSX } from 'react';

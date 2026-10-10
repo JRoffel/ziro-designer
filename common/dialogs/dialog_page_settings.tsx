@@ -39,7 +39,7 @@
  * DOM node), then the sizer tree and its event plumbing.
  */
 
-import { Button, CheckBox } from '../wx/controls.js';
+import { Button, CheckBox } from '@ziroeda/wx/controls.js';
 import { Fragment, useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import {
   PAPER_CHOICES,
@@ -56,7 +56,7 @@ import { UnitField } from '../widgets/unit_binder_ui.js';
 import type { EdaUnits } from '../widgets/unit_binder.js';
 import { DialogShim } from '../dialog_shim.js';
 import { MessageDialogError } from './dialog_message.js';
-import { WxFileDialog } from '../wx/filedlg.js';
+import { WxFileDialog } from '@ziroeda/wx/filedlg.js';
 import { drawingSheetWildcard } from '../wildcards_and_files_ext.js';
 import { PAPER_MM } from '../index.js';
 // The preview's two colours, from the same tables the canvases read. No colour

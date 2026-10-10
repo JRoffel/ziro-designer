@@ -41,7 +41,7 @@
  * frames also construct. It is ported alongside, in
  * `widgets/panel_selection_filter.tsx`.
  */
-import { RadioButton } from '@ziroeda/common/wx/controls.js';
+import { RadioButton } from '@ziroeda/wx/controls.js';
 import { useMemo, useRef, useState, type JSX } from 'react';
 import { COLOR4D_UNSPECIFIED, parseColor4d } from '@ziroeda/common/gal/color4d.js';
 import type { Color4d } from '@ziroeda/common/gal/color4d.js';
@@ -54,7 +54,7 @@ import { Sash } from '@ziroeda/common/widgets/wx_splitter_window.js';
 // glyphs "recognisable stand-ins, not KiCad's exact bitmaps", and every icon
 // this panel needs exists upstream.
 import { KiBitmapBundle } from '@ziroeda/common/bitmap.js';
-import { BITMAPS } from '@ziroeda/common/bitmaps/bitmaps_list.js';
+import { BITMAPS } from '@ziroeda/include/bitmaps/bitmaps_list.js';
 import { BitmapToggle } from '@ziroeda/common/widgets/bitmap_toggle.js';
 import { IndicatorIcon, ROW_ICON_STATE } from '@ziroeda/common/widgets/indicator_icon.js';
 import { WxCollapsiblePane } from '@ziroeda/common/widgets/wx_collapsible_pane.js';

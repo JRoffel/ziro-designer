@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 ZiroEDA and contributors.
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
-import { Button, CheckBox, Combo } from '@ziroeda/common/wx/controls.js';
+import { Button, CheckBox, Combo } from '@ziroeda/wx/controls.js';
 import {
   PIN_SHAPE_ENTRIES,
   PIN_TYPE_ENTRIES,

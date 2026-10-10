@@ -12,10 +12,10 @@
  * The footprint, URL and path editors open other windows through a GRID_TEXT_BUTTON_HOST.
  */
 import { KiBitmapBundle } from '../bitmap.js';
-import { BITMAPS } from '../bitmaps/bitmaps_list.js';
-import type { wxGrid } from '../wx/grid.js';
+import { BITMAPS } from '@ziroeda/include/bitmaps/bitmaps_list.js';
+import type { wxGrid } from '@ziroeda/wx/grid.js';
 import { allFilesWildcard } from '../wildcards_and_files_ext.js';
-import type { ChooserFilter } from '../wx/filedlg.js';
+import type { ChooserFilter } from '@ziroeda/wx/filedlg.js';
 import { GRID_CELL_TEXT_EDITOR } from './grid_text_helpers.js';
 
 /** What the view needs from a text-and-button editor. */

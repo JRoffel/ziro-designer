@@ -9,7 +9,7 @@
  * The notebook is a `common/wx` model; the dialog's view is dialog_sync_sheet_pins_ui.tsx.
  */
 import type { EDA_ITEM } from '@ziroeda/common/eda_item.js';
-import { wxNotebook } from '@ziroeda/common/wx/notebook.js';
+import { wxNotebook } from '@ziroeda/wx/notebook.js';
 import type { SCH_HIERLABEL } from '../sch_label.js';
 import type { SCH_SHEET } from '../sch_sheet.js';
 import type { SCH_SHEET_PATH } from '../sch_sheet_path.js';

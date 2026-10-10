@@ -38,7 +38,7 @@
  * manager, falling back to a browser download when the board is standalone
  * (`plot-print-cloud-output` memory).
  */
-import { Button, CheckBox, RadioButton, StaticBox } from '@ziroeda/common/wx/controls.js';
+import { Button, CheckBox, RadioButton, StaticBox } from '@ziroeda/wx/controls.js';
 import { useState, type JSX } from 'react';
 import type { BOARD } from '../board.js';
 import { PCB_PLOT_PARAMS } from '../pcb_plot_params.js';

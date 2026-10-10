@@ -24,7 +24,7 @@
  * base64 is the shape the format actually carries.
  */
 import { describe, expect, it } from 'vitest';
-import { WX_IMAGE } from '@ziroeda/common/wx/wx_image.js';
+import { WX_IMAGE } from '@ziroeda/wx/wx_image.js';
 import { pcbIUScale } from '@ziroeda/common/eda_units.js';
 import { PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';

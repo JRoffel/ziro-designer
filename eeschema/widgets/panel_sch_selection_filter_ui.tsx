@@ -13,7 +13,7 @@
  * (`eeschema/sch_base_frame.cpp`), the same `EDA_PANE().Name( "SelectionFilter" )`
  * both frames add.
  */
-import { CheckBox } from '@ziroeda/common/wx/controls.js';
+import { CheckBox } from '@ziroeda/wx/controls.js';
 import type { JSX } from 'react';
 import type { SelectionFilterOptions } from '../tools/sch_selection_filter.js';
 import { selectionFilterAll } from '../tools/sch_selection_filter.js';

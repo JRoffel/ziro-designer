@@ -19,7 +19,7 @@
  * function in that file, not guessing at its wording.
  */
 
-import type { ChooserFilter } from './wx/filedlg.js';
+import type { ChooserFilter } from '@ziroeda/wx/filedlg.js';
 
 /**
  * `AddFileExtListToFilter`, which is where the ` (*.a; *.b)` suffix comes

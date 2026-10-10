@@ -13,7 +13,7 @@
  * The decision logic lives in `pcbnew/dialogs/dialog_footprint_properties.ts`.
  */
 
-import { CheckBox, Combo, TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { CheckBox, Combo, TextCtrl } from '@ziroeda/wx/controls.js';
 import { useRef, useState, type JSX, type ReactNode } from 'react';
 import { pcbIuToMM, pcbMmToIU } from '@ziroeda/common/eda_units.js';
 import type { FootprintValues } from './dialog_footprint_properties.js';

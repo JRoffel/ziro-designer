@@ -21,7 +21,7 @@ import { BUT_LEFT, BUT_RIGHT, MD_SHIFT, type TOOL_EVENT } from '@ziroeda/common/
 import { SYNC_HANDLER, TOOL_INTERACTIVE } from '@ziroeda/common/tool/tool_interactive.js';
 import type { VIEW_CONTROLS } from '@ziroeda/common/view/view_controls.js';
 import { VIEW_UPDATE_FLAGS } from '@ziroeda/common/view/view_item.js';
-import { wxFileExists } from '@ziroeda/common/wx/filefn.js';
+import { wxFileExists } from '@ziroeda/wx/filefn.js';
 import { D_CODE } from '../dcode.js';
 import type { GERBVIEW_FRAME } from '../gerbview_frame.js';
 import { gerbIUScale } from '@ziroeda/common/eda_units.js';

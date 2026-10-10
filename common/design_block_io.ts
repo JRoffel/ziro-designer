@@ -35,7 +35,7 @@ import {
   wxReadFileSync,
   wxRemoveDirTree,
   wxWriteFileSync,
-} from './wx/filefn.js';
+} from '@ziroeda/wx/filefn.js';
 
 /** `KICTL_NONKICAD_ONLY` (io_mgr.h): only guess non-KiCad library types. */
 export const KICTL_NONKICAD_ONLY = 1 << 0;

@@ -1,0 +1,13 @@
+{
+  "name": "@ziroeda/kiplatform",
+  "version": "0.0.0",
+  "description": "KiCad's libs/kiplatform: the platform layer.",
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ziroeda/wx": "workspace:*"
+  }
+}

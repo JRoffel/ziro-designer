@@ -24,7 +24,7 @@ import { GRID } from '@ziroeda/common/settings/grid_settings.js';
 import { CROSS_HAIR_MODE } from '@ziroeda/common/gal/gal_display_options.js';
 import { ACTIONS } from '@ziroeda/common/tool/actions.js';
 import type { TOOL_ACTION } from '@ziroeda/common/tool/tool_action.js';
-import { wxUpdateUIEvent } from '@ziroeda/common/wx/wx_event.js';
+import { wxUpdateUIEvent } from '@ziroeda/wx/wx_event.js';
 import type { PL_EDITOR_FRAME } from './pl_editor_frame.js';
 import type { PL_EDITOR_SETTINGS, PlEditorSettings } from './pl_editor_settings.js';
 import { PL_ACTIONS } from './tools/pl_actions.js';

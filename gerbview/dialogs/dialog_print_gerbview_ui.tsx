@@ -14,7 +14,7 @@
  *    generic options.
  */
 
-import { Button, CheckBox, StaticBox } from '@ziroeda/common/wx/controls.js';
+import { Button, CheckBox, StaticBox } from '@ziroeda/wx/controls.js';
 import { type JSX, useState } from 'react';
 import { DIALOG_PRINT_GENERIC } from '@ziroeda/common/dialogs/dialog_print_generic_ui.js';
 import type { DIALOG_PRINT_GERBVIEW } from './dialog_print_gerbview.js';

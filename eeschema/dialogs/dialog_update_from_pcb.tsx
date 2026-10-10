@@ -22,7 +22,7 @@
  * option that silently did nothing would be worse than its absence.
  */
 
-import { Button, CheckBox } from '@ziroeda/common/wx/controls.js';
+import { Button, CheckBox } from '@ziroeda/wx/controls.js';
 import { useMemo, useState, type JSX } from 'react';
 import {
   backAnnotate,

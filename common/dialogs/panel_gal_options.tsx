@@ -23,7 +23,7 @@
  * 2..50 against 5..200 by 5).
  */
 import type { JSX } from 'react';
-import { Check, Group, Num, Radio, Sel } from '../wx/controls.js';
+import { Check, Group, Num, Radio, Sel } from '@ziroeda/wx/controls.js';
 import {
   ALWAYS_SHOW_CROSSHAIRS_LABEL,
   CROSSHAIR_MODE_CHOICES,

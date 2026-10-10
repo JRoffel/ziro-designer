@@ -23,7 +23,7 @@
  * Not here: the Scintilla value editor and its auto-complete (a plain entry), and
  * `KIUI::SelectReferenceNumber` on first focus.
  */
-import { Button, CheckBox } from '@ziroeda/common/wx/controls.js';
+import { Button, CheckBox } from '@ziroeda/wx/controls.js';
 import { type JSX, useState } from 'react';
 import { DisplayErrorMessage, DisplayInfoMessage } from '@ziroeda/common/confirm.js';
 import { ensureFileExtension } from '@ziroeda/common/common.js';

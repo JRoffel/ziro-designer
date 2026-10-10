@@ -18,7 +18,7 @@
  */
 import { type JSX, useEffect, useRef, useState } from 'react';
 import { DialogShim, StdDialogButtons } from '@ziroeda/common/dialog_shim.js';
-import { SpinCtrl } from '@ziroeda/common/widgets/spin_ctrl.js';
+import { SpinCtrl } from '@ziroeda/wx/spin_ctrl.js';
 import { DIALOG_ENUM_PADS_TITLE, type DIALOG_ENUM_PADS } from './dialog_enum_pads.js';
 
 export function DialogEnumPads({

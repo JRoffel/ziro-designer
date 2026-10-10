@@ -17,8 +17,8 @@
 import { PROJECT, PROJECT_VAR_NAME } from '../project.js';
 import { PROJECT_FILE, PROJECT_FILE_EXTENSION } from '../project/project_file.js';
 import { PROJECT_LOCAL_SETTINGS } from '../project/project_local_settings.js';
-import { wxSetWorkingDirectory } from '../wx/filefn.js';
-import { wxSetEnv } from '../wx/utils.js';
+import { wxSetWorkingDirectory } from '@ziroeda/wx/filefn.js';
+import { wxSetEnv } from '@ziroeda/wx/utils.js';
 import { COLOR_SETTINGS } from './color_settings.js';
 import { JSON_SETTINGS } from './json_settings.js';
 import type { JsonObject, JsonValue } from './json_settings_internals.js';

@@ -18,7 +18,7 @@
  */
 import type { EMBEDDED_FILES } from '@ziroeda/common/embedded_files.js';
 import type { FILENAME_RESOLVER } from '@ziroeda/common/filename_resolver.js';
-import { wxFileExists } from '@ziroeda/common/wx/filefn.js';
+import { wxFileExists } from '@ziroeda/wx/filefn.js';
 import { FP_3DMODEL, type FOOTPRINT } from '../footprint.js';
 
 /** `enum class MODEL_VALIDATE_ERRORS` (panel_fp_properties_3d_model.h). */

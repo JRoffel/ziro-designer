@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 ZiroEDA and contributors.
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
-import { wxID_CANCEL } from './wx/menu.js';
+import { wxID_CANCEL } from '@ziroeda/wx/menu.js';
 
 /**
  * The "Save Changes?" question, and what each answer means. Counterpart:

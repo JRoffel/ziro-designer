@@ -11,7 +11,7 @@
  * `DRAWING_TOOL::constrainDimension`. A copy parked next to any one of those
  * callers is a copy the other three will drift from.
  */
-import { acos, cos } from '../math/libm.js';
+import { acos, cos } from '@ziroeda/libc/libm.js';
 import type { BOX2I } from '../math/box2.js';
 import { INT_MAX, INT_MIN, KiROUND } from '../math/util.js';
 import type { Vec2, VECTOR2I } from '../math/vector2.js';

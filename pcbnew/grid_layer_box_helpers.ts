@@ -15,7 +15,7 @@ import {
   type wxGridCellDrawn,
   wxGridCellEditor,
   wxGridCellStringRenderer,
-} from '@ziroeda/common/wx/grid.js';
+} from '@ziroeda/wx/grid.js';
 import {
   AllCuMask,
   AllTechMask,

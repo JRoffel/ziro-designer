@@ -22,7 +22,7 @@ import {
   jStr,
   typeName,
 } from '../../json_common.js';
-import { strtodPrefix, ToLong } from '../../libc/stdlib.js';
+import { strtodPrefix, ToLong } from '@ziroeda/libc/stdlib.js';
 
 export { isObject, JSON_EXCEPTION, type JSON_VALUE };
 

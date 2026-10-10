@@ -19,7 +19,7 @@ import type { DESIGN_BLOCK } from '@ziroeda/common/design_block.js';
 import { GAL_DISPLAY_OPTIONS } from '@ziroeda/common/gal/gal_display_options.js';
 import { drawPanelWindow, loadBitmapFontImage } from '@ziroeda/common/gal/gal_window.js';
 import { IO_ERROR } from '@ziroeda/common/exceptions.js';
-import { wxFileExists, wxReadFileSync } from '@ziroeda/common/wx/filefn.js';
+import { wxFileExists, wxReadFileSync } from '@ziroeda/wx/filefn.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { BOX2I } from '@ziroeda/kimath/src/math/box2.js';
 import type { BOARD } from '../board.js';

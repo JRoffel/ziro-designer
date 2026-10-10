@@ -37,8 +37,8 @@ import {
   imageFileWildcard,
   kicadSchematicWildcard,
 } from '@ziroeda/common/wildcards_and_files_ext.js';
-import { wxFD_FILE_MUST_EXIST, wxFD_OPEN } from '@ziroeda/common/wx/defs.js';
-import { wxFileExists, wxReadFileSync } from '@ziroeda/common/wx/filefn.js';
+import { wxFD_FILE_MUST_EXIST, wxFD_OPEN } from '@ziroeda/wx/defs.js';
+import { wxFileExists, wxReadFileSync } from '@ziroeda/wx/filefn.js';
 import { SCH_BITMAP } from '../sch_bitmap.js';
 import { SCH_GROUP } from '../sch_group.js';
 import {
@@ -63,8 +63,8 @@ import {
 } from '@ziroeda/common/tool/tool_event.js';
 import { SYNC_HANDLER } from '@ziroeda/common/tool/tool_interactive.js';
 import type { VIEW_CONTROLS } from '@ziroeda/common/view/view_controls.js';
-import { wxID_OK } from '@ziroeda/common/wx/menu.js';
-import { wxBell } from '@ziroeda/common/wx/utils.js';
+import { wxID_OK } from '@ziroeda/wx/menu.js';
+import { wxBell } from '@ziroeda/wx/utils.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { ANGLE_0, type EDA_ANGLE } from '@ziroeda/kimath/src/geometry/eda_angle.js';
 import { SEG } from '@ziroeda/kimath/src/geometry/seg.js';

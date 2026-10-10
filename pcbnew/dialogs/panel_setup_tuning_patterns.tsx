@@ -16,7 +16,7 @@
  * the 12.5px headings, the 12px grid and the 11px units were all invented.
  */
 
-import { CheckBox, TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { CheckBox, TextCtrl } from '@ziroeda/wx/controls.js';
 import type { JSX } from 'react';
 import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
 

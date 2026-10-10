@@ -20,7 +20,7 @@
  * `OnUpdateUI` turns that into one `OnAcceptPrms`, as wx's idle does.
  */
 
-import { Button } from '@ziroeda/common/wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
 import { type JSX, useEffect, useReducer, useState } from 'react';
 import { bitmapUrl } from '@ziroeda/common/bitmap_store.js';
 import { COLOR4D_UNSPECIFIED, type Color4d, toCss } from '@ziroeda/common/gal/color4d.js';

@@ -8,7 +8,7 @@
  * See: https://www.altium.com/documentation/altium-designer/query-operators-ad
  */
 
-import { ToLong } from '@ziroeda/common/libc/stdlib.js';
+import { ToLong } from '@ziroeda/libc/stdlib.js';
 
 export enum ALTIUM_RULE_TOKEN_KIND {
   UNKNOWN,

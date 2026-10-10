@@ -26,8 +26,8 @@ import {
   type wxGridEvent,
   wxGridSelectionModes,
   wxGridStringTable,
-} from '@ziroeda/common/wx/grid.js';
-import { WxGridView } from '@ziroeda/common/wx/grid_ui.js';
+} from '@ziroeda/wx/grid.js';
+import { WxGridView } from '@ziroeda/wx/grid_ui.js';
 import type { BusAlias } from '../schematic_settings.js';
 
 // The data model lives in schematic_settings.ts (KiCad's data/UI split);

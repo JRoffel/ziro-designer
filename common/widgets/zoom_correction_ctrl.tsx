@@ -34,10 +34,10 @@
  * as a ratio to the reference pixel, and the page is never told the physical
  * size of anything. So Detect is the best guess and the ruler is the answer.
  */
-import { Button } from '../wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
 import { useEffect, useId, useRef, useState, type JSX } from 'react';
 import { Combo } from './wx_combobox.js';
-import { SpinCtrl } from './spin_ctrl.js';
+import { SpinCtrl } from '@ziroeda/wx/spin_ctrl.js';
 import { GAL_SCREEN_DPI } from './kistatusbar_format.js';
 
 /**

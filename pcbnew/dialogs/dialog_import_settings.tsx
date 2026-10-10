@@ -22,7 +22,7 @@
  * "Zone hatched fill offsets" is not offered: the zone_defaults block it
  * imports is preserved-opaque board data this clone does not model yet.
  */
-import { Button } from '@ziroeda/common/wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
 import { useRef, useState, type JSX } from 'react';
 import { DialogShim } from '@ziroeda/common/dialog_shim.js';
 

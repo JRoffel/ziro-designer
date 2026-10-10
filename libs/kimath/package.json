@@ -10,6 +10,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@ziroeda/clipper2": "workspace:*",
+    "@ziroeda/libc": "workspace:*",
     "clipper-lib": "^6.4.2"
   }
 }

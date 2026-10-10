@@ -14,8 +14,8 @@
 import { type JSX, useLayoutEffect, useState } from 'react';
 import { StdBitmapButton } from '@ziroeda/common/widgets/std_bitmap_button.js';
 import { WX_GRID } from '@ziroeda/common/widgets/wx_grid.js';
-import { wxGridStringTable } from '@ziroeda/common/wx/grid.js';
-import { WxGridView } from '@ziroeda/common/wx/grid_ui.js';
+import { wxGridStringTable } from '@ziroeda/wx/grid.js';
+import { WxGridView } from '@ziroeda/wx/grid_ui.js';
 import type { BomPresets } from '../schematic_settings.js';
 
 // The data model lives in schematic_settings.ts (KiCad's data/UI split);

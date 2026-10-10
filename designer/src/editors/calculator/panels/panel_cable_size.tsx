@@ -10,7 +10,7 @@
  * Counterpart: KiCad `calculator_panels/panel_cable_size.cpp`.
  */
 
-import { TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { TextCtrl } from '@ziroeda/wx/controls.js';
 import { useState, type JSX, type CSSProperties } from 'react';
 import {
   AWG_NAMES,

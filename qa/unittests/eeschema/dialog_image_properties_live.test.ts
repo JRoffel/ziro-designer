@@ -6,7 +6,7 @@
  * image as the editor's PNG; OK as one "Image Properties" commit, a changed PNG read back.
  */
 import { PGM_BASE, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
-import { WX_IMAGE } from '@ziroeda/common/wx/wx_image.js';
+import { WX_IMAGE } from '@ziroeda/wx/wx_image.js';
 import { DIALOG_IMAGE_PROPERTIES } from '@ziroeda/eeschema/dialogs/dialog_image_properties.js';
 import { SCH_BITMAP } from '@ziroeda/eeschema/sch_bitmap.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';

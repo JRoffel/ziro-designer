@@ -7,7 +7,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { STD_UNORDERED_MAP, hashString, hashWString } from '@ziroeda/common/libc/unordered_map.js';
+import { STD_UNORDERED_MAP, hashString, hashWString } from '@ziroeda/libc/unordered_map.js';
 import { describe, expect, it } from 'vitest';
 
 interface Case {

@@ -59,7 +59,7 @@ import {
   KiCadSymbolLibFileExtension,
   kicadSymbolLibWildcard,
 } from '@ziroeda/common/wildcards_and_files_ext.js';
-import { wxID_CANCEL, wxID_HIGHEST, wxID_OK } from '@ziroeda/common/wx/menu.js';
+import { wxID_CANCEL, wxID_HIGHEST, wxID_OK } from '@ziroeda/wx/menu.js';
 import { SymbolLibAdapter } from './project_sch.js';
 import { SYMBOL_LIBRARY_MANAGER } from './symbol_library_manager.js';
 import type { COLOR_SETTINGS } from '@ziroeda/common/settings/color_settings.js';

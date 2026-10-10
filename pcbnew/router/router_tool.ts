@@ -57,7 +57,7 @@ import { CornerMode } from '@ziroeda/kimath/src/geometry/direction45.js';
 import { PNS_TOOL_BASE, copySizes, newPnsRouter, pickSingleItem } from './pns_tool_base.js';
 import { PnsLayerRange } from './pns_layerset.js';
 import { PnsConstraintType } from './pns_node.js';
-import { BITMAPS } from '@ziroeda/common/bitmaps/bitmaps_list.js';
+import { BITMAPS } from '@ziroeda/include/bitmaps/bitmaps_list.js';
 import { IsCopperLayer, PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import { LSET } from '@ziroeda/common/lset.js';
 import { ROUTER_TRANSIENT } from '@ziroeda/common/eda_item_flags.js';
@@ -87,7 +87,7 @@ import {
 } from '@ziroeda/common/tool/tool_event.js';
 import { unescapeString } from '@ziroeda/common/string_utils.js';
 import { MSG_PANEL_ITEM } from '@ziroeda/common/widgets/msgpanel.js';
-import { wxBell } from '@ziroeda/common/wx/utils.js';
+import { wxBell } from '@ziroeda/wx/utils.js';
 import { APPEND_UNDO } from '../board_commit.js';
 import { DRC_CONSTRAINT_T } from '../drc/drc_rule.js';
 import type { NETINFO_ITEM } from '../netinfo_item.js';

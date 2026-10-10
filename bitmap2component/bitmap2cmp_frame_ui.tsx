@@ -34,7 +34,7 @@ import { addQuit } from '@ziroeda/common/tool/action_menu.js';
 import { ACTIONS } from '@ziroeda/common/tool/actions.js';
 import { imageFileWildcard } from '@ziroeda/common/wildcards_and_files_ext.js';
 import type { KIWAY } from '@ziroeda/common/kiway.js';
-import type { ChooserFilter } from '@ziroeda/common/wx/filedlg.js';
+import type { ChooserFilter } from '@ziroeda/wx/filedlg.js';
 import type { BITMAP2CMP_FRAME, BITMAP2CMP_FRAME_UI } from './bitmap2cmp_frame.js';
 import { CreateKiWindow } from './bitmap2cmp_main.js';
 import type { IMAGE_FILE } from './bitmap2cmp_panel.js';

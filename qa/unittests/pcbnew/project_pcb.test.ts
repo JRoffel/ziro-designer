@@ -11,12 +11,8 @@ import { PROJECT_PCB } from '@ziroeda/pcbnew/project_pcb.js';
 import { PGM_BASE, PgmOrNull, SetPgm } from '@ziroeda/common/pgm_base.js';
 import { InitializeEnvironment } from '@ziroeda/common/settings/common_settings.js';
 import { ENV_VAR_MAP } from '@ziroeda/common/settings/environment.js';
-import {
-  MEMORY_FILESYSTEM,
-  wxMountFileSystem,
-  wxSetWorkingDirectory,
-} from '@ziroeda/common/wx/filefn.js';
-import { wxUnsetEnv } from '@ziroeda/common/wx/utils.js';
+import { MEMORY_FILESYSTEM, wxMountFileSystem, wxSetWorkingDirectory } from '@ziroeda/wx/filefn.js';
+import { wxUnsetEnv } from '@ziroeda/wx/utils.js';
 import type { COMMON_SETTINGS_LIKE } from '@ziroeda/common/pgm_base.js';
 import { afterAll, describe, expect, it } from 'vitest';
 

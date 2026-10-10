@@ -70,7 +70,7 @@ import type { FP_EDIT_JSON_SETTINGS_LIKE as FpEditSettings } from './footprint_e
 import { FOOTPRINT_EDITOR_CONTROL } from './tools/footprint_editor_control.js';
 import { LIBRARY_EDITOR_CONTROL } from '@ziroeda/common/tool/library_editor_control.js';
 import type { LIB_TREE } from '@ziroeda/common/eda_draw_frame.js';
-import type { ChooserFilter } from '@ziroeda/common/wx/filedlg.js';
+import type { ChooserFilter } from '@ziroeda/wx/filedlg.js';
 import type { KiDialogRequest } from '@ziroeda/common/kidialog.js';
 import type { KiDialogResult } from '@ziroeda/common/kidialog_do_not_show.js';
 import type { FOOTPRINT_LIBRARY_ADAPTER } from './footprint_library_adapter.js';

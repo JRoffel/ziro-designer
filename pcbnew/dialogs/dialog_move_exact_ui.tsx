@@ -13,7 +13,7 @@
  * from mm to degrees. That is upstream's `updateDialogControls`, and it is why
  * the two values are held as plain numbers here rather than as a point.
  */
-import { Combo } from '@ziroeda/common/wx/controls.js';
+import { Combo } from '@ziroeda/wx/controls.js';
 import { useState, type JSX, type Ref } from 'react';
 import {
   moveKeepsSelectionInBounds,

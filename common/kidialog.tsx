@@ -45,7 +45,7 @@
  * (`.ze-kidialog`), measured by `qa/probes/kidialog_probe.cpp`, rather than
  * borrowing `.ze-msgdlg`'s.
  */
-import { CheckBox } from './wx/controls.js';
+import { CheckBox } from '@ziroeda/wx/controls.js';
 import { useCallback, useEffect, useRef, useState, type JSX } from 'react';
 import { DialogIcon } from './dialogs/dialog_message.js';
 import { type MessageDialogIcon, okCancelButtons } from './confirm_types.js';

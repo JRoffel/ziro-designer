@@ -22,7 +22,7 @@
  *    Board Setup > Pre-defined Sizes validates its via grid with, so the two
  *    refuse the same values with the same words.
  */
-import { TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { TextCtrl } from '@ziroeda/wx/controls.js';
 import { useState, type JSX } from 'react';
 import { pcbIUScale } from '@ziroeda/common/eda_units.js';
 import { PCB_VIA, VIA_PARAMETER_ERROR_FIELD } from '../pcb_track.js';

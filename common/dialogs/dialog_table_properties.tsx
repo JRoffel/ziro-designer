@@ -36,7 +36,7 @@
  * which of the two this is; the dialog only reports the choice.
  */
 
-import { TextCtrl } from '../wx/controls.js';
+import { TextCtrl } from '@ziroeda/wx/controls.js';
 import { useState, type JSX, type ReactNode } from 'react';
 import type { EdaIuScale } from '../eda_units.js';
 import { LINE_STYLE_NAMES } from '../stroke_params.js';

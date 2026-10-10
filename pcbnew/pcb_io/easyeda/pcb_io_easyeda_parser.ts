@@ -51,7 +51,7 @@ import {
   User_5,
 } from '@ziroeda/common/layer_id.js';
 import { LIB_ID } from '@ziroeda/common/lib_id.js';
-import { atoi } from '@ziroeda/common/libc/stdlib.js';
+import { atoi } from '@ziroeda/libc/stdlib.js';
 import { LSET } from '@ziroeda/common/lset.js';
 import {
   ESCAPE_CONTEXT,
@@ -65,7 +65,7 @@ import { ANGLE_0, ANGLE_180, EDA_ANGLE } from '@ziroeda/kimath/src/geometry/eda_
 import { SHAPE_ARC } from '@ziroeda/kimath/src/geometry/shape_arc.js';
 import { SHAPE_LINE_CHAIN } from '@ziroeda/kimath/src/geometry/shape_line_chain.js';
 import { SHAPE_POLY_SET } from '@ziroeda/kimath/src/geometry/shape_poly_set.js';
-import { hypot } from '@ziroeda/kimath/src/math/libm.js';
+import { hypot } from '@ziroeda/libc/libm.js';
 import { KiROUND } from '@ziroeda/kimath/src/math/util.js';
 import {
   Perpendicular,

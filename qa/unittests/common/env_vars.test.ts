@@ -8,7 +8,7 @@
  */
 import { ENV_VAR } from '@ziroeda/common/env_vars.js';
 import { ENV_VAR_ITEM, ENV_VAR_MAP } from '@ziroeda/common/settings/environment.js';
-import { SetEnvVarLookup } from '@ziroeda/common/wx/utils.js';
+import { SetEnvVarLookup } from '@ziroeda/wx/utils.js';
 import { afterEach, describe, expect, it } from 'vitest';
 
 const item = (v: string) => new ENV_VAR_ITEM('', v);

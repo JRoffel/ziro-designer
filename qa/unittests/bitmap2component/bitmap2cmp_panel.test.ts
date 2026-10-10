@@ -13,7 +13,7 @@ import { describe, expect, it } from 'vitest';
 import type { MessageDialogIcon, YesNoResult } from '@ziroeda/common/confirm_types.js';
 import { ACTIONS } from '@ziroeda/common/tool/actions.js';
 import { ABOUT_TITLES } from '@ziroeda/common/eda_base_frame_about_titles.js';
-import type { ChooserFilter } from '@ziroeda/common/wx/filedlg.js';
+import type { ChooserFilter } from '@ziroeda/wx/filedlg.js';
 import {
   BITMAP2CMP_SETTINGS,
   CreateKiWindow,

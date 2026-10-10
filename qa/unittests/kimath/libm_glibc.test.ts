@@ -16,7 +16,7 @@
 
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { acos, asin, atan2, cos, fma, sin } from '@ziroeda/kimath/src/math/libm.js';
+import { acos, asin, atan2, cos, fma, sin } from '@ziroeda/libc/libm.js';
 import { describe, expect, it } from 'vitest';
 
 type Fixture = Record<string, { differ: string[][]; random: string[][]; targeted?: string[][] }>;

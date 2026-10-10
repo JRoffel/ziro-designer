@@ -29,7 +29,7 @@ import { PGM_BASE, SetPgm } from '@ziroeda/common/pgm_base.js';
 import { EDA_UNITS_INT } from '@ziroeda/common/settings/app_settings.js';
 import { ACTIONS } from '@ziroeda/common/tool/actions.js';
 import type { TOOL_ACTION } from '@ziroeda/common/tool/tool_action.js';
-import { wxUpdateUIEvent } from '@ziroeda/common/wx/wx_event.js';
+import { wxUpdateUIEvent } from '@ziroeda/wx/wx_event.js';
 import type { PL_EDITOR_FRAME } from '@ziroeda/pagelayout_editor/pl_editor_frame.js';
 import { PL_ACTIONS } from '@ziroeda/pagelayout_editor/tools/pl_actions.js';
 import { PL_SELECTION_TOOL } from '@ziroeda/pagelayout_editor/tools/pl_selection_tool.js';

@@ -13,7 +13,7 @@ import type { EDA_ITEM } from '@ziroeda/common/eda_item.js';
 import { PGM_BASE, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
 import { FIELD_T } from '@ziroeda/common/template_fieldnames.js';
 import type { GRID_TEXT_BUTTON_HOST } from '@ziroeda/common/widgets/grid_text_button_helpers.js';
-import { wxID_OK } from '@ziroeda/common/wx/menu.js';
+import { wxID_OK } from '@ziroeda/wx/menu.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { DIALOG_FIELD_PROPERTIES } from '@ziroeda/eeschema/dialogs/dialog_field_properties.js';
 import { SCH_COMMIT } from '@ziroeda/eeschema/sch_commit.js';

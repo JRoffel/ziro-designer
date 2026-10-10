@@ -16,7 +16,7 @@
  * branch, and the four controls' enabled state. This file is the widgets.
  */
 
-import { Button, CheckBox, RadioButton, TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { Button, CheckBox, RadioButton, TextCtrl } from '@ziroeda/wx/controls.js';
 import { useState, type JSX } from 'react';
 import {
   NULL_TUNING_CONSTRAINT,

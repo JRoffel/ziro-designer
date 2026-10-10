@@ -15,6 +15,7 @@
     "@ziroeda/eeschema": "workspace:*",
     "@ziroeda/kimath": "workspace:*",
     "@ziroeda/pcbnew": "workspace:*",
+    "@ziroeda/wx": "workspace:*",
     "react": "^18.3.1"
   },
   "devDependencies": {

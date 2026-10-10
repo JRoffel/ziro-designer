@@ -11,7 +11,7 @@
  * Clicking a row selects that item on the canvas and leaves the dialog open.
  */
 
-import { Button } from '@ziroeda/common/wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
 import { type JSX, useReducer } from 'react';
 import { DialogShim } from '@ziroeda/common/dialog_shim.js';
 import {

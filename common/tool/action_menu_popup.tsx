@@ -12,8 +12,8 @@
 
 import { type JSX, useEffect, useState } from 'react';
 import type { EDA_BASE_FRAME } from '../eda_base_frame.js';
-import * as KIPLATFORM_UI from '../kiplatform/ui.js';
-import { wxMenuEvent, wxMenuEventType, wxMenuItem } from '../wx/menu.js';
+import * as KIPLATFORM_UI from '@ziroeda/kiplatform/ui.js';
+import { wxMenuEvent, wxMenuEventType, wxMenuItem } from '@ziroeda/wx/menu.js';
 import type { ACTION_MENU } from './action_menu.js';
 import { ContextMenu } from './action_menu_bar.js';
 import type { MenuItem } from './action_menu_types.js';

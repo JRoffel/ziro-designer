@@ -15,7 +15,7 @@ import {
   wxRemoveDirTree,
   wxRenameFile,
   wxWriteFileSync,
-} from '@ziroeda/common/wx/filefn.js';
+} from '@ziroeda/wx/filefn.js';
 
 const bytes = (s: string): Uint8Array => new TextEncoder().encode(s);
 const text = (p: string): string => new TextDecoder().decode(wxReadFileSync(p) ?? new Uint8Array());

@@ -22,7 +22,7 @@ import { FRAME_T } from './frame_type.js';
 import type { KIWAY_PLAYER } from './kiway_player.js';
 import { KIWAY_MAIL_EVENT, type MAIL_PAYLOAD } from './kiway_mail.js';
 import type { MAIL_T } from './mail_type.js';
-import type { wxEvent } from './wx/wx_event.js';
+import type { wxEvent } from '@ziroeda/wx/wx_event.js';
 
 /** `KIWAY::FACE_T`: the kiface DSOs a frame type belongs to. */
 export enum FACE_T {

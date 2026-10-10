@@ -23,7 +23,7 @@
  *   - `OnNotebookPageChanged` is a wxMac repaint workaround and has nothing to
  *     do here.
  */
-import { Button } from '../wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
 import { type JSX, useEffect, useRef, useState } from 'react';
 import { svgUrl } from '@ziroeda/bitmaps_png';
 import { GetVersionInfoData } from '../build_version.js';

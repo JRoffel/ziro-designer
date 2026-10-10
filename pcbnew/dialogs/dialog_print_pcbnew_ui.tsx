@@ -14,7 +14,7 @@
  *  - `m_infoText`: "Right-click for layer selection commands.".
  */
 
-import { CheckBox } from '@ziroeda/common/wx/controls.js';
+import { CheckBox } from '@ziroeda/wx/controls.js';
 import { type JSX, useState } from 'react';
 import { DIALOG_PRINT_GENERIC } from '@ziroeda/common/dialogs/dialog_print_generic_ui.js';
 import { ContextMenu } from '@ziroeda/common/tool/action_menu_bar.js';

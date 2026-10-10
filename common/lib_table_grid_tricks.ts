@@ -36,9 +36,9 @@ import {
 } from './libraries/lib_table_grid_data_model.js';
 import { LIBRARY_TABLE, LIBRARY_TABLE_ROW } from './libraries/library_table.js';
 import type { WX_GRID } from './widgets/wx_grid.js';
-import { type wxGridEvent, wxGridTableRequest } from './wx/grid.js';
-import type { wxMenu, wxMenuEvent } from './wx/menu.js';
-import { type wxKeyEvent, wxMOD_CONTROL } from './wx/wx_event.js';
+import { type wxGridEvent, wxGridTableRequest } from '@ziroeda/wx/grid.js';
+import type { wxMenu, wxMenuEvent } from '@ziroeda/wx/menu.js';
+import { type wxKeyEvent, wxMOD_CONTROL } from '@ziroeda/wx/wx_event.js';
 
 const LIB_TABLE_GRID_TRICKS_ACTIVATE_SELECTED = GRIDTRICKS_FIRST_CLIENT_ID;
 const LIB_TABLE_GRID_TRICKS_DEACTIVATE_SELECTED = GRIDTRICKS_FIRST_CLIENT_ID + 1;

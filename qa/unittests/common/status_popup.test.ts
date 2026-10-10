@@ -72,7 +72,7 @@ describe('STATUS_TEXT_POPUP', () => {
 
 describe('KIPLATFORM::UI::GetMousePosition', () => {
   it('knows the pointer anywhere in the page, not only over a canvas', async () => {
-    const UI = await import('@ziroeda/common/kiplatform/ui.js');
+    const UI = await import('@ziroeda/kiplatform/ui.js');
     const target = document.createElement('div');
     document.body.appendChild(target);
     // A handler that swallows the event does not hide it: the platform listens

@@ -15,8 +15,8 @@
 
 import { nameGeneratorSha1 } from '../../kiid.js';
 import type { KIID } from '../../kiid.js';
-import { ToLong } from '../../libc/stdlib.js';
-import { wxCmpNoCase } from '../../wx/wxstring.js';
+import { ToLong } from '@ziroeda/libc/stdlib.js';
+import { wxCmpNoCase } from '@ziroeda/wx/wxstring.js';
 
 /**
  * A single component variation within an Altium project variant.

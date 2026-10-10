@@ -9,7 +9,7 @@
  * dialog_unused_pad_layers_ui.tsx.
  */
 import type { EDA_ITEM } from '@ziroeda/common/eda_item.js';
-import { BITMAPS } from '@ziroeda/common/bitmaps/bitmaps_list.js';
+import { BITMAPS } from '@ziroeda/include/bitmaps/bitmaps_list.js';
 import type { COMMIT } from '@ziroeda/common/commit.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import type { FOOTPRINT } from '../footprint.js';

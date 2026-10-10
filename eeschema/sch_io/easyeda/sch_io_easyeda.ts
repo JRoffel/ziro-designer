@@ -23,7 +23,7 @@ import {
 import { schIUScale } from '@ziroeda/common/eda_units.js';
 import { ESCAPE_CONTEXT, EscapeString, wxSplit } from '@ziroeda/common/string_utils.js';
 import { KiCadSchematicFileExtension } from '@ziroeda/common/wildcards_and_files_ext.js';
-import { wxZipInputStream } from '@ziroeda/common/wx/zipstrm.js';
+import { wxZipInputStream } from '@ziroeda/wx/zipstrm.js';
 import type { KIID } from '@ziroeda/common/kiid.js';
 import type { LIB_SYMBOL } from '../../lib_symbol.js';
 import { SCH_SCREEN } from '../../sch_screen.js';

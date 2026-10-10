@@ -13,7 +13,7 @@
  */
 import { ENV_VAR } from '../env_vars.js';
 import { PATHS } from '../paths.js';
-import { wxGetEnv } from '../wx/utils.js';
+import { wxGetEnv } from '@ziroeda/wx/utils.js';
 import { ENV_VAR_ITEM, type ENV_VAR_MAP } from './environment.js';
 import { deepMerge } from './json_settings.js';
 

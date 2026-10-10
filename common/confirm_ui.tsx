@@ -22,8 +22,8 @@ import {
   wxICON_ERROR,
   wxICON_EXCLAMATION,
   wxICON_QUESTION,
-} from './wx/defs.js';
-import { wxID_CANCEL, wxID_NO, wxID_OK, wxID_YES } from './wx/menu.js';
+} from '@ziroeda/wx/defs.js';
+import { wxID_CANCEL, wxID_NO, wxID_OK, wxID_YES } from '@ziroeda/wx/menu.js';
 import {
   MessageDialogError,
   MessageDialogOk,

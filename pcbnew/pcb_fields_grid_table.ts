@@ -33,7 +33,7 @@
  */
 import type { UNITS_PROVIDER } from '@ziroeda/common/units_provider.js';
 import { WX_GRID_TABLE_BASE } from '@ziroeda/common/widgets/wx_grid.js';
-import { type wxAttrKind, wxGridCellAttr } from '@ziroeda/common/wx/grid.js';
+import { type wxAttrKind, wxGridCellAttr } from '@ziroeda/wx/grid.js';
 import { EDA_ANGLE } from '@ziroeda/kimath/src/geometry/eda_angle.js';
 import { IsBackLayer, ToLAYER_ID } from '@ziroeda/common/layer_id.js';
 import { PCB_FIELD } from './pcb_field.js';

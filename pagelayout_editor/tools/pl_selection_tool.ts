@@ -35,8 +35,8 @@ import {
 } from '@ziroeda/common/tool/tool_event.js';
 import { SYNC_HANDLER } from '@ziroeda/common/tool/tool_interactive.js';
 import type { VIEW_CONTROLS } from '@ziroeda/common/view/view_controls.js';
-import { wxGetKeyState } from '@ziroeda/common/wx/wx_event.js';
-import { WXK } from '@ziroeda/core/wx_keycodes.js';
+import { wxGetKeyState } from '@ziroeda/wx/wx_event.js';
+import { WXK } from '@ziroeda/wx/wx_keycodes.js';
 import { KiROUND } from '@ziroeda/kimath/src/math/util.js';
 import type { VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
 import type { PL_EDITOR_FRAME } from '../pl_editor_frame.js';

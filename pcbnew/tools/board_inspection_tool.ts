@@ -14,7 +14,7 @@
  * builds those reports from the view board through the functions in the
  * second half of this file (from `describeSelected` down).
  */
-import { BITMAPS } from '@ziroeda/common/bitmaps/bitmaps_list.js';
+import { BITMAPS } from '@ziroeda/include/bitmaps/bitmaps_list.js';
 import { type EDA_DRAW_FRAME_LIKE, type EDA_ITEM, RECURSE_MODE } from '@ziroeda/common/eda_item.js';
 import {
   type DIALOG_BOOK_REPORTER,
@@ -27,7 +27,7 @@ import { PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import type { RC_ITEM } from '@ziroeda/common/rc_item.js';
 import { Reporter } from '@ziroeda/common/reporter.js';
 import { STATUS_TEXT_POPUP } from '@ziroeda/common/status_popup.js';
-import * as KIPLATFORM_UI from '@ziroeda/common/kiplatform/ui.js';
+import * as KIPLATFORM_UI from '@ziroeda/kiplatform/ui.js';
 import type { COROUTINE_BODY } from '@ziroeda/common/tool/coroutine.js';
 import { IsCopperLayer, IsFrontLayer } from '@ziroeda/common/layer_id.js';
 import type { PCB_GROUP } from '../pcb_group.js';

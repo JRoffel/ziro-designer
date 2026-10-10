@@ -21,7 +21,7 @@
 import type { FileSystem } from './filesystem.js';
 
 /** One entry of the type combo: wxFileDialog's wildcard, so common/wx's. */
-export type { ChooserFilter } from '@ziroeda/common/wx/filedlg.js';
+export type { ChooserFilter } from '@ziroeda/wx/filedlg.js';
 
 /**
  * One row of the places sidebar.

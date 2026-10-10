@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 ZiroEDA and contributors.
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
-import { Button, CheckBox } from '@ziroeda/common/wx/controls.js';
+import { Button, CheckBox } from '@ziroeda/wx/controls.js';
 import { WX_TEXT_ENTRY_DIALOG } from '@ziroeda/common/dialogs/dialog_text_entry.js';
 import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import { iuToMM } from '@ziroeda/common';
@@ -16,7 +16,7 @@ import {
 import { ContextMenu, type MenuItem } from '@ziroeda/common/tool/action_menu_bar.js';
 import { ERC_PHASES } from '../index.js';
 import { KiBitmapBundle } from '@ziroeda/common/bitmap.js';
-import { BITMAPS } from '@ziroeda/common/bitmaps/bitmaps_list.js';
+import { BITMAPS } from '@ziroeda/include/bitmaps/bitmaps_list.js';
 import { useModalEscape } from '@ziroeda/common/dialog_shim.js';
 import { numberBadge, type NumberBadgeState } from '@ziroeda/common/widgets/number_badge.js';
 import {

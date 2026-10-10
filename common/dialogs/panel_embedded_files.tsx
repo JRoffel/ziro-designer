@@ -9,16 +9,16 @@
  * schematic are referenced elsewhere as ${EMBED_...}.
  */
 
-import { Button, CheckBox } from '../wx/controls.js';
+import { Button, CheckBox } from '@ziroeda/wx/controls.js';
 import { type JSX, useLayoutEffect, useRef, useState } from 'react';
 import type { EmbeddedFile, EmbeddedFilesData } from '../embedded_files.js';
 import { SaveClipboard } from '../clipboard.js';
 import { GRID_TRICKS, GRIDTRICKS_FIRST_CLIENT_ID } from '../grid_tricks.js';
 import { Icon } from '../widgets/icons.js';
 import { WX_GRID } from '../widgets/wx_grid.js';
-import { type wxGridEvent, wxGridStringTable } from '../wx/grid.js';
-import { WxGridView } from '../wx/grid_ui.js';
-import type { wxMenu, wxMenuEvent } from '../wx/menu.js';
+import { type wxGridEvent, wxGridStringTable } from '@ziroeda/wx/grid.js';
+import { WxGridView } from '@ziroeda/wx/grid_ui.js';
+import type { wxMenu, wxMenuEvent } from '@ziroeda/wx/menu.js';
 import { EMBEDDED_FILE, EMBEDDED_FILES, FILE_TYPE } from '../embedded_files.js';
 
 /** PANEL_EMBEDDED_FILES's transfers (common/dialogs/panel_embedded_files.cpp). */

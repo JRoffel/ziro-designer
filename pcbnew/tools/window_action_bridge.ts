@@ -25,7 +25,7 @@ import {
   wxEVT_LEFT_UP,
   wxEVT_MIDDLE_UP,
   wxEVT_RIGHT_UP,
-} from '@ziroeda/common/wx/wx_event.js';
+} from '@ziroeda/wx/wx_event.js';
 import { PCB_ACTIONS } from './pcb_actions.js';
 
 /** The window's implementation of an action whose tool is not ported. */

@@ -16,7 +16,7 @@ import {
 } from '@ziroeda/common/libraries/library_table.js';
 import { PGM_BASE, Pgm, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
 import type { DESIGN_BLOCK_PANE_DIALOGS } from '@ziroeda/common/widgets/design_block_pane.js';
-import { wxGetTempDir, wxMkdir, wxReadFileSync } from '@ziroeda/common/wx/filefn.js';
+import { wxGetTempDir, wxMkdir, wxReadFileSync } from '@ziroeda/wx/filefn.js';
 import type { BOARD } from '@ziroeda/pcbnew/board.js';
 import { PCB_EDIT_FRAME, type PCB_EDIT_FRAME_HOOKS } from '@ziroeda/pcbnew/pcb_edit_frame.js';
 import { PCB_GROUP } from '@ziroeda/pcbnew/pcb_group.js';

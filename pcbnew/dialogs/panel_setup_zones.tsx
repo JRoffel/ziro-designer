@@ -19,7 +19,7 @@
  * overrides. See BOARD_SETUP_STATUS.md.
  */
 
-import { CheckBox, TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { CheckBox, TextCtrl } from '@ziroeda/wx/controls.js';
 import type { JSX } from 'react';
 import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
 import { pcbIUScale } from '@ziroeda/common/eda_units.js';

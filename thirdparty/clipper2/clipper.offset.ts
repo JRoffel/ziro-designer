@@ -38,7 +38,7 @@ import {
   stripDuplicates,
 } from './clipper.core.js';
 import { type PolyTree64, Clipper64 } from './clipper.engine.js';
-import { acos, atan2, cos, hypot, log10, sin } from '../math/libm.js';
+import { acos, atan2, cos, hypot, log10, sin } from '@ziroeda/libc/libm.js';
 
 const default_arc_tolerance = 0.25;
 const floating_point_tolerance = 1e-12;

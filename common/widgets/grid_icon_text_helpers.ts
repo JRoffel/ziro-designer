@@ -7,7 +7,7 @@
  * The view (`wx/grid_ui.tsx`) draws it from DrawValue's `icon`.
  */
 import { bitmapUrl } from '../bitmap_store.js';
-import { type wxGrid, wxGridCellRenderer, type wxGridCellDrawn } from '../wx/grid.js';
+import { type wxGrid, wxGridCellRenderer, type wxGridCellDrawn } from '@ziroeda/wx/grid.js';
 
 export class GRID_CELL_ICON_TEXT_RENDERER extends wxGridCellRenderer implements wxGridCellDrawn {
   constructor(

@@ -22,7 +22,7 @@
  */
 import type { TOP_LEVEL_SHEET_INFO } from '@ziroeda/common/project/project_file.js';
 import { KICAD_SCHEMATIC_FILE_EXTENSION } from '@ziroeda/common/common.js';
-import { wxNormalizePath } from '@ziroeda/common/wx/filefn.js';
+import { wxNormalizePath } from '@ziroeda/wx/filefn.js';
 import type { PROJECT } from '@ziroeda/common/project.js';
 import { SCH_CLEANUP_FLAGS, SCHEMATIC } from './schematic.js';
 import { SCH_SCREENS } from './sch_screen.js';

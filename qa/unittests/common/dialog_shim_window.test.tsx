@@ -19,7 +19,7 @@ import {
   SetPgm,
 } from '@ziroeda/common/pgm_base.js';
 import type { DialogControlValue } from '@ziroeda/common/settings/common_settings.js';
-import { Button, CheckBox } from '@ziroeda/common/wx/controls.js';
+import { Button, CheckBox } from '@ziroeda/wx/controls.js';
 
 /** m_dialogControlValues, in memory. */
 let store: Record<string, Record<string, DialogControlValue>>;

@@ -45,7 +45,7 @@ import {
 import { useModalEscape } from '@ziroeda/common/dialog_shim.js';
 import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
 import { Icon } from '@ziroeda/common/widgets/icons.js';
-import { SpinCtrl } from '@ziroeda/common/widgets/spin_ctrl.js';
+import { SpinCtrl } from '@ziroeda/wx/spin_ctrl.js';
 import { HtmlReportPanel, RPT_SEVERITY_ALL } from '@ziroeda/common/widgets/wx_html_report_panel.js';
 import type { BOARD } from '../board.js';
 import { PCB_IO_IPC2581 } from '../pcb_io/ipc2581/pcb_io_ipc2581.js';

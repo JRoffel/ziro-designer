@@ -16,7 +16,7 @@ import type { ForwardRefExoticComponent, ReactNode, RefAttributes } from 'react'
 import type { CommonSettings } from '@ziroeda/common/settings/common_settings.js';
 import type { FpLibRow } from '@ziroeda/common/fp_lib_table.js';
 import type { PrefsPageId } from '@ziroeda/common/frame_type.js';
-import type { ChooserFilter, OpenedFile } from '@ziroeda/common/wx/filedlg.js';
+import type { ChooserFilter, OpenedFile } from '@ziroeda/wx/filedlg.js';
 import type { ToolEntry } from '@ziroeda/common/tool/action_toolbar_types.js';
 import type { ToolbarDefaults, ToolbarLoc } from '@ziroeda/common/tool/ui/toolbar_configuration.js';
 import type { KeyLike } from '@ziroeda/common/hotkeys_basic_keys.js';

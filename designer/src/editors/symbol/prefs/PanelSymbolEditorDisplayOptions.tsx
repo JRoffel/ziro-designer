@@ -48,7 +48,7 @@
  * `drawAltPinModesIcon`, so the row is live.
  */
 import type { JSX } from 'react';
-import { Check, Group } from '@ziroeda/common/wx/controls.js';
+import { Check, Group } from '@ziroeda/wx/controls.js';
 import { PanelGalOptions } from '@ziroeda/common/dialogs/panel_gal_options.js';
 import type { PrefsContext } from '../../../dialogs/prefs/types.js';
 

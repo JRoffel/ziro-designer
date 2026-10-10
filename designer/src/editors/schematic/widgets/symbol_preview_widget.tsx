@@ -16,7 +16,7 @@ import {
   usePreviewViewControls,
   type PreviewView,
 } from '@ziroeda/common/widgets/preview_view_controls.js';
-import type { InputPrefs } from '@ziroeda/common/ui/view_controls.js';
+import type { InputPrefs } from '@ziroeda/common/view/wx_view_controls.js';
 
 export interface SymbolPreviewWidgetProps {
   /** Symbol to display, or null to show the status text instead. */

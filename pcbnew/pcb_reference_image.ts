@@ -32,7 +32,7 @@ import {
 import { pixelSizeIu, REFERENCE_IMAGE } from '@ziroeda/common/reference_image.js';
 import type { UNITS_PROVIDER } from '@ziroeda/common/units_provider.js';
 import { MSG_PANEL_ITEM } from '@ziroeda/common/widgets/msgpanel.js';
-import { pngPPI, pngPixelSize } from '@ziroeda/common/wx/png_meta.js';
+import { pngPPI, pngPixelSize } from '@ziroeda/wx/png_meta.js';
 import { type FLIP_DIRECTION } from '@ziroeda/core/mirror.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import type { EDA_ANGLE } from '@ziroeda/kimath/src/geometry/eda_angle.js';

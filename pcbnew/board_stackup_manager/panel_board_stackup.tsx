@@ -32,7 +32,7 @@
  * solderMaskMaterial / silkscreenMaterial).
  */
 
-import { Button, CheckBox, TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { Button, CheckBox, TextCtrl } from '@ziroeda/wx/controls.js';
 import { useRef, useState, type JSX } from 'react';
 import { pcbIUScale } from '@ziroeda/common/eda_units.js';
 import type { Color4d } from '@ziroeda/common/gal/color4d.js';

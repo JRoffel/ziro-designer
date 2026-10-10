@@ -42,7 +42,7 @@ import {
   type wxGridEvent,
   wxGridCellAttr,
   wxGridStringTable,
-} from '@ziroeda/common/wx/grid.js';
+} from '@ziroeda/wx/grid.js';
 import type { PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import type { Vec2 as VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
 import { BOARD_COMMIT } from '../board_commit.js';

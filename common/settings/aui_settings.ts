@@ -11,7 +11,7 @@
  * perspective, which nothing here writes as JSON.
  */
 
-import type { wxPoint } from '../wx/dc.js';
+import type { wxPoint } from '@ziroeda/wx/dc.js';
 import type { JsonValue } from './json_settings_internals.js';
 
 /** `wxSize`: `x` is the width and `y` the height, as wx's own members are. */

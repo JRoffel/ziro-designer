@@ -24,7 +24,7 @@
  * `include/dialogs/dialog_paste_special.h:33-38`, not in eeschema or pcbnew.
  */
 
-import { Button, CheckBox, RadioButton } from '../wx/controls.js';
+import { Button, CheckBox, RadioButton } from '@ziroeda/wx/controls.js';
 import { useState, type JSX } from 'react';
 import { DialogShim } from '../dialog_shim.js';
 

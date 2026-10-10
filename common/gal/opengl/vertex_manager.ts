@@ -8,7 +8,7 @@
  * GPU_MANAGER that draws it. The glm::mat4 is a column-major Float32Array.
  */
 
-import { cos, sin } from '@ziroeda/kimath/src/math/libm.js';
+import { cos, sin } from '@ziroeda/libc/libm.js';
 import type { Vec2 } from '@ziroeda/kimath/src/math/vector2.js';
 import type { Color4d } from '../color4d.js';
 import { GPU_MANAGER } from './gpu_manager.js';
@@ -23,7 +23,7 @@ import {
 } from './vertex_common.js';
 import { VERTEX_CONTAINER } from './vertex_container.js';
 import type { VERTEX_ITEM } from './vertex_item.js';
-import { wxASSERT } from '@ziroeda/core/wx_assert.js';
+import { wxASSERT } from '@ziroeda/wx/wx_assert.js';
 
 /** `glm::mat4`, column-major. */
 export type MAT4 = Float32Array;

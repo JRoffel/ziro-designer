@@ -22,7 +22,7 @@ import type { LibTreeNode } from '../lib_tree_model.js';
 import type { LIBRARY_MANAGER } from '../libraries/library_manager.js';
 import { LIBRARY_TABLE_SCOPE, LIBRARY_TABLE_TYPE } from '../libraries/library_table.js';
 import { KiCadDesignBlockLibPathExtension } from '../wildcards_and_files_ext.js';
-import { wxDirExists, wxFileExists } from '../wx/filefn.js';
+import { wxDirExists, wxFileExists } from '@ziroeda/wx/filefn.js';
 
 /** The modals the pane raises, each answered by the window. */
 export interface DESIGN_BLOCK_PANE_DIALOGS {

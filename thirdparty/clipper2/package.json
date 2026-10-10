@@ -1,0 +1,13 @@
+{
+  "name": "@ziroeda/clipper2",
+  "version": "0.0.0",
+  "description": "KiCad's thirdparty/clipper2: the Clipper2 port the zone filler uses.",
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ziroeda/libc": "workspace:*"
+  }
+}

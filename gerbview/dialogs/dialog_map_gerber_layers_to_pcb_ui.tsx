@@ -32,7 +32,7 @@
  * Title `_("Layer Selection")` (`_base.h:62`).
  */
 
-import { Button } from '@ziroeda/common/wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
 import { type JSX, useLayoutEffect, useReducer, useRef, useState } from 'react';
 import { DialogShim, StdDialogButtons } from '@ziroeda/common/dialog_shim.js';
 import { measureTextWidth } from '@ziroeda/common/widgets/text_ctrl_width.js';

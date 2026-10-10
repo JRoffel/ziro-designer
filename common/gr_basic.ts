@@ -15,7 +15,7 @@ import { EDA_ANGLE } from '@ziroeda/kimath/src/geometry/eda_angle.js';
 import type { VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
 import { RotatePoint } from '@ziroeda/kimath/src/trigo.js';
 import { type Color4d, COLOR4D_BLACK, COLOR4D_UNSPECIFIED } from './gal/color4d.js';
-import { wxBrush, wxBrushStyle, type wxDC, wxPen, wxPenStyle } from './wx/dc.js';
+import { wxBrush, wxBrushStyle, type wxDC, wxPen, wxPenStyle } from '@ziroeda/wx/dc.js';
 
 export const FILLED = true;
 export const NOT_FILLED = false;

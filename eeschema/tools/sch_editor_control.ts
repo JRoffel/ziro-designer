@@ -23,7 +23,7 @@ import {
 import { SYNC_HANDLER } from '@ziroeda/common/tool/tool_interactive.js';
 import { ITEM_PICKER, PICKED_ITEMS_LIST, UNDO_REDO } from '@ziroeda/common/undo_redo_container.js';
 import { VIEW_UPDATE_FLAGS } from '@ziroeda/common/view/view_item.js';
-import { wxID_CANCEL, wxID_OK } from '@ziroeda/common/wx/menu.js';
+import { wxID_CANCEL, wxID_OK } from '@ziroeda/wx/menu.js';
 import { updateEeschemaSettings } from '../eeschema_settings.js';
 import { SCH_COMMIT } from '../sch_commit.js';
 import type { SCH_EDIT_FRAME } from '../sch_edit_frame.js';
@@ -111,8 +111,8 @@ import {
   KiCadSchematicFileExtension,
   kicadSchematicWildcard,
 } from '@ziroeda/common/wildcards_and_files_ext.js';
-import { wxFD_OVERWRITE_PROMPT, wxFD_SAVE } from '@ziroeda/common/wx/defs.js';
-import { wxReadFileSync } from '@ziroeda/common/wx/filefn.js';
+import { wxFD_OVERWRITE_PROMPT, wxFD_SAVE } from '@ziroeda/wx/defs.js';
+import { wxReadFileSync } from '@ziroeda/wx/filefn.js';
 import { SCH_SCREEN, SCH_SCREENS } from '../sch_screen.js';
 
 /** `MAX_PAGE_SIZE_EESCHEMA_MILS` (page_info.h). [data] */

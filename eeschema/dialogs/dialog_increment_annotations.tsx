@@ -12,7 +12,7 @@
  * in a number (or a `?`) — there is nothing to increment otherwise, and
  * upstream simply returns without doing anything.
  */
-import { Button, RadioButton } from '@ziroeda/common/wx/controls.js';
+import { Button, RadioButton } from '@ziroeda/wx/controls.js';
 import { useState, type JSX } from 'react';
 import { isSplitNeeded } from '../index.js';
 import { DialogShim } from '@ziroeda/common/dialog_shim.js';

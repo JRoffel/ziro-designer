@@ -100,7 +100,7 @@
  * measurement it came from.
  */
 
-import { Button } from '@ziroeda/common/wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
 import {
   useEffect,
   useLayoutEffect,
@@ -189,7 +189,7 @@ import {
   CVPCB_WARNING_TITLE,
   EQU_LOAD_ERROR_TITLE,
 } from './auto_associate.js';
-import { DockSash } from '@ziroeda/common/widgets/wx_aui_sash.js';
+import { DockSash } from '@ziroeda/wx/wx_aui_sash.js';
 import { useModalEscape } from '@ziroeda/common/dialog_shim.js';
 import { dispatchMenuHotkey } from '@ziroeda/common/tool/action_menu_hotkeys.js';
 import type { FocusLike } from '@ziroeda/common/browser_hotkeys.js';

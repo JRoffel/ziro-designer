@@ -19,8 +19,8 @@ import {
   LIBRARY_TABLE_TYPE,
 } from '@ziroeda/common/libraries/library_table.js';
 import { PGM_BASE, Pgm, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
-import { MEMORY_FILESYSTEM, wxFileExists, wxMountFileSystem } from '@ziroeda/common/wx/filefn.js';
-import { wxID_CANCEL, wxID_OK } from '@ziroeda/common/wx/menu.js';
+import { MEMORY_FILESYSTEM, wxFileExists, wxMountFileSystem } from '@ziroeda/wx/filefn.js';
+import { wxID_CANCEL, wxID_OK } from '@ziroeda/wx/menu.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { LIB_SYMBOL } from '@ziroeda/eeschema/lib_symbol.js';
 import {

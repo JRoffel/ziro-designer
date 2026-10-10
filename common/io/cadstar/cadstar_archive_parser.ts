@@ -24,7 +24,7 @@ export type EDA_TEXT_LIKE = Omit<
 import { IO_ERROR } from '../../exceptions.js';
 import type { PROGRESS_REPORTER } from '../../progress_reporter.js';
 import { convertToNewOverbarNotation, ESCAPE_CONTEXT, EscapeString } from '../../string_utils.js';
-import { wxCmp } from '../../wx/wxstring.js';
+import { wxCmp } from '@ziroeda/wx/wxstring.js';
 import { XNODE, wxXmlNodeType } from '../../xnode.js';
 import { SHAPE_ARC } from '@ziroeda/kimath/src/geometry/shape_arc.js';
 import { SHAPE_LINE_CHAIN } from '@ziroeda/kimath/src/geometry/shape_line_chain.js';

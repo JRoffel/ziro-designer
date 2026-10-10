@@ -7,7 +7,7 @@
  * "Changes to be applied:" (the RC tree) and "Progress:" (the report), then
  * Build Changes / Update PCB and Cancel.
  */
-import { StaticBox } from '@ziroeda/common/wx/controls.js';
+import { StaticBox } from '@ziroeda/wx/controls.js';
 import { type JSX, useEffect, useState, useSyncExternalStore } from 'react';
 import { DialogShim, StdDialogButtons } from '@ziroeda/common/dialog_shim.js';
 import { NetSelector } from '@ziroeda/common/widgets/net_selector.js';

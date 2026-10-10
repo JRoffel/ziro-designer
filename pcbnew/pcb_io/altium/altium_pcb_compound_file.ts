@@ -17,8 +17,8 @@ import {
   UTF16ToUTF8,
   UTF16ToWstring,
 } from '@ziroeda/common/io/altium/compoundfilereader.js';
-import { ToLong } from '@ziroeda/common/libc/stdlib.js';
-import { wxCmpNoCase } from '@ziroeda/common/wx/wxstring.js';
+import { ToLong } from '@ziroeda/libc/stdlib.js';
+import { wxCmpNoCase } from '@ziroeda/wx/wxstring.js';
 import { AMODEL } from './altium_parser_pcb.js';
 
 /**

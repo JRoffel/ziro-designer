@@ -16,8 +16,8 @@
  */
 
 import { ParseDouble, ParseInt } from '@ziroeda/common/io/pads/pads_common.js';
-import { ISTRINGSTREAM } from '@ziroeda/common/libc/sstream.js';
-import { cos, sin, atan2 } from '@ziroeda/kimath/src/math/libm.js';
+import { ISTRINGSTREAM } from '@ziroeda/libc/sstream.js';
+import { cos, sin, atan2 } from '@ziroeda/libc/libm.js';
 
 const INT_MIN = -2147483648;
 const INT_MAX = 2147483647;

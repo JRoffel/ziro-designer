@@ -15,7 +15,7 @@ import {
 } from '@ziroeda/eeschema/eeschema_settings.js';
 import { SCH_EDIT_FRAME, type SCH_EDIT_FRAME_HOOKS } from '@ziroeda/eeschema/sch_edit_frame.js';
 import { SCH_SHEET } from '@ziroeda/eeschema/sch_sheet.js';
-import { MEMORY_FILESYSTEM, wxMountFileSystem, wxReadFileSync } from '@ziroeda/common/wx/filefn.js';
+import { MEMORY_FILESYSTEM, wxMountFileSystem, wxReadFileSync } from '@ziroeda/wx/filefn.js';
 import { afterEach, beforeEach, describe, expect, it, onTestFinished } from 'vitest';
 
 const ORACLE = resolve(__dirname, '../../data/eeschema/netlist_oracle/complex_hierarchy');

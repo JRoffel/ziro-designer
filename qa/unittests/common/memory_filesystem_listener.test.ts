@@ -11,7 +11,7 @@ import {
   wxMountFileSystem,
   wxReadFileSync,
   wxWriteFileSync,
-} from '@ziroeda/common/wx/filefn.js';
+} from '@ziroeda/wx/filefn.js';
 import { describe, expect, it } from 'vitest';
 
 describe('MEMORY_FILESYSTEM.SetWriteListener', () => {

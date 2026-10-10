@@ -16,7 +16,7 @@
  * only the controls.
  */
 
-import { TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { TextCtrl } from '@ziroeda/wx/controls.js';
 import { useState, type JSX } from 'react';
 import { pcbIuToMM, pcbMmToIU } from '@ziroeda/common/eda_units.js';
 import type { TrackViaValues } from './dialog_track_via_properties.js';

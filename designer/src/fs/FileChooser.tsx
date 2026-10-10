@@ -28,7 +28,7 @@
  * The full capture is in `~/chooser-image-measurements.md`.
  */
 
-import { Button, Combo, TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { Button, Combo, TextCtrl } from '@ziroeda/wx/controls.js';
 import { type JSX, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TreeIcon } from '../home/project_tree_pane.js';
 import { treeIconFor } from '../home/project_tree.js';

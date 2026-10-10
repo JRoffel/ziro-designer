@@ -43,7 +43,7 @@ import {
   type wxGridEvent,
   wxGridSelectionModes,
   wxGridTableBase,
-} from '../wx/grid.js';
+} from '@ziroeda/wx/grid.js';
 import { type EdaIuScale, pcbIUScale } from '../index.js';
 import { isNullableEditor } from './grid_text_helpers.js';
 import { type EdaUnits, parseUnitValue, stringFromValue } from './unit_binder.js';

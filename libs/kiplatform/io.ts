@@ -4,7 +4,7 @@
 /**
  * `KIPLATFORM::IO` (libs/kiplatform/os/unix/io.cpp), the part the library caches ask.
  */
-import { wxDirEnumerate, wxFileModificationTime, wxReadFileSync } from '../wx/filefn.js';
+import { wxDirEnumerate, wxFileModificationTime, wxReadFileSync } from '@ziroeda/wx/filefn.js';
 
 /** `fnmatch( aPattern, aName, FNM_CASEFOLD | FNM_PERIOD )` for the `*` and `?` wildcards. */
 function fnmatchCasefoldPeriod(aPattern: string, aName: string): boolean {

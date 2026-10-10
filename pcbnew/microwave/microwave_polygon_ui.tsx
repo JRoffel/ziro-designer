@@ -29,7 +29,7 @@
  * `File not found` (`wxFopen` failing) cannot happen for a file the browser has
  * already handed over, but a read that fails is reported the same way.
  */
-import { Button, RadioButton, StaticBox } from '@ziroeda/common/wx/controls.js';
+import { Button, RadioButton, StaticBox } from '@ziroeda/wx/controls.js';
 import { useRef, useState, type JSX } from 'react';
 import { DialogShim, StdDialogButtons } from '@ziroeda/common/dialog_shim.js';
 import { unitEntryText, unitEntryValue } from '@ziroeda/common/dialogs/dialog_unit_entry.js';

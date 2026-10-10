@@ -26,7 +26,7 @@
  * the caller passes the values in rather than a zone.
  */
 
-import { Button, CheckBox, RadioButton, TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { Button, CheckBox, RadioButton, TextCtrl } from '@ziroeda/wx/controls.js';
 import type { ConversionBoxValues } from '../tools/convert_settings_dialog.js';
 import {
   CONVERSION_BOX_LINE_MARGIN,

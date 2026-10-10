@@ -13,7 +13,7 @@
  * symbols and full names; the threshold field is in mV and defaults to 0.
  */
 
-import { RadioButton, TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { RadioButton, TextCtrl } from '@ziroeda/wx/controls.js';
 import { type JSX, useState } from 'react';
 import {
   CORROSION_METALS,

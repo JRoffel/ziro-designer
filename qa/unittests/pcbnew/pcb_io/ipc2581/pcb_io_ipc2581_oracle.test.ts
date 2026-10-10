@@ -17,7 +17,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { wxXmlDocumentLoad, type wxXmlNode } from '@ziroeda/common/wx/xml.js';
+import { wxXmlDocumentLoad, type wxXmlNode } from '@ziroeda/wx/xml.js';
 import { PCB_IO_IPC2581 } from '@ziroeda/pcbnew/pcb_io/ipc2581/pcb_io_ipc2581.js';
 import { ParseBoard } from '@ziroeda/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.js';
 

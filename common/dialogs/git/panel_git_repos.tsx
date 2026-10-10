@@ -28,8 +28,8 @@
  * reads "Reset Version Control to Defaults" and has to have something to reset.
  */
 import type { JSX } from 'react';
-import { Check, Group, TextCtrl } from '../../wx/controls.js';
-import { SpinCtrl } from '../../widgets/spin_ctrl.js';
+import { Check, Group, TextCtrl } from '@ziroeda/wx/controls.js';
+import { SpinCtrl } from '@ziroeda/wx/spin_ctrl.js';
 import type { COMMON_SETTINGS_DRAFT } from '../../settings/common_settings.js';
 
 export function PanelGitRepos({ ctx }: { ctx: COMMON_SETTINGS_DRAFT }): JSX.Element {

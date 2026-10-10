@@ -1,0 +1,22 @@
+{
+  "name": "@ziroeda/wx",
+  "version": "0.0.0",
+  "description": "wxWidgets as the browser port needs it: the wx classes KiCad calls, under their wx names. Outside KiCad's tree, as wx is.",
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ziroeda/common": "workspace:*",
+    "@ziroeda/include": "workspace:*",
+    "@ziroeda/kiplatform": "workspace:*",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "vite": "^6.0.7"
+  }
+}

@@ -23,7 +23,7 @@ import { PGM_BASE, SetPgm } from '@ziroeda/common/pgm_base.js';
 import { EDA_UNITS_INT } from '@ziroeda/common/settings/app_settings.js';
 import { ACTIONS } from '@ziroeda/common/tool/actions.js';
 import { MD_CTRL, MD_SHIFT, TA_MOUSE_CLICK } from '@ziroeda/common/tool/tool_event.js';
-import { wxUpdateUIEvent } from '@ziroeda/common/wx/wx_event.js';
+import { wxUpdateUIEvent } from '@ziroeda/wx/wx_event.js';
 import { PL_ACTIONS } from '@ziroeda/pagelayout_editor/tools/pl_actions.js';
 import { makeHarness, mouse, toolbar } from './pl_editor_fixture.js';
 

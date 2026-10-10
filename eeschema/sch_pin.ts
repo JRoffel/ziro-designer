@@ -58,7 +58,7 @@ import {
 } from '@ziroeda/common/string_utils.js';
 import { FIELD_T } from '@ziroeda/common/template_fieldnames.js';
 import type { UNITS_PROVIDER } from '@ziroeda/common/units_provider.js';
-import { wxCmp } from '@ziroeda/common/wx/wxstring.js';
+import { wxCmp } from '@ziroeda/wx/wxstring.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { ANGLE_90 } from '@ziroeda/kimath/src/geometry/eda_angle.js';
 import type { SHAPE_LINE_CHAIN } from '@ziroeda/kimath/src/geometry/shape_line_chain.js';

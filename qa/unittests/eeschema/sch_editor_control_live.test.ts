@@ -11,7 +11,7 @@ import { PGM_BASE, Pgm, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_bas
 import type { APP_SETTINGS_BASE } from '@ziroeda/common/settings/app_settings.js';
 import { ACTIONS, EVENTS } from '@ziroeda/common/tool/actions.js';
 import type { TOOL_ACTION } from '@ziroeda/common/tool/tool_action.js';
-import { wxID_CANCEL, wxID_OK } from '@ziroeda/common/wx/menu.js';
+import { wxID_CANCEL, wxID_OK } from '@ziroeda/wx/menu.js';
 import {
   EESCHEMA_DEFAULTS,
   type EeschemaSettings,

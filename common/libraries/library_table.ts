@@ -23,7 +23,7 @@
  */
 import { FORMAT_MODE } from '../io/kicad/kicad_io_utils.js';
 import { type OUTPUTFORMATTER, PRETTIFIED_STRING_FORMATTER } from '../richio.js';
-import { wxWriteFileSync } from '../wx/filefn.js';
+import { wxWriteFileSync } from '@ziroeda/wx/filefn.js';
 import { XNODE, wxXmlNodeType } from '../xnode.js';
 import {
   LIBRARY_TABLE_PARSER,

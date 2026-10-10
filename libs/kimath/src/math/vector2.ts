@@ -9,7 +9,7 @@
  * see units.ts for our IU).
  */
 
-import { hypot } from './libm.js';
+import { hypot } from '@ziroeda/libc/libm.js';
 import { INT_MAX, INT_MIN, KiROUND, rescale64, toInt } from './util.js';
 
 /** 2D point/vector in integer internal units (100 nm). Immutable variant. */

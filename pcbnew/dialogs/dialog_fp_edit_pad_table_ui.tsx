@@ -21,7 +21,7 @@
  */
 import { type JSX, useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react';
 import { DialogShim, StdDialogButtons } from '@ziroeda/common/dialog_shim.js';
-import { WxGridView } from '@ziroeda/common/wx/grid_ui.js';
+import { WxGridView } from '@ziroeda/wx/grid_ui.js';
 import {
   COL_SHAPE,
   DIALOG_FP_EDIT_PAD_TABLE,

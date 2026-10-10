@@ -34,7 +34,7 @@
  *    (kicad/local_history_pane.cpp:42) — the grid rules belong to this dialog
  *    alone.
  */
-import { Button } from '../wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
 import { useEffect, useRef, useState, type JSX } from 'react';
 import {
   RESTORE_DIALOG_MIN_HEIGHT,

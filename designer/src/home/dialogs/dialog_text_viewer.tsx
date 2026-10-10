@@ -5,7 +5,7 @@
  * "Open Text Editor" (no upstream counterpart file; upstream shells out to
  * the OS text editor). Shows a project text file in a monospace modal. */
 
-import { Button } from '@ziroeda/common/wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
 import type { JSX } from 'react';
 import { DialogShim } from '@ziroeda/common/dialog_shim.js';
 

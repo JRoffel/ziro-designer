@@ -9,7 +9,7 @@
  * `m_nodes` is a `std::multiset` ordered by CN_PTR_CMP (x, then y): a sorted
  * array here, equal keys kept in insertion order as the multiset keeps them.
  */
-import { stdSort } from '@ziroeda/kimath/src/clipper2/clipper.core.js';
+import { stdSort } from '@ziroeda/clipper2/clipper.core.js';
 import { SquaredEuclideanNorm, sub, type VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
 import { Delaunator, INVALID_INDEX } from '@ziroeda/kimath/src/thirdparty/delaunator.js';
 import type { LSET } from '@ziroeda/common/lset.js';

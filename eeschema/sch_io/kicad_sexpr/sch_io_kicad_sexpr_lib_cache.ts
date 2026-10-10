@@ -29,7 +29,7 @@ import {
   wxReadFileSync,
   wxRemoveFile,
   wxWriteFileSync,
-} from '@ziroeda/common/wx/filefn.js';
+} from '@ziroeda/wx/filefn.js';
 import { SCH_IO_LIB_CACHE } from '../sch_io_lib_cache.js';
 import { FormatAngle, FormatInternalUnits } from '@ziroeda/common/eda_units.js';
 import { FIELD_T, GetCanonicalFieldName } from '@ziroeda/common/template_fieldnames.js';

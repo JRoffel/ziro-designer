@@ -8,7 +8,7 @@
  * Mirrors kicad/eeschema/dialogs/dialog_symbol_chooser.cpp
  * (DIALOG_SYMBOL_CHOOSER).
  */
-import { Button, CheckBox } from '@ziroeda/common/wx/controls.js';
+import { Button, CheckBox } from '@ziroeda/wx/controls.js';
 import { useCallback, useRef, useState } from 'react';
 import {
   PanelSymbolChooser,

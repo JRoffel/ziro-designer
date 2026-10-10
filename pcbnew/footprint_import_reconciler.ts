@@ -41,7 +41,7 @@ import {
   wxRemoveDirTree,
   wxRenameFile,
   wxWriteFileSync,
-} from '@ziroeda/common/wx/filefn.js';
+} from '@ziroeda/wx/filefn.js';
 import type { BOARD } from './board.js';
 import type { FOOTPRINT } from './footprint.js';
 import type { FOOTPRINT_LIBRARY_ADAPTER } from './footprint_library_adapter.js';

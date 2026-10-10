@@ -17,7 +17,7 @@
  * which this window renders. `onResult` is what `ShowModal()` returns: `0` for
  * OK, `1` for Apply, `wxID_CANCEL` otherwise.
  */
-import { CheckBox, StaticBox } from '@ziroeda/common/wx/controls.js';
+import { CheckBox, StaticBox } from '@ziroeda/wx/controls.js';
 import { type JSX, useState } from 'react';
 import { DialogShim, StdDialogButtons } from '@ziroeda/common/dialog_shim.js';
 import {

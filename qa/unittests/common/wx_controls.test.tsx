@@ -10,7 +10,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DialogShim, resetModalStack } from '@ziroeda/common/dialog_shim.js';
-import { Button, RadioButton, StaticBox, TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { Button, RadioButton, StaticBox, TextCtrl } from '@ziroeda/wx/controls.js';
 
 afterEach(() => {
   cleanup();

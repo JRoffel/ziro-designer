@@ -13,6 +13,7 @@
     "@ziroeda/common": "workspace:*",
     "@ziroeda/kimath": "workspace:*",
     "@ziroeda/potrace": "workspace:*",
+    "@ziroeda/wx": "workspace:*",
     "react": "^18.3.1"
   },
   "devDependencies": {

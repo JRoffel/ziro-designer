@@ -12,8 +12,8 @@
  * `measureTool`, `pickerTool`, `regenerateItem`, `remove`, `selectionMenu`,
  * `selectionTool`) and are not here either.
  */
-import { WXK } from '@ziroeda/core/wx_keycodes.js';
-import { BITMAPS } from '@ziroeda/common/bitmaps/bitmaps_list.js';
+import { WXK } from '@ziroeda/wx/wx_keycodes.js';
+import { BITMAPS } from '@ziroeda/include/bitmaps/bitmaps_list.js';
 import { PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import { ACTIONS, CURSOR_EVENT_TYPE, REMOVE_FLAGS } from '@ziroeda/common/tool/actions.js';
 import {

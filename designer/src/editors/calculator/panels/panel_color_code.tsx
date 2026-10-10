@@ -25,7 +25,7 @@
  * (`ToleranceSelection`, panel_color_code.cpp:75-83).
  */
 
-import { RadioButton } from '@ziroeda/common/wx/controls.js';
+import { RadioButton } from '@ziroeda/wx/controls.js';
 import { type JSX, useState } from 'react';
 import { Group } from '../fields.js';
 import { useCalcSaveSettings } from '../calc_settings.js';

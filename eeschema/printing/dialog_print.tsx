@@ -26,7 +26,7 @@
  * "Print" runs SCH_PRINTOUT through wxPrinter into the browser's print flow.
  */
 
-import { Button, Combo } from '@ziroeda/common/wx/controls.js';
+import { Button, Combo } from '@ziroeda/wx/controls.js';
 import { useState, type JSX } from 'react';
 import { BUILTIN_THEMES } from '../sch_render_settings.js';
 import type { EESCHEMA_SETTINGS_STORE } from '../browser/eeschema_app.js';

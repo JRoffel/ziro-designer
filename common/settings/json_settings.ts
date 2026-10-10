@@ -30,7 +30,7 @@ import {
   wxMkdir,
   wxReadFileSync,
   wxWriteFileSync,
-} from '../wx/filefn.js';
+} from '@ziroeda/wx/filefn.js';
 import { DumpJson } from './json_dump.js';
 import { PARAM, type PARAM_BASE } from './parameters.js';
 import type { NESTED_SETTINGS } from './nested_settings.js';

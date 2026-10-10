@@ -17,7 +17,7 @@ import {
   ERROR_LOC,
   transformCircleToPolygonSet,
 } from '@ziroeda/kimath/src/convert_basic_shapes_to_polygon.js';
-import { stdSort } from '@ziroeda/kimath/src/clipper2/clipper.core.js';
+import { stdSort } from '@ziroeda/clipper2/clipper.core.js';
 import { buildConvexHull } from '@ziroeda/kimath/src/geometry/convex_hull.js';
 import { EDA_ANGLE } from '@ziroeda/kimath/src/geometry/eda_angle.js';
 import { SEG } from '@ziroeda/kimath/src/geometry/seg.js';

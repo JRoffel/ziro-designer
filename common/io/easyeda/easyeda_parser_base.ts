@@ -13,12 +13,12 @@
 import { BezierPoly } from '@ziroeda/kimath/src/bezier_curves.js';
 import { SHAPE_ARC } from '@ziroeda/kimath/src/geometry/shape_arc.js';
 import { SHAPE_LINE_CHAIN } from '@ziroeda/kimath/src/geometry/shape_line_chain.js';
-import { hypot } from '@ziroeda/kimath/src/math/libm.js';
+import { hypot } from '@ziroeda/libc/libm.js';
 import { Perpendicular, ResizeD, type Vec2 } from '@ziroeda/kimath/src/math/vector2.js';
 import { RotatePoint } from '@ziroeda/kimath/src/trigo.js';
 import type { EDA_ANGLE } from '@ziroeda/kimath/src/geometry/eda_angle.js';
 import { IO_ERROR } from '../../exceptions.js';
-import { strtodPrefix, ToCDoubleOk } from '../../libc/stdlib.js';
+import { strtodPrefix, ToCDoubleOk } from '@ziroeda/libc/stdlib.js';
 
 /** What `TransformTextToBaseline` reads and writes of an `EDA_TEXT`. */
 export interface EASYEDA_TEXT_LIKE {

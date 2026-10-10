@@ -13,7 +13,7 @@ import type { EDA_GROUP } from '@ziroeda/common/eda_group.js';
 import { type EDA_ITEM, RECURSE_MODE } from '@ziroeda/common/eda_item.js';
 import { FRAME_T } from '@ziroeda/common/frame_type.js';
 import { KICURSOR } from '@ziroeda/common/gal/cursors.js';
-import * as KIPLATFORM_UI from '@ziroeda/common/kiplatform/ui.js';
+import * as KIPLATFORM_UI from '@ziroeda/kiplatform/ui.js';
 import { STATUS_TEXT_POPUP } from '@ziroeda/common/status_popup.js';
 import { ACTIONS, EVENTS } from '@ziroeda/common/tool/actions.js';
 import type { COROUTINE_BODY } from '@ziroeda/common/tool/coroutine.js';

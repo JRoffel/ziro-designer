@@ -43,7 +43,7 @@
  * a real click always fires `OnLeftGridCellClick`/`OnRightGridCellClick`
  * regardless, so hover never changes what a click selects.
  */
-import { Button } from '@ziroeda/common/wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
 import { type CSSProperties, type JSX, useEffect, useMemo, useState } from 'react';
 import { DialogShim, useModalEscape } from '@ziroeda/common/dialog_shim.js';
 import { hotkeyListKey } from '@ziroeda/common/tool/action_menu_key_names.js';
@@ -57,8 +57,8 @@ import {
   wxEVT_GRID_CELL_LEFT_CLICK,
   type wxGridEvent,
   wxGridTableRequest,
-} from '@ziroeda/common/wx/grid.js';
-import { WxGridView } from '@ziroeda/common/wx/grid_ui.js';
+} from '@ziroeda/wx/grid.js';
+import { WxGridView } from '@ziroeda/wx/grid_ui.js';
 import { Icon } from '@ziroeda/common/widgets/icons.js';
 import { DisplayInfoMessage } from '@ziroeda/common/confirm.js';
 import { LAYER_PAIR, LAYER_PAIR_INFO } from '@ziroeda/common/project/board_project_settings.js';

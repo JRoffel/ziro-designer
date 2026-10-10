@@ -16,7 +16,7 @@
  * `InteractiveOffset` finishes its click in the answer.
  */
 import { KICURSOR } from '@ziroeda/common/gal/cursors.js';
-import * as KIPLATFORM_UI from '@ziroeda/common/kiplatform/ui.js';
+import * as KIPLATFORM_UI from '@ziroeda/kiplatform/ui.js';
 import { FRAME_T } from '@ziroeda/common/frame_type.js';
 import { pcbIUScale } from '@ziroeda/common/eda_units.js';
 import { RECURSE_MODE } from '@ziroeda/common/eda_item.js';

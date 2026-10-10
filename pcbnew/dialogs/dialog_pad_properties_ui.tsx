@@ -14,7 +14,7 @@
  * The decision logic lives in `pcbnew/dialogs/dialog_pad_properties.ts`.
  */
 
-import { CheckBox, Combo, TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { CheckBox, Combo, TextCtrl } from '@ziroeda/wx/controls.js';
 import { useState, type JSX } from 'react';
 import { pcbIuToMM, pcbMmToIU } from '@ziroeda/common/eda_units.js';
 import type { PadValues } from './dialog_pad_properties.js';

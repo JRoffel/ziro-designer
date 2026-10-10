@@ -6,7 +6,7 @@
  * three custom params of board_project_settings_params.
  */
 import { readFileSync } from 'node:fs';
-import { MEMORY_FILESYSTEM, wxMountFileSystem } from '@ziroeda/common/wx/filefn.js';
+import { MEMORY_FILESYSTEM, wxMountFileSystem } from '@ziroeda/wx/filefn.js';
 import { describe, expect, it } from 'vitest';
 import { GAL_LAYER_ID, PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import { LSET } from '@ziroeda/common/lset.js';

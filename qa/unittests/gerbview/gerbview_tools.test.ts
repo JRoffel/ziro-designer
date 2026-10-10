@@ -9,7 +9,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
-import { WXK } from '@ziroeda/core/wx_keycodes.js';
+import { WXK } from '@ziroeda/wx/wx_keycodes.js';
 import { TOOLBAR_STATE } from '@ziroeda/common/tool/tool_action.js';
 import { GERBER_COLLECTOR } from '@ziroeda/gerbview/gerber_collectors.js';
 import { GERBVIEW_ACTIONS } from '@ziroeda/gerbview/tools/gerbview_actions.js';

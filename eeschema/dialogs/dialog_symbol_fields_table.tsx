@@ -23,7 +23,7 @@
  * that ZiroEDA's document model does not carry yet.
  */
 
-import { Button, CheckBox, Combo, TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { Button, CheckBox, Combo, TextCtrl } from '@ziroeda/wx/controls.js';
 import { useCallback, useRef, useState, type JSX } from 'react';
 import {
   buildFieldsReferences,

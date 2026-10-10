@@ -11,7 +11,7 @@
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { wxReadFileSync, wxWriteFileSync } from '@ziroeda/common/wx/filefn.js';
+import { wxReadFileSync, wxWriteFileSync } from '@ziroeda/wx/filefn.js';
 import { SCH_IO_KICAD_SEXPR_LIB_CACHE } from '@ziroeda/eeschema/sch_io/kicad_sexpr/sch_io_kicad_sexpr_lib_cache.js';
 
 const DATA = resolve(__dirname, '../../data');

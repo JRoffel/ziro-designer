@@ -10,7 +10,7 @@
 import { type EDA_ITEM, RECURSE_MODE } from '@ziroeda/common/eda_item.js';
 import { IS_MOVING } from '@ziroeda/common/eda_item_flags.js';
 import { KICURSOR } from '@ziroeda/common/gal/cursors.js';
-import * as KIPLATFORM_UI from '@ziroeda/common/kiplatform/ui.js';
+import * as KIPLATFORM_UI from '@ziroeda/kiplatform/ui.js';
 import { LSET } from '@ziroeda/common/lset.js';
 import { STATUS_TEXT_POPUP } from '@ziroeda/common/status_popup.js';
 import {
@@ -21,7 +21,7 @@ import {
 } from '@ziroeda/common/tool/actions.js';
 import type { COROUTINE_BODY } from '@ziroeda/common/tool/coroutine.js';
 import { BUT_LEFT, BUT_RIGHT, MD_SHIFT, type TOOL_EVENT } from '@ziroeda/common/tool/tool_event.js';
-import { wxBell } from '@ziroeda/common/wx/utils.js';
+import { wxBell } from '@ziroeda/wx/utils.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { FLIP_DIRECTION } from '@ziroeda/kimath/src/core/mirror.js';
 import { LeaderMode as LEADER_MODE } from '@ziroeda/kimath/src/geometry/geometry_utils.js';

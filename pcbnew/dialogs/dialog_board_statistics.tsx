@@ -24,7 +24,7 @@
  * `wxEVT_GRID_COL_SORT` -> `drillGridSort`); the four General grids are plain
  * `wxGrid`s and stay tables here.
  */
-import { CheckBox } from '@ziroeda/common/wx/controls.js';
+import { CheckBox } from '@ziroeda/wx/controls.js';
 import { type JSX, type Ref, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import {
   type BoardStatisticsData,
@@ -42,8 +42,8 @@ import {
   wxEVT_GRID_COL_SORT,
   type wxGridEvent,
   wxGridStringTable,
-} from '@ziroeda/common/wx/grid.js';
-import { WxGridView } from '@ziroeda/common/wx/grid_ui.js';
+} from '@ziroeda/wx/grid.js';
+import { WxGridView } from '@ziroeda/wx/grid_ui.js';
 import { PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import type { UNITS_PROVIDER } from '@ziroeda/common/units_provider.js';
 import { useModalEscape } from '@ziroeda/common/dialog_shim.js';

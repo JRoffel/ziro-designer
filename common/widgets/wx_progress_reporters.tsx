@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 ZiroEDA and contributors.
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
-import { Button } from '../wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
 import { type JSX, useEffect, useRef, useState } from 'react';
 import type { ProgressSnapshot } from './progress_reporter_snapshot.js';
 import { useModalEscape } from '../dialog_shim.js';

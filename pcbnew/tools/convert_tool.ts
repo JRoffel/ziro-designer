@@ -13,7 +13,7 @@
  * blocks upstream, and the code after it runs in the promise's continuation
  * here, as EDIT_TOOL does for its dialogs.
  */
-import { BITMAPS } from '@ziroeda/common/bitmaps/bitmaps_list.js';
+import { BITMAPS } from '@ziroeda/include/bitmaps/bitmaps_list.js';
 import { DisplayErrorMessage } from '@ziroeda/common/confirm.js';
 import type { EDA_ITEM } from '@ziroeda/common/eda_item.js';
 import { SKIP_STRUCT, STRUCT_DELETED } from '@ziroeda/common/eda_item_flags.js';

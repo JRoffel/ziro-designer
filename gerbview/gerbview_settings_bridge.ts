@@ -25,7 +25,7 @@ import { GRID } from '@ziroeda/common/settings/grid_settings.js';
 import { CROSS_HAIR_MODE } from '@ziroeda/common/gal/gal_display_options.js';
 import { ACTIONS } from '@ziroeda/common/tool/actions.js';
 import type { TOOL_ACTION } from '@ziroeda/common/tool/tool_action.js';
-import { wxUpdateUIEvent } from '@ziroeda/common/wx/wx_event.js';
+import { wxUpdateUIEvent } from '@ziroeda/wx/wx_event.js';
 import { GERBVIEW_ACTIONS } from './tools/gerbview_actions.js';
 import { GERBVIEW_FIXED_LAYERS, graphicLayerKey } from './dialogs/panel_gerbview_color_settings.js';
 import type { GERBVIEW_FRAME } from './gerbview_frame.js';

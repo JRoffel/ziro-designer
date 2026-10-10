@@ -16,7 +16,7 @@
  * Selecting a row highlights that net, as `OnSelChanged` does.
  */
 import { type JSX, useMemo, useRef, useState } from 'react';
-import { useStringGrid, WxGridView } from '@ziroeda/common/wx/grid_ui.js';
+import { useStringGrid, WxGridView } from '@ziroeda/wx/grid_ui.js';
 import type { BOARD } from '../board.js';
 import { NetInspectorPanelView } from './net_inspector_panel.js';
 import {

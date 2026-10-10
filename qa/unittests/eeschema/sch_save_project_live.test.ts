@@ -9,7 +9,7 @@
 import { resolve } from 'node:path';
 import { PGM_BASE, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
 import { ACTIONS } from '@ziroeda/common/tool/actions.js';
-import { MEMORY_FILESYSTEM, wxMountFileSystem } from '@ziroeda/common/wx/filefn.js';
+import { MEMORY_FILESYSTEM, wxMountFileSystem } from '@ziroeda/wx/filefn.js';
 import { SetErrorPresenter } from '@ziroeda/common/confirm.js';
 import { SEXPR_SCHEMATIC_FILE_VERSION } from '@ziroeda/eeschema/sch_file_versions.js';
 import type { SCH_EDIT_FRAME_HOOKS } from '@ziroeda/eeschema/sch_edit_frame.js';

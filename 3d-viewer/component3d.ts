@@ -45,7 +45,7 @@ import {
   wxFindMount,
   wxMountFileSystem,
   wxReadFileSync,
-} from '@ziroeda/common/wx/filefn.js';
+} from '@ziroeda/wx/filefn.js';
 import { loadCadModel } from './loadmodel.js';
 import { stepFaceMaterial, type SMaterial, type Vec3 } from './gl_fixed_function.js';
 

@@ -15,7 +15,7 @@
 import { IO_ERROR } from '@ziroeda/common/exceptions.js';
 import { PCB_LAYER_ID, ToLAYER_ID } from '@ziroeda/common/layer_id.js';
 import type { XNODE } from '@ziroeda/common/xnode.js';
-import { stdSort } from '@ziroeda/kimath/src/clipper2/clipper.core.js';
+import { stdSort } from '@ziroeda/clipper2/clipper.core.js';
 import { EDA_ANGLE, EDA_ANGLE_T } from '@ziroeda/kimath/src/geometry/eda_angle.js';
 import type { BOARD } from '../../board.js';
 import type { FOOTPRINT } from '../../footprint.js';

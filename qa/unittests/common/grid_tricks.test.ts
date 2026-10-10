@@ -30,8 +30,8 @@ import {
   wxGridEvent,
   wxGridSelectionModes,
   wxGridStringTable,
-} from '@ziroeda/common/wx/grid.js';
-import type { wxMenu } from '@ziroeda/common/wx/menu.js';
+} from '@ziroeda/wx/grid.js';
+import type { wxMenu } from '@ziroeda/wx/menu.js';
 import {
   WXK,
   wxEVT_CHAR_HOOK,
@@ -39,7 +39,7 @@ import {
   wxEVT_UPDATE_UI,
   wxKeyEvent,
   wxUpdateUIEvent,
-} from '@ziroeda/common/wx/wx_event.js';
+} from '@ziroeda/wx/wx_event.js';
 
 /** A 3x3 WX_GRID reading "rc" in each cell, with GRID_TRICKS on it. */
 function make(

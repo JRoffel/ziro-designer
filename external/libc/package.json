@@ -1,0 +1,10 @@
+{
+  "name": "@ziroeda/libc",
+  "version": "0.0.0",
+  "description": "The C and C++ standard library pieces KiCad's code relies on bit for bit (glibc libm, std:: containers, stdlib). Outside KiCad's tree.",
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  }
+}

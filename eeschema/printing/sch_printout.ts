@@ -22,7 +22,7 @@ import { GAL_DRAWING_CONTEXT } from '@ziroeda/common/gal/graphics_abstraction_la
 import { GAL_LAYER_ID, LAYER_ID_COUNT, SCH_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import { DEFAULT_THEME, GetColorSettings } from '@ziroeda/common/pgm_base.js';
 import { VIEW } from '@ziroeda/common/view/view.js';
-import { wxPrintout } from '@ziroeda/common/wx/prntbase.js';
+import { wxPrintout } from '@ziroeda/wx/prntbase.js';
 import { ZOOM_MAX_LIMIT_EESCHEMA, ZOOM_MIN_LIMIT_EESCHEMA } from '@ziroeda/common/zoom_defines.js';
 import { BOX2I } from '@ziroeda/kimath/src/math/box2.js';
 import { KiROUND } from '@ziroeda/kimath/src/math/util.js';

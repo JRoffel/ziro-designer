@@ -27,8 +27,8 @@
  * the layout rather than once per row, and a rule that should vanish stays.
  */
 import type { MenuItem } from './action_menu_types.js';
-import { BITMAPS } from '../bitmaps/bitmaps_list.js';
-import { wxItemKind, wxMenuItem } from '../wx/menu.js';
+import { BITMAPS } from '@ziroeda/include/bitmaps/bitmaps_list.js';
+import { wxItemKind, wxMenuItem } from '@ziroeda/wx/menu.js';
 import { ACTION_MENU, type TOOL_INTERACTIVE_LIKE } from './action_menu.js';
 import { SELECTION } from './selection.js';
 import { type SELECTION_CONDITION, SELECTION_CONDITIONS } from './selection_conditions.js';

@@ -22,7 +22,7 @@
  * label and selector are hidden (`m_netLabel->Hide(); m_netSelector->Hide()`).
  */
 
-import { Button, CheckBox, TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { Button, CheckBox, TextCtrl } from '@ziroeda/wx/controls.js';
 import { useState, type JSX } from 'react';
 import type { ZoneValues } from './panel_zone_properties.js';
 import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';

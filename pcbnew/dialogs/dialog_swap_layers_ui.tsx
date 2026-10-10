@@ -16,12 +16,8 @@ import { type JSX, useEffect, useState } from 'react';
 import { DialogShim, StdDialogButtons } from '@ziroeda/common/dialog_shim.js';
 import { LSET } from '@ziroeda/common/lset.js';
 import { WX_GRID, WX_GRID_TABLE_BASE } from '@ziroeda/common/widgets/wx_grid.js';
-import {
-  wxGRID_VALUE_NUMBER,
-  wxGridCellAttr,
-  wxGridSelectionModes,
-} from '@ziroeda/common/wx/grid.js';
-import { WxGridView } from '@ziroeda/common/wx/grid_ui.js';
+import { wxGRID_VALUE_NUMBER, wxGridCellAttr, wxGridSelectionModes } from '@ziroeda/wx/grid.js';
+import { WxGridView } from '@ziroeda/wx/grid_ui.js';
 import {
   GRID_CELL_LAYER_RENDERER,
   GRID_CELL_LAYER_SELECTOR,

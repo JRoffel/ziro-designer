@@ -11,7 +11,7 @@
  * grid bag), a rule, Change mode's "New library identifier", the fields checklist beside the two
  * columns of Update Options, the WX_HTML_REPORT_PANEL, and Close / Update.
  */
-import { Button } from '@ziroeda/common/wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
 import { Fragment, type JSX, useEffect, useReducer, useState } from 'react';
 import { DialogShim } from '@ziroeda/common/dialog_shim.js';
 import { LIB_ID } from '@ziroeda/common/lib_id.js';

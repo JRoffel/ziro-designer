@@ -27,7 +27,7 @@
  * parent dialog, which no dialog of ours listens for.
  */
 
-import { TextCtrl } from '../wx/controls.js';
+import { TextCtrl } from '@ziroeda/wx/controls.js';
 import {
   type CSSProperties,
   type JSX,

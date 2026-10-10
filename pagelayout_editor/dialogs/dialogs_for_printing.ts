@@ -37,8 +37,8 @@ import { DS_RENDER_SETTINGS } from '@ziroeda/common/drawing_sheet/ds_proxy_view_
 import { drawSheetIUScale } from '@ziroeda/common/eda_units.js';
 import { GRForceBlackPen, GRResetPenAndBrush } from '@ziroeda/common/gr_basic.js';
 import { LAYER_DRAWINGSHEET } from '@ziroeda/common/layer_id.js';
-import { wxPrinter } from '@ziroeda/common/wx/printer.js';
-import { wxPrintout } from '@ziroeda/common/wx/prntbase.js';
+import { wxPrinter } from '@ziroeda/wx/printer.js';
+import { wxPrintout } from '@ziroeda/wx/prntbase.js';
 import type { PL_EDITOR_FRAME } from '../pl_editor_frame.js';
 
 /**

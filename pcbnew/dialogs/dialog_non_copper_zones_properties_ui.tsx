@@ -8,7 +8,7 @@
  * corner smoothing and its distance) and the Fill box (solid or hatch, and
  * the hatch's orientation, width, gap and smoothing), then OK / Cancel.
  */
-import { CheckBox, StaticBox, TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { CheckBox, StaticBox, TextCtrl } from '@ziroeda/wx/controls.js';
 import { type JSX, useState } from 'react';
 import { DialogShim, StdDialogButtons } from '@ziroeda/common/dialog_shim.js';
 import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';

@@ -47,8 +47,8 @@ import {
   type wxGridEvent,
   wxGridSelectionModes,
   wxGridStringTable,
-} from '@ziroeda/common/wx/grid.js';
-import { WxGridView } from '@ziroeda/common/wx/grid_ui.js';
+} from '@ziroeda/wx/grid.js';
+import { WxGridView } from '@ziroeda/wx/grid_ui.js';
 import type { FOOTPRINT, FP_3DMODEL } from '../footprint.js';
 import {
   MODELS_TABLE_COLUMNS,

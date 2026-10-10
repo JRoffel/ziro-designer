@@ -20,8 +20,8 @@ import {
   wxFileExists,
   wxMountFileSystem,
   wxReadFileSync,
-} from '@ziroeda/common/wx/filefn.js';
-import { wxID_CANCEL, wxID_HIGHEST, wxID_OK } from '@ziroeda/common/wx/menu.js';
+} from '@ziroeda/wx/filefn.js';
+import { wxID_CANCEL, wxID_HIGHEST, wxID_OK } from '@ziroeda/wx/menu.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { SymbolLibAdapter } from '@ziroeda/eeschema/project_sch.js';
 import type { EDA_LIST_DIALOG_ARG } from '@ziroeda/eeschema/sch_base_frame.js';

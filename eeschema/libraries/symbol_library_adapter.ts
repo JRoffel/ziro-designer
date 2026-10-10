@@ -39,7 +39,7 @@ import {
   type LIBRARY_TABLE_ROW,
   LIBRARY_TABLE_TYPE,
 } from '@ziroeda/common/libraries/library_table.js';
-import { MEMORY_FILESYSTEM, wxFileExists, wxMountFileSystem } from '@ziroeda/common/wx/filefn.js';
+import { MEMORY_FILESYSTEM, wxFileExists, wxMountFileSystem } from '@ziroeda/wx/filefn.js';
 import type { LIB_SYMBOL } from '../lib_symbol.js';
 import { PropPowerSymsOnly } from '../sch_io/kicad_sexpr/sch_io_kicad_sexpr.js';
 import { SCH_FILE_T, type SCH_IO, SCH_IO_MGR } from '../sch_io/sch_io_mgr.js';

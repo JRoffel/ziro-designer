@@ -111,7 +111,7 @@ import type { SCH_SYMBOL } from './sch_symbol.js';
 import type { SCH_TEXTBOX } from './sch_textbox.js';
 import type { SCHEMATIC } from './schematic.js';
 import { CalcArcCenter, type Vec2 } from '@ziroeda/kimath';
-import { zoomFitView } from '@ziroeda/common/ui/view_controls.js';
+import { zoomFitView } from '@ziroeda/common/view/wx_view_controls.js';
 import {
   drawGrid,
   viewFromOffsets,

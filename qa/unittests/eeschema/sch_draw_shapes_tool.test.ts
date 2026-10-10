@@ -10,7 +10,7 @@ import { SHAPE_T } from '@ziroeda/common/eda_shape.js';
 import { PGM_BASE, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
 import { ACTIONS } from '@ziroeda/common/tool/actions.js';
 import { TA_MOUSE_MOTION } from '@ziroeda/common/tool/tool_event.js';
-import { wxID_CANCEL, wxID_OK } from '@ziroeda/common/wx/menu.js';
+import { wxID_CANCEL, wxID_OK } from '@ziroeda/wx/menu.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import type { SCH_EDIT_FRAME_HOOKS } from '@ziroeda/eeschema/sch_edit_frame.js';
 import type { SCH_RULE_AREA } from '@ziroeda/eeschema/sch_rule_area.js';

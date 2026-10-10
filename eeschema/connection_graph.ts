@@ -25,7 +25,7 @@
  * reporter.
  */
 
-import { STD_UNORDERED_MAP, hashInt, hashWString } from '@ziroeda/common/libc/unordered_map.js';
+import { STD_UNORDERED_MAP, hashInt, hashWString } from '@ziroeda/libc/unordered_map.js';
 import { RECURSE_MODE } from '@ziroeda/common/eda_item.js';
 import { CONNECTIVITY_CANDIDATE } from '@ziroeda/common/eda_item_flags.js';
 import { SCH_LAYER_ID } from '@ziroeda/common/layer_id.js';

@@ -7,7 +7,7 @@
  * folder.
  */
 import { SETTINGS_MANAGER } from '@ziroeda/common/settings/settings_manager.js';
-import { MEMORY_FILESYSTEM, wxMountFileSystem } from '@ziroeda/common/wx/filefn.js';
+import { MEMORY_FILESYSTEM, wxMountFileSystem } from '@ziroeda/wx/filefn.js';
 import { afterEach, describe, expect, it } from 'vitest';
 
 const unmounts: (() => void)[] = [];

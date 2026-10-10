@@ -40,7 +40,7 @@
 
 import { useEffect, useRef, type JSX } from 'react';
 import { DialogShim } from '../dialog_shim.js';
-import { Button } from '../wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
 
 /**
  * One message's markup, as `<li>` content.

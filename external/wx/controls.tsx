@@ -13,13 +13,13 @@
  * Moved verbatim out of `prefs/PreferencesDialog.tsx`; no behaviour change.
  */
 import type { JSX, MouseEvent, ReactNode, Ref } from 'react';
-import { Combo } from '../widgets/wx_combobox.js';
+import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
 
 /** wxChoice and wxComboBox, part of the wx layer like the controls below. */
-export { Combo, TextCombo } from '../widgets/wx_combobox.js';
-import { ColorSwatch } from '../widgets/color_swatch.js';
-import { SpinCtrl } from '../widgets/spin_ctrl.js';
-import { parseColor4d, toCssColor } from '../gal/color4d.js';
+export { Combo, TextCombo } from '@ziroeda/common/widgets/wx_combobox.js';
+import { ColorSwatch } from '@ziroeda/common/widgets/color_swatch.js';
+import { SpinCtrl } from './spin_ctrl.js';
+import { parseColor4d, toCssColor } from '@ziroeda/common/gal/color4d.js';
 
 /**
  * wx border flags -> the classes `.ze-pref-group-body` reads.

@@ -7,7 +7,7 @@
  * then "Action" (the specified values, or the net class / custom rule values),
  * then Apply and Close / Close.
  */
-import { RadioButton, StaticBox, TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { RadioButton, StaticBox, TextCtrl } from '@ziroeda/wx/controls.js';
 import { type JSX, useEffect, useState } from 'react';
 import { DialogShim, StdDialogButtons } from '@ziroeda/common/dialog_shim.js';
 import { unitLabel } from '@ziroeda/common/eda_units.js';

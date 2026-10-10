@@ -12,8 +12,11 @@
   "dependencies": {
     "@ziroeda/common": "workspace:*",
     "@ziroeda/core": "workspace:*",
+    "@ziroeda/include": "workspace:*",
     "@ziroeda/kimath": "workspace:*",
+    "@ziroeda/libc": "workspace:*",
     "@ziroeda/pcbnew": "workspace:*",
+    "@ziroeda/wx": "workspace:*",
     "fflate": "^0.8.3",
     "react": "^18.3.1"
   },

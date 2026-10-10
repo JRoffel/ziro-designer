@@ -9,7 +9,7 @@
  * widgets are doubles.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { MEMORY_FILESYSTEM, wxMountFileSystem } from '@ziroeda/common/wx/filefn.js';
+import { MEMORY_FILESYSTEM, wxMountFileSystem } from '@ziroeda/wx/filefn.js';
 import { BASE_SCREEN } from '@ziroeda/common/base_screen.js';
 import { PGM_BASE, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
 import { PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';

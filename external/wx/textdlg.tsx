@@ -16,9 +16,9 @@
  * It was `dialog_add_color_theme.tsx`, written for that one caller.
  */
 import { useState, type JSX } from 'react';
-import { useModalEscape } from '../dialog_shim.js';
-import { OK_LABEL } from '../confirm_types.js';
-import type { wxTextValidator } from '../validators.js';
+import { useModalEscape } from '@ziroeda/common/dialog_shim.js';
+import { OK_LABEL } from '@ziroeda/common/confirm_types.js';
+import type { wxTextValidator } from '@ziroeda/common/validators.js';
 
 export function WxTextEntryDialog({
   caption,

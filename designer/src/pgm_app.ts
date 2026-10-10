@@ -26,7 +26,7 @@ import {
   SetPgm,
 } from '@ziroeda/common/pgm_base.js';
 import { COLOR_SETTINGS } from '@ziroeda/common/settings/color_settings.js';
-import { WXK } from '@ziroeda/common/wx/wx_event.js';
+import { WXK } from '@ziroeda/wx/wx_event.js';
 import { CROSS_HAIR_MODE } from '@ziroeda/common/gal/gal_display_options.js';
 import { WINDOW_SETTINGS } from '@ziroeda/common/settings/app_settings.js';
 import { colorSettingsById } from './prefs/color_settings_list.js';
@@ -36,7 +36,7 @@ import { setColorSettingsByIdProvider } from '@ziroeda/pcbnew/pcbTheme.js';
 import {
   commonInputPrefsFromSettings,
   setCommonInputPrefsProvider,
-} from '@ziroeda/common/ui/view_controls.js';
+} from '@ziroeda/common/view/wx_view_controls.js';
 import {
   setPcbnewLiveSettingsProvider,
   setUpdatePcbnewLiveSettingsProvider,

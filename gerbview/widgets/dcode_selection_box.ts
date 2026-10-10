@@ -10,7 +10,7 @@
  * draws it through the shared `Combo`.
  */
 
-import { wxChoice } from '@ziroeda/common/wx/choice.js';
+import { wxChoice } from '@ziroeda/wx/choice.js';
 
 /**
  * `wxString::ToLong`: the whole string must be a base-10 integer (`strtol`

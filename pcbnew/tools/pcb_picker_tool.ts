@@ -4,7 +4,7 @@
 import type { Vec2 as VECTOR2D, Vec2 as VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
 import type { EDA_ITEM } from '@ziroeda/common/eda_item.js';
 import { KICURSOR } from '@ziroeda/common/gal/cursors.js';
-import * as KIPLATFORM_UI from '@ziroeda/common/kiplatform/ui.js';
+import * as KIPLATFORM_UI from '@ziroeda/kiplatform/ui.js';
 import { LSET } from '@ziroeda/common/lset.js';
 import { STATUS_TEXT_POPUP } from '@ziroeda/common/status_popup.js';
 import { ACTIONS } from '@ziroeda/common/tool/actions.js';
@@ -21,7 +21,7 @@ import type { SELECTION } from '@ziroeda/common/tool/selection.js';
 import { SELECTION_CONDITIONS } from '@ziroeda/common/tool/selection_conditions.js';
 import { BUT_LEFT, BUT_RIGHT, MD_SHIFT, type TOOL_EVENT } from '@ziroeda/common/tool/tool_event.js';
 import type { VIEW_CONTROLS } from '@ziroeda/common/view/view_controls.js';
-import { wxBell } from '@ziroeda/common/wx/utils.js';
+import { wxBell } from '@ziroeda/wx/utils.js';
 import type { PCB_BASE_FRAME } from '../pcb_base_frame.js';
 import { type INTERACTIVE_PARAMS, PCB_ACTIONS } from './pcb_actions.js';
 import { PCB_GRID_HELPER } from './pcb_grid_helper.js';

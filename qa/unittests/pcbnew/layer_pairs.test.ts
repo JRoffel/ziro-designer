@@ -15,7 +15,7 @@ import {
   PCB_CURRENT_LAYER_PAIR_CHANGED,
   PCB_LAYER_PAIR_PRESETS_CHANGED,
 } from '@ziroeda/pcbnew/layer_pairs.js';
-import type { wxEvent } from '@ziroeda/common/wx/wx_event.js';
+import type { wxEvent } from '@ziroeda/wx/wx_event.js';
 
 const { F_Cu, B_Cu, In1_Cu, In2_Cu } = PCB_LAYER_ID;
 

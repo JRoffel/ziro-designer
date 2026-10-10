@@ -11,7 +11,7 @@
  * clipboard does not; Copy is beside the words for the people whose safe
  * place is a password manager.
  */
-import { Button } from '@ziroeda/common/wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
 import { useState, type JSX } from 'react';
 
 export function RecoveryKeyContents({

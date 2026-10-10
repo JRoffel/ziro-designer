@@ -31,7 +31,7 @@
  * cannot enumerate any - the browser's print dialog chooses the printer), and
  * Page Setup... (the browser's print dialog is the page setup).
  */
-import { CheckBox, RadioButton, StaticBox, TextCtrl } from '../wx/controls.js';
+import { CheckBox, RadioButton, StaticBox, TextCtrl } from '@ziroeda/wx/controls.js';
 import type { JSX, ReactNode } from 'react';
 import { DialogShim, StdDialogButtons } from '../dialog_shim.js';
 import { Combo } from '../widgets/wx_combobox.js';

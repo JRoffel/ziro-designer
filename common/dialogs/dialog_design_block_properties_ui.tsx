@@ -25,14 +25,14 @@
  * The grid is a WX_GRID with GRID_TRICKS, rows selected whole, column 1
  * autosized (`SetupColumnAutosizer( 1 )`).
  */
-import { StaticBox, TextCtrl } from '../wx/controls.js';
+import { StaticBox, TextCtrl } from '@ziroeda/wx/controls.js';
 import { useState, type JSX } from 'react';
 import type { DESIGN_BLOCK } from '../design_block.js';
 import { DialogShim, StdDialogButtons } from '../dialog_shim.js';
 import { StdBitmapButton } from '../widgets/std_bitmap_button.js';
 import type { WX_GRID } from '../widgets/wx_grid.js';
-import { wxGridSelectionModes } from '../wx/grid.js';
-import { useStringGrid, WxGridView } from '../wx/grid_ui.js';
+import { wxGridSelectionModes } from '@ziroeda/wx/grid.js';
+import { useStringGrid, WxGridView } from '@ziroeda/wx/grid_ui.js';
 import {
   DesignBlockPropertiesFromWindow,
   DesignBlockPropertiesToWindow,

@@ -41,8 +41,8 @@ import {
   type Severity,
 } from '@ziroeda/common/reporter.js';
 import { HtmlReportPanel, RPT_SEVERITY_ALL } from '@ziroeda/common/widgets/wx_html_report_panel.js';
-import { Button, Check, Radio, StaticBox, TextCtrl } from '@ziroeda/common/wx/controls.js';
-import { WxFileDialog, type ChooserFilter } from '@ziroeda/common/wx/filedlg.js';
+import { Button, Check, Radio, StaticBox, TextCtrl } from '@ziroeda/wx/controls.js';
+import { WxFileDialog, type ChooserFilter } from '@ziroeda/wx/filedlg.js';
 
 /** `FILEEXT::NetlistFileWildcard()`. */
 export const NETLIST_FILE_FILTER: ChooserFilter = {

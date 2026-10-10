@@ -27,7 +27,7 @@
  * Left out: the syntax-help window, which links to KiCad's documentation instead.
  */
 
-import { Button, CheckBox, RadioButton } from '@ziroeda/common/wx/controls.js';
+import { Button, CheckBox, RadioButton } from '@ziroeda/wx/controls.js';
 import { type JSX, useReducer, useState } from 'react';
 import { DisplayErrorMessage, DisplayInfoMessage } from '@ziroeda/common/confirm.js';
 import { DialogShim } from '@ziroeda/common/dialog_shim.js';
@@ -55,8 +55,8 @@ import {
   wxEVT_GRID_CELL_CHANGING,
   wxGridSelectionModes,
   wxGridTableRequest,
-} from '@ziroeda/common/wx/grid.js';
-import { WxGridView } from '@ziroeda/common/wx/grid_ui.js';
+} from '@ziroeda/wx/grid.js';
+import { WxGridView } from '@ziroeda/wx/grid_ui.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { FIELDS_DATA_COL_ORDER, FIELDS_GRID_TABLE } from '../fields_grid_table.js';
 import { SCH_COMMIT } from '../sch_commit.js';

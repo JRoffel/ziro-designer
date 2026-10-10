@@ -10,7 +10,7 @@
  * C++'s do. Text is decoded later, by the importer, as upstream does.
  */
 import { ParseDouble, ParseInt, byteString } from '@ziroeda/common/io/pads/pads_common.js';
-import { ISTRINGSTREAM } from '@ziroeda/common/libc/sstream.js';
+import { ISTRINGSTREAM } from '@ziroeda/libc/sstream.js';
 import { type Reporter, RPT_SEVERITY_ERROR } from '@ziroeda/common/reporter.js';
 
 export enum UNIT_TYPE {

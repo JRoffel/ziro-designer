@@ -48,7 +48,7 @@ import {
   KIUI_EllipsizeMenuText,
   KIUI_EllipsizeStatusText,
 } from '@ziroeda/common/widgets/ui_common.js';
-import { wxCmp, wxCmpNoCase, wxLess } from '@ziroeda/common/wx/wxstring.js';
+import { wxCmp, wxCmpNoCase, wxLess } from '@ziroeda/wx/wxstring.js';
 import { applyMixins } from '@ziroeda/core/mixins.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import {

@@ -19,7 +19,7 @@ import {
   wxGrid,
   type wxGridEvent,
   wxGridSelectionModes,
-} from '@ziroeda/common/wx/grid.js';
+} from '@ziroeda/wx/grid.js';
 
 const ORACLE = readFileSync(
   fileURLToPath(new URL('./grid_selection_oracle.txt', import.meta.url)),

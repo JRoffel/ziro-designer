@@ -28,7 +28,7 @@ import {
   PCB_LAYER_ID,
   ToLAYER_ID,
 } from '@ziroeda/common/layer_id.js';
-import { STD_UNORDERED_MAP, hashInt, hashWString } from '@ziroeda/common/libc/unordered_map.js';
+import { STD_UNORDERED_MAP, hashInt, hashWString } from '@ziroeda/libc/unordered_map.js';
 import { LSET } from '@ziroeda/common/lset.js';
 import { NETCLASS } from '@ziroeda/common/netclass.js';
 import type { PROGRESS_REPORTER } from '@ziroeda/common/progress_reporter.js';

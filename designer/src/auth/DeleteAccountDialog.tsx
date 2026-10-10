@@ -26,7 +26,7 @@
  * sizer's over the widest control, which is the reason list. The one colour
  * is `--critical`, which is ente's.
  */
-import { Button, CheckBox } from '@ziroeda/common/wx/controls.js';
+import { Button, CheckBox } from '@ziroeda/wx/controls.js';
 import { useCallback, useEffect, useState, type FormEvent, type JSX } from 'react';
 import { cloudBackend } from '../cloud/cloudStore.js';
 import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';

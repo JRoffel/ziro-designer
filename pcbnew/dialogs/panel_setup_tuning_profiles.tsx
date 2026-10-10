@@ -23,7 +23,7 @@
  * `.ze-grid`, the buttons `.ze-gridbtn`; the widths stated are transcribed
  * from the base file and from `setColumnWidths`.
  */
-import { CheckBox, TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { CheckBox, TextCtrl } from '@ziroeda/wx/controls.js';
 import { type JSX, useLayoutEffect, useRef, useState } from 'react';
 import { GRID_TRICKS } from '@ziroeda/common/grid_tricks.js';
 import { GRID_CELL_RUN_FUNCTION_EDITOR } from '@ziroeda/common/widgets/grid_text_button_helpers.js';
@@ -33,8 +33,8 @@ import {
   wxGridCellChoiceEditor,
   wxGridSelectionModes,
   wxGridStringTable,
-} from '@ziroeda/common/wx/grid.js';
-import { WxGridView } from '@ziroeda/common/wx/grid_ui.js';
+} from '@ziroeda/wx/grid.js';
+import { WxGridView } from '@ziroeda/wx/grid_ui.js';
 import {
   DoubleValueFromStringIn,
   pcbIUScale,

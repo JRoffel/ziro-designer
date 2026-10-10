@@ -11,7 +11,7 @@
  */
 import type { OutStr } from './font/font.js';
 import { ResolveUriByEnvVars } from './eda_doc.js';
-import { wxDirExists, wxFileExists, wxNormalizePath } from './wx/filefn.js';
+import { wxDirExists, wxFileExists, wxNormalizePath } from '@ziroeda/wx/filefn.js';
 
 /**
  * EscapeString( …, CTX_NETNAME ), make a string safe to use as (part of) a net

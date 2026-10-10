@@ -6,7 +6,7 @@
  * Delete" beside "Filter Settings", the "Layer Filter" radio box below, then
  * OK / Cancel. The lock filters grey out while their item box is clear.
  */
-import { RadioButton, StaticBox } from '@ziroeda/common/wx/controls.js';
+import { RadioButton, StaticBox } from '@ziroeda/wx/controls.js';
 import { type JSX, useState } from 'react';
 import { DialogShim, StdDialogButtons } from '@ziroeda/common/dialog_shim.js';
 import type { DIALOG_GLOBAL_DELETION } from './dialog_global_deletion.js';

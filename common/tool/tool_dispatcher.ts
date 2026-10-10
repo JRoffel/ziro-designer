@@ -14,7 +14,7 @@
  * that branch has nothing to receive.
  */
 
-import { WXK } from '@ziroeda/core/wx_keycodes.js';
+import { WXK } from '@ziroeda/wx/wx_keycodes.js';
 import type { Vec2 as VECTOR2D } from '@ziroeda/kimath/src/math/vector2.js';
 import type { VIEW } from '../view/view.js';
 import { WX_VIEW_CONTROLS } from '../view/wx_view_controls.js';
@@ -52,7 +52,7 @@ import {
   wxMOD_META,
   wxMOD_SHIFT,
   wxMOD_WIN,
-} from '../wx/wx_event.js';
+} from '@ziroeda/wx/wx_event.js';
 import {
   AS_GLOBAL,
   BUT_AUX1,

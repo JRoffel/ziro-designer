@@ -11,7 +11,7 @@
  * button works in a sandboxed frame too.
  */
 
-import { TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { TextCtrl } from '@ziroeda/wx/controls.js';
 import { useMemo, useRef, useState, type JSX } from 'react';
 import {
   formatRegulatorDataFile,

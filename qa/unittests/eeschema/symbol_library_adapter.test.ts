@@ -21,7 +21,7 @@ import {
   wxMountFileSystem,
   wxReadFileSync,
   wxWriteFileSync,
-} from '@ziroeda/common/wx/filefn.js';
+} from '@ziroeda/wx/filefn.js';
 import { LIB_SYMBOL } from '@ziroeda/eeschema/lib_symbol.js';
 import {
   SAVE_T,

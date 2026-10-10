@@ -26,7 +26,7 @@
  * anti-aliases).
  */
 
-import { Button, Combo } from '@ziroeda/common/wx/controls.js';
+import { Button, Combo } from '@ziroeda/wx/controls.js';
 import { useMemo, useRef, useState, type JSX } from 'react';
 import { mmToIU, iuToMM, type ReportLine } from '@ziroeda/common';
 import type { PlotOpts, PlotPageSize } from '../sch_plotter.js';

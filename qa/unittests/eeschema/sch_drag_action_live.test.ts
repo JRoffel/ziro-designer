@@ -16,7 +16,7 @@ import type { COMMON_SETTINGS_LIKE } from '@ziroeda/common/pgm_base.js';
 import { PGM_BASE, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
 import { COMMON_DEFAULTS } from '@ziroeda/common/settings/common_settings.js';
 import { ENV_VAR_MAP } from '@ziroeda/common/settings/environment.js';
-import { WXK } from '@ziroeda/core/wx_keycodes.js';
+import { WXK } from '@ziroeda/wx/wx_keycodes.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import type { SCH_LINE } from '@ziroeda/eeschema/sch_line.js';
 import type { SCH_SYMBOL } from '@ziroeda/eeschema/sch_symbol.js';

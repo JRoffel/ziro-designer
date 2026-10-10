@@ -22,7 +22,7 @@ import { XNODE, wxXmlNodeType } from '@ziroeda/common/xnode.js';
 import { GetBuildVersion } from '@ziroeda/common/build_version.js';
 import { FIELD_T, GetCanonicalFieldName } from '@ziroeda/common/template_fieldnames.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
-import { stdSort } from '@ziroeda/kimath/src/clipper2/clipper.core.js';
+import { stdSort } from '@ziroeda/clipper2/clipper.core.js';
 import type { PROJECT } from '@ziroeda/common/project.js';
 import type { SCH_PIN } from '../sch_pin.js';
 import type { SCH_SHEET } from '../sch_sheet.js';
@@ -36,7 +36,7 @@ import {
 } from '../sch_sheet_path.js';
 import type { SCH_SYMBOL } from '../sch_symbol.js';
 import { NETLIST_EXPORTER_BASE } from './netlist_exporter_base.js';
-import { wxXmlDocumentSave } from '@ziroeda/common/wx/xml.js';
+import { wxXmlDocumentSave } from '@ziroeda/wx/xml.js';
 
 /** GNL_T: the bits that control the totality of the tree makeRoot() builds. */
 export enum GNL_T {

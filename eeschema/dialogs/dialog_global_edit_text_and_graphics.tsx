@@ -11,7 +11,7 @@
  * The class keeps upstream's members and methods; the wx controls are the values the form hands
  * TransferDataFromWindow, as DIALOG_TABLECELL_PROPERTIES does.
  */
-import { Button, CheckBox } from '@ziroeda/common/wx/controls.js';
+import { Button, CheckBox } from '@ziroeda/wx/controls.js';
 import { type JSX, useState } from 'react';
 import { DisplayErrorMessage } from '@ziroeda/common/confirm.js';
 import { DialogShim } from '@ziroeda/common/dialog_shim.js';
@@ -29,7 +29,7 @@ import { FontChoice } from '@ziroeda/common/widgets/font_choice.js';
 import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
 import { INDETERMINATE_ACTION } from '@ziroeda/common/widgets/ui_common.js';
 import { UNIT_BINDER, unitLabel } from '@ziroeda/common/widgets/unit_binder.js';
-import { type CHECK_STATE, TriStateCheck } from '@ziroeda/common/widgets/wx_checkbox.js';
+import { type CHECK_STATE, TriStateCheck } from '@ziroeda/wx/wx_checkbox.js';
 import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { SCH_COMMIT } from '../sch_commit.js';

@@ -47,7 +47,7 @@
  * (`panel_sym_color_settings.cpp:56`) where `PANEL_COLOR_SETTINGS` goes through
  * `GetSettingsDropdownName` and adds "(read-only)".
  */
-import { RadioButton } from '@ziroeda/common/wx/controls.js';
+import { RadioButton } from '@ziroeda/wx/controls.js';
 import { useEffect, useRef, useState, type JSX } from 'react';
 import { measureTextWidth } from '@ziroeda/common/widgets/text_ctrl_width.js';
 import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';

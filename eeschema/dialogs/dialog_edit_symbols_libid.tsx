@@ -17,14 +17,14 @@
  * and the double-click browse, which need a symbol chooser this dialog is not
  * handed; the new id is typed.
  */
-import { Button } from '@ziroeda/common/wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
 import { type JSX, useState } from 'react';
 import { isValidLibId, type LibIdRow } from '../index.js';
 import { DisplayInfoMessage } from '@ziroeda/common/confirm.js';
 import { DialogShim } from '@ziroeda/common/dialog_shim.js';
 import { SingleChoiceDialog } from '@ziroeda/common/dialogs/dialog_single_choice.js';
-import { wxGridSelectionModes } from '@ziroeda/common/wx/grid.js';
-import { useStringGrid, WxGridView } from '@ziroeda/common/wx/grid_ui.js';
+import { wxGridSelectionModes } from '@ziroeda/wx/grid.js';
+import { useStringGrid, WxGridView } from '@ziroeda/wx/grid_ui.js';
 
 const COL_REFS = 0;
 const COL_CURR_LIBID = 1;

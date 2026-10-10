@@ -19,7 +19,7 @@ import {
   GRID_STYLE,
 } from '@ziroeda/common/gal/gal_display_options.js';
 import { WINDOW_SETTINGS } from '@ziroeda/common/settings/app_settings.js';
-import { SetEnvVarLookup } from '@ziroeda/common/wx/utils.js';
+import { SetEnvVarLookup } from '@ziroeda/wx/utils.js';
 import { afterEach, describe, expect, it } from 'vitest';
 
 const config = (canvas_scale: number) => ({ m_Appearance: { canvas_scale } });

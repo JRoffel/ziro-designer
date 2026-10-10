@@ -35,7 +35,7 @@ import {
   wxGetTempDir,
   wxNormalizePath,
   wxReadFileSync,
-} from './wx/filefn.js';
+} from '@ziroeda/wx/filefn.js';
 
 /** `FILEEXT::KiCadUriPrefix`. */
 export const KiCadUriPrefix = 'kicad-embed';

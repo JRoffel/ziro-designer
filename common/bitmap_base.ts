@@ -16,7 +16,7 @@
 
 import type { Color4d } from './gal/color4d.js';
 import { GetGRForceBlackPenState } from './gr_basic.js';
-import type { wxDC } from './wx/dc.js';
+import type { wxDC } from '@ziroeda/wx/dc.js';
 import { type KIID, newKiid } from './kiid.js';
 import { FLIP_DIRECTION } from '@ziroeda/core/mirror.js';
 import { ANGLE_0, ANGLE_90, type EDA_ANGLE } from '@ziroeda/kimath/src/geometry/eda_angle.js';
@@ -30,7 +30,7 @@ import {
   wxIMAGE_OPTION_RESOLUTIONX,
   wxIMAGE_OPTION_RESOLUTIONY,
   wxImageResolution,
-} from './wx/wx_image.js';
+} from '@ziroeda/wx/wx_image.js';
 
 /** The `PLOTTER` members `PlotImage` reaches. -- PLOTTER class pending (#636 stage 4) */
 export interface PLOTTER_FOR_IMAGE {

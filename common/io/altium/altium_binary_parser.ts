@@ -16,7 +16,7 @@
  * rule: what is left is skipped, the error flag is set, and 0 comes back.
  */
 
-import { inflateZlib } from '../../wx/inflate.js';
+import { inflateZlib } from '@ziroeda/wx/inflate.js';
 import { IO_ERROR } from '../../exceptions.js';
 import {
   CFBException,

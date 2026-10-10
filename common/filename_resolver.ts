@@ -12,14 +12,14 @@
  * directory, the hosted 3D library at `${KICAD10_3DMODEL_DIR}`, embedded files
  * in the temp directory.
  */
-import { wxMatches } from './wx/wxstring.js';
+import { wxMatches } from '@ziroeda/wx/wxstring.js';
 import { ExpandEnvVarSubstitutions, type TextVarResolverFn } from './common.js';
 import { DisplayErrorMessage } from './confirm.js';
 import { KiCadUriPrefix, type EMBEDDED_FILES } from './embedded_files.js';
 import { ENV_VAR } from './env_vars.js';
 import type { PGM_BASE } from './pgm_base.js';
 import type { PROJECT } from './project.js';
-import { wxDirExists, wxFileExists, wxNormalizePath } from './wx/filefn.js';
+import { wxDirExists, wxFileExists, wxNormalizePath } from '@ziroeda/wx/filefn.js';
 
 // flag bits used to track different one-off messages to users
 const ERRFLG_ALIAS = 1;

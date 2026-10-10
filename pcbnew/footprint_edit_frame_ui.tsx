@@ -73,8 +73,8 @@ import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js'
 import { MsgPanel, type MsgPanelItem } from '@ziroeda/common/widgets/msgpanel_ui.js';
 import { ProgressDialog } from '@ziroeda/common/widgets/wx_progress_reporters.js';
 import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
-import type { ChooserFilter, OpenedFile } from '@ziroeda/common/wx/filedlg.js';
-import { WxTextEntryDialog } from '@ziroeda/common/wx/textdlg.js';
+import type { ChooserFilter, OpenedFile } from '@ziroeda/wx/filedlg.js';
+import { WxTextEntryDialog } from '@ziroeda/wx/textdlg.js';
 import { kicadFootprintLibWildcard } from '@ziroeda/common/wildcards_and_files_ext.js';
 import type { CrosshairMode, GridStyle } from '@ziroeda/common/draw_panel_gal_grid_cursor.js';
 import '@ziroeda/common/widgets/shell.css';

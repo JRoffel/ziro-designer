@@ -10,7 +10,7 @@
  * and "Error:"/"Warning:" prefixes generateHtml() writes.
  */
 
-import { Button } from '../wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
 import { useMemo, type JSX } from 'react';
 import {
   orderedReportLines,

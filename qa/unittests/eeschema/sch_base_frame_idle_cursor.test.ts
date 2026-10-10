@@ -10,7 +10,7 @@
  */
 import { PGM_BASE, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
 import { KICURSOR } from '@ziroeda/common/gal/cursors.js';
-import { wxEVT_MOTION, wxMouseEvent } from '@ziroeda/common/wx/wx_event.js';
+import { wxEVT_MOTION, wxMouseEvent } from '@ziroeda/wx/wx_event.js';
 import type { TOOL_DISPATCHER } from '@ziroeda/common/draw_panel_gal.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { schToolHarness } from './support/sch_tool_harness.js';

@@ -17,7 +17,7 @@
  * Title `_("Layers Settings")` (`_base.h:64`).
  */
 
-import { RadioButton } from '@ziroeda/common/wx/controls.js';
+import { RadioButton } from '@ziroeda/wx/controls.js';
 import { type JSX, useState } from 'react';
 import { DialogShim, StdDialogButtons } from '@ziroeda/common/dialog_shim.js';
 import { unitLabel } from '@ziroeda/common/eda_units.js';

@@ -12,8 +12,8 @@
 import { pcbIUScale } from '@ziroeda/common/eda_units.js';
 import type { EDA_TEXT } from '@ziroeda/common/eda_text.js';
 import { GR_TEXT_H_ALIGN_T, GR_TEXT_V_ALIGN_T } from '@ziroeda/common/font/text_attributes.js';
-import { ToCDouble, ToLong } from '@ziroeda/common/libc/stdlib.js';
-import { wxCmpNoCase } from '@ziroeda/common/wx/wxstring.js';
+import { ToCDouble, ToLong } from '@ziroeda/libc/stdlib.js';
+import { wxCmpNoCase } from '@ziroeda/wx/wxstring.js';
 import type { XNODE } from '@ziroeda/common/xnode.js';
 import { ANGLE_0, EDA_ANGLE, EDA_ANGLE_T } from '@ziroeda/kimath/src/geometry/eda_angle.js';
 import { KiROUND, toInt } from '@ziroeda/kimath/src/math/util.js';

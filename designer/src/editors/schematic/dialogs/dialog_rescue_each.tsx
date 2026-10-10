@@ -35,7 +35,7 @@
  *     made." A port that set the flag and left the rescue running would do the
  *     opposite of what the button promises.
  */
-import { Button } from '@ziroeda/common/wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
 import { useState, type JSX } from 'react';
 import type { LibSymbol } from '@ziroeda/eeschema';
 import {

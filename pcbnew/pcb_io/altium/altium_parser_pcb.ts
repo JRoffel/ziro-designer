@@ -14,7 +14,7 @@ import {
   type ALTIUM_PROPS,
 } from '@ziroeda/common/io/altium/altium_props_utils.js';
 import { THROW_IO_ERROR } from '@ziroeda/common/exceptions.js';
-import { ToULong } from '@ziroeda/common/libc/stdlib.js';
+import { ToULong } from '@ziroeda/libc/stdlib.js';
 import { KiROUND } from '@ziroeda/kimath/src/math/util.js';
 import type { VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
 

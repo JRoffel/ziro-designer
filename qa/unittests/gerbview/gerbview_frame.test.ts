@@ -16,7 +16,7 @@
  *   gbr_layer_box_selector.cpp Resync (:76-129)  one row per LOADED image.
  *   gerbview_control.cpp LayerNext/MoveLayerUp (:334-380).
  */
-import { wxDC } from '@ziroeda/common/wx/dc.js';
+import { wxDC } from '@ziroeda/wx/dc.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { fakeCanvas, installSurfaceFactory, paints } from '../common/cairo_test_canvas.js';
 import type { EDA_DRAW_PANEL_GAL } from '@ziroeda/common/draw_panel_gal.js';
@@ -41,9 +41,9 @@ import { ABOUT_TITLES } from '@ziroeda/common/eda_base_frame_about_titles.js';
 import { VIEW } from '@ziroeda/common/view/view.js';
 import { VC_SETTINGS } from '@ziroeda/common/view/view_controls.js';
 import { ACTION_CONDITIONS } from '@ziroeda/common/tool/action_manager.js';
-import { wxChoice } from '@ziroeda/common/wx/choice.js';
-import { wxUpdateUIEvent } from '@ziroeda/common/wx/wx_event.js';
-import { s_tempFileSystem } from '@ziroeda/common/wx/filefn.js';
+import { wxChoice } from '@ziroeda/wx/choice.js';
+import { wxUpdateUIEvent } from '@ziroeda/wx/wx_event.js';
+import { s_tempFileSystem } from '@ziroeda/wx/filefn.js';
 import { ZOOM_MAX_LIMIT_GERBVIEW, ZOOM_MIN_LIMIT_GERBVIEW } from '@ziroeda/common/zoom_defines.js';
 import { BOX2I } from '@ziroeda/kimath/src/math/box2.js';
 import { EXCELLON_IMAGE } from '@ziroeda/gerbview/excellon_read_drill_file.js';

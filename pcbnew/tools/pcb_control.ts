@@ -12,7 +12,7 @@
  */
 import { KICURSOR } from '@ziroeda/common/gal/cursors.js';
 import { brightened, brightness, darkened, type Color4d } from '@ziroeda/common/gal/color4d.js';
-import * as KIPLATFORM_UI from '@ziroeda/common/kiplatform/ui.js';
+import * as KIPLATFORM_UI from '@ziroeda/kiplatform/ui.js';
 import { ORIGIN_VIEWITEM } from '@ziroeda/common/origin_viewitem.js';
 import { STATUS_TEXT_POPUP } from '@ziroeda/common/status_popup.js';
 import { ACTIONS } from '@ziroeda/common/tool/actions.js';
@@ -84,7 +84,7 @@ import {
   ZONE_LAYER_FOR,
 } from '@ziroeda/common/layer_id.js';
 import { LSET } from '@ziroeda/common/lset.js';
-import { wxBell } from '@ziroeda/common/wx/utils.js';
+import { wxBell } from '@ziroeda/wx/utils.js';
 import { PCB_LAYER_PRESENTATION } from '../pcb_layer_presentation.js';
 import { KeyNameFromKeyCode } from '@ziroeda/common/hotkeys_basic.js';
 import { PgmOrNull } from '@ziroeda/common/pgm_base.js';

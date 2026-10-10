@@ -11,7 +11,7 @@
  * eeschema/project_sync_transport.ts for `PeerRole` itself: `owner`
  * is never assigned here, only decided by the transport on connect.
  */
-import { Combo } from '@ziroeda/common/wx/controls.js';
+import { Combo } from '@ziroeda/wx/controls.js';
 import { useEffect, useRef, type JSX } from 'react';
 import type { PeerRole, PresenceInfo } from '@ziroeda/eeschema/browser/project_sync_transport.js';
 import { peerColor } from '../sync/peerColor.js';

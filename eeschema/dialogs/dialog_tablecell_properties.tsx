@@ -20,7 +20,7 @@
  * "-- mixed values --" text, an unchecked alignment group, the colour book's popup page), and an
  * indeterminate control writes nothing. Not here: the Scintilla text-variable auto-complete.
  */
-import { Button } from '@ziroeda/common/wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
 import { type JSX, useState } from 'react';
 import { DisplayErrorMessage } from '@ziroeda/common/confirm.js';
 import { DialogShim } from '@ziroeda/common/dialog_shim.js';
@@ -33,7 +33,7 @@ import { ColorSwatch } from '@ziroeda/common/widgets/color_swatch.js';
 import { FontChoice } from '@ziroeda/common/widgets/font_choice.js';
 import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
 import { INDETERMINATE_STATE } from '@ziroeda/common/widgets/ui_common.js';
-import { type CHECK_STATE, TriStateCheck } from '@ziroeda/common/widgets/wx_checkbox.js';
+import { type CHECK_STATE, TriStateCheck } from '@ziroeda/wx/wx_checkbox.js';
 import { UNIT_BINDER, unitLabel } from '@ziroeda/common/widgets/unit_binder.js';
 import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
 import { SCH_COMMIT } from '../sch_commit.js';

@@ -16,8 +16,8 @@ import {
   KiIconScale,
   KiScaledBitmap,
 } from '@ziroeda/common/bitmap.js';
-import { BITMAPS } from '@ziroeda/common/bitmaps/bitmaps_list.js';
-import { WX_IMAGE } from '@ziroeda/common/wx/wx_image.js';
+import { BITMAPS } from '@ziroeda/include/bitmaps/bitmaps_list.js';
+import { WX_IMAGE } from '@ziroeda/wx/wx_image.js';
 import { describe, expect, it } from 'vitest';
 
 const PROBE: [number, [number, number, number], [number, number, number]][] = [

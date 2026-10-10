@@ -31,7 +31,7 @@ import { DisplayInfoMessage } from '../confirm.js';
 import type { EDA_BASE_FRAME } from '../eda_base_frame.js';
 import { FRAME_T } from '../frame_type.js';
 import { DisplayHotkeyList } from '../hotkeys_basic.js';
-import { wxLaunchDefaultBrowser } from '../wx/utils.js';
+import { wxLaunchDefaultBrowser } from '@ziroeda/wx/utils.js';
 import { ACTIONS } from './actions.js';
 import type { RESET_REASON } from './tool_base.js';
 import type { TOOL_EVENT } from './tool_event.js';

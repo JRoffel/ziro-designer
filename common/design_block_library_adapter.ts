@@ -36,7 +36,7 @@ import {
 } from './libraries/library_table.js';
 import { Pgm } from './pgm_base.js';
 import { PROJECT } from './project.js';
-import { wxFileExists } from './wx/filefn.js';
+import { wxFileExists } from '@ziroeda/wx/filefn.js';
 
 export enum SAVE_T {
   SAVE_OK,

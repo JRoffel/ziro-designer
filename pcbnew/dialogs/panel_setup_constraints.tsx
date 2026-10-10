@@ -8,12 +8,12 @@
  * `TransferDataFromWindow` validation below were the Constraints page of
  * `dialog_board_setup.tsx` until it was split out to the file KiCad keeps it in.
  */
-import { CheckBox, TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { CheckBox, TextCtrl } from '@ziroeda/wx/controls.js';
 import type { JSX } from 'react';
 import { validateUnitValue, type UnitRange } from '@ziroeda/common/widgets/unit_binder.js';
 import { pcbIUScale } from '@ziroeda/common/eda_units.js';
 import type { PagedDialogError } from '@ziroeda/common/widgets/paged_dialog.js';
-import { SpinCtrl } from '@ziroeda/common/widgets/spin_ctrl.js';
+import { SpinCtrl } from '@ziroeda/wx/spin_ctrl.js';
 import { svgUrl } from '@ziroeda/bitmaps_png';
 import { pcbUnitTextMM, pcbUnitValueMM, unitLabel } from '../pcb_unit_binder.js';
 import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';

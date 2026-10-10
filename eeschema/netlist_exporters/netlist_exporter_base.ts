@@ -25,7 +25,7 @@ import type { LibSymbol, SchSymbol } from '../types.js';
 import { getEffectivePadNumber, type SCH_PIN } from '../sch_pin.js';
 import { expandStackedPinNotation, strNumCmp } from '@ziroeda/common/string_utils.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
-import { stdSort } from '@ziroeda/kimath/src/clipper2/clipper.core.js';
+import { stdSort } from '@ziroeda/clipper2/clipper.core.js';
 import type { LIB_SYMBOL } from '../lib_symbol.js';
 import type { SCH_SHEET_PATH } from '../sch_sheet_path.js';
 import type { SCH_SYMBOL } from '../sch_symbol.js';

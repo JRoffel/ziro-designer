@@ -52,7 +52,7 @@ import { IS_NEW } from '@ziroeda/common/eda_item_flags.js';
 import { Pgm } from '@ziroeda/common/pgm_base.js';
 import { BUT_LEFT, BUT_RIGHT } from '@ziroeda/common/tool/tool_event.js';
 import type { VIEW_CONTROLS } from '@ziroeda/common/view/view_controls.js';
-import { wxBell } from '@ziroeda/common/wx/utils.js';
+import { wxBell } from '@ziroeda/wx/utils.js';
 import { ANGLE_0 } from '@ziroeda/kimath/src/geometry/eda_angle.js';
 import type { FOOTPRINT } from '../footprint.js';
 import { IsZoneFillAction } from './pcb_picker_tool.js';
@@ -64,7 +64,7 @@ import { VIEW_UPDATE_FLAGS, type VIEW_ITEM } from '@ziroeda/common/view/view_ite
 import { DoSetDrillOrigin } from './pcb_origins.js';
 import { ACTION_MENU, type TOOL_INTERACTIVE_LIKE } from '@ziroeda/common/tool/action_menu.js';
 import { CONDITIONAL_MENU } from '@ziroeda/common/tool/conditional_menu.js';
-import { BITMAPS } from '@ziroeda/common/bitmaps/bitmaps_list.js';
+import { BITMAPS } from '@ziroeda/include/bitmaps/bitmaps_list.js';
 import { SELECTION_CONDITIONS } from '@ziroeda/common/tool/selection_conditions.js';
 import type { SELECTION } from '@ziroeda/common/tool/selection.js';
 import { PCB_SELECTION_CONDITIONS } from './pcb_selection_conditions.js';

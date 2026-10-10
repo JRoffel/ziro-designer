@@ -24,7 +24,7 @@ import { SENTRY_RELEASE, sentryBackend } from './telemetry/sentry_backend.js';
 import { installGlobalErrorHandlers } from './telemetry/global_handlers.js';
 import { installOverlayScrollbars } from '@ziroeda/common/widgets/overlay_scrollbars.js';
 import { installDialogSizeHints } from '@ziroeda/common/dialog_shim.js';
-import { SetFileDialog } from '@ziroeda/common/wx/filedlg.js';
+import { SetFileDialog } from '@ziroeda/wx/filedlg.js';
 import { InitPgm } from './pgm_app.js';
 import { OpenFileDialog } from './fs/OpenFileDialog.js';
 import { installOutlineFontProvider } from '@ziroeda/common/font/outline_fonts.js';

@@ -11,7 +11,7 @@
  * one KiCad grids set (`panel_text_variables.cpp`, `dialog_configure_paths.cpp`):
  * a character in the list is refused as it is typed.
  */
-import { wxGridCellTextEditor } from '../wx/grid.js';
+import { wxGridCellTextEditor } from '@ziroeda/wx/grid.js';
 
 export class GRID_CELL_TEXT_EDITOR extends wxGridCellTextEditor {
   private m_excludes: string | null = null;

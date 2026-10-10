@@ -56,7 +56,7 @@ import {
 import { ZOOM_TOOL } from '@ziroeda/common/tool/zoom_tool.js';
 import { VIEW_UPDATE_FLAGS } from '@ziroeda/common/view/view_item.js';
 import { MSG_PANEL_ITEM } from '@ziroeda/common/widgets/msgpanel.js';
-import { wxChoice } from '@ziroeda/common/wx/choice.js';
+import { wxChoice } from '@ziroeda/wx/choice.js';
 import { BOX2I } from '@ziroeda/kimath/src/math/box2.js';
 import type { VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
 import { DIALOG_INSPECTOR } from './dialogs/design_inspector.js';

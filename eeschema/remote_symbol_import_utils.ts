@@ -31,7 +31,7 @@ import {
   wxNormalizePath,
   wxRemoveFile,
   wxWriteFileSync,
-} from '@ziroeda/common/wx/filefn.js';
+} from '@ziroeda/wx/filefn.js';
 import { currentEeschemaSettings } from './eeschema_settings.js';
 import { LIB_SYMBOL } from './lib_symbol.js';
 import { SCH_IO_KICAD_SEXPR } from './sch_io/kicad_sexpr/sch_io_kicad_sexpr.js';

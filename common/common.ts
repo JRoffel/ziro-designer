@@ -49,7 +49,7 @@ export const DRAWING_SHEET_FILE_EXTENSION = 'kicad_wks';
 
 import { ENV_VAR } from './env_vars.js';
 import { EscapeHTML } from './string_utils.js';
-import { wxGetEnv } from './wx/utils.js';
+import { wxGetEnv } from '@ziroeda/wx/utils.js';
 import type { OutStr } from './font/font.js';
 import { EXPRESSION_EVALUATOR } from './text_eval/text_eval_wrapper.js';
 

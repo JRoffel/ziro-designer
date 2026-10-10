@@ -28,7 +28,7 @@ import { TOOL_MANAGER } from '@ziroeda/common/tool/tool_manager.js';
 import { TOOLS_HOLDER } from '@ziroeda/common/tool/tools_holder.js';
 import { ITEM_PICKER, PICKED_ITEMS_LIST, UNDO_REDO } from '@ziroeda/common/undo_redo_container.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
-import { WXK } from '@ziroeda/core/wx_keycodes.js';
+import { WXK } from '@ziroeda/wx/wx_keycodes.js';
 import type { KICAD_T as KT } from '@ziroeda/core/typeinfo.js';
 
 /** A bare EDA_ITEM for the commit: `KI_TEST`'s items are board items; this needs only Clone. */

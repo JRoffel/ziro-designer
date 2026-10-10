@@ -22,7 +22,7 @@ import { PGM_BASE, SetPgm } from '@ziroeda/common/pgm_base.js';
 import { EDA_UNITS_INT } from '@ziroeda/common/settings/app_settings.js';
 import { ACTIONS } from '@ziroeda/common/tool/actions.js';
 import { TA_MOUSE_CLICK, TA_MOUSE_MOTION } from '@ziroeda/common/tool/tool_event.js';
-import { wxUpdateUIEvent } from '@ziroeda/common/wx/wx_event.js';
+import { wxUpdateUIEvent } from '@ziroeda/wx/wx_event.js';
 import { type Harness, makeHarness, mouse, settle, toolbar } from './pl_editor_fixture.js';
 
 let model: DS_DATA_MODEL;

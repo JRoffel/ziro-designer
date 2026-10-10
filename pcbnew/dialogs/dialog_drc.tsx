@@ -15,14 +15,14 @@
  * bar and resized from its corner. The chrome is the ERC dialog's - the two
  * are the same wx widgets on the same DIALOG_SHIM.
  */
-import { Button, CheckBox } from '@ziroeda/common/wx/controls.js';
+import { Button, CheckBox } from '@ziroeda/wx/controls.js';
 import { useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import { RcTreeView } from '@ziroeda/common/widgets/rc_tree_view.js';
 import type { RC_TREE_MODEL, RC_TREE_NODE, RC_TREE_VIEW_STATE } from '@ziroeda/common/rc_item.js';
 import { RC_TREE_NODE_TYPE } from '@ziroeda/common/rc_item.js';
 import { ContextMenu, type MenuItem } from '@ziroeda/common/tool/action_menu_bar.js';
 import { KiBitmapBundle } from '@ziroeda/common/bitmap.js';
-import { BITMAPS } from '@ziroeda/common/bitmaps/bitmaps_list.js';
+import { BITMAPS } from '@ziroeda/include/bitmaps/bitmaps_list.js';
 import { useModalEscape } from '@ziroeda/common/dialog_shim.js';
 import { NumberBadge } from '@ziroeda/common/widgets/number_badge.js';
 import {

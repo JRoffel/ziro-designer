@@ -33,7 +33,7 @@ import { LSET } from '@ziroeda/common/lset.js';
 import { RPT_SEVERITY_ERROR, RPT_SEVERITY_WARNING } from '@ziroeda/common/reporter.js';
 import { LINE_STYLE } from '@ziroeda/common/stroke_params.js';
 import { FIELD_T } from '@ziroeda/common/template_fieldnames.js';
-import { wxXmlDocumentSave } from '@ziroeda/common/wx/xml.js';
+import { wxXmlDocumentSave } from '@ziroeda/wx/xml.js';
 import { wxXmlNodeType, XNODE } from '@ziroeda/common/xnode.js';
 import { CALLBACK_GAL } from '@ziroeda/common/callback_gal.js';
 import { setFromHexString } from '@ziroeda/common/gal/color4d.js';

@@ -22,7 +22,7 @@
  *                                 once the key is up.
  */
 import { beforeEach, describe, expect, it } from 'vitest';
-import { WXK } from '@ziroeda/core/wx_keycodes.js';
+import { WXK } from '@ziroeda/wx/wx_keycodes.js';
 import { TOOL_DISPATCHER } from '@ziroeda/common/tool/tool_dispatcher.js';
 import {
   BUT_LEFT,
@@ -52,7 +52,7 @@ import {
   wxMouseEvent,
   wxSetKeyState,
   wxSetMouseButtons,
-} from '@ziroeda/common/wx/wx_event.js';
+} from '@ziroeda/wx/wx_event.js';
 
 /** A manager that records events; world = screen * 10 so the two can be told apart. */
 function harness(): {

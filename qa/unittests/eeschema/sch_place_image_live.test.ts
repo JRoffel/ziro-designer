@@ -6,11 +6,11 @@
  * chosen, following the cursor, placed by a click; or a given (pasted) bitmap placed once.
  */
 import { resolve } from 'node:path';
-import { WX_IMAGE } from '@ziroeda/common/wx/wx_image.js';
+import { WX_IMAGE } from '@ziroeda/wx/wx_image.js';
 import { PGM_BASE, Pgm, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
 import { ACTIONS } from '@ziroeda/common/tool/actions.js';
 import { TA_MOUSE_MOTION } from '@ziroeda/common/tool/tool_event.js';
-import { MEMORY_FILESYSTEM, wxMountFileSystem } from '@ziroeda/common/wx/filefn.js';
+import { MEMORY_FILESYSTEM, wxMountFileSystem } from '@ziroeda/wx/filefn.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { SCH_BITMAP } from '@ziroeda/eeschema/sch_bitmap.js';
 import type { SCH_EDIT_FRAME_HOOKS } from '@ziroeda/eeschema/sch_edit_frame.js';

@@ -31,7 +31,7 @@
 
 import { GetISO8601CurrentDateTime, strNumCmp } from '@ziroeda/common/string_utils.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
-import { stdSort } from '@ziroeda/kimath/src/clipper2/clipper.core.js';
+import { stdSort } from '@ziroeda/clipper2/clipper.core.js';
 import type { SCH_PIN } from '../sch_pin.js';
 import type { SCH_SHEET_PATH } from '../sch_sheet_path.js';
 import type { SCH_SYMBOL } from '../sch_symbol.js';

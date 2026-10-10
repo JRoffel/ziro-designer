@@ -7,7 +7,7 @@
  * whether anything is left to match, the tip, and Close. Modeless: it stands aside while the
  * user places from it, and comes back when the placement ends.
  */
-import { Button } from '@ziroeda/common/wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
 import { type JSX, useEffect, useReducer } from 'react';
 import { DialogShim } from '@ziroeda/common/dialog_shim.js';
 import { Icon } from '@ziroeda/common/widgets/icons.js';

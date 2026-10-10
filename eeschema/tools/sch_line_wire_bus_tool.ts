@@ -15,7 +15,7 @@
  * The functions above are the record model's (TRANSITIONAL, S7). The live model's
  * SCH_LINE_WIRE_BUS_TOOL, the C++ class itself, is at the end of the file.
  */
-import { BITMAPS } from '@ziroeda/common/bitmaps/bitmaps_list.js';
+import { BITMAPS } from '@ziroeda/include/bitmaps/bitmaps_list.js';
 import type { EDA_ITEM } from '@ziroeda/common/eda_item.js';
 import { RECURSE_MODE } from '@ziroeda/common/eda_item.js';
 import {
@@ -47,7 +47,7 @@ import {
   type TOOL_EVENT,
 } from '@ziroeda/common/tool/tool_event.js';
 import type { VIEW_CONTROLS } from '@ziroeda/common/view/view_controls.js';
-import { wxBell } from '@ziroeda/common/wx/utils.js';
+import { wxBell } from '@ziroeda/wx/utils.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { IsPointOnSegment } from '@ziroeda/kimath/src/trigo.js';
 import { KiROUND } from '@ziroeda/kimath/src/math/util.js';

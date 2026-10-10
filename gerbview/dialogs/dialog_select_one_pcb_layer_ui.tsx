@@ -16,7 +16,7 @@
  * one is OK: `OnLayerSelected` posts wxID_OK (`:163-166`).
  */
 
-import { Button, RadioButton } from '@ziroeda/common/wx/controls.js';
+import { Button, RadioButton } from '@ziroeda/wx/controls.js';
 import { type JSX, useState } from 'react';
 import { DialogShim } from '@ziroeda/common/dialog_shim.js';
 import type { SELECT_LAYER_DIALOG } from './dialog_select_one_pcb_layer.js';

@@ -18,8 +18,8 @@
 import { ExpandEnvVarSubstitutions, ExpandTextVars, type TextVarResolverFn } from './common.js';
 import { DisplayErrorMessage } from './confirm.js';
 import { type EMBEDDED_FILES, KiCadUriPrefix } from './embedded_files.js';
-import { wxFileExists, wxNormalizePath, wxReadFileSync } from './wx/filefn.js';
-import { wxLaunchDefaultBrowser } from './wx/utils.js';
+import { wxFileExists, wxNormalizePath, wxReadFileSync } from '@ziroeda/wx/filefn.js';
+import { wxLaunchDefaultBrowser } from '@ziroeda/wx/utils.js';
 
 /**
  * `wxTheMimeTypesManager->GetFileTypeFromExtension()` with `EDAfallbacks`

@@ -9,12 +9,12 @@
  */
 import { type JSX, type MouseEvent, useEffect, useReducer } from 'react';
 import { Icon } from '@ziroeda/common/widgets/icons.js';
-import type { wxButton } from '@ziroeda/common/wx/button.js';
+import type { wxButton } from '@ziroeda/wx/button.js';
 import {
   type wxDataViewCtrl,
   type wxDataViewItem,
   wxDataViewItemAttr,
-} from '@ziroeda/common/wx/dataview.js';
+} from '@ziroeda/wx/dataview.js';
 import type { PANEL_SYNC_SHEET_PINS } from './panel_sync_sheet_pins.js';
 import {
   type SHEET_SYNCHRONIZATION_ICON_TEXT,

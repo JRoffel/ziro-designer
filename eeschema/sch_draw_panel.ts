@@ -30,7 +30,7 @@ import { SCH_PAINTER } from './sch_painter.js';
 import type { SCH_SCREEN } from './sch_screen.js';
 import { SCH_LAYER_ORDER, SCH_VIEW, SCH_WORLD_UNIT } from './sch_view.js';
 import type { Vec2 } from '@ziroeda/kimath';
-import type { InputPrefs } from '@ziroeda/common/ui/view_controls.js';
+import type { InputPrefs } from '@ziroeda/common/view/wx_view_controls.js';
 import type {
   ArcEditMode,
   BBox,

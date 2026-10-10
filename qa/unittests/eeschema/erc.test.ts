@@ -6,7 +6,7 @@
  * no-connect flags, and label checks, against KiCad's documented behaviour
  * (erc.cpp, erc_settings.cpp, connection_graph.cpp).
  */
-import { wxSetEnv, wxUnsetEnv } from '@ziroeda/common/wx/utils.js';
+import { wxSetEnv, wxUnsetEnv } from '@ziroeda/wx/utils.js';
 import { describe, it, expect } from 'vitest';
 import { parse, serialize } from '@ziroeda/sexpr/index.js';
 import { readSchematic, writeSchematic } from '@ziroeda/eeschema';

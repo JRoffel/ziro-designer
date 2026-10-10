@@ -23,14 +23,9 @@ import {
   wxICON_ERROR,
   wxICON_QUESTION,
   wxOK,
-} from '@ziroeda/common/wx/defs.js';
-import {
-  wxCopyFile,
-  wxFileExists,
-  wxReadFileSync,
-  wxWriteFileSync,
-} from '@ziroeda/common/wx/filefn.js';
-import { wxID_CANCEL } from '@ziroeda/common/wx/menu.js';
+} from '@ziroeda/wx/defs.js';
+import { wxCopyFile, wxFileExists, wxReadFileSync, wxWriteFileSync } from '@ziroeda/wx/filefn.js';
+import { wxID_CANCEL } from '@ziroeda/wx/menu.js';
 import { PosixPath, SCH_IO_KICAD_SEXPR } from './sch_io/kicad_sexpr/sch_io_kicad_sexpr.js';
 import { SCH_SHEET } from './sch_sheet.js';
 import { SCH_SHEET_LIST, type SCH_SHEET_PATH } from './sch_sheet_path.js';

@@ -19,7 +19,7 @@
  * `handleUnsavedChanges` — so that "cancel aborts the close, discard does not"
  * stays one rule rather than one per dialog.
  */
-import { Button } from '../wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
 import type { JSX } from 'react';
 import { useEffect, useRef } from 'react';
 import {

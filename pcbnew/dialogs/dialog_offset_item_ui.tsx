@@ -15,7 +15,7 @@
  * `wxID_OK` (after `TransferDataFromWindow()`), `onResult( false )` is
  * `wxID_CANCEL`.
  */
-import { Button, CheckBox } from '@ziroeda/common/wx/controls.js';
+import { Button, CheckBox } from '@ziroeda/wx/controls.js';
 import { type JSX, type Ref, useEffect, useRef, useSyncExternalStore } from 'react';
 import { DialogShim, StdDialogButtons } from '@ziroeda/common/dialog_shim.js';
 import type { UNIT_BINDER } from '@ziroeda/common/widgets/unit_binder.js';

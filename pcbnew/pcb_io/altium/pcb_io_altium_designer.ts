@@ -32,7 +32,7 @@ import type { KIID } from '@ziroeda/common/kiid.js';
 import type { PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import type { PROGRESS_REPORTER } from '@ziroeda/common/progress_reporter.js';
 import type { Reporter } from '@ziroeda/common/reporter.js';
-import { wxCmpNoCase } from '@ziroeda/common/wx/wxstring.js';
+import { wxCmpNoCase } from '@ziroeda/wx/wxstring.js';
 import { BOARD } from '../../board.js';
 import type { FOOTPRINT } from '../../footprint.js';
 import {

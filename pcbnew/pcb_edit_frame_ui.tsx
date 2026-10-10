@@ -21,11 +21,11 @@ import type { TOOL_MANAGER } from '@ziroeda/common/tool/tool_manager.js';
 import type { KIWAY } from '@ziroeda/common/kiway.js';
 import type { PCBNEW_APP } from './browser/pcbnew_app.js';
 import { jsonFileWildcard, reportFileWildcard } from '@ziroeda/common/wildcards_and_files_ext.js';
-import { type ChooserFilter, WxFileDialog } from '@ziroeda/common/wx/filedlg.js';
+import { type ChooserFilter, WxFileDialog } from '@ziroeda/wx/filedlg.js';
 import { KICTL_NONKICAD_ONLY } from '@ziroeda/common/kiway_player.js';
 import { DialogAssignNetclass } from '@ziroeda/common/dialogs/dialog_assign_netclass.js';
 import { EDA_VIEW_SWITCHER } from '@ziroeda/common/dialogs/eda_view_switcher.js';
-import { WxTextEntryDialog } from '@ziroeda/common/wx/textdlg.js';
+import { WxTextEntryDialog } from '@ziroeda/wx/textdlg.js';
 import { WX_TEXT_ENTRY_DIALOG } from '@ziroeda/common/dialogs/dialog_text_entry.js';
 import { Pgm, PgmOrNull } from '@ziroeda/common/pgm_base.js';
 import type { PCBNEW_SETTINGS } from './pcbnew_settings.js';
@@ -43,8 +43,8 @@ import {
   DIALOG_RULE_AREA_PROPERTIES,
   type RuleAreaValues,
 } from './dialogs/dialog_rule_area_properties.js';
-import { zoomFitScale } from '@ziroeda/common/ui/view_controls.js';
-import { DockSash } from '@ziroeda/common/widgets/wx_aui_sash.js';
+import { zoomFitScale } from '@ziroeda/common/view/wx_view_controls.js';
+import { DockSash } from '@ziroeda/wx/wx_aui_sash.js';
 import { onOutlineFontsChanged } from '@ziroeda/common/font/outline_fonts.js';
 import {
   applyCanvasSize,
@@ -69,7 +69,7 @@ import {
   zoomSelectLabel,
 } from '@ziroeda/common/settings/zoom_settings.js';
 
-import type { FitType } from '@ziroeda/common/ui/view_controls.js';
+import type { FitType } from '@ziroeda/common/view/wx_view_controls.js';
 import { pcbIUScale, pcbIuToMM as iuToMM } from '@ziroeda/common';
 import { useCallback, useEffect, useMemo, useRef, useState, type JSX, type ReactNode } from 'react';
 import {
@@ -194,7 +194,7 @@ import { pageSettingsValue, toPaperToken } from '@ziroeda/common/dialogs/dialog_
 import { type ExtentsBox, pcbZoomFitBox } from './pcb_base_frame.js';
 import { DialogPcbPrint } from './dialogs/dialog_print_pcbnew_ui.js';
 import type { DIALOG_PRINT_PCBNEW } from './dialogs/dialog_print_pcbnew.js';
-import { wxPrinter } from '@ziroeda/common/wx/printer.js';
+import { wxPrinter } from '@ziroeda/wx/printer.js';
 import { MessageDialogError, MessageDialogOk } from '@ziroeda/common/dialogs/dialog_message.js';
 import { DialogPcbPlot } from './dialogs/dialog_plot.js';
 import { DialogGenFootprintPosition } from './dialogs/dialog_gen_footprint_position.js';
@@ -237,17 +237,17 @@ import type { GATED_DISPATCHER, WINDOW_ACTION_HANDLER } from './tools/window_act
 import type { ACTION_MENU } from '@ziroeda/common/tool/action_menu.js';
 import { actionMenuItems } from '@ziroeda/common/tool/action_menu_popup.js';
 import { ACTIONS } from '@ziroeda/common/tool/actions.js';
-import * as KIPLATFORM_UI from '@ziroeda/common/kiplatform/ui.js';
-import { wxMenuEvent, wxMenuEventType } from '@ziroeda/common/wx/menu.js';
-import { clientPosition, wxKeyEventFromDom } from '@ziroeda/common/wx/dom_events.js';
+import * as KIPLATFORM_UI from '@ziroeda/kiplatform/ui.js';
+import { wxMenuEvent, wxMenuEventType } from '@ziroeda/wx/menu.js';
+import { clientPosition, wxKeyEventFromDom } from '@ziroeda/wx/dom_events.js';
 import {
   type wxEvent,
   wxEVT_CHAR,
   wxEVT_CHAR_HOOK,
   wxKeyEvent,
   wxMouseEvent,
-} from '@ziroeda/common/wx/wx_event.js';
-import { WXK } from '@ziroeda/core/wx_keycodes.js';
+} from '@ziroeda/wx/wx_event.js';
+import { WXK } from '@ziroeda/wx/wx_keycodes.js';
 import { DialogMoveExact, type MoveExactValues } from './dialogs/dialog_move_exact_ui.js';
 import { WX_UNIT_ENTRY_DIALOG } from '@ziroeda/common/dialogs/dialog_unit_entry.js';
 import { WX_MULTI_ENTRY_DIALOG } from '@ziroeda/common/dialogs/dialog_multi_unit_entry.js';
@@ -375,7 +375,7 @@ import {
 import { ZONE_PREVIEW_CANVAS } from './zone_manager/zone_preview_canvas.js';
 import { drawPanelWindow } from '@ziroeda/common/gal/gal_window.js';
 import { GAL_TYPE } from '@ziroeda/common/draw_panel_gal.js';
-import { wxEVT_SIZE } from '@ziroeda/common/wx/wx_event.js';
+import { wxEVT_SIZE } from '@ziroeda/wx/wx_event.js';
 import { pageInfoOfPaper, paperOfPageInfo } from '@ziroeda/common/page_info.js';
 import { TITLE_BLOCK } from '@ziroeda/common/title_block.js';
 import type { ZONE } from './zone.js';

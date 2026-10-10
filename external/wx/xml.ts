@@ -12,7 +12,7 @@
  * together (`<tstamps>a b c</tstamps>`). The closing tag gets its own line only
  * when the last child was not text.
  */
-import { type XNODE, wxXmlNodeType } from '../xnode.js';
+import { type XNODE, wxXmlNodeType } from '@ziroeda/common/xnode.js';
 
 /** wx's `OutputEscapedString`: text escapes `< > & \r`; an attribute also `" \t \n`. */
 function outputEscaped(aText: string, aAttribute: boolean): string {

@@ -31,7 +31,7 @@ import type { ChooserFilter } from './chooser_types.js';
 import type { FileSystem } from './filesystem.js';
 
 /** One file the dialog hands back: wxFileDialog's result, so common/wx's. */
-import type { OpenedFile } from '@ziroeda/common/wx/filedlg.js';
+import type { OpenedFile } from '@ziroeda/wx/filedlg.js';
 export type { OpenedFile };
 
 export interface OpenFileDialogProps {

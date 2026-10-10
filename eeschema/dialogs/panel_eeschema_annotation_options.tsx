@@ -14,7 +14,7 @@
  * order, numbering start method, and refdes reuse).
  */
 
-import { Combo } from '@ziroeda/common/wx/controls.js';
+import { Combo } from '@ziroeda/wx/controls.js';
 import type { JSX } from 'react';
 import { SYMBOL_UNIT_NOTATIONS, type AnnotationSettings } from '../schematic_settings.js';
 

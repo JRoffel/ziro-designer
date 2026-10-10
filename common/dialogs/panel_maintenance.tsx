@@ -51,7 +51,7 @@
  * defaults on the way out.
  */
 import { useState, type JSX } from 'react';
-import { Button, Num } from '../wx/controls.js';
+import { Button, Num } from '@ziroeda/wx/controls.js';
 import { clearDoNotShowAgainDialogs } from '../kidialog_do_not_show.js';
 import type {
   COMMON_SETTINGS_DRAFT,

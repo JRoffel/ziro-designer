@@ -34,7 +34,7 @@
  */
 import { Fragment, type JSX } from 'react';
 import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
-import { Button, Group } from '@ziroeda/common/wx/controls.js';
+import { Button, Group } from '@ziroeda/wx/controls.js';
 import type { PrefsContext } from '../../../dialogs/prefs/types.js';
 
 /**

@@ -15,7 +15,7 @@
  * width of -1, KiCad's "no border at all", which is distinct from 0 meaning
  * "use the schematic default width".
  */
-import { Button, CheckBox } from '@ziroeda/common/wx/controls.js';
+import { Button, CheckBox } from '@ziroeda/wx/controls.js';
 import { useState, type JSX } from 'react';
 import { FILL_MODE_NAMES, FILL_MODE_TOKENS, iuToMM, mmToIU } from '@ziroeda/common';
 import { ColorSwatch } from '@ziroeda/common/widgets/color_swatch.js';

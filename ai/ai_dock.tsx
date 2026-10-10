@@ -5,7 +5,7 @@
  * while the frame's title bar still spans the window. Its toggle sits at the
  * right end of that title bar, opening and closing it; Ctrl+Shift+A too.
  */
-import { DockSash } from '@ziroeda/common/widgets/wx_aui_sash.js';
+import { DockSash } from '@ziroeda/wx/wx_aui_sash.js';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AiChatPane } from './chat_pane.js';

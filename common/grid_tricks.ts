@@ -28,8 +28,8 @@ import {
   wxGridCellTextEditor,
   wxGridEvent,
   wxGridSelectionModes,
-} from './wx/grid.js';
-import { wxMenu, wxMenuEvent, wxMenuEventType } from './wx/menu.js';
+} from '@ziroeda/wx/grid.js';
+import { wxMenu, wxMenuEvent, wxMenuEventType } from '@ziroeda/wx/menu.js';
 import {
   WXK,
   wxEVT_CHAR_HOOK,
@@ -39,7 +39,7 @@ import {
   wxMOD_CONTROL,
   wxMOD_NONE,
   type wxUpdateUIEvent,
-} from './wx/wx_event.js';
+} from '@ziroeda/wx/wx_event.js';
 
 export const GRIDTRICKS_MAX_COL = 50;
 

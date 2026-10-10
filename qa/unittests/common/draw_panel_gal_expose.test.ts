@@ -18,7 +18,7 @@ import { describe, expect, it } from 'vitest';
 import { EDA_DRAW_PANEL_GAL } from '@ziroeda/common/draw_panel_gal.js';
 import { GAL_DISPLAY_OPTIONS } from '@ziroeda/common/gal/gal_display_options.js';
 import { GAL } from '@ziroeda/common/gal/graphics_abstraction_layer.js';
-import { wxEVT_CHAR, wxEVT_PAINT, type wxEvent, wxSizeEvent } from '@ziroeda/common/wx/wx_event.js';
+import { wxEVT_CHAR, wxEVT_PAINT, type wxEvent, wxSizeEvent } from '@ziroeda/wx/wx_event.js';
 
 /** A GAL whose ResizeScreen records the size, as OPENGL_GAL's does. */
 class SIZED_GAL extends GAL {

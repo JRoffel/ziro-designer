@@ -35,7 +35,7 @@
 
 import { FILENAME_RESOLVER } from '@ziroeda/common/filename_resolver.js';
 import { PgmOrNull } from '@ziroeda/common/pgm_base.js';
-import { wxGetTempDir } from '@ziroeda/common/wx/filefn.js';
+import { wxGetTempDir } from '@ziroeda/wx/filefn.js';
 
 export class PROJECT_PCB {
   private constructor() {}

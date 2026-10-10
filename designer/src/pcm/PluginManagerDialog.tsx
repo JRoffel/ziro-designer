@@ -16,7 +16,7 @@
  * cannot host yet, so those tabs explain that and list packages read-only.
  */
 
-import { Button, Combo } from '@ziroeda/common/wx/controls.js';
+import { Button, Combo } from '@ziroeda/wx/controls.js';
 import { useMemo, useState, type JSX } from 'react';
 import { settings } from '../prefs/settings.js';
 import { isRuntimeKind, latestVersion, pcm, pcmThemeId, usePcmVersion } from './pcmStore.js';

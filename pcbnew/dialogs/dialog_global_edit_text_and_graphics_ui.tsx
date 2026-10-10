@@ -7,7 +7,7 @@
  * side by side, then "Action" (the specified values, or the layer defaults
  * shown read-only from Board Setup), then Apply and Close / Close.
  */
-import { CheckBox, RadioButton, StaticBox, TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { CheckBox, RadioButton, StaticBox, TextCtrl } from '@ziroeda/wx/controls.js';
 import { type JSX, useEffect, useState } from 'react';
 import { DialogShim, StdDialogButtons } from '@ziroeda/common/dialog_shim.js';
 import { unitLabel } from '@ziroeda/common/eda_units.js';

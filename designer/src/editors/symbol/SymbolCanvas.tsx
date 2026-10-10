@@ -31,7 +31,7 @@ import {
   makeMotionPan,
   makeZoomController,
   wheelAction,
-} from '@ziroeda/common/ui/view_controls.js';
+} from '@ziroeda/common/view/wx_view_controls.js';
 import { drawCrosshair } from '@ziroeda/common/draw_panel_gal_grid_cursor.js';
 import { symbolToolCursor } from '@ziroeda/eeschema/symbol_editor/cursors.js';
 import { clampViewScale } from '@ziroeda/common/settings/zoom_settings.js';

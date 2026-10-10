@@ -17,7 +17,7 @@ import {
   InitializeEnvironment,
 } from '@ziroeda/common/settings/common_settings.js';
 import { ENV_VAR_ITEM, ENV_VAR_MAP } from '@ziroeda/common/settings/environment.js';
-import { SetEnvVarLookup, wxGetEnv, wxSetEnv, wxUnsetEnv } from '@ziroeda/common/wx/utils.js';
+import { SetEnvVarLookup, wxGetEnv, wxSetEnv, wxUnsetEnv } from '@ziroeda/wx/utils.js';
 import { afterEach, describe, expect, it } from 'vitest';
 
 const NAMES = [

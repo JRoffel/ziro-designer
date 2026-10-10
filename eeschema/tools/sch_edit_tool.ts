@@ -11,7 +11,7 @@
  */
 import { FRAME_T } from '@ziroeda/common/frame_type.js';
 import type { SYMBOL_EDIT_FRAME } from '../symbol_editor/symbol_edit_frame.js';
-import { BITMAPS } from '@ziroeda/common/bitmaps/bitmaps_list.js';
+import { BITMAPS } from '@ziroeda/include/bitmaps/bitmaps_list.js';
 import { CHANGE_TYPE } from '@ziroeda/common/commit.js';
 import { type EDA_ITEM, IGNORE_PARENT_GROUP, RECURSE_MODE } from '@ziroeda/common/eda_item.js';
 import {
@@ -52,7 +52,7 @@ import {
 } from '@ziroeda/common/tool/selection_conditions.js';
 import type { TOOL_EVENT } from '@ziroeda/common/tool/tool_event.js';
 import { SYNC_HANDLER, type TOOL_INTERACTIVE } from '@ziroeda/common/tool/tool_interactive.js';
-import { wxID_OK } from '@ziroeda/common/wx/menu.js';
+import { wxID_OK } from '@ziroeda/wx/menu.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import {
   ANGLE_90,

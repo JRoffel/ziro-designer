@@ -8,7 +8,7 @@
  * `Point::equal` span test and its introsort of the ids are what decide the
  * triangle order, and the ratsnest edges come out in that order.
  */
-import { stdSort } from '../clipper2/clipper.core.js';
+import { stdSort } from '@ziroeda/clipper2/clipper.core.js';
 
 export const INVALID_INDEX = Number.MAX_SAFE_INTEGER;
 

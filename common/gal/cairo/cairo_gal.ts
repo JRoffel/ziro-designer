@@ -25,7 +25,7 @@ import { EDA_ANGLE, EDA_ANGLE_T } from '@ziroeda/kimath/src/geometry/eda_angle.j
 import type { SHAPE_LINE_CHAIN } from '@ziroeda/kimath/src/geometry/shape_line_chain.js';
 import { SHAPE_POLY_SET } from '@ziroeda/kimath/src/geometry/shape_poly_set.js';
 import type { MATRIX3x3D } from '@ziroeda/kimath/src/math/matrix3x3.js';
-import { atan2, cos, sin } from '@ziroeda/kimath/src/math/libm.js';
+import { atan2, cos, sin } from '@ziroeda/libc/libm.js';
 import { KiROUND } from '@ziroeda/kimath/src/math/util.js';
 import { EuclideanNorm, type Vec2, type VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
 import { RotatePointD } from '@ziroeda/kimath/src/trigo.js';

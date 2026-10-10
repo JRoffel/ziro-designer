@@ -17,7 +17,7 @@
  * is upstream's validation, which the host runs on OK
  * (`TransferDataFromWindow`).
  */
-import { Button, TextCtrl } from '../wx/controls.js';
+import { Button, TextCtrl } from '@ziroeda/wx/controls.js';
 import type { JSX } from 'react';
 
 /** MIN_SIZE / MAX_SIZE (panel_image_editor.cpp:71-72), in pixels after scaling. */

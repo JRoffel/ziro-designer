@@ -20,7 +20,7 @@ import type {
   COMMON_SETTINGS_LIKE,
 } from '@ziroeda/common/pgm_base.js';
 import type { WINDOW_SETTINGS } from '@ziroeda/common/settings/app_settings.js';
-import type { ChooserFilter } from '@ziroeda/common/wx/filedlg.js';
+import type { ChooserFilter } from '@ziroeda/wx/filedlg.js';
 import type { ToolbarDefaults, ToolbarLoc } from '@ziroeda/common/tool/ui/toolbar_configuration.js';
 import type { ToolEntry } from '@ziroeda/common/tool/action_toolbar_types.js';
 import type { FootprintIndexLibrary } from '../footprint_info_impl.js';

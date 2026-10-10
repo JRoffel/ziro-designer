@@ -47,7 +47,7 @@ import {
   RPT_SEVERITY_WARNING,
 } from '@ziroeda/common/reporter.js';
 import { LINE_STYLE, STROKE_PARAMS } from '@ziroeda/common/stroke_params.js';
-import { inflateZlib } from '@ziroeda/common/wx/inflate.js';
+import { inflateZlib } from '@ziroeda/wx/inflate.js';
 import { ARC_HIGH_DEF } from '@ziroeda/kimath/src/base_units.js';
 import {
   ERROR_LOC,
@@ -58,7 +58,7 @@ import { SEG } from '@ziroeda/kimath/src/geometry/seg.js';
 import { SHAPE_ARC } from '@ziroeda/kimath/src/geometry/shape_arc.js';
 import { SHAPE_LINE_CHAIN } from '@ziroeda/kimath/src/geometry/shape_line_chain.js';
 import { CornerStrategy, SHAPE_POLY_SET } from '@ziroeda/kimath/src/geometry/shape_poly_set.js';
-import { cos, sin } from '@ziroeda/kimath/src/math/libm.js';
+import { cos, sin } from '@ziroeda/libc/libm.js';
 import { KiROUND } from '@ziroeda/kimath/src/math/util.js';
 import {
   Distance,

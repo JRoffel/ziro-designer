@@ -13,7 +13,7 @@ import { SCH_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import { PGM_BASE, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
 import { FIELD_T } from '@ziroeda/common/template_fieldnames.js';
 import { ACTIONS } from '@ziroeda/common/tool/actions.js';
-import { wxID_OK } from '@ziroeda/common/wx/menu.js';
+import { wxID_OK } from '@ziroeda/wx/menu.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import type { SCH_EDIT_FRAME_HOOKS } from '@ziroeda/eeschema/sch_edit_frame.js';
 import { type SCH_GLOBALLABEL, SCH_LABEL, SPIN_STYLE } from '@ziroeda/eeschema/sch_label.js';

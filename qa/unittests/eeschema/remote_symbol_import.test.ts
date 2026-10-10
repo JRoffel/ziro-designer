@@ -25,7 +25,7 @@ import {
   UrlEncode,
   ValidateRemoteUrlSecurity,
 } from '@ziroeda/common/remote_provider_utils.js';
-import { wxFileExists, wxGetTempDir, wxReadFileSync } from '@ziroeda/common/wx/filefn.js';
+import { wxFileExists, wxGetTempDir, wxReadFileSync } from '@ziroeda/wx/filefn.js';
 import {
   EESCHEMA_DEFAULTS,
   setEeschemaSettingsProvider,

@@ -6,7 +6,7 @@
  * DIALOG_IMPORT_GRAPHICS_BASE, the widget tree only. Every value and handler
  * comes in as a prop; `dialog_import_graphics.tsx` owns the state.
  */
-import { Button, CheckBox, TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { Button, CheckBox, TextCtrl } from '@ziroeda/wx/controls.js';
 import type { Dispatch, JSX, SetStateAction } from 'react';
 import type { DXF_IMPORT_UNITS } from '@ziroeda/common/import_gfx/dxf_import_plugin.js';
 import type { PCB_LAYER_NAME } from '@ziroeda/common/layer_ids.js';

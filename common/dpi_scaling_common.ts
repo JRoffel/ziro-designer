@@ -9,7 +9,7 @@
  */
 import { DPI_SCALING } from './dpi_scaling.js';
 import { ENV_VAR } from './env_vars.js';
-import * as KIPLATFORM_UI from './kiplatform/ui.js';
+import * as KIPLATFORM_UI from '@ziroeda/kiplatform/ui.js';
 
 /** The part of `COMMON_SETTINGS` a DPI source reads and writes. */
 export interface DPI_SCALING_CONFIG {

@@ -19,7 +19,7 @@
  * and the preview beside all of it.
  */
 
-import { CheckBox, RadioButton, TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { CheckBox, RadioButton, TextCtrl } from '@ziroeda/wx/controls.js';
 import { useEffect, useRef, useState, type JSX } from 'react';
 import { pcbIuToMM, pcbMmToIU } from '@ziroeda/common/eda_units.js';
 import {

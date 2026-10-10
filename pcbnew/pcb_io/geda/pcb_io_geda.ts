@@ -20,12 +20,12 @@ import { pcbIUScale } from '@ziroeda/common/eda_units.js';
 import { IO_FILE_DESC } from '@ziroeda/common/io/io_base.js';
 import { IsCopperLayer, PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import { LIB_ID } from '@ziroeda/common/lib_id.js';
-import { ToCDouble, strtol10 } from '@ziroeda/common/libc/stdlib.js';
+import { ToCDouble, strtol10 } from '@ziroeda/libc/stdlib.js';
 import { LSET } from '@ziroeda/common/lset.js';
 import { PAGE_INFO } from '@ziroeda/common/page_info.js';
 import { LINE_READER } from '@ziroeda/common/richio.js';
 import { LINE_STYLE, STROKE_PARAMS } from '@ziroeda/common/stroke_params.js';
-import { wxCmpNoCase } from '@ziroeda/common/wx/wxstring.js';
+import { wxCmpNoCase } from '@ziroeda/wx/wxstring.js';
 import { IGNORE_PARENT_GROUP } from '@ziroeda/common/eda_item.js';
 import { FLIP_DIRECTION } from '@ziroeda/kimath/src/core/mirror.js';
 import {

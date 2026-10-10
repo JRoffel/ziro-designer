@@ -10,7 +10,7 @@
 import type { PROJECT } from './project.js';
 import { PROJECT_VAR_NAME } from './project.js';
 import type { ENV_VAR_MAP } from './settings/environment.js';
-import { wxDirExists, wxFileExists } from './wx/filefn.js';
+import { wxDirExists, wxFileExists } from '@ziroeda/wx/filefn.js';
 
 /** `wxFileName::GetDirs()` of a directory path. */
 const dirsOf = (aPath: string): string[] => aPath.split('/').filter((d) => d !== '');

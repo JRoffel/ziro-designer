@@ -26,7 +26,7 @@
  * entry lines up with the Precision choice. No SetFont anywhere in either panel.
  */
 
-import { CheckBox, TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { CheckBox, TextCtrl } from '@ziroeda/wx/controls.js';
 import { type JSX, useLayoutEffect, useRef, useState } from 'react';
 import { pcbIUScale } from '@ziroeda/common/eda_units.js';
 import { GRID_TRICKS } from '@ziroeda/common/grid_tricks.js';
@@ -40,8 +40,8 @@ import {
   wxGridCellAttr,
   wxGridCellBoolRenderer,
   wxGridStringTable,
-} from '@ziroeda/common/wx/grid.js';
-import { WxGridView } from '@ziroeda/common/wx/grid_ui.js';
+} from '@ziroeda/wx/grid.js';
+import { WxGridView } from '@ziroeda/wx/grid_ui.js';
 import type { BOARD } from '../board.js';
 import { LAYER_CLASS } from '../board_design_settings.js';
 import {

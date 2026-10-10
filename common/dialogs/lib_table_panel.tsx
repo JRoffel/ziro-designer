@@ -36,7 +36,7 @@
  *    global table and legacy files on disk, and are not here.
  *  - The page shown first is the project's, as this dialog always opened.
  */
-import { Button } from '../wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
 import { type JSX, useLayoutEffect, useReducer, useRef, useState } from 'react';
 import { DIALOG_EDIT_LIBRARY_TABLES } from './dialog_edit_library_tables.js';
 import { DIALOG_PLUGIN_OPTIONS } from './dialog_plugin_options.js';
@@ -75,10 +75,10 @@ import {
 import { PROJECT_VAR_NAME } from '../project.js';
 import { StdBitmapButton } from '../widgets/std_bitmap_button.js';
 import { WX_GRID } from '../widgets/wx_grid.js';
-import { wxAuiNotebook } from '../wx/aui_notebook.js';
-import { wxGridStringTable } from '../wx/grid.js';
-import { WxGridView } from '../wx/grid_ui.js';
-import { wxGetEnv } from '../wx/utils.js';
+import { wxAuiNotebook } from '@ziroeda/wx/aui_notebook.js';
+import { wxGridStringTable } from '@ziroeda/wx/grid.js';
+import { WxGridView } from '@ziroeda/wx/grid_ui.js';
+import { wxGetEnv } from '@ziroeda/wx/utils.js';
 
 /** `m_pluginChoices`: the formats this build reads (see the file comment). */
 const PLUGIN_CHOICES = ['KiCad'];

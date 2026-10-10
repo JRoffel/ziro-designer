@@ -30,7 +30,7 @@
  * the 3D preview (and its holder board) and the 3D viewer child frame — arrive
  * as {@link FOOTPRINT_CHOOSER_FRAME_APP}; designer's file is now the wiring.
  */
-import { Button, CheckBox } from '@ziroeda/common/wx/controls.js';
+import { Button, CheckBox } from '@ziroeda/wx/controls.js';
 import { useCallback, useEffect, useMemo, useState, type JSX, type ReactNode } from 'react';
 import { PanelFootprintChooser } from './widgets/panel_footprint_chooser.js';
 import type { FootprintTreeFilter } from './fp_tree_model_adapter.js';

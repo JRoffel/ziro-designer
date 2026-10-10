@@ -7,7 +7,7 @@
  * and Calculate. Counterpart: KiCad `calculator_panels/panel_fusing_current.cpp`.
  */
 
-import { TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { TextCtrl } from '@ziroeda/wx/controls.js';
 import { useState, type JSX } from 'react';
 import { type FusingSolveFor, fusingCurrent, printfF } from '@ziroeda/pcb_calculator';
 import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';

@@ -12,7 +12,9 @@
   "dependencies": {
     "@ziroeda/common": "workspace:*",
     "@ziroeda/core": "workspace:*",
+    "@ziroeda/include": "workspace:*",
     "@ziroeda/kimath": "workspace:*",
+    "@ziroeda/wx": "workspace:*",
     "react": "^18.3.1"
   },
   "devDependencies": {

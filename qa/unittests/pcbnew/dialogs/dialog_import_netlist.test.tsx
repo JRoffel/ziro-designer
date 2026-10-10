@@ -9,7 +9,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { RPT_SEVERITY_ACTION, type ReportLine } from '@ziroeda/common/reporter.js';
-import { SetFileDialog } from '@ziroeda/common/wx/filedlg.js';
+import { SetFileDialog } from '@ziroeda/wx/filedlg.js';
 import {
   DEFAULT_IMPORT_NETLIST_OPTIONS,
   DialogImportNetlist,

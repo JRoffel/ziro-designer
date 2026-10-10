@@ -12,7 +12,7 @@
  * gt / le / ge. Everything else keeps KiCad's names and semantics exactly.
  */
 
-import { acos, atan2, cos, sin } from '../math/libm.js';
+import { acos, atan2, cos, sin } from '@ziroeda/libc/libm.js';
 import { KiROUND, equals } from '../math/util.js';
 
 export enum EDA_ANGLE_T {

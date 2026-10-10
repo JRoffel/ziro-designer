@@ -12,7 +12,7 @@
  */
 import type { ODBPP_DIALOG_RESULT } from './dialogs/dialog_export_odbpp.js';
 import type { VRML_DIALOG_RESULT } from './dialogs/dialog_export_vrml.js';
-import type { ChooserFilter } from '@ziroeda/common/wx/filedlg.js';
+import type { ChooserFilter } from '@ziroeda/wx/filedlg.js';
 import type { PRINTING } from '@ziroeda/common/settings/app_settings.js';
 import { ROUTER_TOOL } from './router/router_tool.js';
 import { PCB_ACTIONS } from './tools/pcb_actions.js';
@@ -85,7 +85,7 @@ import {
   type IMPORT_GRAPHICS_RESULT,
   type PASTE_MODE,
 } from './pcb_base_edit_frame.js';
-import { STRTOK, strncpyLine } from '@ziroeda/common/libc/string.js';
+import { STRTOK, strncpyLine } from '@ziroeda/libc/string.js';
 import type { KIWAY_MAIL_EVENT } from '@ziroeda/common/kiway_mail.js';
 import type { KIWAY } from '@ziroeda/common/kiway.js';
 import { MAIL_T } from '@ziroeda/common/mail_type.js';
@@ -153,12 +153,7 @@ import type { LIB_ID } from '@ziroeda/common/lib_id.js';
 import type { PCB_SELECTION_FILTER_OPTIONS } from '@ziroeda/common/project/board_project_settings.js';
 import { ACTIONS, EVENTS } from '@ziroeda/common/tool/actions.js';
 import { TOOL_DISPATCHER } from '@ziroeda/common/tool/tool_dispatcher.js';
-import {
-  type wxEvent,
-  wxTimer,
-  type wxTimerEvent,
-  wxUpdateUIEvent,
-} from '@ziroeda/common/wx/wx_event.js';
+import { type wxEvent, wxTimer, type wxTimerEvent, wxUpdateUIEvent } from '@ziroeda/wx/wx_event.js';
 import { escapeIpc, unescapeString } from '@ziroeda/common/string_utils.js';
 import { type KIID, kiidPathAsString } from '@ziroeda/common/kiid.js';
 import type { EDA_BASE_FRAME } from '@ziroeda/common/eda_base_frame.js';

@@ -27,7 +27,7 @@ import {
 } from 'react';
 import { PgmOrNull } from './pgm_base.js';
 import { DIALOG_GEOMETRY_KEY } from './settings/common_settings.js';
-import { Button } from './wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
 import { wasBrowserSuppressed } from './browser_hotkeys.js';
 
 // ---------------------------------------------------------------------------

@@ -7,7 +7,7 @@
  * only), the "Update Options" box with Check All / Uncheck All, the output
  * messages, then Update or Change / Close. Quasi-modal: OK runs and stays.
  */
-import { Button, StaticBox, TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { Button, StaticBox, TextCtrl } from '@ziroeda/wx/controls.js';
 import { type JSX, useEffect, useState } from 'react';
 import { DialogShim, StdDialogButtons } from '@ziroeda/common/dialog_shim.js';
 import type { ReportLine } from '@ziroeda/common/reporter.js';

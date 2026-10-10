@@ -13,7 +13,7 @@
  * Not drawn: the Embedded Files page, which the model does not carry either.
  */
 
-import { CheckBox, TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { CheckBox, TextCtrl } from '@ziroeda/wx/controls.js';
 import { type JSX, type ReactNode, useRef, useState } from 'react';
 import { DisplayErrorMessage } from '@ziroeda/common/confirm.js';
 import { DialogShim } from '@ziroeda/common/dialog_shim.js';
@@ -29,8 +29,8 @@ import {
   wxGRID_VALUE_STRING,
   wxGridCellAttr,
   wxGridSelectionModes,
-} from '@ziroeda/common/wx/grid.js';
-import { WxGridView } from '@ziroeda/common/wx/grid_ui.js';
+} from '@ziroeda/wx/grid.js';
+import { WxGridView } from '@ziroeda/wx/grid_ui.js';
 import type { FOOTPRINT, FP_3DMODEL } from '../footprint.js';
 import {
   GRID_CELL_LAYER_RENDERER,

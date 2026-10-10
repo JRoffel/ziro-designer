@@ -152,7 +152,7 @@ import type { SHAPE_LINE_CHAIN } from '@ziroeda/kimath/src/geometry/shape_line_c
 import { SHAPE_SEGMENT } from '@ziroeda/kimath/src/geometry/shape_segment.js';
 import type { SHAPE_SIMPLE } from '@ziroeda/kimath/src/geometry/shape_simple.js';
 import { BOX2I } from '@ziroeda/kimath/src/math/box2.js';
-import { hypot } from '@ziroeda/kimath/src/math/libm.js';
+import { hypot } from '@ziroeda/libc/libm.js';
 import { KiROUND } from '@ziroeda/kimath/src/math/util.js';
 import type { VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
 import { type Color4d, COLOR4D_UNSPECIFIED } from './gal/color4d.js';

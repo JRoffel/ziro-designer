@@ -70,7 +70,7 @@ import {
   User_6,
   User_7,
 } from '@ziroeda/common/layer_id.js';
-import { strtodPrefix, ToCDoubleOk } from '@ziroeda/common/libc/stdlib.js';
+import { strtodPrefix, ToCDoubleOk } from '@ziroeda/libc/stdlib.js';
 import { LSET } from '@ziroeda/common/lset.js';
 import { ESCAPE_CONTEXT, EscapeString, formatG, wxSplit } from '@ziroeda/common/string_utils.js';
 import { FIELD_T } from '@ziroeda/common/template_fieldnames.js';
@@ -89,7 +89,7 @@ import { SHAPE_LINE_CHAIN } from '@ziroeda/kimath/src/geometry/shape_line_chain.
 import { CornerStrategy, SHAPE_POLY_SET } from '@ziroeda/kimath/src/geometry/shape_poly_set.js';
 import { SHAPE_RECT } from '@ziroeda/kimath/src/geometry/shape_rect.js';
 import { BOX2I } from '@ziroeda/kimath/src/math/box2.js';
-import { hypot, tan } from '@ziroeda/kimath/src/math/libm.js';
+import { hypot, tan } from '@ziroeda/libc/libm.js';
 import { KiROUND } from '@ziroeda/kimath/src/math/util.js';
 import {
   Perpendicular,

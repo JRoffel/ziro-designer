@@ -14,7 +14,7 @@
  * below carrying `r_calculator_help.md` verbatim.
  */
 
-import { RadioButton, TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { RadioButton, TextCtrl } from '@ziroeda/wx/controls.js';
 import { type JSX, useState } from 'react';
 import {
   ESERIES,

@@ -10,7 +10,7 @@
  * `Draw` is `DrawPushButton` around the bitmap inflated by `BUTTON_PADDING`
  * (2, 2); a view draws that as the shared `.ze-gridbtn` with the bitmap in it.
  */
-import { wxGridCellRenderer } from '../wx/grid.js';
+import { wxGridCellRenderer } from '@ziroeda/wx/grid.js';
 
 export class GRID_BITMAP_BUTTON_RENDERER extends wxGridCellRenderer {
   /** `m_bitmap`: the bundle, as the bitmap store's URL (`KiBitmapBundle`). */

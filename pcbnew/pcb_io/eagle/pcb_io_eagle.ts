@@ -86,15 +86,15 @@ import {
   User_9,
 } from '@ziroeda/common/layer_id.js';
 import { LIB_ID } from '@ziroeda/common/lib_id.js';
-import { atoi, ToCDouble } from '@ziroeda/common/libc/stdlib.js';
+import { atoi, ToCDouble } from '@ziroeda/libc/stdlib.js';
 import { LSET } from '@ziroeda/common/lset.js';
 import { NETCLASS } from '@ziroeda/common/netclass.js';
 import { RPT_SEVERITY_ERROR, RPT_SEVERITY_INFO } from '@ziroeda/common/reporter.js';
 import { LINE_STYLE, STROKE_PARAMS } from '@ziroeda/common/stroke_params.js';
 import { SHAPE_T } from '@ziroeda/common/eda_shape.js';
 import { ReplaceIllegalFileNameChars, UnescapeHTML } from '@ziroeda/common/string_utils.js';
-import { wxXmlDocumentLoad, wxXmlParseError, type wxXmlNode } from '@ziroeda/common/wx/xml.js';
-import { wxCmp, wxCmpNoCase } from '@ziroeda/common/wx/wxstring.js';
+import { wxXmlDocumentLoad, wxXmlParseError, type wxXmlNode } from '@ziroeda/wx/xml.js';
+import { wxCmp, wxCmpNoCase } from '@ziroeda/wx/wxstring.js';
 import { ARC_HIGH_DEF } from '@ziroeda/kimath/src/base_units.js';
 import { RECT_CHAMFER_ALL } from '@ziroeda/kimath/src/convert_basic_shapes_to_polygon.js';
 import { FLIP_DIRECTION } from '@ziroeda/kimath/src/core/mirror.js';
@@ -102,7 +102,7 @@ import { ANGLE_0, ANGLE_360, EDA_ANGLE } from '@ziroeda/kimath/src/geometry/eda_
 import { GetArcToSegmentCount } from '@ziroeda/kimath/src/geometry/geometry_utils.js';
 import { SHAPE_LINE_CHAIN } from '@ziroeda/kimath/src/geometry/shape_line_chain.js';
 import { CornerStrategy, SHAPE_POLY_SET } from '@ziroeda/kimath/src/geometry/shape_poly_set.js';
-import { atan2, cos, hypot, sin } from '@ziroeda/kimath/src/math/libm.js';
+import { atan2, cos, hypot, sin } from '@ziroeda/libc/libm.js';
 import { KiROUND } from '@ziroeda/kimath/src/math/util.js';
 import { add, type VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
 import { CalcArcMid, RotatePoint } from '@ziroeda/kimath/src/trigo.js';

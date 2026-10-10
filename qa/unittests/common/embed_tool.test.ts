@@ -14,7 +14,7 @@ import { ACTIONS } from '@ziroeda/common/tool/actions.js';
 import { EMBED_TOOL } from '@ziroeda/common/tool/embed_tool.js';
 import { RESET_REASON } from '@ziroeda/common/tool/tool_base.js';
 import { TOOL_MANAGER } from '@ziroeda/common/tool/tool_manager.js';
-import { wxGetTempDir, wxWriteFileSync } from '@ziroeda/common/wx/filefn.js';
+import { wxGetTempDir, wxWriteFileSync } from '@ziroeda/wx/filefn.js';
 import { installPgm } from '@ziroeda/designer/src/editors/pcb/pcb_canvas.js';
 import { PCB_EDIT_FRAME } from '@ziroeda/pcbnew/pcb_edit_frame.js';
 import { PCBNEW_SETTINGS } from '@ziroeda/pcbnew/pcbnew_settings.js';

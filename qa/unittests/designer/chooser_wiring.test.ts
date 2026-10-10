@@ -263,7 +263,7 @@ describe('the capabilities that used to block it', () => {
     // A `.zip` is not text. Handing back only one of the two is what made the
     // dialog unusable for the binary callers.
     // The result type is wxFileDialog's, declared in common/wx since 09-26.
-    expect(readFileSync(resolve(process.cwd(), '../common/wx/filedlg.tsx'), 'utf8')).toContain(
+    expect(readFileSync(resolve(process.cwd(), '../external/wx/filedlg.tsx'), 'utf8')).toContain(
       'bytes: Uint8Array;',
     );
     expect(src('fs/OpenFileDialog.tsx')).toContain(

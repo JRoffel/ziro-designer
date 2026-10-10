@@ -7,7 +7,7 @@
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import { PATHS } from '@ziroeda/common/paths.js';
-import { wxSetEnv, wxUnsetEnv } from '@ziroeda/common/wx/utils.js';
+import { wxSetEnv, wxUnsetEnv } from '@ziroeda/wx/utils.js';
 
 afterEach(() => {
   for (const v of ['KICAD_STOCK_DATA_HOME', 'KICAD_CONFIG_HOME', 'APPDIR']) wxUnsetEnv(v);

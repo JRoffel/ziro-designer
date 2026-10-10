@@ -12,7 +12,7 @@ import { INT_MAX, INT_MIN } from '@ziroeda/kimath/src/math/util.js';
 import type { Vec2, VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
 import { ARC_LOW_DEF } from '@ziroeda/kimath/src/base_units.js';
 import { CornerStrategy, SHAPE_POLY_SET } from '@ziroeda/kimath/src/geometry/shape_poly_set.js';
-import { stdSort } from '@ziroeda/kimath/src/clipper2/clipper.core.js';
+import { stdSort } from '@ziroeda/clipper2/clipper.core.js';
 import { UNDEFINED_LAYER } from '../layer_id.js';
 import { MAX_LAYERS_FOR_VIEW, RENDER_TARGET } from '../gal/definitions.js';
 import { type GAL, GAL_UPDATE_CONTEXT } from '../gal/graphics_abstraction_layer.js';
@@ -21,7 +21,7 @@ import { VIEW_GROUP } from './view_group.js';
 import { type VIEW_ITEM, VIEW_UPDATE_FLAGS, VIEW_VISIBILITY_FLAGS } from './view_item.js';
 import { VIEW_OVERLAY } from './view_overlay.js';
 import { VIEW_RTREE } from './view_rtree.js';
-import { wxASSERT } from '@ziroeda/core/wx_assert.js';
+import { wxASSERT } from '@ziroeda/wx/wx_assert.js';
 
 const { NONE, APPEARANCE, COLOR, GEOMETRY, LAYERS, INITIAL_ADD, REPAINT, ALL } = VIEW_UPDATE_FLAGS;
 const { VISIBLE, HIDDEN, OVERLAY_HIDDEN } = VIEW_VISIBILITY_FLAGS;

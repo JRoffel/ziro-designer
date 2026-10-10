@@ -8,7 +8,7 @@
  * tree's header menu opens it as `EDA_REORDERABLE_LIST_DIALOG dlg( m_parent,
  * _( "Select Columns" ), ... )` (widgets/lib_tree.cpp:1105).
  */
-import { Button } from '../wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
 import { useState } from 'react';
 import { DialogShim } from '../dialog_shim.js';
 

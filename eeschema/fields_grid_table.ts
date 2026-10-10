@@ -46,7 +46,7 @@ import {
   wxGridCellBoolEditor,
   wxGridCellBoolRenderer,
   wxGridCellChoiceEditor,
-} from '@ziroeda/common/wx/grid.js';
+} from '@ziroeda/wx/grid.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { ANGLE_HORIZONTAL, ANGLE_VERTICAL } from '@ziroeda/kimath/src/geometry/eda_angle.js';
 import { LIB_SYMBOL } from './lib_symbol.js';

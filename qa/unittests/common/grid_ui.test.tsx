@@ -11,8 +11,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { GetClipboardText, SaveClipboard } from '@ziroeda/common/clipboard.js';
 import { GRID_TRICKS } from '@ziroeda/common/grid_tricks.js';
 import { WX_GRID } from '@ziroeda/common/widgets/wx_grid.js';
-import { wxGridSelectionModes, wxGridStringTable } from '@ziroeda/common/wx/grid.js';
-import { WxGridView } from '@ziroeda/common/wx/grid_ui.js';
+import { wxGridSelectionModes, wxGridStringTable } from '@ziroeda/wx/grid.js';
+import { WxGridView } from '@ziroeda/wx/grid_ui.js';
 
 afterEach(cleanup);
 

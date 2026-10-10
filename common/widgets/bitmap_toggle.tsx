@@ -15,7 +15,7 @@
 
 import { type JSX, useRef } from 'react';
 import { KiBitmapBundle } from '../bitmap.js';
-import type { BITMAPS } from '../bitmaps/bitmaps_list.js';
+import type { BITMAPS } from '@ziroeda/include/bitmaps/bitmaps_list.js';
 
 /** [data] `if( now - m_debounce < 200 )` (bitmap_toggle.cpp:57). */
 export const BITMAP_TOGGLE_DEBOUNCE_MS = 200;

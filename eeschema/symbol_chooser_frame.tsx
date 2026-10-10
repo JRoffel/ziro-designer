@@ -41,7 +41,7 @@
  *   - `ShowModal` seeds the selection from the caller's current text (:131),
  *     so browsing a filled-in field starts on that symbol.
  */
-import { Button } from '@ziroeda/common/wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
 import { useCallback, useRef, useState } from 'react';
 import {
   PanelSymbolChooser,

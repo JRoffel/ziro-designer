@@ -56,12 +56,12 @@ import { ZOOM_TOOL } from '@ziroeda/common/tool/zoom_tool.js';
 import type { TITLE_BLOCK } from '@ziroeda/common/title_block.js';
 import { ORIGIN_TRANSFORMS } from '@ziroeda/common/origin_transforms.js';
 import { VIEW_UPDATE_FLAGS, type VIEW_ITEM } from '@ziroeda/common/view/view_item.js';
-import type { wxChoice } from '@ziroeda/common/wx/choice.js';
+import type { wxChoice } from '@ziroeda/wx/choice.js';
 import { messageTextFromValue } from '@ziroeda/common/eda_units.js';
 import type { BOX2I } from '@ziroeda/kimath/src/math/box2.js';
 import type { VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
 import { Clear_DrawLayers, Erase_Current_DrawLayer } from './clear_gbr_drawlayers.js';
-import type { ChooserFilter } from '@ziroeda/common/wx/filedlg.js';
+import type { ChooserFilter } from '@ziroeda/wx/filedlg.js';
 import {
   LoadAutodetectedFiles,
   LoadExcellonFiles,
@@ -85,7 +85,7 @@ import {
   type GERBER_FILE_IMAGE_LIST,
   GERBER_ORDER_ENUM,
 } from './gerber_file_image_list.js';
-import { wxDirExists, wxFileExists } from '@ziroeda/common/wx/filefn.js';
+import { wxDirExists, wxFileExists } from '@ziroeda/wx/filefn.js';
 import { DIALOG_DRAW_LAYERS_SETTINGS } from './dialogs/dialog_draw_layers_settings.js';
 import type { DIALOG_MAP_GERBER_LAYERS_TO_PCB } from './dialogs/dialog_map_gerber_layers_to_pcb.js';
 import { SELECT_LAYER_DIALOG } from './dialogs/dialog_select_one_pcb_layer.js';

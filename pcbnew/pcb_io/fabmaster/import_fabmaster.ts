@@ -31,7 +31,7 @@ import {
   PCB_LAYER_ID,
   PCBNEW_LAYER_ID_START,
 } from '@ziroeda/common/layer_id.js';
-import { ISTRINGSTREAM } from '@ziroeda/common/libc/sstream.js';
+import { ISTRINGSTREAM } from '@ziroeda/libc/sstream.js';
 import { LIB_ID } from '@ziroeda/common/lib_id.js';
 import { LSET } from '@ziroeda/common/lset.js';
 import type { PROGRESS_REPORTER } from '@ziroeda/common/progress_reporter.js';
@@ -39,7 +39,7 @@ import { LINE_STYLE, STROKE_PARAMS } from '@ziroeda/common/stroke_params.js';
 import { ReplaceIllegalFileNameChars } from '@ziroeda/common/string_utils.js';
 import { FIELD_T } from '@ziroeda/common/template_fieldnames.js';
 import { ERROR_LOC } from '@ziroeda/kimath/src/convert_basic_shapes_to_polygon.js';
-import { stdSort } from '@ziroeda/kimath/src/clipper2/clipper.core.js';
+import { stdSort } from '@ziroeda/clipper2/clipper.core.js';
 import { FLIP_DIRECTION } from '@ziroeda/kimath/src/core/mirror.js';
 import {
   ANGLE_0,

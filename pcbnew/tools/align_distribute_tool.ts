@@ -13,7 +13,7 @@
  * can differ. Upstream's lists here are small enough (< 16) that libstdc++
  * insertion-sorts them, which is stable, so the two agree.
  */
-import { BITMAPS } from '@ziroeda/common/bitmaps/bitmaps_list.js';
+import { BITMAPS } from '@ziroeda/include/bitmaps/bitmaps_list.js';
 import { CHANGE_TYPE } from '@ziroeda/common/commit.js';
 import type { EDA_ITEM } from '@ziroeda/common/eda_item.js';
 import { CONDITIONAL_MENU } from '@ziroeda/common/tool/conditional_menu.js';

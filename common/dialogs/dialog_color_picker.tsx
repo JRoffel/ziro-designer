@@ -22,7 +22,7 @@
  * loops below are upstream's, transcribed.
  */
 
-import { Button, TextCtrl } from '../wx/controls.js';
+import { Button, TextCtrl } from '@ziroeda/wx/controls.js';
 import type { CSSProperties, JSX } from 'react';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { type Color4d, fromHSV, setFromHexString, toHSV, toHexString } from '../gal/color4d.js';

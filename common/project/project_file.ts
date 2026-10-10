@@ -11,7 +11,7 @@
  * through `wxFileExists`.
  */
 import { type KIID, niluuid } from '../kiid.js';
-import { wxFileExists } from '../wx/filefn.js';
+import { wxFileExists } from '@ziroeda/wx/filefn.js';
 import {
   JSON_SETTINGS,
   type JsonObject,

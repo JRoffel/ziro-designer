@@ -70,8 +70,8 @@ import {
   wxGridCellBoolRenderer,
   type wxGridEvent,
   wxGridStringTable,
-} from '@ziroeda/common/wx/grid.js';
-import { WxGridView } from '@ziroeda/common/wx/grid_ui.js';
+} from '@ziroeda/wx/grid.js';
+import { WxGridView } from '@ziroeda/wx/grid_ui.js';
 import {
   GRAPHICS_ROWS,
   checkFpGraphicsRow,

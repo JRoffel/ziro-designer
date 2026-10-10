@@ -40,7 +40,7 @@
  * KiCad's own struct instead of like its negation.
  */
 import type { JSX } from 'react';
-import { Check, Group, Num, Radio } from '@ziroeda/common/wx/controls.js';
+import { Check, Group, Num, Radio } from '@ziroeda/wx/controls.js';
 import { PanelGalOptions } from '@ziroeda/common/dialogs/panel_gal_options.js';
 import type { GBR_PREFS_CONTEXT } from '../gerbview.js';
 import { GBR_PAGE_SIZE_CHOICES, OPACITY_RANGE } from './panel_gerbview_display_options.js';

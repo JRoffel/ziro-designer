@@ -17,7 +17,7 @@
  *    `m_TargetProj`, and suffixed `_1`, `_2`... when the name is taken, as
  *    `FindEmptyTargetDir` does for a folder that is not empty.
  */
-import type { ChooserFilter } from '@ziroeda/common/wx/filedlg.js';
+import type { ChooserFilter } from '@ziroeda/wx/filedlg.js';
 import type { PickedHomeFile } from './files.js';
 import { EMPTY_PCB, projectJson } from './new_project.js';
 import {

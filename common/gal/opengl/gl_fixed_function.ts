@@ -20,9 +20,9 @@
  * Every call here is one the C++ makes; nothing is added.
  */
 
-import { cos, sin } from '@ziroeda/kimath/src/math/libm.js';
+import { cos, sin } from '@ziroeda/libc/libm.js';
 import type { MATRIX3x3D } from '@ziroeda/kimath/src/math/matrix3x3.js';
-import { wxASSERT } from '@ziroeda/core/wx_assert.js';
+import { wxASSERT } from '@ziroeda/wx/wx_assert.js';
 
 export enum GL_MATRIX_MODE {
   GL_MODELVIEW = 0x1700,

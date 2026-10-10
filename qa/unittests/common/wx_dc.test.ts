@@ -7,8 +7,8 @@
  * centres it, then convert points both ways.
  */
 import { describe, expect, it } from 'vitest';
-import { wxDC } from '@ziroeda/common/wx/dc.js';
-import { wxPrintout } from '@ziroeda/common/wx/prntbase.js';
+import { wxDC } from '@ziroeda/wx/dc.js';
+import { wxPrintout } from '@ziroeda/wx/prntbase.js';
 
 class FIT_PRINTOUT extends wxPrintout {
   OnPrintPage(): boolean {

@@ -67,7 +67,7 @@ import { LINE_STYLE, STROKE_PARAMS } from '@ziroeda/common/stroke_params.js';
 import { TEXT_ATTRIBUTES } from '@ziroeda/common/font/text_attributes.js';
 import { GR_TEXT_H_ALIGN_T, GR_TEXT_V_ALIGN_T } from '@ziroeda/common/font/text_attributes.js';
 import { InferBold } from '@ziroeda/common/gr_text.js';
-import { wxBell } from '@ziroeda/common/wx/utils.js';
+import { wxBell } from '@ziroeda/wx/utils.js';
 import type { VIEW } from '@ziroeda/common/view/view.js';
 import type { VIEW_CONTROLS } from '@ziroeda/common/view/view_controls.js';
 import { ARC_ASSISTANT } from '@ziroeda/common/preview_items/arc_assistant.js';
@@ -126,7 +126,7 @@ import { PCB_TABLE } from '../pcb_table.js';
 import { PCB_TABLECELL } from '../pcb_tablecell.js';
 import { BEZIER_ASSISTANT } from '@ziroeda/common/preview_items/bezier_assistant.js';
 import { ACTION_MENU } from '@ziroeda/common/tool/action_menu.js';
-import { BITMAPS } from '@ziroeda/common/bitmaps/bitmaps_list.js';
+import { BITMAPS } from '@ziroeda/include/bitmaps/bitmaps_list.js';
 import {
   CONTEXT_MENU_TRIGGER,
   TA_CHOICE_MENU_CHOICE,

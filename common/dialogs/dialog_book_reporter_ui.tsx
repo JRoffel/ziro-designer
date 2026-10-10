@@ -14,7 +14,7 @@
  * The sizer tree (dialog_book_reporter_base.cpp): the notebook, minimum
  * 550 x 480, wxEXPAND|wxALL 10; the button sizer wxEXPAND|wxALL 5.
  */
-import { Button } from '../wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
 import { useEffect, useState, type JSX, type Ref } from 'react';
 import { WX_HTML_REPORT_BOX } from '../widgets/wx_html_report_box.js';
 import { DialogShim } from '../dialog_shim.js';

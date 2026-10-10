@@ -7,9 +7,9 @@
  * language), the KIWAY, the file dialog over the account's storage, the
  * Preferences dialog, the user's toolbar layout, and the way home.
  */
-import { Button } from '@ziroeda/common/wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
 import type { KIWAY } from '@ziroeda/common/kiway.js';
-import type { ChooserFilter } from '@ziroeda/common/wx/filedlg.js';
+import type { ChooserFilter } from '@ziroeda/wx/filedlg.js';
 import {
   type GERBVIEW_APP,
   type GERBVIEW_PICKED_FILE,

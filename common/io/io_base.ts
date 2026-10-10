@@ -13,7 +13,7 @@
 
 import { IO_ERROR } from '../exceptions.js';
 import { fileFilter } from '../wildcards_and_files_ext.js';
-import type { ChooserFilter } from '../wx/filedlg.js';
+import type { ChooserFilter } from '@ziroeda/wx/filedlg.js';
 import type { PROGRESS_REPORTER } from '../progress_reporter.js';
 import type { Reporter } from '../reporter.js';
 import { RPT_SEVERITY_UNDEFINED, type Severity } from '../reporter.js';

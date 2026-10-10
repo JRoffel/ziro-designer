@@ -53,7 +53,7 @@
  * recolour and re-encode in a place where nothing else touches a raster.
  */
 
-import { CheckBox, TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { CheckBox, TextCtrl } from '@ziroeda/wx/controls.js';
 import { useState, type JSX } from 'react';
 import { pcbIuToMM, pcbIUScale, pcbMmToIU } from '@ziroeda/common/eda_units.js';
 import {
@@ -62,7 +62,7 @@ import {
   sizeForScale,
   type ImageValues,
 } from './dialog_reference_image_properties.js';
-import { pngPixelSize, pngPPI } from '@ziroeda/common/wx/png_meta.js';
+import { pngPixelSize, pngPPI } from '@ziroeda/wx/png_meta.js';
 import { CheckValues, PANEL_IMAGE_EDITOR } from '@ziroeda/common/dialogs/panel_image_editor.js';
 import { MessageDialogError, MessageDialogYesNo } from '@ziroeda/common/dialogs/dialog_message.js';
 import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';

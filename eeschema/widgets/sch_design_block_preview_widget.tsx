@@ -15,7 +15,7 @@
 import { useCallback, useEffect, useMemo, useRef, type JSX } from 'react';
 import { parse } from '@ziroeda/sexpr';
 import type { DESIGN_BLOCK } from '@ziroeda/common/design_block.js';
-import { wxReadFileSync } from '@ziroeda/common/wx/filefn.js';
+import { wxReadFileSync } from '@ziroeda/wx/filefn.js';
 import { readSchematic } from '../sch_io/sexpr/read-schematic.js';
 import { fitToContent, renderSchematic } from '../sch_painter.js';
 import { DEFAULT_RENDER_OPTS, type Theme } from '../sch_render_settings.js';

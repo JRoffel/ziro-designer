@@ -7,7 +7,7 @@
  * here a `Map<string, string>`.
  */
 
-import { ToCDoubleOk, atoi, strtodPrefix } from '../../libc/stdlib.js';
+import { ToCDoubleOk, atoi, strtodPrefix } from '@ziroeda/libc/stdlib.js';
 import { KiROUND } from '@ziroeda/kimath/src/math/util.js';
 
 /** An Altium property record: `std::map<wxString, wxString>`. */

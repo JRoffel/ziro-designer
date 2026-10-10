@@ -20,7 +20,7 @@
  * reference presentation, and simulator operating-point overlay precision/range.
  */
 
-import { Combo } from '@ziroeda/common/wx/controls.js';
+import { Combo } from '@ziroeda/wx/controls.js';
 import type { JSX } from 'react';
 import {
   JUNCTION_DOT_SIZES,

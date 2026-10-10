@@ -22,7 +22,7 @@
  * MODELESS: it is drawn while `dialog.IsShown()`, over the canvas, which stays
  * live (the picker buttons hide it and the picker brings it back).
  */
-import { Button, CheckBox, StaticLine } from '@ziroeda/common/wx/controls.js';
+import { Button, CheckBox, StaticLine } from '@ziroeda/wx/controls.js';
 import { type JSX, type Ref, useEffect, useRef, useSyncExternalStore } from 'react';
 import { DialogShim, StdDialogButtons } from '@ziroeda/common/dialog_shim.js';
 import type { UNIT_BINDER } from '@ziroeda/common/widgets/unit_binder.js';

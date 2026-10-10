@@ -28,7 +28,7 @@ import {
   TC_MOUSE,
   TOOL_EVENT,
 } from '@ziroeda/common/tool/tool_event.js';
-import type { wxMenu } from '@ziroeda/common/wx/menu.js';
+import type { wxMenu } from '@ziroeda/wx/menu.js';
 import { PL_SELECTION_TOOL } from '@ziroeda/pagelayout_editor/tools/pl_selection_tool.js';
 import { type Harness, makeHarness, settle } from './pl_editor_fixture.js';
 

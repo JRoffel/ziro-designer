@@ -23,9 +23,9 @@
  *    (`:66`, `:108`, `:159`) — not one grey 11px "%(d)".
  */
 
-import { CheckBox, TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { CheckBox, TextCtrl } from '@ziroeda/wx/controls.js';
 import type { JSX } from 'react';
-import { SpinCtrl } from '@ziroeda/common/widgets/spin_ctrl.js';
+import { SpinCtrl } from '@ziroeda/wx/spin_ctrl.js';
 
 const icon = (name: string): string | undefined => svgUrl('teardrops', name);
 

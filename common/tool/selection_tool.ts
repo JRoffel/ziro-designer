@@ -8,14 +8,14 @@
  * actions, and the disambiguation menu shown when a click hits several items.
  */
 
-import { BITMAPS } from '../bitmaps/bitmaps_list.js';
+import { BITMAPS } from '@ziroeda/include/bitmaps/bitmaps_list.js';
 import type { COLLECTOR } from '../collector.js';
 import type { EDA_DRAW_FRAME } from '../eda_draw_frame.js';
 import type { EDA_ITEM } from '../eda_item.js';
 import { BRIGHTENED } from '../eda_item_flags.js';
 import type { KIID } from '../kiid.js';
 import { GAL_LAYER_ID } from '../layer_id.js';
-import { wxTimer } from '../wx/wx_event.js';
+import { wxTimer } from '@ziroeda/wx/wx_event.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import type { VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
 import { ACTION_MENU } from './action_menu.js';

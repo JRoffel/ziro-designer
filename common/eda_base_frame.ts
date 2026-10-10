@@ -13,7 +13,7 @@
  * base.
  */
 import { DisplayErrorMessage } from './confirm.js';
-import { wxDirExists, wxFileExists, wxIsDirWritable } from './wx/filefn.js';
+import { wxDirExists, wxFileExists, wxIsDirWritable } from '@ziroeda/wx/filefn.js';
 import type { MessageDialogIcon } from './confirm_types.js';
 import type { KIWAY } from './kiway.js';
 import type { EdaIuScale, EdaUnits } from './eda_units.js';
@@ -28,7 +28,7 @@ import { RPT_SEVERITY_UNDEFINED, type Severity } from './reporter.js';
 import type { TOOL_ACTION } from './tool/tool_action.js';
 import type { ACTION_CONDITIONS } from './tool/action_manager.js';
 import { ACTIONS } from './tool/actions.js';
-import type { wxUpdateUIEvent } from './wx/wx_event.js';
+import type { wxUpdateUIEvent } from '@ziroeda/wx/wx_event.js';
 import type { ACTION_MENU } from './tool/action_menu.js';
 import type { APP_SETTINGS_BASE, WINDOW_SETTINGS } from './settings/app_settings.js';
 

@@ -9,7 +9,7 @@
 import { IO_FILE_DESC } from '@ziroeda/common/io/io_base.js';
 import { fileStartsWithPrefix } from '@ziroeda/common/io/io_utils.js';
 import type { PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
-import { atoi } from '@ziroeda/common/libc/stdlib.js';
+import { atoi } from '@ziroeda/libc/stdlib.js';
 import { BOARD } from '../../board.js';
 import type { FOOTPRINT } from '../../footprint.js';
 import {

@@ -38,19 +38,14 @@ import {
   RPT_SEVERITY_WARNING,
   WX_STRING_REPORTER,
 } from '@ziroeda/common/reporter.js';
-import type { ChooserFilter } from '@ziroeda/common/wx/filedlg.js';
+import type { ChooserFilter } from '@ziroeda/wx/filedlg.js';
 import {
   GERBVIEW_AUTODETECT_FILTERS,
   GERBVIEW_DRILL_FILTERS,
   GERBVIEW_GERBER_FILTERS,
   GERBVIEW_ZIP_FILTERS,
 } from '@ziroeda/common/wildcards_and_files_ext.js';
-import {
-  wxFileExists,
-  wxReadFileSync,
-  wxRemoveFile,
-  wxWriteFileSync,
-} from '@ziroeda/common/wx/filefn.js';
+import { wxFileExists, wxReadFileSync, wxRemoveFile, wxWriteFileSync } from '@ziroeda/wx/filefn.js';
 import { unzipSync } from 'fflate';
 import { ReadFileText } from './libc.js';
 import { GERBER_FILE_IMAGE_LIST, GERBER_ORDER_ENUM } from './gerber_file_image_list.js';

@@ -11,8 +11,8 @@
  *
  * The header also declares `properties`, which the .cpp never defines; nor do we.
  */
-import { WXK } from '@ziroeda/core/wx_keycodes.js';
-import { BITMAPS } from '@ziroeda/common/bitmaps/bitmaps_list.js';
+import { WXK } from '@ziroeda/wx/wx_keycodes.js';
+import { BITMAPS } from '@ziroeda/include/bitmaps/bitmaps_list.js';
 import { ACTIONS } from '@ziroeda/common/tool/actions.js';
 import {
   TOOL_ACTION,

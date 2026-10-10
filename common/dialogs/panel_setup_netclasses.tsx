@@ -18,7 +18,7 @@
  * matching-nets pane and the per-column tooltips.
  */
 
-import { Button } from '../wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
 import { type JSX, useEffect, useLayoutEffect } from 'react';
 import { DisplayErrorMessage } from '../confirm.js';
 import { StdBitmapButton } from '../widgets/std_bitmap_button.js';
@@ -30,8 +30,8 @@ import {
   wxGridCellChoiceEditor,
   type wxGridEvent,
   wxGridSelectionModes,
-} from '../wx/grid.js';
-import { useStringGrid, WxGridView } from '../wx/grid_ui.js';
+} from '@ziroeda/wx/grid.js';
+import { useStringGrid, WxGridView } from '@ziroeda/wx/grid_ui.js';
 import {
   LINE_STYLES,
   blankNetClass as blankClass,

@@ -53,16 +53,16 @@
  * `OnOkClick` is the only writer upstream too (`:104-118`).
  */
 
-import { Button } from '@ziroeda/common/wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
 import { useLayoutEffect, useMemo, useRef, useState, type JSX, type ReactNode } from 'react';
 import { WX_GRID } from '@ziroeda/common/widgets/wx_grid.js';
-import { wxGridStringTable } from '@ziroeda/common/wx/grid.js';
-import { WxGridView } from '@ziroeda/common/wx/grid_ui.js';
+import { wxGridStringTable } from '@ziroeda/wx/grid.js';
+import { WxGridView } from '@ziroeda/wx/grid_ui.js';
 import { StdBitmapButton } from '@ziroeda/common/widgets/std_bitmap_button.js';
 import { DialogShim } from '@ziroeda/common/dialog_shim.js';
 import { MessageDialogError } from '@ziroeda/common/dialogs/dialog_message.js';
 import { equFileWildcard } from '@ziroeda/common/wildcards_and_files_ext.js';
-import type { ChooserFilter, OpenedFile } from '@ziroeda/common/wx/filedlg.js';
+import type { ChooserFilter, OpenedFile } from '@ziroeda/wx/filedlg.js';
 import { projectRoot, type ProjectFile } from '@ziroeda/common/project_paths.js';
 import {
   addEquFile,

@@ -19,7 +19,7 @@
  */
 import type { JSX } from 'react';
 import { FootprintChoice } from './footprint_choice.js';
-import type { OwnerDrawnItem } from '../wx/odcombo.js';
+import type { OwnerDrawnItem } from '@ziroeda/wx/odcombo.js';
 
 export interface FootprintSelectWidgetProps {
   /** The symbol's default footprint LIB_ID text ('' = none). */

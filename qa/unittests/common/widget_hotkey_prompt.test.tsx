@@ -17,8 +17,8 @@ import {
 import { resetModalStack } from '@ziroeda/common/dialog_shim.js';
 import type { HotkeySection } from '@ziroeda/common/hotkey_store.js';
 import { WidgetHotkeyList } from '@ziroeda/common/widgets/widget_hotkey_list.js';
-import { wxNO_DEFAULT, wxYES_NO } from '@ziroeda/common/wx/defs.js';
-import { wxID_NO, wxID_YES } from '@ziroeda/common/wx/menu.js';
+import { wxNO_DEFAULT, wxYES_NO } from '@ziroeda/wx/defs.js';
+import { wxID_NO, wxID_YES } from '@ziroeda/wx/menu.js';
 
 const entry = (name: string, command: string, keys: string) => ({
   name,

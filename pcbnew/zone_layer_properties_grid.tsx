@@ -39,8 +39,8 @@ import {
   wxGridCellAttr,
   type wxGridEvent,
   wxGridTableRequest,
-} from '@ziroeda/common/wx/grid.js';
-import { WxGridView } from '@ziroeda/common/wx/grid_ui.js';
+} from '@ziroeda/wx/grid.js';
+import { WxGridView } from '@ziroeda/wx/grid_ui.js';
 import type { ZoneLayerPropertiesMap } from './dialogs/panel_setup_zone_hatch_offsets.js';
 import { PCB_BACKGROUND } from './pcbTheme.js';
 import { LSET_NameToLayer } from '@ziroeda/common/layer_ids.js';

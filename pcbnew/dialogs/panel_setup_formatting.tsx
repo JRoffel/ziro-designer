@@ -19,7 +19,7 @@
  */
 
 import type { JSX } from 'react';
-import { Check, Group, Num } from '@ziroeda/common/wx/controls.js';
+import { Check, Group, Num } from '@ziroeda/wx/controls.js';
 import type { BOARD } from '../board.js';
 
 export interface PcbFormatting {

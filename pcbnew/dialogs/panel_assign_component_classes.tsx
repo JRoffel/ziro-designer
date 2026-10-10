@@ -17,7 +17,7 @@
  * `.ze-pref-group-title`, which draws the wxStaticLine this had inline.
  */
 
-import { Button, CheckBox, RadioButton, TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { Button, CheckBox, RadioButton, TextCtrl } from '@ziroeda/wx/controls.js';
 import type { JSX } from 'react';
 import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
 import { Icon } from '@ziroeda/common/widgets/icons.js';

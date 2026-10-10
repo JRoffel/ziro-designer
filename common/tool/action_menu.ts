@@ -59,7 +59,7 @@
  */
 import { browserSafeKey } from '../browser_reserved.js';
 import type { MenuItem } from './action_menu_types.js';
-import { BITMAPS } from '../bitmaps/bitmaps_list.js';
+import { BITMAPS } from '@ziroeda/include/bitmaps/bitmaps_list.js';
 import { main_id } from '../id.js';
 import {
   wxID_ANY,
@@ -69,7 +69,7 @@ import {
   type wxMenuEvent,
   wxMenuEventType,
   wxMenuItem,
-} from '../wx/menu.js';
+} from '@ziroeda/wx/menu.js';
 import type { Vec2 as VECTOR2D } from '@ziroeda/kimath/src/math/vector2.js';
 import { ACTIONS } from './actions.js';
 import type { TOOL_ACTION } from './tool_action.js';

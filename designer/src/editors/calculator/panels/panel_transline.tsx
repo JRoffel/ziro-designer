@@ -30,7 +30,7 @@
  * upstream's 0.2 and 0.2.
  */
 
-import { RadioButton, TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { RadioButton, TextCtrl } from '@ziroeda/wx/controls.js';
 import {
   CONDUCTOR_RESISTIVITIES,
   LOSS_TANGENTS,

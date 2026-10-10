@@ -62,7 +62,7 @@ import { LINE_STYLE } from '@ziroeda/common/stroke_params.js';
 import { UnescapeHTML, wxSplit } from '@ziroeda/common/string_utils.js';
 import { FIELD_T } from '@ziroeda/common/template_fieldnames.js';
 import { base64ToBytes } from '@ziroeda/common/drawing_sheet/ds_bitmap.js';
-import { WX_IMAGE } from '@ziroeda/common/wx/wx_image.js';
+import { WX_IMAGE } from '@ziroeda/wx/wx_image.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { ANGLE_HORIZONTAL, ANGLE_VERTICAL } from '@ziroeda/kimath/src/geometry/eda_angle.js';
 import { SHAPE_LINE_CHAIN } from '@ziroeda/kimath/src/geometry/shape_line_chain.js';

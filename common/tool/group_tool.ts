@@ -18,7 +18,7 @@ import type { COMMIT } from '../commit.js';
 import type { EDA_DRAW_FRAME } from '../eda_draw_frame.js';
 import { asEdaGroup, type EDA_GROUP } from '../eda_group.js';
 import { type EDA_ITEM, type EDA_ITEMS, RECURSE_MODE } from '../eda_item.js';
-import { BITMAPS } from '../bitmaps/bitmaps_list.js';
+import { BITMAPS } from '@ziroeda/include/bitmaps/bitmaps_list.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { ACTION_MENU } from './action_menu.js';
 import type { COROUTINE_BODY } from './coroutine.js';

@@ -17,7 +17,7 @@
  * button asks, is not here either.
  */
 import { KiBitmapBundle } from '../bitmap.js';
-import { BITMAPS } from '../bitmaps/bitmaps_list.js';
+import { BITMAPS } from '@ziroeda/include/bitmaps/bitmaps_list.js';
 import { escapeLibId, unescapeString } from '../string_utils.js';
 import { GRID_BITMAP_BUTTON_RENDERER } from '../widgets/grid_button.js';
 import { GRID_CELL_TEXT_EDITOR } from '../widgets/grid_text_helpers.js';
@@ -31,7 +31,7 @@ import {
   wxGridCellBoolRenderer,
   wxGridCellChoiceEditor,
   wxGridTableRequest,
-} from '../wx/grid.js';
+} from '@ziroeda/wx/grid.js';
 import type { LIBRARY_MANAGER_ADAPTER } from './library_manager.js';
 import { type LIBRARY_TABLE, LIBRARY_TABLE_ROW } from './library_table.js';
 

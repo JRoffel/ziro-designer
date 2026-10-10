@@ -20,7 +20,7 @@
  * where nothing will connect to them.
  */
 
-import { BITMAPS } from '@ziroeda/common/bitmaps/bitmaps_list.js';
+import { BITMAPS } from '@ziroeda/include/bitmaps/bitmaps_list.js';
 import { RECURSE_MODE } from '@ziroeda/common/eda_item.js';
 import { IS_MOVING } from '@ziroeda/common/eda_item_flags.js';
 import { CONDITIONAL_MENU } from '@ziroeda/common/tool/conditional_menu.js';
@@ -28,7 +28,7 @@ import { GRID_HELPER_GRIDS } from '@ziroeda/common/tool/grid_helper.js';
 import { SELECTION_CONDITIONS } from '@ziroeda/common/tool/selection_conditions.js';
 import type { TOOL_EVENT } from '@ziroeda/common/tool/tool_event.js';
 import { SYNC_HANDLER } from '@ziroeda/common/tool/tool_interactive.js';
-import { stdSort } from '@ziroeda/kimath/src/clipper2/clipper.core.js';
+import { stdSort } from '@ziroeda/clipper2/clipper.core.js';
 import type { BOX2I } from '@ziroeda/kimath/src/math/box2.js';
 import type { VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
 import { SCH_COLLECTOR } from '../sch_collectors.js';

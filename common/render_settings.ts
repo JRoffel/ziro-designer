@@ -13,7 +13,7 @@
  * line-width sentinels, at the level of sharing upstream gives them.
  */
 
-import type { wxDC } from './wx/dc.js';
+import type { wxDC } from '@ziroeda/wx/dc.js';
 import {
   brightened,
   brightness,

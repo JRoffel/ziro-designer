@@ -29,7 +29,7 @@ import { SHAPE_ARC } from './shape_arc.js';
 import { SHAPE_POLY_SET } from './shape_poly_set.js';
 import type { ERROR_LOC } from '../convert_basic_shapes_to_polygon.js';
 import type { CornerStrategy } from './shape_poly_set_algorithms.js';
-import type { Path64 } from '../clipper2/clipper.core.js';
+import type { Path64 } from '@ziroeda/clipper2/clipper.core.js';
 
 /** `ssize_t`-indexed pair `( first, second )` of `m_shapes`. */
 export type SHAPE_PAIR = [number, number];

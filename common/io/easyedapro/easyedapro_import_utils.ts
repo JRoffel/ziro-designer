@@ -27,7 +27,7 @@ import {
   jParse,
   jStr,
 } from '../../json_common.js';
-import { wxZipInputStream } from '../../wx/zipstrm.js';
+import { wxZipInputStream } from '@ziroeda/wx/zipstrm.js';
 import type { IMPORT_PROJECT_DESC } from '../common/plugin_common_choose_project.js';
 import { PRJ_BOARD_from_json, PRJ_SCHEMATIC_from_json } from './easyedapro_parser.js';
 

@@ -28,12 +28,12 @@ import {
   useRef,
   useState,
 } from 'react';
-import { GRID_TRICKS } from '../grid_tricks.js';
-import type { GRID_CELL_TEXT_BUTTON_VIEW } from '../widgets/grid_text_button_helpers.js';
-import { WX_GRID } from '../widgets/wx_grid.js';
-import { ContextMenu } from '../tool/action_menu_bar.js';
-import type { MenuItem } from '../tool/action_menu_types.js';
-import { Combo } from '../widgets/wx_combobox.js';
+import { GRID_TRICKS } from '@ziroeda/common/grid_tricks.js';
+import type { GRID_CELL_TEXT_BUTTON_VIEW } from '@ziroeda/common/widgets/grid_text_button_helpers.js';
+import { WX_GRID } from '@ziroeda/common/widgets/wx_grid.js';
+import { ContextMenu } from '@ziroeda/common/tool/action_menu_bar.js';
+import type { MenuItem } from '@ziroeda/common/tool/action_menu_types.js';
+import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
 import { wxKeyEventFromDom } from './dom_events.js';
 import {
   wxEVT_GRID_CELL_LEFT_CLICK,

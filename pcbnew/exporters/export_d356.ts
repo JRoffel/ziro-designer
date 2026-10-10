@@ -36,7 +36,7 @@ import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { KiROUND } from '@ziroeda/kimath/src/math/util.js';
 import { DisplayErrorMessage, DisplayInfoMessage } from '@ziroeda/common/confirm.js';
 import { ipcD356FileWildcard } from '@ziroeda/common/wildcards_and_files_ext.js';
-import type { ChooserFilter } from '@ziroeda/common/wx/filedlg.js';
+import type { ChooserFilter } from '@ziroeda/wx/filedlg.js';
 import type { BOARD } from '../board.js';
 import { NETINFO_LIST } from '../netinfo_list.js';
 import { PAD_ATTRIB, PAD_SHAPE, PADSTACK } from '../padstack.js';

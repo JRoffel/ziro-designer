@@ -18,7 +18,7 @@
  */
 
 import type { JSX } from 'react';
-import { Check, Sel } from '@ziroeda/common/wx/controls.js';
+import { Check, Sel } from '@ziroeda/wx/controls.js';
 import { GetStandardCopperFinishes } from './stackup_predefined_prms.js';
 import type { BOARD } from '../board.js';
 import type { BS_EDGE_CONNECTOR_CONSTRAINTS } from './board_stackup.js';

@@ -21,7 +21,7 @@
  * asking first whether an absolute path should be made relative; the undo step is the caller's,
  * gated on the isUndoable out-parameter.
  */
-import { Button, CheckBox } from '@ziroeda/common/wx/controls.js';
+import { Button, CheckBox } from '@ziroeda/wx/controls.js';
 import { type JSX, useReducer, useState } from 'react';
 import { DisplayErrorMessage, ShowKicadMessageDialog } from '@ziroeda/common/confirm.js';
 import { ensureFileExtension } from '@ziroeda/common/common.js';
@@ -44,16 +44,16 @@ import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js'
 import { StdBitmapButton } from '@ziroeda/common/widgets/std_bitmap_button.js';
 import { UNIT_BINDER, unitLabel } from '@ziroeda/common/widgets/unit_binder.js';
 import { WX_GRID } from '@ziroeda/common/widgets/wx_grid.js';
-import { wxCENTER, wxICON_QUESTION, wxYES_DEFAULT, wxYES_NO } from '@ziroeda/common/wx/defs.js';
-import { wxMakeRelativeTo } from '@ziroeda/common/wx/filefn.js';
+import { wxCENTER, wxICON_QUESTION, wxYES_DEFAULT, wxYES_NO } from '@ziroeda/wx/defs.js';
+import { wxMakeRelativeTo } from '@ziroeda/wx/filefn.js';
 import {
   type wxGridEvent,
   wxEVT_GRID_CELL_CHANGING,
   wxGridSelectionModes,
   wxGridTableRequest,
-} from '@ziroeda/common/wx/grid.js';
-import { WxGridView } from '@ziroeda/common/wx/grid_ui.js';
-import { wxID_YES } from '@ziroeda/common/wx/menu.js';
+} from '@ziroeda/wx/grid.js';
+import { WxGridView } from '@ziroeda/wx/grid_ui.js';
+import { wxID_YES } from '@ziroeda/wx/menu.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { FIELDS_DATA_COL_ORDER, FIELDS_GRID_TABLE } from '../fields_grid_table.js';
 import type { SCH_EDIT_FRAME, SHEET_PROPERTIES_RESULT } from '../sch_edit_frame.js';

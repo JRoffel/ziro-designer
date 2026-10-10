@@ -38,7 +38,7 @@
  * today, and both need a filesystem we do not have.
  */
 
-import { Button, Combo, TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { Button, Combo, TextCtrl } from '@ziroeda/wx/controls.js';
 import { settings } from '../../prefs/settings.js';
 import { useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import { sanitizeProjectName } from '../new_project.js';

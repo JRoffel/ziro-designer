@@ -7,7 +7,7 @@
  */
 import type { FRAME_T } from './frame_type.js';
 import type { MAIL_T } from './mail_type.js';
-import { wxEvent, wxNewEventType } from './wx/wx_event.js';
+import { wxEvent, wxNewEventType } from '@ziroeda/wx/wx_event.js';
 
 /**
  * `std::string&`: the payload is held by reference, so a recipient that

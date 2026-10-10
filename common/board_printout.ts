@@ -14,7 +14,7 @@
 import { COLOR4D_BLACK, COLOR4D_WHITE, withAlpha } from './gal/color4d.js';
 import { GAL_DISPLAY_OPTIONS } from './gal/gal_display_options.js';
 import { GAL_PRINT } from './gal/gal_print.js';
-import { wxPrintout } from './wx/prntbase.js';
+import { wxPrintout } from '@ziroeda/wx/prntbase.js';
 
 export { wxPrintout };
 import { GAL_DRAWING_CONTEXT, type GAL } from './gal/graphics_abstraction_layer.js';

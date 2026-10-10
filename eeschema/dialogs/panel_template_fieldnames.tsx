@@ -33,8 +33,8 @@
 import type { JSX } from 'react';
 import { StdBitmapButton } from '@ziroeda/common/widgets/std_bitmap_button.js';
 import type { WX_GRID } from '@ziroeda/common/widgets/wx_grid.js';
-import { wxGridCellBoolRenderer, wxGridSelectionModes } from '@ziroeda/common/wx/grid.js';
-import { useStringGrid, WxGridView } from '@ziroeda/common/wx/grid_ui.js';
+import { wxGridCellBoolRenderer, wxGridSelectionModes } from '@ziroeda/wx/grid.js';
+import { useStringGrid, WxGridView } from '@ziroeda/wx/grid_ui.js';
 import type { FieldTemplate } from '../schematic_settings.js';
 
 // The data model lives in schematic_settings.ts (KiCad's data/UI split);

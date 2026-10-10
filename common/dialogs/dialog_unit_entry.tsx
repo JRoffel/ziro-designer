@@ -15,7 +15,7 @@
  * wxLEFT 5, the entry proportion 1 wxALL 5, the unit wxTOP|wxBOTTOM|wxRIGHT 5
  * - then a 100 px stretch spacer and the std buttons at wxALL 5.
  */
-import { Button } from '../wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
 import { useState, type JSX } from 'react';
 import { StdDialogButtons } from '../dialog_shim.js';
 import type { EdaIuScale } from '../eda_units.js';

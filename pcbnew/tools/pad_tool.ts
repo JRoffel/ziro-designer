@@ -26,7 +26,7 @@ import {
 } from '@ziroeda/common/tool/tool_event.js';
 import { KICURSOR } from '@ziroeda/common/gal/cursors.js';
 import { niluuid, type KIID } from '@ziroeda/common/kiid.js';
-import * as KIPLATFORM_UI from '@ziroeda/common/kiplatform/ui.js';
+import * as KIPLATFORM_UI from '@ziroeda/kiplatform/ui.js';
 import { PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import { LSET } from '@ziroeda/common/lset.js';
 import { KiROUND } from '@ziroeda/kimath/src/math/util.js';

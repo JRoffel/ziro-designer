@@ -15,7 +15,7 @@ import { GetGRForceBlackPenState } from '@ziroeda/common/gr_basic.js';
 import { PAGE_INFO, PAGE_SIZE_TYPE } from '@ziroeda/common/page_info.js';
 import { PGM_BASE, SetPgm } from '@ziroeda/common/pgm_base.js';
 import { EDA_UNITS_INT } from '@ziroeda/common/settings/app_settings.js';
-import { wxDC } from '@ziroeda/common/wx/dc.js';
+import { wxDC } from '@ziroeda/wx/dc.js';
 import { LEGACY_COLORS } from '@ziroeda/common/gal/color4d.js';
 import { PLEDITOR_PRINTOUT } from '@ziroeda/pagelayout_editor/dialogs/dialogs_for_printing.js';
 import { makeHarness } from './pl_editor_fixture.js';

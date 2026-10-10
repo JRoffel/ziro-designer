@@ -14,7 +14,7 @@ import { TA_MOUSE_MOTION } from '@ziroeda/common/tool/tool_event.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import type { LIB_SYMBOL } from '@ziroeda/eeschema/lib_symbol.js';
 import type { SCH_EDIT_FRAME_HOOKS } from '@ziroeda/eeschema/sch_edit_frame.js';
-import { wxWriteFileSync } from '@ziroeda/common/wx/filefn.js';
+import { wxWriteFileSync } from '@ziroeda/wx/filefn.js';
 import { SCH_IO_KICAD_SEXPR_LIB_CACHE } from '@ziroeda/eeschema/sch_io/kicad_sexpr/sch_io_kicad_sexpr_lib_cache.js';
 import type { PICKED_SYMBOL } from '@ziroeda/eeschema/sch_screen.js';
 import type { SCH_SYMBOL } from '@ziroeda/eeschema/sch_symbol.js';

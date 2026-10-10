@@ -11,8 +11,8 @@
  * conversion throws `XML_PARSER_ERROR`, as upstream's `Set` does).
  */
 
-import { atoi, strtodPrefix, ToCDoubleOk } from '../../libc/stdlib.js';
-import { tan } from '@ziroeda/kimath/src/math/libm.js';
+import { atoi, strtodPrefix, ToCDoubleOk } from '@ziroeda/libc/stdlib.js';
+import { tan } from '@ziroeda/libc/libm.js';
 import type { VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
 import { IO_ERROR } from '../../exceptions.js';
 import type { IO_BASE } from '../io_base.js';
@@ -22,7 +22,7 @@ import {
   RemoveHTMLTags,
   ReplaceIllegalFileNameChars,
 } from '../../string_utils.js';
-import type { wxXmlNode } from '../../wx/xml.js';
+import type { wxXmlNode } from '@ziroeda/wx/xml.js';
 
 /** `NODE_MAP`: `std::unordered_map<wxString, wxXmlNode*>`. */
 export type NODE_MAP = Map<string, wxXmlNode>;

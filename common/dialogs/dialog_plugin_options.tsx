@@ -21,7 +21,7 @@
  * The grid is a WX_GRID with GRID_TRICKS, rows selected whole; column 0 is
  * autosized with a 72 px floor and column 1 takes the rest (`onUpdateUI`).
  */
-import { StaticBox } from '../wx/controls.js';
+import { StaticBox } from '@ziroeda/wx/controls.js';
 import { useState, type JSX } from 'react';
 import { DialogShim, StdDialogButtons } from '../dialog_shim.js';
 import { formatLibraryTableOptions, parseLibraryTableOptions } from '../libraries/library_table.js';
@@ -29,8 +29,8 @@ import { HtmlWindow } from '../widgets/html_window.js';
 import { StdBitmapButton } from '../widgets/std_bitmap_button.js';
 import type { WX_GRID } from '../widgets/wx_grid.js';
 import { useModalEscape } from '../dialog_shim.js';
-import { wxGridSelectionModes } from '../wx/grid.js';
-import { useStringGrid, WxGridView } from '../wx/grid_ui.js';
+import { wxGridSelectionModes } from '@ziroeda/wx/grid.js';
+import { useStringGrid, WxGridView } from '@ziroeda/wx/grid_ui.js';
 
 /** INITIAL_HELP (dialog_plugin_options.cpp:35-37). */
 export const INITIAL_HELP =

@@ -61,7 +61,7 @@ import {
   libItemNameIllegalCharOffset,
 } from './tools/edit_symbol_libid.js';
 import { escapeLibId, unescapeString } from '@ziroeda/common';
-import type { InputPrefs } from '@ziroeda/common/ui/view_controls.js';
+import type { InputPrefs } from '@ziroeda/common/view/wx_view_controls.js';
 import { DisplayErrorMessage } from '@ziroeda/common/confirm.js';
 import { IO_ERROR } from '@ziroeda/common/exceptions.js';
 import { LIB_ID } from '@ziroeda/common/lib_id.js';
@@ -76,8 +76,8 @@ import {
   KiCadSymbolLibFileExtension,
   LegacySymbolLibFileExtension,
 } from '@ziroeda/common/wildcards_and_files_ext.js';
-import { wxOK } from '@ziroeda/common/wx/defs.js';
-import { wxID_OK } from '@ziroeda/common/wx/menu.js';
+import { wxOK } from '@ziroeda/wx/defs.js';
+import { wxID_OK } from '@ziroeda/wx/menu.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { LIB_SYMBOL } from './lib_symbol.js';
 import { SymbolLibAdapter } from './project_sch.js';

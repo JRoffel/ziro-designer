@@ -11,7 +11,7 @@
  * The view draws the shared Combo over `m_choices`, as it does for the choice
  * editor it is.
  */
-import { wxGridCellChoiceEditor } from '../wx/grid.js';
+import { wxGridCellChoiceEditor } from '@ziroeda/wx/grid.js';
 
 export class GRID_CELL_COMBOBOX extends wxGridCellChoiceEditor {
   constructor(aNames: readonly string[] = []) {

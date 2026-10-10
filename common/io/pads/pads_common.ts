@@ -13,7 +13,7 @@
  */
 
 import { LINE_STYLE } from '../../stroke_params.js';
-import { strtodPrefix } from '../../libc/stdlib.js';
+import { strtodPrefix } from '@ziroeda/libc/stdlib.js';
 
 /** A byte string's bytes. */
 export function bytesOf(aByteString: string): Uint8Array {

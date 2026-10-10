@@ -29,7 +29,7 @@
  * at all, so "Invited" is shown as a state rather than as a confirmation.
  */
 
-import { Button } from '@ziroeda/common/wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
 import { useCallback, useRef, useState, type JSX } from 'react';
 import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
 import { useDismissOnOutside } from '@ziroeda/common/widgets/use_dismiss_on_outside.js';

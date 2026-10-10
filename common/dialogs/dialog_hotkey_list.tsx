@@ -8,7 +8,7 @@
  * and OK writes them back (`WriteHotKeyConfig`); the app's host that opens it
  * on ACTIONS::listHotKeys is `designer/src/ui/hotkey_list_host.tsx`.
  */
-import { Button } from '../wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
 import { useState, type JSX } from 'react';
 import { PanelHotkeysEditor } from './panel_hotkeys_editor.js';
 import type { HotkeyOverrides, HotkeySection } from '../hotkey_store.js';

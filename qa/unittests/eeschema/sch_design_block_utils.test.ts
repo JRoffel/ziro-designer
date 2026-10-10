@@ -21,7 +21,7 @@ import { PROJECT } from '@ziroeda/common/project.js';
 import { PROJECT_FILE } from '@ziroeda/common/project/project_file.js';
 import { FIELD_T } from '@ziroeda/common/template_fieldnames.js';
 import type { DESIGN_BLOCK_PANE_DIALOGS } from '@ziroeda/common/widgets/design_block_pane.js';
-import { wxGetTempDir, wxMkdir, wxReadFileSync } from '@ziroeda/common/wx/filefn.js';
+import { wxGetTempDir, wxMkdir, wxReadFileSync } from '@ziroeda/wx/filefn.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import type { EDA_ITEM } from '@ziroeda/common/eda_item.js';
 import { SCH_EDIT_FRAME, type SCH_EDIT_FRAME_HOOKS } from '@ziroeda/eeschema/sch_edit_frame.js';

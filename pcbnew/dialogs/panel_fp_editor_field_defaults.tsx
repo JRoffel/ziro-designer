@@ -58,8 +58,8 @@ import {
   wxGridCellBoolRenderer,
   wxGridSelectionModes,
   wxGridTableRequest,
-} from '@ziroeda/common/wx/grid.js';
-import { WxGridView } from '@ziroeda/common/wx/grid_ui.js';
+} from '@ziroeda/wx/grid.js';
+import { WxGridView } from '@ziroeda/wx/grid_ui.js';
 import { PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import {
   GRID_CELL_LAYER_RENDERER,

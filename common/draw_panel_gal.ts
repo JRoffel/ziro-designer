@@ -24,7 +24,7 @@ import type { CANVAS_2D } from './gal/cairo/cairo_api.js';
 import { CAIRO_GAL, type CAIRO_GAL_WINDOW } from './gal/cairo/cairo_gal.js';
 import { OPENGL_GAL, type OPENGL_GAL_CANVAS } from './gal/opengl/opengl_gal.js';
 import type { PAINTER } from './gal/painter.js';
-import * as KIPLATFORM_UI from './kiplatform/ui.js';
+import * as KIPLATFORM_UI from '@ziroeda/kiplatform/ui.js';
 import { Pgm } from './pgm_base.js';
 import { KI_TRACE, traceDrawPanel, traceGalProfile, wxLogTrace } from './trace_helpers.js';
 import type { VIEW } from './view/view.js';
@@ -38,7 +38,7 @@ import {
   wxKeyEventFromDom,
   wxMouseEventFromDom,
   wxWheelEventFromDom,
-} from './wx/dom_events.js';
+} from '@ziroeda/wx/dom_events.js';
 import {
   wxEvent,
   wxEVT_AUX1_DCLICK,
@@ -77,7 +77,7 @@ import {
   wxEvtHandler,
   wxTimer,
   type wxTimerEvent,
-} from './wx/wx_event.js';
+} from '@ziroeda/wx/wx_event.js';
 import { PROF_TIMER } from '@ziroeda/core/profile.js';
 import type { BOX2I } from '@ziroeda/kimath/src/math/box2.js';
 import type { Vec2 as VECTOR2D, VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';

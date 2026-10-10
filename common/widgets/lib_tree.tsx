@@ -8,7 +8,7 @@
  * info generator. Mirrors kicad/common/widgets/lib_tree.cpp (LIB_TREE); the
  * wxDataViewCtrl becomes a scrollable flex list here.
  */
-import { TextCtrl } from '../wx/controls.js';
+import { TextCtrl } from '@ziroeda/wx/controls.js';
 import {
   useCallback,
   useEffect,
@@ -29,9 +29,9 @@ import {
 import { EDA_REORDERABLE_LIST_DIALOG } from '../dialogs/eda_reorderable_list_dialog.js';
 import { useModalEscape } from '../dialog_shim.js';
 import { KiBitmapBundle } from '../bitmap.js';
-import { BITMAPS } from '../bitmaps/bitmaps_list.js';
+import { BITMAPS } from '@ziroeda/include/bitmaps/bitmaps_list.js';
 import { GetNextItem, GetPrevItem, type WX_DATAVIEW_MODEL } from './wx_dataviewctrl.js';
-import { EditClearSymbolic, EditFindSymbolic } from './wx_search_ctrl.js';
+import { EditClearSymbolic, EditFindSymbolic } from '@ziroeda/wx/wx_search_ctrl.js';
 
 /**
  * `wxDataViewItemAttr` as CSS. `SetColour( wxSYS_COLOUR_GRAYTEXT )` becomes

@@ -11,7 +11,7 @@
  */
 
 import { VIEW_UPDATE_FLAGS } from '@ziroeda/common/view/view_item.js';
-import type { wxChoice } from '@ziroeda/common/wx/choice.js';
+import type { wxChoice } from '@ziroeda/wx/choice.js';
 import type { GERBVIEW_FRAME } from './gerbview_frame.js';
 import type { GERBVIEW_PAINTER, GERBVIEW_RENDER_SETTINGS } from './gerbview_painter.js';
 

@@ -40,7 +40,7 @@ import {
   type PCB_LAYER_ID,
 } from '@ziroeda/common/layer_id.js';
 import { LIB_ID } from '@ziroeda/common/lib_id.js';
-import { strtodPrefix, ToCDoubleOk } from '@ziroeda/common/libc/stdlib.js';
+import { strtodPrefix, ToCDoubleOk } from '@ziroeda/libc/stdlib.js';
 import { LSET } from '@ziroeda/common/lset.js';
 import { NETCLASS } from '@ziroeda/common/netclass.js';
 import { PAGE_INFO, PAGE_SIZE_TYPE } from '@ziroeda/common/page_info.js';

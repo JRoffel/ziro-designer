@@ -20,7 +20,7 @@
  * two-column grid instead, so every name starts at the same x. This is the one
  * place in the launcher where we knowingly look better than the binary.
  */
-import { Button } from '../wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
 import type { JSX } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { OK_LABEL } from '../confirm_types.js';

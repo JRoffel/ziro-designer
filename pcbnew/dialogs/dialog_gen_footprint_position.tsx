@@ -43,7 +43,7 @@
  * `onOutputFile` into the file manager, falling back to a download when the
  * board is standalone.
  */
-import { Button, CheckBox } from '@ziroeda/common/wx/controls.js';
+import { Button, CheckBox } from '@ziroeda/wx/controls.js';
 import { useState, type JSX } from 'react';
 import type { BOARD } from '../board.js';
 import { PLACE_FILE_EXPORTER, placeFileName } from '../exporters/place_file_exporter.js';

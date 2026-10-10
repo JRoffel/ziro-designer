@@ -12,7 +12,7 @@ import { FRAME_T } from '@ziroeda/common/frame_type.js';
 import { PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import { LSET } from '@ziroeda/common/lset.js';
 import { INDETERMINATE_STATE } from '@ziroeda/common/widgets/ui_common.js';
-import type { wxGridEvent } from '@ziroeda/common/wx/grid.js';
+import type { wxGridEvent } from '@ziroeda/wx/grid.js';
 import type { BOARD } from '@ziroeda/pcbnew/board.js';
 import {
   COL_DRILL_X,

@@ -22,7 +22,7 @@
  */
 import { LAYER_PAIR, LAYER_PAIR_INFO } from '@ziroeda/common/project/board_project_settings.js';
 import { PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
-import { wxEvent, wxEvtHandler, wxNewEventType } from '@ziroeda/common/wx/wx_event.js';
+import { wxEvent, wxEvtHandler, wxNewEventType } from '@ziroeda/wx/wx_event.js';
 
 /** `wxDECLARE_EVENT( PCB_LAYER_PAIR_PRESETS_CHANGED, wxCommandEvent )`. */
 export const PCB_LAYER_PAIR_PRESETS_CHANGED = wxNewEventType();

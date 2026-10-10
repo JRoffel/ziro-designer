@@ -10,7 +10,7 @@
  * Like upstream the dialog is modeless: annotating leaves it open so the
  * messages it just produced can be read.
  */
-import { Button, RadioButton } from '@ziroeda/common/wx/controls.js';
+import { Button, RadioButton } from '@ziroeda/wx/controls.js';
 import { useState, type JSX } from 'react';
 import type { AnnotateOptions } from '../sch_reference_list.js';
 import type { ReportLine, Severity } from '@ziroeda/common';

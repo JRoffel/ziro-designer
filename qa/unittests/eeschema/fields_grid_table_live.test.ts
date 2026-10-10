@@ -12,7 +12,7 @@ import { FIELD_T } from '@ziroeda/common/template_fieldnames.js';
 import { GRID_CELL_COMBOBOX } from '@ziroeda/common/widgets/grid_combobox.js';
 import type { GRID_TEXT_BUTTON_HOST } from '@ziroeda/common/widgets/grid_text_button_helpers.js';
 import { WX_GRID } from '@ziroeda/common/widgets/wx_grid.js';
-import { wxAttrKind } from '@ziroeda/common/wx/grid.js';
+import { wxAttrKind } from '@ziroeda/wx/grid.js';
 import { FIELDS_DATA_COL_ORDER, FIELDS_GRID_TABLE } from '@ziroeda/eeschema/fields_grid_table.js';
 import { SCH_FIELD } from '@ziroeda/eeschema/sch_field.js';
 import { SCH_GLOBALLABEL, SCH_LABEL } from '@ziroeda/eeschema/sch_label.js';

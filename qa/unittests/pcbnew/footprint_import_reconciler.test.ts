@@ -31,7 +31,7 @@ import {
   wxFileExists,
   wxMountFileSystem,
   wxReadFileSync,
-} from '@ziroeda/common/wx/filefn.js';
+} from '@ziroeda/wx/filefn.js';
 import type { BOARD } from '@ziroeda/pcbnew/board.js';
 import type { FOOTPRINT } from '@ziroeda/pcbnew/footprint.js';
 import {

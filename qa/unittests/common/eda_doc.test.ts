@@ -9,8 +9,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SetErrorPresenter } from '@ziroeda/common/confirm.js';
 import { GetAssociatedDocument, ResolveUriByEnvVars } from '@ziroeda/common/eda_doc.js';
 import { EMBEDDED_FILE, EMBEDDED_FILES } from '@ziroeda/common/embedded_files.js';
-import { MEMORY_FILESYSTEM, wxMountFileSystem } from '@ziroeda/common/wx/filefn.js';
-import { wxSetEnv, wxUnsetEnv } from '@ziroeda/common/wx/utils.js';
+import { MEMORY_FILESYSTEM, wxMountFileSystem } from '@ziroeda/wx/filefn.js';
+import { wxSetEnv, wxUnsetEnv } from '@ziroeda/wx/utils.js';
 
 const DOCS = '/docs-test';
 let unmount: () => void;

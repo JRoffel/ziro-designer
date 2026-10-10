@@ -23,7 +23,7 @@ import type {
   TOOL_MANAGER,
   TOOL_MANAGER_VIEW_CONTROLS,
 } from '@ziroeda/common/tool/tool_manager.js';
-import { wxMenuEvent, wxMenuEventType } from '@ziroeda/common/wx/menu.js';
+import { wxMenuEvent, wxMenuEventType } from '@ziroeda/wx/menu.js';
 import { VC_SETTINGS } from '@ziroeda/common/view/view_controls.js';
 import type { Vec2 } from '@ziroeda/kimath/src/math/vector2.js';
 import type { BOARD } from '@ziroeda/pcbnew/board.js';

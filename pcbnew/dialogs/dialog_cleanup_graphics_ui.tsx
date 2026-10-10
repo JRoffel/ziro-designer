@@ -7,7 +7,7 @@
  * board-outline fix and its tolerance on a board, then "Changes to be
  * applied:" and OK / Cancel.
  */
-import { TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { TextCtrl } from '@ziroeda/wx/controls.js';
 import { type JSX, useEffect, useState, useSyncExternalStore } from 'react';
 import { DialogShim, StdDialogButtons } from '@ziroeda/common/dialog_shim.js';
 import { unitLabel } from '@ziroeda/common/eda_units.js';

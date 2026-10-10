@@ -27,9 +27,9 @@ import {
 } from './libraries/lib_table_grid_data_model.js';
 import { GRID_BITMAP_BUTTON_RENDERER } from './widgets/grid_button.js';
 import { WX_GRID } from './widgets/wx_grid.js';
-import type { wxAuiNotebook } from './wx/aui_notebook.js';
-import { wxEVT_GRID_CELL_CHANGING, type wxGridEvent } from './wx/grid.js';
-import { type GRID_COLUMN_VIEW, WxGridView } from './wx/grid_ui.js';
+import type { wxAuiNotebook } from '@ziroeda/wx/aui_notebook.js';
+import { wxEVT_GRID_CELL_CHANGING, type wxGridEvent } from '@ziroeda/wx/grid.js';
+import { type GRID_COLUMN_VIEW, WxGridView } from '@ziroeda/wx/grid_ui.js';
 
 export type LIB_TABLE_NOTEBOOK = wxAuiNotebook<LIB_TABLE_NOTEBOOK_PANEL>;
 

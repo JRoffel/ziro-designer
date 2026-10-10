@@ -9,7 +9,7 @@
  * and `panel_electrical_spacing_iec60664.cpp`.
  */
 
-import { TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { TextCtrl } from '@ziroeda/wx/controls.js';
 import { type JSX, useMemo, useState } from 'react';
 import {
   IPC2221_CASES,

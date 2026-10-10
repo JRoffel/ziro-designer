@@ -24,7 +24,7 @@ import type { EDA_ITEM } from '@ziroeda/common/eda_item.js';
 import { RECURSE_MODE } from '@ziroeda/common/eda_item.js';
 import { IO_ERROR } from '@ziroeda/common/exceptions.js';
 import { LIB_ID } from '@ziroeda/common/lib_id.js';
-import { wxGetTempDir, wxRemoveFile, wxWriteFileSync } from '@ziroeda/common/wx/filefn.js';
+import { wxGetTempDir, wxRemoveFile, wxWriteFileSync } from '@ziroeda/wx/filefn.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { BOARD } from './board.js';
 import { BOARD_COMMIT } from './board_commit.js';

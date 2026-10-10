@@ -17,8 +17,8 @@
  * same string either way.
  */
 
-import { ToCDouble, ToCDoubleOk, strtodPrefix, strtol10 } from '@ziroeda/common/libc/stdlib.js';
-import { wxReadFileSync } from '@ziroeda/common/wx/filefn.js';
+import { ToCDouble, ToCDoubleOk, strtodPrefix, strtol10 } from '@ziroeda/libc/stdlib.js';
+import { wxReadFileSync } from '@ziroeda/wx/filefn.js';
 
 export { ToCDouble, ToCDoubleOk, strtodPrefix, strtol10 };
 

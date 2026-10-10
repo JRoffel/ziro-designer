@@ -16,7 +16,7 @@ import {
   isNullableEditor,
 } from '@ziroeda/common/widgets/grid_text_helpers.js';
 import { WX_GRID } from '@ziroeda/common/widgets/wx_grid.js';
-import { wxGridCellAttr, wxGridStringTable } from '@ziroeda/common/wx/grid.js';
+import { wxGridCellAttr, wxGridStringTable } from '@ziroeda/wx/grid.js';
 import { UNITS_PROVIDER } from '@ziroeda/common/units_provider.js';
 
 describe('GRID_CELL_COMBOBOX', () => {

@@ -20,7 +20,7 @@
  * Not `SingleChoiceDialog`: that one is `wxGetSingleChoice`, a different wx
  * dialog with no headers, no filter and no report columns.
  */
-import { Button, TextCtrl } from '../wx/controls.js';
+import { Button, TextCtrl } from '@ziroeda/wx/controls.js';
 import { useEffect, useRef, useState, type JSX } from 'react';
 import { DialogShim } from '../dialog_shim.js';
 

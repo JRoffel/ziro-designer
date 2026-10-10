@@ -14,7 +14,7 @@ import {
   GRID_SNAPPING,
   GRID_STYLE,
 } from './gal/gal_display_options.js';
-import type { PlatformWindow } from './kiplatform/ui.js';
+import type { PlatformWindow } from '@ziroeda/kiplatform/ui.js';
 import type { WINDOW_SETTINGS } from './settings/app_settings.js';
 
 /** `UTIL::CFG_MAP` (include/config_map.h): enum value <-> stored integer. */

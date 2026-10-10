@@ -7,7 +7,7 @@
  * (`MATRIX3x3D`) is used.
  */
 
-import { cos, sin } from './libm.js';
+import { cos, sin } from '@ziroeda/libc/libm.js';
 import type { Vec2 } from './vector2.js';
 
 export interface VECTOR3D {

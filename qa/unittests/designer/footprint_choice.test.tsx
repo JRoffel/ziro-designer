@@ -32,7 +32,7 @@ import {
   FootprintSelectWidget,
   footprintChoiceItems,
 } from '@ziroeda/common/widgets/footprint_select_widget.js';
-import { POPUP_MAX_H, placeComboPopup } from '@ziroeda/common/wx/odcombo_popup.js';
+import { POPUP_MAX_H, placeComboPopup } from '@ziroeda/wx/odcombo_popup.js';
 import { resetModalStack } from '@ziroeda/common/dialog_shim.js';
 
 afterEach(() => {

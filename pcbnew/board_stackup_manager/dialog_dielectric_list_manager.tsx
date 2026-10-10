@@ -38,7 +38,7 @@
  * one place that knows what "apply" means for a given row, so it stays the
  * one place that decides; this component only ever closes.
  */
-import { Button, TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { Button, TextCtrl } from '@ziroeda/wx/controls.js';
 import { useState, type JSX } from 'react';
 import { DialogShim } from '@ziroeda/common/dialog_shim.js';
 import type { DIELECTRIC_SUBSTRATE_LIST } from './dielectric_material.js';

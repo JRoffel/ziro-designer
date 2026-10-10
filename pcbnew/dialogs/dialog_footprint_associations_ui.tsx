@@ -13,8 +13,8 @@
  */
 import { useMemo, type JSX } from 'react';
 import { WX_GRID } from '@ziroeda/common/widgets/wx_grid.js';
-import { wxGridStringTable } from '@ziroeda/common/wx/grid.js';
-import { WxGridView } from '@ziroeda/common/wx/grid_ui.js';
+import { wxGridStringTable } from '@ziroeda/wx/grid.js';
+import { WxGridView } from '@ziroeda/wx/grid_ui.js';
 import { DialogShim } from '@ziroeda/common/dialog_shim.js';
 import type { AssociationRow } from './dialog_footprint_associations.js';
 import {

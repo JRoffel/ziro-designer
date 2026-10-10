@@ -10,7 +10,7 @@ import { resolve } from 'node:path';
 import type { WX_INFOBAR } from '@ziroeda/common/eda_base_frame.js';
 import { PGM_BASE, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
 import { GetDefaultVariantName } from '@ziroeda/common/string_utils.js';
-import { wxID_CANCEL, wxID_OK } from '@ziroeda/common/wx/menu.js';
+import { wxID_CANCEL, wxID_OK } from '@ziroeda/wx/menu.js';
 import type {
   NEW_VARIANT_DIALOG_ARG,
   SCH_EDIT_FRAME_HOOKS,

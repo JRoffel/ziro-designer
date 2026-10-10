@@ -77,7 +77,7 @@ import {
   RECT_CHAMFER_BOTTOM_LEFT,
   RECT_CHAMFER_TOP_LEFT,
 } from '@ziroeda/kimath/src/convert_basic_shapes_to_polygon.js';
-import { stdSort } from '@ziroeda/kimath/src/clipper2/clipper.core.js';
+import { stdSort } from '@ziroeda/clipper2/clipper.core.js';
 import { FLIP_DIRECTION } from '@ziroeda/kimath/src/core/mirror.js';
 import {
   ANGLE_180,
@@ -93,7 +93,7 @@ import {
   TransformArcToPolygon,
   TransformOvalToPolygon,
 } from '@ziroeda/kimath/src/geometry/shape_poly_set.js';
-import { cos, sin } from '@ziroeda/kimath/src/math/libm.js';
+import { cos, sin } from '@ziroeda/libc/libm.js';
 import { KiROUND } from '@ziroeda/kimath/src/math/util.js';
 import { EuclideanNormI, ResizeI, type VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
 import { RotatePoint } from '@ziroeda/kimath/src/trigo.js';

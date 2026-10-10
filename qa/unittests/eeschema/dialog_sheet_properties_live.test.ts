@@ -12,7 +12,7 @@ import { resolve } from 'node:path';
 import { SetErrorPresenter } from '@ziroeda/common/confirm.js';
 import { PGM_BASE, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
 import { FIELD_T } from '@ziroeda/common/template_fieldnames.js';
-import { wxMakeRelativeTo } from '@ziroeda/common/wx/filefn.js';
+import { wxMakeRelativeTo } from '@ziroeda/wx/filefn.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { DIALOG_SHEET_PROPERTIES } from '@ziroeda/eeschema/dialogs/dialog_sheet_properties.js';
 import { FIELDS_DATA_COL_ORDER } from '@ziroeda/eeschema/fields_grid_table.js';

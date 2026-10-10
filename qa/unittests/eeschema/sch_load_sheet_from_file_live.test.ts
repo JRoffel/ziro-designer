@@ -8,8 +8,8 @@
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { PGM_BASE, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
-import { wxID_CANCEL, wxID_OK } from '@ziroeda/common/wx/menu.js';
-import { MEMORY_FILESYSTEM, wxMountFileSystem } from '@ziroeda/common/wx/filefn.js';
+import { wxID_CANCEL, wxID_OK } from '@ziroeda/wx/menu.js';
+import { MEMORY_FILESYSTEM, wxMountFileSystem } from '@ziroeda/wx/filefn.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import type { SCH_EDIT_FRAME_HOOKS } from '@ziroeda/eeschema/sch_edit_frame.js';
 import { SCH_SHEET } from '@ziroeda/eeschema/sch_sheet.js';

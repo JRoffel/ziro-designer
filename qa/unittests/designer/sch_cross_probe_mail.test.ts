@@ -11,7 +11,7 @@ import { FRAME_T } from '@ziroeda/common/frame_type.js';
 import { KIWAY } from '@ziroeda/common/kiway.js';
 import type { KIWAY_MAIL_EVENT } from '@ziroeda/common/kiway_mail.js';
 import { KIWAY_PLAYER } from '@ziroeda/common/kiway_player.js';
-import { STRTOK } from '@ziroeda/common/libc/string.js';
+import { STRTOK } from '@ziroeda/libc/string.js';
 import { MAIL_T } from '@ziroeda/common/mail_type.js';
 import { pcbIUScale } from '@ziroeda/common/eda_units.js';
 import { CROSS_PROBING_SETTINGS } from '@ziroeda/common/settings/app_settings.js';

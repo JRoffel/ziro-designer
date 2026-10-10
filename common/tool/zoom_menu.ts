@@ -7,10 +7,10 @@
  * zoom preset, the one within 10 % of the current zoom checked.
  */
 
-import { BITMAPS } from '../bitmaps/bitmaps_list.js';
+import { BITMAPS } from '@ziroeda/include/bitmaps/bitmaps_list.js';
 import { main_id } from '../id.js';
 import type { APP_SETTINGS_BASE } from '../settings/app_settings.js';
-import { wxItemKind, type wxMenuEvent } from '../wx/menu.js';
+import { wxItemKind, type wxMenuEvent } from '@ziroeda/wx/menu.js';
 import { ACTION_MENU } from './action_menu.js';
 import { ACTIONS } from './actions.js';
 import type { TOOL_EVENT } from './tool_event.js';

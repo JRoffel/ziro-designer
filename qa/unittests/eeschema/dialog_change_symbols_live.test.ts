@@ -13,11 +13,7 @@ import { LIB_ID } from '@ziroeda/common/lib_id.js';
 import { PGM_BASE, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
 import { RPT_SEVERITY_ACTION, RPT_SEVERITY_ERROR } from '@ziroeda/common/reporter.js';
 import { FIELD_T } from '@ziroeda/common/template_fieldnames.js';
-import {
-  MEMORY_FILESYSTEM,
-  wxMountFileSystem,
-  wxWriteFileSync,
-} from '@ziroeda/common/wx/filefn.js';
+import { MEMORY_FILESYSTEM, wxMountFileSystem, wxWriteFileSync } from '@ziroeda/wx/filefn.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import {
   CHANGE_SYMBOLS_MATCH,

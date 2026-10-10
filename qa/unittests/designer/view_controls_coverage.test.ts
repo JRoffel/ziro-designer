@@ -48,7 +48,7 @@ const read = (rel: string): string => readFileSync(join(SRC, rel), 'utf8');
 describe('shared view controls', () => {
   it.each(CANVASES)('%s handles the wheel through the shared module', (rel) => {
     const src = read(rel);
-    expect(src).toMatch(/from '(?:[./]+ui\/|@ziroeda\/common\/ui\/)view_controls\.js'/);
+    expect(src).toMatch(/from '(?:[./]+view\/|@ziroeda\/common\/view\/)wx_view_controls\.js'/);
     expect(src).toContain('wheelAction(');
   });
 
@@ -235,7 +235,7 @@ describe('shared view controls', () => {
     // It used to live inside the 3878-line SchematicCanvas.tsx and be imported
     // back out of it by two shared widgets - an app importing from another app,
     // which KiCad's common/ + include/ split exists to prevent.
-    expect(read('../../common/ui/view_controls.ts')).toMatch(/export interface InputPrefs/);
+    expect(read('../../common/view/wx_view_controls.ts')).toMatch(/export interface InputPrefs/);
   });
 
   it('nothing imports view controls sideways out of another editor', () => {

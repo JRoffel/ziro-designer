@@ -12,7 +12,7 @@
  * pitch means nothing unless rounding is on, and the layer picker means nothing
  * while layers are being copied from the source.
  */
-import { Combo } from '@ziroeda/common/wx/controls.js';
+import { Combo } from '@ziroeda/wx/controls.js';
 import { useState, type JSX, type Ref } from 'react';
 import type { OutsetSettings } from './dialog_outset_items.js';
 import { useModalEscape } from '@ziroeda/common/dialog_shim.js';

@@ -9,7 +9,7 @@
  *
  * This is the GTK build: `MODIFIER_CTRL` is "Ctrl+" (on macOS it is "Cmd+").
  */
-import { WXK } from '@ziroeda/core/wx_keycodes.js';
+import { WXK } from '@ziroeda/wx/wx_keycodes.js';
 // The named constants, not a destructure of TOOL_MODIFIERS at load: this module
 // sits on the tool_event -> tool_action -> action_manager -> here cycle, so it
 // can load before tool_event has finished, and only a live binding read at call

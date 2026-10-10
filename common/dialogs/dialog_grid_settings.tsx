@@ -27,7 +27,7 @@
  * (`dialog_grid_settings.cpp:42-43`), so they read and write in the frame's
  * display unit while `GRID` itself is always stored in millimetres.
  */
-import { Button } from '../wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
 import { type JSX, useState } from 'react';
 import { DialogShim } from '../dialog_shim.js';
 import { MessageDialogError } from './dialog_message.js';

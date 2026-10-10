@@ -48,7 +48,7 @@ import {
   wxIsFileWritable,
   wxRemoveDirTree,
   wxRemoveFile,
-} from '@ziroeda/common/wx/filefn.js';
+} from '@ziroeda/wx/filefn.js';
 import { FIELD_T } from '@ziroeda/common/template_fieldnames.js';
 import { SKIP_STRUCT, STRUCT_DELETED } from '@ziroeda/common/eda_item_flags.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';

@@ -19,7 +19,7 @@
  * configured, and the GL window the canvas becomes.
  */
 
-import { Button } from '@ziroeda/common/wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
 import {
   type DragEvent as ReactDragEvent,
   type JSX,
@@ -58,12 +58,12 @@ import { KiStatusBar } from '@ziroeda/common/widgets/kistatusbar.js';
 import type { MSG_PANEL_ITEM } from '@ziroeda/common/widgets/msgpanel.js';
 import { MsgPanel } from '@ziroeda/common/widgets/msgpanel_ui.js';
 import { ensureTextCtrlWidth, measureTextWidth } from '@ziroeda/common/widgets/text_ctrl_width.js';
-import { DockSash } from '@ziroeda/common/widgets/wx_aui_sash.js';
+import { DockSash } from '@ziroeda/wx/wx_aui_sash.js';
 import { Combo } from '@ziroeda/common/widgets/wx_combobox.js';
-import { wxChoice } from '@ziroeda/common/wx/choice.js';
-import { wxPrinter } from '@ziroeda/common/wx/printer.js';
-import { s_tempFileSystem } from '@ziroeda/common/wx/filefn.js';
-import type { ChooserFilter } from '@ziroeda/common/wx/filedlg.js';
+import { wxChoice } from '@ziroeda/wx/choice.js';
+import { wxPrinter } from '@ziroeda/wx/printer.js';
+import { s_tempFileSystem } from '@ziroeda/wx/filefn.js';
+import type { ChooserFilter } from '@ziroeda/wx/filedlg.js';
 import type { DRAW_PANEL_GAL_WINDOW } from '@ziroeda/common/draw_panel_gal.js';
 import type { PGM_BASE } from '@ziroeda/common/pgm_base.js';
 import type { ToolEntry } from '@ziroeda/common/tool/action_toolbar_types.js';

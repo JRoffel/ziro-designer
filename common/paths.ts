@@ -15,10 +15,15 @@
  * The macOS and Windows helpers are the other builds' and are not here.
  */
 import { GetMajorMinorVersion } from './build_version.js';
-import * as KIPLATFORM_ENV from './kiplatform/env.js';
-import { MEMORY_FILESYSTEM, wxDirExists, wxFindMount, wxNormalizePath } from './wx/filefn.js';
-import { wxGetEnv } from './wx/utils.js';
-import { wxGetTempDir } from './wx/filefn.js';
+import * as KIPLATFORM_ENV from '@ziroeda/kiplatform/env.js';
+import {
+  MEMORY_FILESYSTEM,
+  wxDirExists,
+  wxFindMount,
+  wxNormalizePath,
+} from '@ziroeda/wx/filefn.js';
+import { wxGetEnv } from '@ziroeda/wx/utils.js';
+import { wxGetTempDir } from '@ziroeda/wx/filefn.js';
 
 /** `KICAD_PATH_STR`: lower case on Linux. */
 const KICAD_PATH_STR = 'kicad';

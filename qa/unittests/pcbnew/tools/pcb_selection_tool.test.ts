@@ -42,7 +42,7 @@ import type {
   TOOL_MANAGER,
   TOOL_MANAGER_VIEW_CONTROLS,
 } from '@ziroeda/common/tool/tool_manager.js';
-import { wxMenuEvent, wxMenuEventType } from '@ziroeda/common/wx/menu.js';
+import { wxMenuEvent, wxMenuEventType } from '@ziroeda/wx/menu.js';
 import { VC_SETTINGS } from '@ziroeda/common/view/view_controls.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import type { Vec2 } from '@ziroeda/kimath/src/math/vector2.js';
@@ -64,8 +64,8 @@ import {
 } from '@ziroeda/pcbnew/tools/pcb_selection_tool.js';
 import { TEST_PCB_FRAME } from '../support/test_pcb_frame.js';
 import { TOOL_DISPATCHER } from '@ziroeda/common/tool/tool_dispatcher.js';
-import { wxMouseEventFromDom } from '@ziroeda/common/wx/dom_events.js';
-import { wxSetMouseButtons } from '@ziroeda/common/wx/wx_event.js';
+import { wxMouseEventFromDom } from '@ziroeda/wx/dom_events.js';
+import { wxSetMouseButtons } from '@ziroeda/wx/wx_event.js';
 import { makeGatedDispatcher } from '@ziroeda/pcbnew/tools/window_action_bridge.js';
 import { SYNC_HANDLER, TOOL_INTERACTIVE } from '@ziroeda/common/tool/tool_interactive.js';
 import { MOUSE_DRAG_ACTION } from '@ziroeda/common/mouse_drag_action.js';

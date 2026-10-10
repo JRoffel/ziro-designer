@@ -35,7 +35,7 @@
  * is a theme of its own, which needs a per-theme store this app does not have,
  * so its colours load into "User" rather than inventing a theme id.
  */
-import { Button } from './wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
 import { useRef, useState, type JSX } from 'react';
 import {
   colorThemeFileText,

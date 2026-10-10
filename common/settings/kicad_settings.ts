@@ -14,7 +14,7 @@
  * (`libraries.overrides`, which belong to the library tables).
  */
 
-import type { wxPoint } from '../wx/dc.js';
+import type { wxPoint } from '@ziroeda/wx/dc.js';
 import {
   type wxSize,
   wxDefaultPosition,

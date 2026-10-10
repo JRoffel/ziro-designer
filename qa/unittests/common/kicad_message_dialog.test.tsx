@@ -9,8 +9,8 @@
  */
 import { ShowKicadMessageDialog } from '@ziroeda/common/confirm.js';
 import { InstallMessageDialogPresenter } from '@ziroeda/common/confirm_ui.js';
-import { wxCANCEL, wxCANCEL_DEFAULT, wxICON_QUESTION, wxOK } from '@ziroeda/common/wx/defs.js';
-import { wxID_CANCEL, wxID_OK } from '@ziroeda/common/wx/menu.js';
+import { wxCANCEL, wxCANCEL_DEFAULT, wxICON_QUESTION, wxOK } from '@ziroeda/wx/defs.js';
+import { wxID_CANCEL, wxID_OK } from '@ziroeda/wx/menu.js';
 import { act } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 

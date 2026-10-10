@@ -58,8 +58,8 @@ import type { TOOL_MENU } from './tool/tool_menu.js';
 import { ZOOM_MENU } from './tool/zoom_menu.js';
 import { IsImperialUnit } from './units_provider.js';
 import { RENDER_TARGET } from './gal/definitions.js';
-import { type wxChoice, wxNOT_FOUND } from './wx/choice.js';
-import type { ChooserFilter } from './wx/filedlg.js';
+import { type wxChoice, wxNOT_FOUND } from '@ziroeda/wx/choice.js';
+import type { ChooserFilter } from '@ziroeda/wx/filedlg.js';
 import type { wxFileDialogCustomizeHook } from './widgets/filedlg_hook_new_library.js';
 import {
   wxDD_DEFAULT_STYLE,
@@ -69,7 +69,7 @@ import {
   wxFD_OPEN,
   wxFD_OVERWRITE_PROMPT,
   wxFD_SAVE,
-} from './wx/defs.js';
+} from '@ziroeda/wx/defs.js';
 import { BOX2I } from '@ziroeda/kimath/src/math/box2.js';
 import { KiROUND } from '@ziroeda/kimath/src/math/util.js';
 import type { VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';

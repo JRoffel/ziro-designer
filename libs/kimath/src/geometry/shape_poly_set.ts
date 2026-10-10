@@ -36,15 +36,15 @@ import {
   type Path64,
   type Paths64,
   stdSort,
-} from '../clipper2/clipper.core.js';
+} from '@ziroeda/clipper2/clipper.core.js';
 import {
   Clipper64,
   PolyPath64,
   type PolyTree64,
   type ZCallback64,
-} from '../clipper2/clipper.engine.js';
-import { ClipperOffset } from '../clipper2/clipper.offset.js';
-import { acos, atan2, cos, hypot, sin } from '../math/libm.js';
+} from '@ziroeda/clipper2/clipper.engine.js';
+import { ClipperOffset } from '@ziroeda/clipper2/clipper.offset.js';
+import { acos, atan2, cos, hypot, sin } from '@ziroeda/libc/libm.js';
 import { mmh3HashToString } from '../mmh3_hash.js';
 import { SEG } from './seg.js';
 import { type OutInt, SHAPE, SHAPE_HOOKS, SHAPE_LINE_CHAIN_BASE, SHAPE_TYPE } from './shape.js';

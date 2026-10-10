@@ -37,7 +37,7 @@ import {
   type cairo_surface_t,
   type cairo_t,
 } from './cairo_api.js';
-import { wxASSERT } from '@ziroeda/core/wx_assert.js';
+import { wxASSERT } from '@ziroeda/wx/wx_assert.js';
 
 /**
  * `cairo_t** aMainContext`: the GAL's `m_currentContext`, which the

@@ -12,7 +12,7 @@ import {
   type wxDataViewItemAttr,
   type wxDataViewModelNotifier,
   wxDataViewVirtualListModel,
-} from '@ziroeda/common/wx/dataview.js';
+} from '@ziroeda/wx/dataview.js';
 import { getElectricalTypeLabel, type LABEL_FLAG_SHAPE } from '../sch_label.js';
 import type { SCH_SHEET } from '../sch_sheet.js';
 import type { SCH_SHEET_PATH } from '../sch_sheet_path.js';

@@ -25,7 +25,7 @@
  * is what `initialTab` on `PluginManagerDialog` is for, and this is its first
  * caller.
  */
-import { Button } from '@ziroeda/common/wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
 import { useState, type JSX } from 'react';
 import { pcm, usePcmVersion } from '../../../pcm/pcmStore.js';
 import { PluginManagerDialog } from '../../../pcm/PluginManagerDialog.js';

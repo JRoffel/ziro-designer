@@ -11,11 +11,16 @@
   },
   "dependencies": {
     "@bokuweb/zstd-wasm": "^0.0.27",
+    "@ziroeda/clipper2": "workspace:*",
     "@ziroeda/common": "workspace:*",
     "@ziroeda/core": "workspace:*",
+    "@ziroeda/include": "workspace:*",
     "@ziroeda/kimath": "workspace:*",
+    "@ziroeda/kiplatform": "workspace:*",
+    "@ziroeda/libc": "workspace:*",
     "@ziroeda/picosha2": "workspace:*",
     "@ziroeda/sexpr": "workspace:*",
+    "@ziroeda/wx": "workspace:*",
     "fflate": "^0.8.3",
     "react": "^18.3.1"
   },

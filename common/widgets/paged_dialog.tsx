@@ -19,7 +19,7 @@
  * page tree and panel renderers; this component owns the chrome and selection.
  */
 
-import { Button } from '../wx/controls.js';
+import { Button } from '@ziroeda/wx/controls.js';
 import { useEffect, useRef, useState, type JSX } from 'react';
 import { DialogShim } from '../dialog_shim.js';
 import { usePagedDialogSize } from './paged_dialog_size.js';

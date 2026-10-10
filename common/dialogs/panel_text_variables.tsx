@@ -23,8 +23,8 @@ import {
   wxGridCellAttr,
   type wxGridEvent,
   wxGridSelectionModes,
-} from '../wx/grid.js';
-import { useStringGrid, WxGridView } from '../wx/grid_ui.js';
+} from '@ziroeda/wx/grid.js';
+import { useStringGrid, WxGridView } from '@ziroeda/wx/grid_ui.js';
 import type { PROJECT } from '../project.js';
 import type { TextVar } from '../project/project_file.js';
 

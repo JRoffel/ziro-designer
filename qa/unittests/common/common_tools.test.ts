@@ -50,7 +50,7 @@ import {
 } from '@ziroeda/common/tool/tool_manager.js';
 import { VIEW } from '@ziroeda/common/view/view.js';
 import { VC_SETTINGS } from '@ziroeda/common/view/view_controls.js';
-import { wxChoice } from '@ziroeda/common/wx/choice.js';
+import { wxChoice } from '@ziroeda/wx/choice.js';
 import { ZOOM_MAX_LIMIT_GERBVIEW, ZOOM_MIN_LIMIT_GERBVIEW } from '@ziroeda/common/zoom_defines.js';
 import { BOX2I } from '@ziroeda/kimath/src/math/box2.js';
 import type { VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';

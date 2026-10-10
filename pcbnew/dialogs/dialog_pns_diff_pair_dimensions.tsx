@@ -24,7 +24,7 @@
  * It also stamps `SetDiffPairGapSource( "user choice" )` and the width's, which
  * is the string `ROUTER_TOOL`'s status bar shows afterwards.
  */
-import { CheckBox, TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { CheckBox, TextCtrl } from '@ziroeda/wx/controls.js';
 import { useState, type JSX } from 'react';
 import { DialogShim } from '@ziroeda/common/dialog_shim.js';
 import { pcbUnitText, pcbUnitValue, unitLabel } from '../pcb_unit_binder.js';

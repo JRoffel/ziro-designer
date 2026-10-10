@@ -46,7 +46,7 @@
  * metrics we do not have.
  */
 
-import { CheckBox } from '@ziroeda/common/wx/controls.js';
+import { CheckBox } from '@ziroeda/wx/controls.js';
 import { useState, type JSX } from 'react';
 import { pcbIuToMM, pcbIUScale, pcbMmToIU } from '@ziroeda/common/eda_units.js';
 import type { TextValues } from './dialog_text_properties.js';

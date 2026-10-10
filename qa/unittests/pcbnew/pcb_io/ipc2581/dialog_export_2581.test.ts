@@ -7,7 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { Reporter } from '@ziroeda/common/reporter.js';
-import { wxZipInputStream } from '@ziroeda/common/wx/zipstrm.js';
+import { wxZipInputStream } from '@ziroeda/wx/zipstrm.js';
 import {
   IPC2581_UNITS,
   IPC2581_VERSION,

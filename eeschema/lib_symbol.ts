@@ -45,13 +45,13 @@ import {
   FIELD_T,
   MANDATORY_FIELDS as MANDATORY_FIELD_IDS,
 } from '@ziroeda/common/template_fieldnames.js';
-import { wxCmp } from '@ziroeda/common/wx/wxstring.js';
+import { wxCmp } from '@ziroeda/wx/wxstring.js';
 import { applyMixins } from '@ziroeda/core/mixins.js';
 import { MULTIVECTOR } from '@ziroeda/core/multivector.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { BOX2I } from '@ziroeda/kimath/src/math/box2.js';
 import type { VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
-import { stdSort } from '@ziroeda/kimath/src/clipper2/clipper.core.js';
+import { stdSort } from '@ziroeda/clipper2/clipper.core.js';
 import { DEFAULT_PIN_NAME_OFFSET } from './default_values.js';
 import { SCH_FIELD } from './sch_field.js';
 import { AUTOPLACE_ALGO, BODY_STYLE, SCH_ITEM } from './sch_item.js';

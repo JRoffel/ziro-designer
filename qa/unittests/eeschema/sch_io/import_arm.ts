@@ -14,7 +14,7 @@
 import { basename, dirname, join } from 'node:path';
 import { readdirSync, readFileSync } from 'node:fs';
 import type { CHOOSE_PROJECT_HANDLER } from '@ziroeda/common/io/common/plugin_common_choose_project.js';
-import { MEMORY_FILESYSTEM, wxMountFileSystem } from '@ziroeda/common/wx/filefn.js';
+import { MEMORY_FILESYSTEM, wxMountFileSystem } from '@ziroeda/wx/filefn.js';
 import {
   LIBRARY_TABLE,
   LIBRARY_TABLE_SCOPE,

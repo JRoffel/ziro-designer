@@ -31,7 +31,7 @@ import {
   kicadSymbolLibWildcard,
   psFileWildcard,
 } from '@ziroeda/common/wildcards_and_files_ext.js';
-import type { ChooserFilter } from '@ziroeda/common/wx/filedlg.js';
+import type { ChooserFilter } from '@ziroeda/wx/filedlg.js';
 import { BITMAP2CMP_CONTROL } from './bitmap2cmp_control.js';
 import {
   BITMAP2CMP_PANEL,

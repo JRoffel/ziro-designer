@@ -20,8 +20,8 @@
  * upstream's comment says GTK gives a custom MIME type.
  */
 import { AutoDecodeCSV, CSV_WRITER } from './io/csv.js';
-import { wxMemoryBuffer } from './wx/buffer.js';
-import { WX_IMAGE } from './wx/wx_image.js';
+import { wxMemoryBuffer } from '@ziroeda/wx/buffer.js';
+import { WX_IMAGE } from '@ziroeda/wx/wx_image.js';
 
 /** `wxDF_BITMAP` on GTK: a PNG. */
 const wxDF_BITMAP = 'image/png';

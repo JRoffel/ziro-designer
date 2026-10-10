@@ -14,7 +14,7 @@
  * Not here: DIALOG_SIM_MODEL behind "Simulation Model..." (the simulator is not in this build),
  * PANEL_EMBEDDED_FILES' add / remove / export, and KIUI::SelectReferenceNumber on first focus.
  */
-import { Button, CheckBox } from '@ziroeda/common/wx/controls.js';
+import { Button, CheckBox } from '@ziroeda/wx/controls.js';
 import { type JSX, useReducer, useState } from 'react';
 import { DisplayErrorMessage } from '@ziroeda/common/confirm.js';
 import { DialogShim } from '@ziroeda/common/dialog_shim.js';
@@ -40,9 +40,9 @@ import {
   wxGridCellAttr,
   wxGridSelectionModes,
   wxGridTableRequest,
-} from '@ziroeda/common/wx/grid.js';
-import { WxGridView } from '@ziroeda/common/wx/grid_ui.js';
-import { wxID_OK } from '@ziroeda/common/wx/menu.js';
+} from '@ziroeda/wx/grid.js';
+import { WxGridView } from '@ziroeda/wx/grid_ui.js';
+import { wxID_OK } from '@ziroeda/wx/menu.js';
 import { FIELDS_DATA_COL_ORDER, FIELDS_GRID_TABLE } from '../fields_grid_table.js';
 import type { LIB_SYMBOL } from '../lib_symbol.js';
 import { PinShapeIcons, PinShapeNames, PinTypeIcons, PinTypeNames } from '../pin_type.js';

@@ -11,7 +11,7 @@
  */
 import { EDA_BASE_FRAME } from './eda_base_frame.js';
 import { EDA_KIWAY_MAIL_RECEIVED, type KIWAY_MAIL_EVENT } from './kiway_mail.js';
-import { wxEvtHandler, type wxEvent } from './wx/wx_event.js';
+import { wxEvtHandler, type wxEvent } from '@ziroeda/wx/wx_event.js';
 
 /** For the aCtl argument of OpenProjectFiles(). */
 export const KICTL_NONKICAD_ONLY = 1 << 0; ///< chosen file is non-KiCad according to user

@@ -14,7 +14,7 @@
  * role here), not semantics.
  */
 
-import { STD_UNORDERED_MAP } from '@ziroeda/common/libc/unordered_map.js';
+import { STD_UNORDERED_MAP } from '@ziroeda/libc/unordered_map.js';
 import type { SCH_REFERENCE } from './sch_reference_list.js';
 
 interface PrefixData {

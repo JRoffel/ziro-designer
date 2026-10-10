@@ -12,7 +12,7 @@
  * them" means (panel_wavelength.cpp:85-125).
  */
 
-import { TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { TextCtrl } from '@ziroeda/wx/controls.js';
 import { type JSX, useState } from 'react';
 import {
   STANDARD_EPSILON_R_LIST,

@@ -63,7 +63,7 @@ import { stackupColors } from '@ziroeda/3d-viewer/board_adapter_colors.js';
 import { MODELS3D_HOST } from '../../libraryHosts.js';
 import './viewer3d_cache_shim.js';
 import { Appearance3DPanel } from '@ziroeda/3d-viewer/dialogs/appearance_controls_3d.js';
-import { DockSash } from '@ziroeda/common/widgets/wx_aui_sash.js';
+import { DockSash } from '@ziroeda/wx/wx_aui_sash.js';
 import { EdaListDialog } from '@ziroeda/common/dialogs/eda_list_dialog.js';
 import { settings } from '../../prefs/settings.js';
 import { parseColor4d, toCssColor, type Color4d } from '@ziroeda/common/gal/color4d.js';

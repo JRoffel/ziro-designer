@@ -38,10 +38,10 @@ import type { SCH_ITEM } from './sch_item.js';
 import { DIALOG_JUNCTION_PROPS } from './dialogs/dialog_junction_props.js';
 import type { SCH_JUNCTION } from './sch_junction.js';
 import { color4dToItemColor, itemColorToColor4d } from './dialogs/item_color.js';
-import { type ChooserFilter, type OpenedFile, WxFileDialog } from '@ziroeda/common/wx/filedlg.js';
-import { WxTextEntryDialog } from '@ziroeda/common/wx/textdlg.js';
-import { wxFD_FILE_MUST_EXIST, wxFD_OPEN, wxFD_SAVE } from '@ziroeda/common/wx/defs.js';
-import { wxID_CANCEL, wxID_OK } from '@ziroeda/common/wx/menu.js';
+import { type ChooserFilter, type OpenedFile, WxFileDialog } from '@ziroeda/wx/filedlg.js';
+import { WxTextEntryDialog } from '@ziroeda/wx/textdlg.js';
+import { wxFD_FILE_MUST_EXIST, wxFD_OPEN, wxFD_SAVE } from '@ziroeda/wx/defs.js';
+import { wxID_CANCEL, wxID_OK } from '@ziroeda/wx/menu.js';
 import { type KICAD_MESSAGE_DIALOG_ARG, ShowKicadMessageDialog } from '@ziroeda/common/confirm.js';
 import { LIB_ID } from '@ziroeda/common/lib_id.js';
 import { FIELD_T, GetCanonicalFieldName } from '@ziroeda/common/template_fieldnames.js';
@@ -49,7 +49,7 @@ import type { PICKED_SYMBOL } from './sch_screen.js';
 import type { SYMBOL_LIBRARY_FILTER } from './symbol_library_common.js';
 import type { SchScriptApi } from './sch_script_api.js';
 import { GetAssociatedDocument } from '@ziroeda/common/eda_doc.js';
-import * as KIPLATFORM_UI from '@ziroeda/common/kiplatform/ui.js';
+import * as KIPLATFORM_UI from '@ziroeda/kiplatform/ui.js';
 import { STATUS_TEXT_POPUP } from '@ziroeda/common/status_popup.js';
 import { Priority } from './connectivity/nets.js';
 import {
@@ -333,7 +333,7 @@ import { DialogExportNetlist } from './dialogs/dialog_export_netlist.js';
 import { DialogSymbolFieldsTable, type FieldsEdits } from './dialogs/dialog_symbol_fields_table.js';
 import { DialogPrint } from './printing/dialog_print.js';
 import { SCH_PRINTOUT } from './printing/sch_printout.js';
-import { wxPrinter } from '@ziroeda/common/wx/printer.js';
+import { wxPrinter } from '@ziroeda/wx/printer.js';
 import { DialogPlot, type PlotRequest } from './dialogs/dialog_plot_schematic.js';
 import {
   downloadBlob,
@@ -364,7 +364,7 @@ import {
 import { useHotkeyCyclePopup } from '@ziroeda/common/dialogs/hotkey_cycle_popup_ui.js';
 import { resolveTemplateFieldnames } from '@ziroeda/common/template_fieldnames.js';
 import type { RenderOpts } from './sch_render_settings.js';
-import type { InputPrefs } from '@ziroeda/common/ui/view_controls.js';
+import type { InputPrefs } from '@ziroeda/common/view/wx_view_controls.js';
 import { LiveSchPropertiesPanel } from './widgets/sch_properties_panel_ui.js';
 import { SearchPanel } from './widgets/sch_search_pane.js';
 import { NetNavigatorPanel } from './widgets/net_navigator_panel.js';
@@ -404,7 +404,7 @@ import {
   type SchDockPos,
   type SchLeftPane,
 } from './sch_edit_frame.js';
-import { DockSash } from '@ziroeda/common/widgets/wx_aui_sash.js';
+import { DockSash } from '@ziroeda/wx/wx_aui_sash.js';
 import { loadOutlineFontsFor } from '@ziroeda/common/font/outline_fonts.js';
 import { useUnsavedGuard } from '@ziroeda/common/use_unsaved_guard.js';
 import '@ziroeda/common/widgets/shell.css';
@@ -418,8 +418,8 @@ import { loadBitmapFontImage } from '@ziroeda/common/gal/gal_window.js';
 import { type SCH_SCREEN, SCH_SCREENS } from './sch_screen.js';
 import type { ACTION_MENU } from '@ziroeda/common/tool/action_menu.js';
 import { actionMenuItems } from '@ziroeda/common/tool/action_menu_popup.js';
-import { wxMenuEvent, wxMenuEventType } from '@ziroeda/common/wx/menu.js';
-import { MEMORY_FILESYSTEM, wxFileExists, wxMountFileSystem } from '@ziroeda/common/wx/filefn.js';
+import { wxMenuEvent, wxMenuEventType } from '@ziroeda/wx/menu.js';
+import { MEMORY_FILESYSTEM, wxFileExists, wxMountFileSystem } from '@ziroeda/wx/filefn.js';
 import { schToolbarAction } from './toolbars_sch_editor.js';
 import { symbolLibraryUri } from './cross-probing.js';
 

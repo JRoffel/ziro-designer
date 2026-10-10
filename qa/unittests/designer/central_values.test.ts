@@ -92,6 +92,8 @@ import { join, relative } from 'node:path';
 
 const SRC = fileURLToPath(new URL('../../../designer/src', import.meta.url));
 const COMMON = fileURLToPath(new URL('../../../common', import.meta.url));
+/** `external/wx` (common/wx until 10-10): the wx layer, outside KiCad's tree as wx is. */
+const EXTERNAL_WX = fileURLToPath(new URL('../../../external/wx', import.meta.url));
 const GERBVIEW = fileURLToPath(new URL('../../../gerbview', import.meta.url));
 const BITMAP2COMPONENT = fileURLToPath(new URL('../../../bitmap2component', import.meta.url));
 const PAGELAYOUT = fileURLToPath(new URL('../../../pagelayout_editor', import.meta.url));
@@ -838,9 +840,9 @@ const BASELINE: Record<string, { colours: number; metrics: number }> = {
   // carrying its one colour and six metric literals; `widgets` fell by the same.
   // The total is unchanged.
   'common/dialogs': { colours: 2, metrics: 18 },
-  // 09-26 (stage 3b): common/wx/controls.tsx, the wx controls the panels'
+  // 09-26 (stage 3b): external/wx/controls.tsx (common/wx until 10-10), the wx controls the panels'
   // `_base` files instantiate, with the one colour `dialogs` gave up.
-  'common/wx': { colours: 1, metrics: 0 },
+  'external/wx': { colours: 1, metrics: 0 },
   // colours 6 -> 7: the opacity slider's #55585d track arrived here with
   // APPEARANCE_CONTROLS; it is the same literal `editors/pcb` lost, not a new
   // one. The panel's own stylesheet adds none: every length in
@@ -1022,6 +1024,14 @@ function scan(): Site[] {
       else if (/\.(css|tsx)$/.test(p)) files.push(p);
     }
   })(COMMON);
+  (function walk(dir: string) {
+    for (const entry of readdirSync(dir)) {
+      if (entry === 'node_modules') continue;
+      const p = join(dir, entry);
+      if (statSync(p).isDirectory()) walk(p);
+      else if (/\.(css|tsx)$/.test(p)) files.push(p);
+    }
+  })(EXTERNAL_WX);
   // gerbview/'s screens moved beside KiCad's (widgets/layer_widget.tsx, 09-27);
   // the launcher's literals are counted wherever its files sit.
   (function walk(dir: string) {
@@ -1085,6 +1095,7 @@ function scan(): Site[] {
   const sites: Site[] = [];
   for (const file of files) {
     const inCommon = !relative(COMMON, file).startsWith('..');
+    const inExternalWx = !relative(EXTERNAL_WX, file).startsWith('..');
     const inGerbview = !relative(GERBVIEW, file).startsWith('..');
     const inBitmap2component = !relative(BITMAP2COMPONENT, file).startsWith('..');
     const inPagelayout = !relative(PAGELAYOUT, file).startsWith('..');
@@ -1094,24 +1105,26 @@ function scan(): Site[] {
     const inViewer3d = !relative(VIEWER3D, file).startsWith('..');
     const rel = inCommon
       ? `common/${relative(COMMON, file)}`
-      : inGerbview
-        ? `editors/gerbview/${relative(GERBVIEW, file)}`
-        : inBitmap2component
-          ? `editors/image/${relative(BITMAP2COMPONENT, file)}`
-          : inPagelayout
-            ? `editors/drawingsheet/${relative(PAGELAYOUT, file)}`
-            : inCvpcb
-              ? `cvpcb/${relative(CVPCB, file)}`
-              : inPcbnew || inViewer3d
-                ? `editors/pcb/${relative(inPcbnew ? PCBNEW : VIEWER3D, file)}`
-                : inEeschema
-                  ? relative(EESCHEMA, file).startsWith('symbol_editor')
-                    ? `editors/symbol/${relative(EESCHEMA, file)}`
-                    : `editors/schematic/${relative(EESCHEMA, file)}`
-                  : relative(SRC, file);
+      : inExternalWx
+        ? `external/wx/${relative(EXTERNAL_WX, file)}`
+        : inGerbview
+          ? `editors/gerbview/${relative(GERBVIEW, file)}`
+          : inBitmap2component
+            ? `editors/image/${relative(BITMAP2COMPONENT, file)}`
+            : inPagelayout
+              ? `editors/drawingsheet/${relative(PAGELAYOUT, file)}`
+              : inCvpcb
+                ? `cvpcb/${relative(CVPCB, file)}`
+                : inPcbnew || inViewer3d
+                  ? `editors/pcb/${relative(inPcbnew ? PCBNEW : VIEWER3D, file)}`
+                  : inEeschema
+                    ? relative(EESCHEMA, file).startsWith('symbol_editor')
+                      ? `editors/symbol/${relative(EESCHEMA, file)}`
+                      : `editors/schematic/${relative(EESCHEMA, file)}`
+                    : relative(SRC, file);
     const parts = rel.split('/');
     const area =
-      parts[0] === 'editors' || parts[0] === 'common'
+      parts[0] === 'editors' || parts[0] === 'common' || parts[0] === 'external'
         ? `${parts[0]}/${parts[1]?.includes('.') ? '' : parts[1]}`.replace(/\/$/, '')
         : (parts[0] ?? '');
     const isCss = file.endsWith('.css');

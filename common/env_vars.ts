@@ -8,7 +8,7 @@
  */
 import { GetMajorMinorPatchTuple } from './build_version.js';
 import type { ENV_VAR_MAP } from './settings/environment.js';
-import { wxGetEnv } from './wx/utils.js';
+import { wxGetEnv } from '@ziroeda/wx/utils.js';
 
 export namespace ENV_VAR {
   /**

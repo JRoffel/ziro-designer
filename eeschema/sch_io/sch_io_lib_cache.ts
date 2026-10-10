@@ -10,14 +10,14 @@
  * `GetRealFile` is the library path itself.
  */
 import { KiCadSymbolLibFileExtension } from '@ziroeda/common/wildcards_and_files_ext.js';
-import { TimestampDir } from '@ziroeda/common/kiplatform/io.js';
+import { TimestampDir } from '@ziroeda/kiplatform/io.js';
 import {
   wxDirExists,
   wxFileExists,
   wxFileModificationTime,
   wxIsDirWritable,
   wxIsFileWritable,
-} from '@ziroeda/common/wx/filefn.js';
+} from '@ziroeda/wx/filefn.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import type { LIB_SYMBOL } from '../lib_symbol.js';
 import type { SCH_FIELD } from '../sch_field.js';

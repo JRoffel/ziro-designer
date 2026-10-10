@@ -18,8 +18,8 @@ import {
   wxMountFileSystem,
   wxReadFileSync,
   wxSetWorkingDirectory,
-} from '@ziroeda/common/wx/filefn.js';
-import { wxUnsetEnv } from '@ziroeda/common/wx/utils.js';
+} from '@ziroeda/wx/filefn.js';
+import { wxUnsetEnv } from '@ziroeda/wx/utils.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const LIB = '/usr/share/kicad/3dmodels';

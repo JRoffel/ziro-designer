@@ -39,7 +39,7 @@ const PANEL = readFileSync(
   'utf8',
 );
 const CSS = readFileSync(resolve(process.cwd(), '../common/widgets/shell.css'), 'utf8');
-const WIDGETS = readFileSync(resolve(process.cwd(), '../common/wx/controls.tsx'), 'utf8');
+const WIDGETS = readFileSync(resolve(process.cwd(), '../external/wx/controls.tsx'), 'utf8');
 /** The panel with its comments stripped: prose ABOUT a row is not that row. */
 const PANEL_CODE = PANEL.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\{\/\*[\s\S]*?\*\/\}/g, '');
 

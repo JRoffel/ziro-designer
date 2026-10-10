@@ -9,7 +9,7 @@
 
 import { KiROUND, rescale64 } from './math/util.js';
 import { EuclideanNormI, Perpendicular, ResizeI, type VECTOR2I } from './math/vector2.js';
-import { acos, asin, cos, hypot, sin } from './math/libm.js';
+import { acos, asin, cos, hypot, sin } from '@ziroeda/libc/libm.js';
 import { EDA_ANGLE, EDA_ANGLE_T } from './geometry/eda_angle.js';
 import { getArcToSegmentCount } from './geometry/geometry_utils.js';
 

@@ -26,9 +26,9 @@ import type { BOARD } from '@ziroeda/pcbnew/board.js';
 import type { PCB_REFERENCE_IMAGE } from '@ziroeda/pcbnew/pcb_reference_image.js';
 import { ParseBoard } from '@ziroeda/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.js';
 import { FALLBACK_PIXELS, imageSizeIU, iuPerPixel } from '@ziroeda/pcbnew/pcb_reference_image.js';
-import { DEFAULT_PPI, pngPPI, pngPixelSize } from '@ziroeda/common/wx/png_meta.js';
+import { DEFAULT_PPI, pngPPI, pngPixelSize } from '@ziroeda/wx/png_meta.js';
 import { pngCrc32 } from '@ziroeda/common/png_encoder.js';
-import { WX_IMAGE } from '@ziroeda/common/wx/wx_image.js';
+import { WX_IMAGE } from '@ziroeda/wx/wx_image.js';
 import { pcbMmToIU as mmToIU } from '@ziroeda/common/eda_units.js';
 
 const MM = (n: number): number => mmToIU(n);

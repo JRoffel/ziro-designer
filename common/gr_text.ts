@@ -20,7 +20,7 @@ import {
 } from './font/text_attributes.js';
 import { GRClosedPoly, GRCSegm, GRLine } from './gr_basic.js';
 import { EXPRESSION_EVALUATOR } from './text_eval/text_eval_wrapper.js';
-import type { wxDC } from './wx/dc.js';
+import type { wxDC } from '@ziroeda/wx/dc.js';
 import { KiROUND } from '@ziroeda/kimath/src/math/util.js';
 import type { VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
 

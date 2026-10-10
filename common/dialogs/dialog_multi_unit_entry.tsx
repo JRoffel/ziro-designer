@@ -13,7 +13,7 @@
  * wxTOP|wxBOTTOM|wxLEFT 5, entry wxALL|wxEXPAND 5, unit wxTOP|wxBOTTOM|wxRIGHT
  * 5; a checkbox spans the three at wxALL 5; the std buttons wxALL|wxEXPAND 5.
  */
-import { CheckBox } from '../wx/controls.js';
+import { CheckBox } from '@ziroeda/wx/controls.js';
 import { useState, type JSX } from 'react';
 import { DialogShim, StdDialogButtons } from '../dialog_shim.js';
 import type { EdaIuScale } from '../eda_units.js';

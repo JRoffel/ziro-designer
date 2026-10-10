@@ -61,7 +61,7 @@
  * text-variable auto-complete.
  */
 
-import { CheckBox } from '@ziroeda/common/wx/controls.js';
+import { CheckBox } from '@ziroeda/wx/controls.js';
 import { useState, type JSX } from 'react';
 import { pcbIuToMM, pcbIUScale, pcbMmToIU } from '@ziroeda/common/eda_units.js';
 import { parseUnitValue, stringFromValue, unitLabel } from '@ziroeda/common/widgets/unit_binder.js';

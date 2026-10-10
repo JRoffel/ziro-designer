@@ -45,7 +45,7 @@
  * Layers with the layer bar as its icon), rendered as a read-only table whose
  * selected row is the one `m_viewZonesOverview->GetSelection()` returns.
  */
-import { Button, CheckBox, TextCtrl } from '@ziroeda/common/wx/controls.js';
+import { Button, CheckBox, TextCtrl } from '@ziroeda/wx/controls.js';
 import { useEffect, useRef, useState, useSyncExternalStore, type JSX } from 'react';
 import { ZONE_SETTINGS_BAG } from '../zone_settings_bag.js';
 import { DialogShim, StdDialogButtons } from '@ziroeda/common/dialog_shim.js';
