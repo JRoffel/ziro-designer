@@ -48,12 +48,7 @@ function Opt({ label, c, first }: { label: string; c: CHECK; first?: boolean }):
   // m_FormattingOpt is added wxALL, every one after it wxBOTTOM|wxLEFT|wxRIGHT, all with 5.
   return (
     <SizerItem flag={first ? wxALL : wxBOTTOM | wxLEFT | wxRIGHT} border={5}>
-      <CheckBox
-        label={label}
-        checked={c.value}
-        disabled={c.enabled === false}
-        onChange={c.onChange}
-      />
+      <CheckBox label={label} check={c} />
     </SizerItem>
   );
 }

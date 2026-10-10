@@ -51,13 +51,7 @@ export interface DIALOG_UPDATE_FROM_PCB_BASE_PROPS {
 function Check({ label, tip, c }: { label: string; tip: string; c: CHECK }): JSX.Element {
   return (
     <SizerItem flag={wxBOTTOM | wxRIGHT | wxLEFT} border={5}>
-      <CheckBox
-        label={label}
-        title={tip}
-        checked={c.value}
-        disabled={c.enabled === false}
-        onChange={c.onChange}
-      />
+      <CheckBox label={label} title={tip} check={c} />
     </SizerItem>
   );
 }
