@@ -8051,13 +8051,6 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
   grid-column: 1 / -1;
   margin: 7px 0; /* [data] m_staticline1..5 Add( wxTOP|wxBOTTOM, 7 ) */
 }
-/* m_staticText12..16: KIUI::GetSmallInfoFont( this ).Italic(). */
-.ze-small-info {
-  font-size: var(--ui-font-size-small);
-}
-.ze-italic {
-  font-style: italic;
-}
 /* The font picker. `m_fontCtrl` is added with **wxEXPAND** in every dialog
    that carries one — `dialog_field_properties_base.cpp:146`,
    `dialog_label_properties_base.cpp:221`, `dialog_text_properties_base.cpp:97`

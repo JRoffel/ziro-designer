@@ -11,7 +11,7 @@
  * The class keeps upstream's members and methods; the wx controls are the values the form hands
  * TransferDataFromWindow, as DIALOG_TABLECELL_PROPERTIES does.
  */
-import { Button, CheckBox } from '@ziroeda/wx/controls.js';
+import { Button, CheckBox, StaticText } from '@ziroeda/wx/controls.js';
 import { type JSX, useState } from 'react';
 import { DisplayErrorMessage } from '@ziroeda/common/confirm.js';
 import { DialogShim } from '@ziroeda/common/dialog_shim.js';
@@ -609,7 +609,7 @@ export function DialogGlobalEditTextAndGraphics({
   );
 
   /** m_staticText12..16: KIUI::GetSmallInfoFont( this ).Italic(). */
-  const note = (text: string) => <span className="ze-small-info ze-italic">{text}</span>;
+  const note = (text: string) => <StaticText label={text} font="smallInfo" italic />;
   const empty = <span />;
 
   return (

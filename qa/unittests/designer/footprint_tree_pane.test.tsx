@@ -30,6 +30,7 @@
  * menu, and the empty state.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { PGM_BASE, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { FootprintEditor } from '@ziroeda/designer/src/editors/footprint/footprint_edit_frame_app.js';
 import { mergeFpEdit, settings, SETTINGS_SLICES } from '@ziroeda/designer/src/prefs/settings.js';
@@ -115,12 +116,17 @@ beforeEach(() => {
   });
   vi.stubGlobal('Path2D', FakePath2D);
   vi.stubGlobal('DOMMatrix', FakeDOMMatrix);
+  // The program object: the Fields grid's layer cells ask the frame's COLOR_SETTINGS.
+  SetPgm(new PGM_BASE(null, new SETTINGS_MANAGER()));
   // The global footprint index; 404 keeps the tree to the project's two.
   vi.stubGlobal('fetch', () =>
     Promise.resolve(new Response('', { status: 404, statusText: 'Not Found' })),
   );
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  SetPgm(null);
+});
 
 /** Mount on the project and wait for the tree to have rows. */
 const open = async (): Promise<HTMLElement> => {
