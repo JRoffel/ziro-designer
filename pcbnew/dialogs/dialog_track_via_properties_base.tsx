@@ -11,7 +11,7 @@ import { bitmapUrl } from '@ziroeda/common/bitmap_store.js';
 import { DialogShim } from '@ziroeda/common/dialog_shim.js';
 import { NetSelector, type NetSelectorProps } from '@ziroeda/common/widgets/net_selector.js';
 import { Combo, type ComboOption } from '@ziroeda/wx/combobox.js';
-import { type CHOICE, StaticLine, StaticText, TextCtrl } from '@ziroeda/wx/controls.js';
+import { type CHOICE, Choice, StaticLine, StaticText, TextCtrl } from '@ziroeda/wx/controls.js';
 import { type CHECK3, TriStateCheck } from '@ziroeda/wx/wx_checkbox.js';
 import {
   wxALIGN_BOTTOM,
@@ -155,9 +155,6 @@ export interface DIALOG_TRACK_VIA_PROPERTIES_BASE_PROPS {
   onCancel: () => void;
 }
 
-const choiceRows = (aList: readonly string[]): ComboOption[] =>
-  aList.map((label, i) => ({ value: String(i), label }));
-
 /** A wxStaticText that is a UNIT_BINDER's label or units, greyed with it. */
 function Label({ text, enabled }: { text: string; enabled?: boolean }): JSX.Element {
   return <StaticText label={text} disabled={enabled === false} />;
@@ -172,42 +169,6 @@ function Ctrl({ unit, ariaLabel, title }: { unit: UNIT; ariaLabel: string; title
       ariaLabel={ariaLabel}
       title={title}
     />
-  );
-}
-
-function Check({ label, check, title }: { label: string; check: CHECK3; title?: string }) {
-  return (
-    <TriStateCheck
-      label={label}
-      title={title}
-      value={check.value}
-      disabled={check.enabled === false}
-      onChange={check.onChange}
-    />
-  );
-}
-
-function Choice({
-  list,
-  choice,
-  ariaLabel,
-  title,
-}: {
-  list: readonly string[];
-  choice: CHOICE;
-  ariaLabel: string;
-  title?: string;
-}) {
-  return (
-    <span title={title}>
-      <Combo
-        value={choice.value < 0 ? '' : String(choice.value)}
-        options={choiceRows(list)}
-        onChange={(v) => choice.onChange(Number(v))}
-        disabled={choice.enabled === false}
-        ariaLabel={ariaLabel}
-      />
-    </span>
   );
 }
 
@@ -258,7 +219,7 @@ function PostMachine({
       </SizerItem>
       <SizerItem flag={wxALIGN_CENTER_VERTICAL | wxEXPAND | wxTOP | wxBOTTOM} border={3}>
         <Choice
-          list={POST_MACHINE_CHOICES}
+          choices={POST_MACHINE_CHOICES}
           choice={choice}
           ariaLabel={`${side.replace(':', '')} post-machining`}
         />
@@ -335,7 +296,7 @@ export function DIALOG_TRACK_VIA_PROPERTIES_BASE(
                       border={5}
                       shown={p.viaNotFreeShown}
                     >
-                      <Check
+                      <TriStateCheck
                         label="Automatically update via nets"
                         title="Automatically change the net of this via when the pads or zones it touches are changed"
                         check={p.m_viaNotFree}
@@ -350,7 +311,7 @@ export function DIALOG_TRACK_VIA_PROPERTIES_BASE(
             </SizerItem>
             <Spacer width={0} height={5} flag={wxEXPAND} border={5} />
             <SizerItem flag={wxTOP | wxBOTTOM | wxLEFT} border={4}>
-              <Check label="Locked" check={p.m_lockedCbox} />
+              <TriStateCheck label="Locked" check={p.m_lockedCbox} />
             </SizerItem>
           </StaticBoxSizer>
         </SizerItem>
@@ -470,7 +431,7 @@ export function DIALOG_TRACK_VIA_PROPERTIES_BASE(
                       {/* fgSizerTrackMaskMargin = wxFlexGridSizer( 0, 4, 3, 5 ), AddGrowableCol( 2 ) */}
                       <FlexGridSizer cols={4} vgap={3} hgap={5} growableCols={[2]}>
                         <SizerItem flag={wxALIGN_CENTER_VERTICAL | wxLEFT} border={5}>
-                          <Check label="Solder mask" check={p.m_trackHasSolderMask} />
+                          <TriStateCheck label="Solder mask" check={p.m_trackHasSolderMask} />
                         </SizerItem>
                         <SizerItem flag={wxALIGN_CENTER_VERTICAL | wxLEFT} border={5}>
                           <Label text="Expansion:" enabled={p.m_trackMaskMargin.enabled} />
@@ -553,7 +514,7 @@ export function DIALOG_TRACK_VIA_PROPERTIES_BASE(
                             </SizerItem>
                             <SizerItem flag={wxALL} border={5}>
                               <Choice
-                                list={PADSTACK_MODE_CHOICES}
+                                choices={PADSTACK_MODE_CHOICES}
                                 choice={p.m_cbPadstackMode}
                                 ariaLabel="Padstack mode"
                               />
@@ -613,7 +574,7 @@ export function DIALOG_TRACK_VIA_PROPERTIES_BASE(
                       border={2}
                     >
                       <Choice
-                        list={VIA_TYPE_CHOICES}
+                        choices={VIA_TYPE_CHOICES}
                         choice={p.m_ViaTypeChoice}
                         ariaLabel="Via type"
                       />
@@ -653,7 +614,7 @@ export function DIALOG_TRACK_VIA_PROPERTIES_BASE(
                       shown={p.annularRingsShown}
                     >
                       <Choice
-                        list={ANNULAR_RINGS_CHOICES}
+                        choices={ANNULAR_RINGS_CHOICES}
                         choice={p.m_annularRingsCtrl}
                         ariaLabel="Annular rings"
                       />
@@ -706,7 +667,7 @@ export function DIALOG_TRACK_VIA_PROPERTIES_BASE(
                       border={5}
                     >
                       <Choice
-                        list={BACKDRILL_CHOICES}
+                        choices={BACKDRILL_CHOICES}
                         choice={p.m_backdrillChoice}
                         ariaLabel="Backdrill"
                       />
@@ -865,7 +826,7 @@ export function DIALOG_TRACK_VIA_PROPERTIES_BASE(
                       <BoxSizer orient={wxVERTICAL}>
                         <Spacer width={0} height={2} flag={wxEXPAND} border={5} />
                         <SizerItem flag={wxBOTTOM | wxRIGHT | wxLEFT} border={3}>
-                          <Check
+                          <TriStateCheck
                             label="Add teardrops on via's track connections"
                             check={{
                               ...p.m_cbTeardrops,
@@ -874,7 +835,7 @@ export function DIALOG_TRACK_VIA_PROPERTIES_BASE(
                           />
                         </SizerItem>
                         <SizerItem flag={wxBOTTOM | wxRIGHT | wxLEFT} border={5}>
-                          <Check
+                          <TriStateCheck
                             label="Allow teardrops to span two track segments"
                             title="Allows a teardrop to extend over the first 2 connected track segments if the first track segment is too short to accommodate the best length."
                             check={{
@@ -1033,7 +994,7 @@ export function DIALOG_TRACK_VIA_PROPERTIES_BASE(
                           {/* bSizer44 */}
                           <BoxSizer orient={wxHORIZONTAL}>
                             <SizerItem flag={wxALIGN_CENTER_VERTICAL | wxLEFT} border={5}>
-                              <Check
+                              <TriStateCheck
                                 label="Curved edges"
                                 check={{
                                   ...p.m_curvedEdges,

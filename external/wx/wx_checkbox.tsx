@@ -24,19 +24,25 @@ export interface CHECK3 {
  */
 export function TriStateCheck({
   label,
-  value,
-  onChange,
+  value: aValue,
+  onChange: aOnChange,
+  check,
   allowThirdStateForUser = true,
-  disabled,
+  disabled: aDisabled,
   title,
 }: {
   label: string;
-  value: CHECK_STATE;
-  onChange: (aValue: CHECK_STATE) => void;
+  value?: CHECK_STATE;
+  onChange?: (aValue: CHECK_STATE) => void;
+  /** The `_base` member instead of `value` / `onChange` / `disabled`. */
+  check?: CHECK3;
   allowThirdStateForUser?: boolean;
   disabled?: boolean;
   title?: string;
 }): JSX.Element {
+  const value = check ? check.value : (aValue ?? false);
+  const onChange = check ? check.onChange : (aOnChange ?? (() => {}));
+  const disabled = check ? check.enabled === false : aDisabled;
   const ref = useRef<HTMLInputElement>(null);
 
   useEffect(() => {

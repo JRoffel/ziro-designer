@@ -16,12 +16,12 @@ import { StdBitmapButton } from '@ziroeda/common/widgets/std_bitmap_button.js';
 import { HtmlReportPanel } from '@ziroeda/common/widgets/wx_html_report_panel.js';
 import type { ReportLine } from '@ziroeda/common/reporter.js';
 import { CheckListBox } from '@ziroeda/wx/checklst.js';
-import { Combo } from '@ziroeda/wx/combobox.js';
 import {
   Button,
   type CHECK,
   type CHOICE,
   CheckBox,
+  Choice,
   HyperlinkCtrl,
   RadioButton,
   StaticText,
@@ -154,45 +154,6 @@ export interface DIALOG_PLOT_BASE_PROPS {
   onCancel: () => void;
 }
 
-const choiceOptions = (aList: readonly string[]) =>
-  aList.map((label, i) => ({ value: String(i), label }));
-
-function Check({ label, title, check }: { label: string; title?: string; check: CHECK }) {
-  return (
-    <CheckBox
-      label={label}
-      title={title}
-      checked={check.value}
-      disabled={check.enabled === false}
-      onChange={check.onChange}
-    />
-  );
-}
-
-function Choice({
-  list,
-  choice,
-  ariaLabel,
-  title,
-}: {
-  list: readonly string[];
-  choice: CHOICE;
-  ariaLabel: string;
-  title?: string;
-}) {
-  return (
-    <span title={title}>
-      <Combo
-        value={String(choice.value)}
-        options={choiceOptions(list)}
-        onChange={(v) => choice.onChange(Number(v))}
-        disabled={choice.enabled === false}
-        ariaLabel={ariaLabel}
-      />
-    </span>
-  );
-}
-
 function Text({ text, ariaLabel, title }: { text: TEXT; ariaLabel: string; title?: string }) {
   return (
     <TextCtrl
@@ -226,7 +187,7 @@ export function DIALOG_PLOT_BASE(p: DIALOG_PLOT_BASE_PROPS): JSX.Element {
               <BoxSizer orient={wxHORIZONTAL}>
                 <SizerItem flag={wxALIGN_CENTER_VERTICAL | wxRIGHT} border={28}>
                   <Choice
-                    list={PLOT_FORMAT_CHOICES}
+                    choices={PLOT_FORMAT_CHOICES}
                     choice={p.m_plotFormatOpt}
                     ariaLabel="Plot format"
                   />
@@ -237,7 +198,7 @@ export function DIALOG_PLOT_BASE(p: DIALOG_PLOT_BASE_PROPS): JSX.Element {
                 </SizerItem>
                 <SizerItem flag={wxALIGN_CENTER_VERTICAL | wxLEFT | wxRIGHT} border={5}>
                   <Choice
-                    list={p.variants}
+                    choices={p.variants}
                     choice={p.m_variantChoiceCtrl}
                     ariaLabel="Design variant"
                   />
@@ -322,17 +283,17 @@ export function DIALOG_PLOT_BASE(p: DIALOG_PLOT_BASE_PROPS): JSX.Element {
                           border={5}
                           minSize={[280, -1]}
                         >
-                          <Check label="Plot drawing sheet" check={p.m_plotSheetRef} />
+                          <CheckBox label="Plot drawing sheet" check={p.m_plotSheetRef} />
                         </SizerItem>
                         <SizerItem pos={[1, 0]} flag={wxALIGN_CENTER_VERTICAL} border={5}>
-                          <Check
+                          <CheckBox
                             label="Subtract soldermask from silkscreen"
                             title="Remove silkscreen from areas without soldermask"
                             check={p.m_subtractMaskFromSilk}
                           />
                         </SizerItem>
                         <SizerItem pos={[2, 0]} flag={wxALIGN_CENTER_VERTICAL} border={5}>
-                          <Check
+                          <CheckBox
                             label="Indicate DNP on fabrication layers"
                             title="Hide or cross-out DNP footprints on fabrication layers"
                             check={p.m_plotDNP}
@@ -358,14 +319,14 @@ export function DIALOG_PLOT_BASE(p: DIALOG_PLOT_BASE_PROPS): JSX.Element {
                           />
                         </SizerItem>
                         <SizerItem pos={[5, 0]} flag={wxALIGN_CENTER_VERTICAL} border={5}>
-                          <Check
+                          <CheckBox
                             label="Sketch pads on fabrication layers"
                             title="Include pad outlines on F.Fab and B.Fab layers when plotting"
                             check={p.m_sketchPadsOnFabLayers}
                           />
                         </SizerItem>
                         <SizerItem pos={[6, 0]} flag={wxLEFT} border={25}>
-                          <Check label="Include pad numbers" check={p.m_plotPadNumbers} />
+                          <CheckBox label="Include pad numbers" check={p.m_plotPadNumbers} />
                         </SizerItem>
                         <SizerItem
                           pos={[6, 1]}
@@ -373,7 +334,7 @@ export function DIALOG_PLOT_BASE(p: DIALOG_PLOT_BASE_PROPS): JSX.Element {
                           flag={wxALIGN_CENTER_VERTICAL | wxLEFT}
                           border={30}
                         >
-                          <Check
+                          <CheckBox
                             label="Check zone fills before plotting"
                             check={p.m_zoneFillCheck}
                           />
@@ -383,7 +344,7 @@ export function DIALOG_PLOT_BASE(p: DIALOG_PLOT_BASE_PROPS): JSX.Element {
                         </SizerItem>
                         <SizerItem pos={[0, 2]} flag={wxEXPAND | wxLEFT} border={5}>
                           <Choice
-                            list={PLOT_DRILL_CHOICES}
+                            choices={PLOT_DRILL_CHOICES}
                             choice={p.m_drillShapeOpt}
                             ariaLabel="Drill marks"
                           />
@@ -393,7 +354,7 @@ export function DIALOG_PLOT_BASE(p: DIALOG_PLOT_BASE_PROPS): JSX.Element {
                         </SizerItem>
                         <SizerItem pos={[1, 2]} flag={wxEXPAND | wxLEFT} border={5}>
                           <Choice
-                            list={PLOT_SCALE_CHOICES}
+                            choices={PLOT_SCALE_CHOICES}
                             choice={p.m_scaleOpt}
                             ariaLabel="Scaling"
                           />
@@ -404,7 +365,7 @@ export function DIALOG_PLOT_BASE(p: DIALOG_PLOT_BASE_PROPS): JSX.Element {
                           flag={wxALIGN_CENTER_VERTICAL | wxLEFT}
                           border={30}
                         >
-                          <Check
+                          <CheckBox
                             label="Use drill/place file origin"
                             title="Use the drill/place file origin as the coordinate origin for plotted files"
                             check={p.m_useAuxOriginCheckBox}
@@ -416,7 +377,7 @@ export function DIALOG_PLOT_BASE(p: DIALOG_PLOT_BASE_PROPS): JSX.Element {
                           flag={wxALIGN_CENTER_VERTICAL | wxLEFT}
                           border={30}
                         >
-                          <Check label="Mirrored plot" check={p.m_plotMirrorOpt} />
+                          <CheckBox label="Mirrored plot" check={p.m_plotMirrorOpt} />
                         </SizerItem>
                         <SizerItem
                           pos={[4, 1]}
@@ -424,7 +385,7 @@ export function DIALOG_PLOT_BASE(p: DIALOG_PLOT_BASE_PROPS): JSX.Element {
                           flag={wxALIGN_CENTER_VERTICAL | wxLEFT}
                           border={30}
                         >
-                          <Check label="Negative plot" check={p.m_plotPSNegativeOpt} />
+                          <CheckBox label="Negative plot" check={p.m_plotPSNegativeOpt} />
                         </SizerItem>
                       </GridBagSizer>
                     </SizerItem>
@@ -493,7 +454,7 @@ export function DIALOG_PLOT_BASE(p: DIALOG_PLOT_BASE_PROPS): JSX.Element {
                           border={5}
                           minSize={[280, -1]}
                         >
-                          <Check
+                          <CheckBox
                             label="Use Protel filename extensions"
                             title={
                               'Use Protel Gerber extensions (.GBL, .GTL, etc...)\nNo longer recommended. The official extension is .gbr'
@@ -502,7 +463,7 @@ export function DIALOG_PLOT_BASE(p: DIALOG_PLOT_BASE_PROPS): JSX.Element {
                           />
                         </SizerItem>
                         <SizerItem pos={[1, 0]} flag={wxALIGN_CENTER_VERTICAL} border={5}>
-                          <Check
+                          <CheckBox
                             label="Generate Gerber job file"
                             title={
                               'Generate a Gerber job file that contains info about the board,\nand the list of generated Gerber plot files'
@@ -515,7 +476,7 @@ export function DIALOG_PLOT_BASE(p: DIALOG_PLOT_BASE_PROPS): JSX.Element {
                         </SizerItem>
                         <SizerItem pos={[0, 2]} flag={wxEXPAND | wxRIGHT | wxLEFT} border={5}>
                           <Choice
-                            list={PLOT_COORD_CHOICES}
+                            choices={PLOT_COORD_CHOICES}
                             choice={p.m_coordFormatCtrl}
                             ariaLabel="Coordinate format"
                           />
@@ -526,7 +487,7 @@ export function DIALOG_PLOT_BASE(p: DIALOG_PLOT_BASE_PROPS): JSX.Element {
                           flag={wxALIGN_CENTER_VERTICAL | wxLEFT}
                           border={30}
                         >
-                          <Check
+                          <CheckBox
                             label="Use extended X2 format (recommended)"
                             title={
                               'Use X2 Gerber file format.\nInclude  mainly X2 attributes in Gerber headers.\nIf not checked, use X1 format.\nIn X1 format, these attributes are included as comments in files.'
@@ -540,7 +501,7 @@ export function DIALOG_PLOT_BASE(p: DIALOG_PLOT_BASE_PROPS): JSX.Element {
                           flag={wxLEFT | wxALIGN_CENTER_VERTICAL}
                           border={30}
                         >
-                          <Check
+                          <CheckBox
                             label="Include netlist attributes"
                             title={
                               'Include netlist metadata and aperture attributes in Gerber files.\nThey are comments in the X1 format.\nUsed to check connectivity in CAM tools and Gerber viewers.'
@@ -554,7 +515,7 @@ export function DIALOG_PLOT_BASE(p: DIALOG_PLOT_BASE_PROPS): JSX.Element {
                           flag={wxLEFT | wxALIGN_CENTER_VERTICAL}
                           border={30}
                         >
-                          <Check
+                          <CheckBox
                             label="Disable aperture macros (not recommended)"
                             title={
                               'Disable aperture macros in Gerber files\nUse *only* for broken Gerber viewers.'
@@ -619,7 +580,7 @@ export function DIALOG_PLOT_BASE(p: DIALOG_PLOT_BASE_PROPS): JSX.Element {
                       </FlexGridSizer>
                     </SizerItem>
                     <SizerItem flag={wxBOTTOM | wxRIGHT | wxLEFT} border={5}>
-                      <Check label="Force A4 output" check={p.m_forcePSA4OutputOpt} />
+                      <CheckBox label="Force A4 output" check={p.m_forcePSA4OutputOpt} />
                     </SizerItem>
                   </StaticBoxSizer>
                 </SizerItem>
@@ -635,7 +596,7 @@ export function DIALOG_PLOT_BASE(p: DIALOG_PLOT_BASE_PROPS): JSX.Element {
                           border={5}
                           minSize={[300, -1]}
                         >
-                          <Check
+                          <CheckBox
                             label="Plot graphic items using their contours"
                             title="Uncheck to plot graphic items using their center lines"
                             check={p.m_DXF_plotModeOpt}
@@ -646,7 +607,7 @@ export function DIALOG_PLOT_BASE(p: DIALOG_PLOT_BASE_PROPS): JSX.Element {
                         </SizerItem>
                         <SizerItem pos={[0, 3]} flag={wxALIGN_CENTER_VERTICAL} border={5}>
                           <Choice
-                            list={PLOT_DXF_UNITS_CHOICES}
+                            choices={PLOT_DXF_UNITS_CHOICES}
                             choice={p.m_DXF_plotUnits}
                             ariaLabel="Export units"
                             title="The units to use for the exported DXF file"
@@ -658,7 +619,7 @@ export function DIALOG_PLOT_BASE(p: DIALOG_PLOT_BASE_PROPS): JSX.Element {
                           flag={wxALIGN_CENTER_VERTICAL | wxRIGHT | wxLEFT}
                           border={5}
                         >
-                          <Check
+                          <CheckBox
                             label="Use KiCad font to plot text"
                             title={
                               'Check to use KiCad stroke font\nUncheck to plot single-line ASCII texts as editable text (using DXF font)'
@@ -672,7 +633,7 @@ export function DIALOG_PLOT_BASE(p: DIALOG_PLOT_BASE_PROPS): JSX.Element {
                           flag={wxALIGN_CENTER_VERTICAL | wxLEFT | wxRIGHT}
                           border={5}
                         >
-                          <Check
+                          <CheckBox
                             label="Single document"
                             title="Export selected layers into a single DXF"
                             check={p.m_DXF_exportAsMultiLayeredFile}
@@ -726,13 +687,13 @@ export function DIALOG_PLOT_BASE(p: DIALOG_PLOT_BASE_PROPS): JSX.Element {
                           border={5}
                         >
                           <Choice
-                            list={PLOT_COLOR_CHOICES}
+                            choices={PLOT_COLOR_CHOICES}
                             choice={p.m_SVGColorChoice}
                             ariaLabel="SVG output mode"
                           />
                         </SizerItem>
                         <SizerItem pos={[2, 0]} span={[2, 1]} flag={wxALL} border={5}>
-                          <Check label="Fit page to board" check={p.m_SVG_fitPageToBoard} />
+                          <CheckBox label="Fit page to board" check={p.m_SVG_fitPageToBoard} />
                         </SizerItem>
                       </GridBagSizer>
                     </SizerItem>
@@ -756,32 +717,32 @@ export function DIALOG_PLOT_BASE(p: DIALOG_PLOT_BASE_PROPS): JSX.Element {
                           border={5}
                         >
                           <Choice
-                            list={PLOT_COLOR_CHOICES}
+                            choices={PLOT_COLOR_CHOICES}
                             choice={p.m_PDFColorChoice}
                             ariaLabel="PDF output mode"
                           />
                         </SizerItem>
                         <SizerItem pos={[1, 0]} span={[1, 2]} flag={wxRIGHT | wxLEFT} border={5}>
-                          <Check
+                          <CheckBox
                             label="Generate property popups for front footprints"
                             check={p.m_frontFPPropertyPopups}
                           />
                         </SizerItem>
                         <SizerItem pos={[2, 0]} span={[1, 2]} flag={wxRIGHT | wxLEFT} border={5}>
-                          <Check
+                          <CheckBox
                             label="Generate property popups for back footprints"
                             check={p.m_backFPPropertyPopups}
                           />
                         </SizerItem>
                         <SizerItem pos={[3, 0]} span={[1, 2]} flag={wxLEFT | wxRIGHT} border={5}>
-                          <Check
+                          <CheckBox
                             label="Generate metadata from AUTHOR & SUBJECT variables"
                             title="Generate PDF document properties from AUTHOR and SUBJECT text variables"
                             check={p.m_pdfMetadata}
                           />
                         </SizerItem>
                         <SizerItem pos={[4, 0]} span={[1, 2]} flag={wxLEFT | wxRIGHT} border={5}>
-                          <Check label="Single document" check={p.m_pdfSingle} />
+                          <CheckBox label="Single document" check={p.m_pdfSingle} />
                         </SizerItem>
                         <SizerItem pos={[5, 0]} flag={wxALL} border={5}>
                           <StaticText label="Background Color" disabled={!p.pdfBackgroundEnabled} />

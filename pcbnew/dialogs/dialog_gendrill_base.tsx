@@ -82,31 +82,6 @@ export interface DIALOG_GENDRILL_BASE_PROPS {
   onCancel: () => void;
 }
 
-/** A checkbox in one of the format option grids. */
-function Check({
-  label,
-  check,
-  flag,
-  title,
-}: {
-  label: string;
-  check: CHECK;
-  flag: number;
-  title?: string;
-}): JSX.Element {
-  return (
-    <SizerItem flag={flag} border={5}>
-      <CheckBox
-        label={label}
-        title={title}
-        checked={check.value}
-        disabled={check.enabled === false}
-        onChange={check.onChange}
-      />
-    </SizerItem>
-  );
-}
-
 const choiceOptions = (aList: readonly string[]) =>
   aList.map((label, i) => ({ value: String(i), label }));
 
@@ -202,35 +177,39 @@ export function DIALOG_GENDRILL_BASE(p: DIALOG_GENDRILL_BASE_PROPS): JSX.Element
                     <SizerItem flag={wxEXPAND | wxLEFT} border={20}>
                       {/* fgSizerExcellonOptions = wxFlexGridSizer( 4, 1, 3, 0 ) */}
                       <FlexGridSizer cols={1} vgap={3} hgap={0}>
-                        <Check
-                          label="Mirror Y axis"
-                          title={
-                            'Not recommended.\nUsed mostly by users who make the boards themselves.'
-                          }
-                          check={p.m_Check_Mirror}
-                          flag={wxLEFT}
-                        />
-                        <Check
-                          label="Minimal header"
-                          title={
-                            'Not recommended.\nOnly use it for board houses which do not accept fully featured headers.'
-                          }
-                          check={p.m_Check_Minimal}
-                          flag={wxRIGHT | wxLEFT}
-                        />
-                        <Check
-                          label="PTH and NPTH in single file"
-                          title={
-                            'Not recommended.\nOnly use for board houses which ask for merged PTH and NPTH into a single file.'
-                          }
-                          check={p.m_Check_Merge_PTH_NPTH}
-                          flag={wxLEFT}
-                        />
-                        <Check
-                          label="Use alternate drill mode for oval holes"
-                          check={p.m_altDrillMode}
-                          flag={wxBOTTOM | wxRIGHT | wxLEFT}
-                        />
+                        <SizerItem flag={wxLEFT} border={5}>
+                          <CheckBox
+                            label="Mirror Y axis"
+                            title={
+                              'Not recommended.\nUsed mostly by users who make the boards themselves.'
+                            }
+                            check={p.m_Check_Mirror}
+                          />
+                        </SizerItem>
+                        <SizerItem flag={wxRIGHT | wxLEFT} border={5}>
+                          <CheckBox
+                            label="Minimal header"
+                            title={
+                              'Not recommended.\nOnly use it for board houses which do not accept fully featured headers.'
+                            }
+                            check={p.m_Check_Minimal}
+                          />
+                        </SizerItem>
+                        <SizerItem flag={wxLEFT} border={5}>
+                          <CheckBox
+                            label="PTH and NPTH in single file"
+                            title={
+                              'Not recommended.\nOnly use for board houses which ask for merged PTH and NPTH into a single file.'
+                            }
+                            check={p.m_Check_Merge_PTH_NPTH}
+                          />
+                        </SizerItem>
+                        <SizerItem flag={wxBOTTOM | wxRIGHT | wxLEFT} border={5}>
+                          <CheckBox
+                            label="Use alternate drill mode for oval holes"
+                            check={p.m_altDrillMode}
+                          />
+                        </SizerItem>
                       </FlexGridSizer>
                     </SizerItem>
                     <Spacer width={0} height={3} proportion={1} flag={wxEXPAND} border={5} />
@@ -246,11 +225,12 @@ export function DIALOG_GENDRILL_BASE(p: DIALOG_GENDRILL_BASE_PROPS): JSX.Element
                     <SizerItem proportion={1} flag={wxEXPAND | wxLEFT} border={20}>
                       {/* fgSizerGerberX2Options = wxFlexGridSizer( 4, 1, 3, 0 ) */}
                       <FlexGridSizer cols={1} vgap={3} hgap={0}>
-                        <Check
-                          label="Generate tenting layers"
-                          check={p.m_generateTentingLayers}
-                          flag={wxBOTTOM | wxLEFT | wxRIGHT}
-                        />
+                        <SizerItem flag={wxBOTTOM | wxLEFT | wxRIGHT} border={5}>
+                          <CheckBox
+                            label="Generate tenting layers"
+                            check={p.m_generateTentingLayers}
+                          />
+                        </SizerItem>
                       </FlexGridSizer>
                     </SizerItem>
                     <Spacer width={0} height={6} flag={wxEXPAND} border={5} />
