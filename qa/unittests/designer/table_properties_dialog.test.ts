@@ -133,15 +133,15 @@ describe('the standard button row', () => {
   it('puts Cancel before OK, which is what GTK Realize() does', () => {
     // `wxStdDialogButtonSizer::Realize` applies the platform convention: the
     // GNOME HIG puts the affirmative last. Settled in the component, once.
-    const comp = read('../../common/dialog_shim.tsx');
+    const comp = read('../../external/wx/sizer.tsx');
     expect(comp.indexOf('{cancelLabel}')).toBeLessThan(comp.indexOf('{okLabel}'));
   });
 
   it('builds every button from the shared wxButton, which is never a submit', () => {
     // Cancel, OK, and the optional wxID_APPLY button PAD_TOOL's Push Pad
     // Properties dialog needs (c71099d4).
-    const comp = read('../../common/dialog_shim.tsx');
-    const row = comp.slice(comp.indexOf('export function StdDialogButtons('));
+    const comp = read('../../external/wx/sizer.tsx');
+    const row = comp.slice(comp.indexOf('export function StdDialogButtonSizer('));
     const uses = row.slice(0, row.indexOf('\n}\n')).match(/<Button\b[^>]*\/>/g) ?? [];
     expect(uses).toHaveLength(3);
     // OK alone is the default button (SetAffirmativeButton).
@@ -154,7 +154,7 @@ describe('the standard button row', () => {
   });
 
   it('puts Apply between Cancel and OK, as GTK Realize() does', () => {
-    const comp = read('../../common/dialog_shim.tsx');
+    const comp = read('../../external/wx/sizer.tsx');
     const cancel = comp.indexOf('{cancelLabel}');
     const apply = comp.indexOf('{applyLabel}');
     expect(cancel).toBeLessThan(apply);

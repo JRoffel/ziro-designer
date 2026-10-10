@@ -11,18 +11,17 @@
  * (`dialog_shim_buttons`, `dialogs/dialog_size_hints`, `dialogs/modal_escape`,
  * `dialogs/use_modal_escape`).
  */
-import {
-  type JSX,
-  type KeyboardEvent as ReactKeyboardEvent,
-  type ReactNode,
-  type RefObject,
-  type CSSProperties,
-  type Ref,
+import type {
+  JSX,
+  KeyboardEvent as ReactKeyboardEvent,
+  ReactNode,
+  RefObject,
+  CSSProperties,
+  Ref,
 } from 'react';
 import { Dialog, isSingleLineEntry, pressDefaultButton } from '@ziroeda/wx/dialog.js';
 import { PgmOrNull } from './pgm_base.js';
 import { DIALOG_GEOMETRY_KEY } from './settings/common_settings.js';
-import { Button } from '@ziroeda/wx/controls.js';
 
 // ---------------------------------------------------------------------------
 // finishDialogSettings / SetSizeHints: the size floor.
@@ -123,82 +122,13 @@ export {
 } from '@ziroeda/wx/dialog.js';
 
 // ---------------------------------------------------------------------------
-// The standard button row.
+// The standard button row: `wxStdDialogButtonSizer`, which is wx's (wx/sizer.h), so it lives in
+// external/wx/sizer.tsx. The old name stays here until every caller imports it from there.
 
-/**
- * Counterpart: `wxStdDialogButtonSizer`, which is what every KiCad dialog uses —
- * wxFormBuilder emits `m_sdbSizer1` / `m_sdbSizer1OK` / `m_sdbSizer1Cancel` and
- * a `Realize()` into each `*_base.cpp`, so no dialog upstream states the row
- * itself.
- *
- * Here, eighty-nine dialogs each wrote their own `<div className="ze-modal-footer">`
- * with two hand-made buttons, and they had already drifted: some gave the
- * buttons `className="ze-btn"` and some nothing, some set `type="button"` and
- * some left it to default to `submit`. That is the whole reason wx has a sizer
- * for this.
- *
- * ## Order is the platform's, not the call site's
- *
- * `Realize()` is where wx applies the platform convention, and the two disagree:
- * GTK follows the GNOME HIG and puts the affirmative button **last**
- * (Cancel, then OK), Windows puts it first. Our parity target is the GTK build
- * on this machine, so Cancel comes first — and it is settled here once rather
- * than at each call site, which is exactly what stopped the 89 copies agreeing.
- *
- * The OK button is the dialog's default: `SetAffirmativeButton` is what makes
- * Enter activate it.
- */
-export interface StdDialogButtonsProps {
-  /** `wxID_CANCEL`'s handler. Also what Esc runs, via `useModalEscape`. */
-  onCancel: () => void;
-  /** `wxID_OK`'s handler — the affirmative, and the dialog's default button. */
-  onOk: () => void;
-  /**
-   * Stock label overrides. wx takes these from the stock ids (`wxID_OK` → "OK",
-   * `wxID_CANCEL` → "Cancel"); a dialog that renames one does it deliberately,
-   * as `DIALOG_SHIM`'s `SetOKCancelLabels` callers do.
-   */
-  okLabel?: string;
-  cancelLabel?: string;
-  /** `m_sdbSizerOK->Enable( false )`. */
-  okDisabled?: boolean;
-  /** A tooltip on Cancel — `SetToolTip` on the stock button. */
-  cancelTitle?: string;
-  /**
-   * A `wxID_APPLY` button. `wxStdDialogButtonSizer::Realize` on GTK puts it
-   * between Cancel and the affirmative button: Cancel, Apply, OK.
-   */
-  onApply?: () => void;
-  applyLabel?: string;
-  /**
-   * Anything the dialog puts at the *left* of the row — a Help button, a
-   * "Reset to Defaults", a status line. `wxStdDialogButtonSizer` grows a
-   * stretch spacer between those and the affirmative pair.
-   */
-  children?: ReactNode;
-}
-
-export function StdDialogButtons({
-  onCancel,
-  onOk,
-  okLabel = 'OK',
-  cancelLabel = 'Cancel',
-  okDisabled,
-  cancelTitle,
-  onApply,
-  applyLabel = 'Apply',
-  children,
-}: StdDialogButtonsProps): JSX.Element {
-  return (
-    <div className="ze-modal-footer">
-      {children}
-      {children ? <span className="ze-sdb-spacer" /> : null}
-      <Button label={cancelLabel} title={cancelTitle} onClick={onCancel} />
-      {onApply ? <Button label={applyLabel} onClick={onApply} /> : null}
-      <Button label={okLabel} isDefault disabled={okDisabled} onClick={onOk} />
-    </div>
-  );
-}
+export {
+  StdDialogButtonSizer as StdDialogButtons,
+  type StdDialogButtonSizerProps as StdDialogButtonsProps,
+} from '@ziroeda/wx/sizer.js';
 
 // ---------------------------------------------------------------------------
 // The dialog window.

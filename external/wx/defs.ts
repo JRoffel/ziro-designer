@@ -42,3 +42,26 @@ export const wxFD_CHANGE_DIR = 0x0080;
 export const wxDD_DIR_MUST_EXIST = 0x0200;
 /** `wxDD_DEFAULT_STYLE` (wx/dirdlg.h): wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER. */
 export const wxDD_DEFAULT_STYLE = 0x20000000 | 0x0800 | 0x1000 | 0x0040;
+
+/** Sizer orientation (wx/defs.h `wxOrientation`). */
+export const wxHORIZONTAL = 0x0004;
+export const wxVERTICAL = 0x0008;
+export const wxBOTH = wxVERTICAL | wxHORIZONTAL;
+
+/** Border directions of a sizer item (wx/defs.h `wxDirection`): which sides `border` applies to. */
+export const wxLEFT = 0x0010;
+export const wxRIGHT = 0x0020;
+export const wxTOP = 0x0040;
+export const wxBOTTOM = 0x0080;
+export const wxALL = wxTOP | wxBOTTOM | wxRIGHT | wxLEFT;
+
+/** Sizer item flags (wx/defs.h `wxStretch`, `wxAlignment`). Left and top are 0. */
+export const wxEXPAND = 0x2000;
+export const wxSHAPED = 0x4000;
+export const wxALIGN_LEFT = 0;
+export const wxALIGN_TOP = 0;
+export const wxALIGN_CENTER_HORIZONTAL = 0x0100;
+export const wxALIGN_RIGHT = 0x0200;
+export const wxALIGN_BOTTOM = 0x0400;
+export const wxALIGN_CENTER_VERTICAL = 0x0800;
+export const wxALIGN_CENTER = wxALIGN_CENTER_HORIZONTAL | wxALIGN_CENTER_VERTICAL;

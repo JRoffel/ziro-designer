@@ -13421,6 +13421,44 @@ textarea.ze-ds-textedit {
    sides and along the bottom, with the top edge running behind the label, which
    starts at the frame's own left edge and is not bold. A fieldset and its
    legend are that shape. Dialogs used to restate a padding and border each. */
+/* ---------------------------------------------------------------------------
+   The wx sizers (external/wx/sizer.tsx), once for every dialog. A dialog states
+   its proportions, flags and borders as props from its _base.cpp; nothing
+   below is a number, and no dialog adds layout CSS of its own.
+   --------------------------------------------------------------------------- */
+.ze-sizer {
+  display: flex;
+  white-space: nowrap; /* a wxStaticText / wxCheckBox label never wraps */
+}
+.ze-gridsizer {
+  display: grid;
+}
+/* An item never shrinks below its minimum; its grow is its proportion (inline). */
+.ze-szi {
+  display: flex;
+  flex-shrink: 0;
+  flex-basis: auto;
+}
+/* A box item fills the slot along the main axis, and a grid item with wxEXPAND its cell. */
+.ze-szi-fill > * {
+  flex: 1 0 auto;
+}
+.ze-szspacer {
+  flex-shrink: 0;
+}
+/* The dialog's top sizer fills the window under the title bar. */
+.ze-shim > .ze-sizer {
+  flex: 1 0 auto;
+}
+/* wxStaticBoxSizer: the inner sizer flush inside the frame (GetBordersForSizer). */
+fieldset.ze-sbox-sizer {
+  display: flex;
+  flex-direction: column;
+}
+fieldset.ze-sbox-sizer > .ze-sizer {
+  flex: 1 0 auto;
+}
+
 fieldset.ze-sbox {
   border: 1px solid var(--ctl-border);
   margin: 0;
