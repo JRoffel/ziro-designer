@@ -2,6 +2,7 @@
 // Copyright (C) 2026 ZiroEDA and contributors.
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
 import { Reporter } from '@ziroeda/common/reporter.js';
+import type { INCREMENT_ANNOTATIONS_VALUES } from './tools/sch_editor_control.js';
 import { ANNOTATE_ALGO_T, ANNOTATE_ORDER_T, ANNOTATE_SCOPE_T } from './sch_reference_list.js';
 import { SYMBOL_FILTER } from './sch_sheet_path.js';
 import { PANEL_EMBEDDED_FILES } from '@ziroeda/common/dialogs/panel_embedded_files.js';
@@ -121,7 +122,6 @@ import {
   type PasteOptions,
   annotateSymbols,
   defaultAnnotateOptions,
-  incrementAnnotations,
   symbolLibIdRows,
   orphanCandidates,
   libIdChangeCommand,
@@ -1752,6 +1752,10 @@ export function SchematicEditor({
           const dlg = aArg as { pasteMode: PasteSpecialMode };
           return new Promise<number>((resolve) => setPasteSpecialDialog({ dlg, resolve }));
         }
+        if (aDialog === 'DIALOG_INCREMENT_ANNOTATIONS_BASE') {
+          const values = aArg as INCREMENT_ANNOTATIONS_VALUES;
+          return new Promise<number>((resolve) => setIncrementDialog({ values, resolve }));
+        }
         if (aDialog === 'DIALOG_EESCHEMA_PAGE_SETTINGS') {
           const dlg = new DIALOG_EESCHEMA_PAGE_SETTINGS(schFrameRef.current!);
           return new Promise<number>((resolve) => setPageDialog({ dlg, resolve }));
@@ -2327,7 +2331,12 @@ export function SchematicEditor({
   // Annotate Schematic (SCH_EDIT_FRAME::AnnotateSymbols) dialog.
   const [annotateOpen, setAnnotateOpen] = useState(false);
   // SCH_ACTIONS::incrementAnnotations, a small dialog of its own.
-  const [incrementAnnotationsOpen, setIncrementAnnotationsOpen] = useState(false);
+  // DIALOG_INCREMENT_ANNOTATIONS for the live SCH_EDITOR_CONTROL::IncrementAnnotations: the
+  // values object the tool reads back, and the answer it waits on.
+  const [incrementDialog, setIncrementDialog] = useState<{
+    values: INCREMENT_ANNOTATIONS_VALUES;
+    resolve: (aRetval: number) => void;
+  } | null>(null);
   // DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS on the live schematic (SCH_EDIT_TOOL::GlobalEdit).
   const [globalEditDialog, setGlobalEditDialog] = useState<{
     dlg: DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS;
@@ -2771,105 +2780,12 @@ export function SchematicEditor({
    * `applySheetSymbols` when Sync Sheet Pins needed the same thing for pins and
    * labels — the mechanism was never about symbols.
    */
-  /**
-   * The commands a multi-sheet operation has produced so far, while one is
-   * running — the equivalent of a `SCH_COMMIT` that has been `Modify`d on
-   * several screens and not yet `Push`ed.
-   *
-   * Non-null only inside {@link sheetBatch}. Everything that reaches
-   * `applySheetCommand` while it is open is collected here instead of being
-   * executed, so the whole operation lands as one undo entry.
-   */
-  const openBatch = useRef<Map<string, EditCommand[]> | null>(null);
-
-  /**
-   * Run a multi-sheet operation as ONE undo step, whichever sheets it turns out
-   * to touch — Annotate, Clear Annotation, Increment Annotations, Sync Sheet
-   * Pins, Edit Text and Graphics.
-   *
-   * Upstream every one of these is a single `SCH_COMMIT` pushed once
-   * (`sch_editor_control.cpp`, `dialog_annotate.cpp`, …), and Ctrl+Z takes the
-   * whole thing back. Ours pushed one entry per sheet on that sheet's own
-   * stack, so undoing on the open sheet reverted its share and left the rest of
-   * the hierarchy annotated — half a rename, spread over files the user cannot
-   * see from here.
-   *
-   * The body still calls the same `applySheet*` helpers; they notice the batch.
-   */
-  const sheetBatch = useCallback(
-    (label: string, body: () => void): void => {
-      // Not re-entrant, and does not need to be: an operation that ran another
-      // would already be one commit upstream. An inner call just joins the
-      // batch that is open.
-      if (openBatch.current) {
-        body();
-        return;
-      }
-      const batch = new Map<string, EditCommand[]>();
-      openBatch.current = batch;
-      try {
-        body();
-      } finally {
-        openBatch.current = null;
-      }
-      if (batch.size === 0) return;
-      const edit = new Map<string, EditCommand>();
-      for (const [file, cmds] of batch) edit.set(file, composeCommands(label, cmds));
-      runProject(edit);
-    },
-    [runProject],
-  );
-
-  /** Collect one command into the open batch, or run it as its own entry. */
-  const stage = useCallback(
-    (file: string, cmd: EditCommand): void => {
-      const batch = openBatch.current;
-      if (!batch) {
-        runProject(new Map([[file, cmd]]));
-        return;
-      }
-      const list = batch.get(file);
-      if (list) list.push(cmd);
-      else batch.set(file, [cmd]);
-    },
-    [runProject],
-  );
-
   const applySheetCommand = useCallback(
     (file: string, cmd: EditCommand): void => {
-      if (file === currentFile || project.current.docs.has(file)) stage(file, cmd);
+      if (file === currentFile || project.current.docs.has(file))
+        runProject(new Map([[file, cmd]]));
     },
-    [currentFile, stage],
-  );
-
-  const applySheetSymbols = useCallback(
-    (file: string, symbols: readonly SchSymbol[], label: string): void =>
-      applySheetCommand(file, setSymbolsCommand(symbols, label)),
-    [applySheetCommand],
-  );
-
-  // Increment Annotations From… (SCH_EDITOR_CONTROL::IncrementAnnotations):
-  // move a tail of one reference prefix up, to free numbers in the middle of a
-  // run. The scope radio is the dialog's own, not the annotate dialog's, so it
-  // is either this sheet or every sheet — nothing in between.
-  const runIncrementAnnotations = useCallback(
-    (r: IncrementAnnotationsResult) => {
-      const sheets = r.allSheets
-        ? annotateSheets('all', false)
-        : annotateSheets('current_sheet', false);
-      sheetBatch('Increment Annotations', () => {
-        for (const sheet of sheets) {
-          if (sheet.scope === 'out') continue;
-          const symbols = incrementAnnotations(sheet.doc.symbols, {
-            startRef: r.startRef,
-            increment: r.increment,
-          });
-          if (symbols === sheet.doc.symbols) continue;
-          applySheetSymbols(sheet.file, symbols, 'Increment Annotations');
-        }
-      });
-    },
-    [annotateSheets, applySheetSymbols, sheetBatch],
+    [currentFile, runProject],
   );
 
   /** The same, for an edit that replaces a whole sheet document. */
@@ -5495,7 +5411,7 @@ export function SchematicEditor({
       else if (id === 'find') runLiveAction(ACTIONS.find);
       else if (id === 'findReplace') runLiveAction(ACTIONS.findAndReplace);
       else if (id === 'annotate') setAnnotateOpen(true);
-      else if (id === 'incrementAnnotations') setIncrementAnnotationsOpen(true);
+      else if (id === 'incrementAnnotations') runLiveAction(SCH_ACTIONS.incrementAnnotations);
       else if (id === 'globalEditTextAndGraphics') runLiveAction(SCH_ACTIONS.editTextAndGraphics);
       else if (id === 'rescueSymbols') void runRescueSymbols(true);
       else if (id === 'editSymbolLibraryLinks') {
@@ -6893,13 +6809,23 @@ export function SchematicEditor({
                 }}
               />
             )}
-            {incrementAnnotationsOpen && (
+            {incrementDialog && (
               <DialogIncrementAnnotations
                 onOk={(r) => {
-                  setIncrementAnnotationsOpen(false);
-                  runIncrementAnnotations(r);
+                  // TransferDataFromWindow into the tool's values.
+                  incrementDialog.values.firstRefDes = r.startRef;
+                  incrementDialog.values.increment = r.increment;
+                  incrementDialog.values.allSheets = r.allSheets;
+                  setIncrementDialog(null);
+                  incrementDialog.resolve(wxID_OK);
+                  // The tool's commit can touch every sheet; once it has run (after this answer's
+                  // microtasks), hand every live screen back to the window's records.
+                  setTimeout(adoptAllLiveScreens, 0);
                 }}
-                onCancel={() => setIncrementAnnotationsOpen(false)}
+                onCancel={() => {
+                  setIncrementDialog(null);
+                  incrementDialog.resolve(wxID_CANCEL);
+                }}
               />
             )}
             {pageDialog && (
