@@ -13,25 +13,33 @@
  * effectively impossible to find on the canvas, and one over 6000 pixels is
  * accepted only after a confirmation, since that is 20 inches of paper.
  */
-import { Button } from '@ziroeda/wx/controls.js';
 import { CheckValues, PANEL_IMAGE_EDITOR } from '@ziroeda/common/dialogs/panel_image_editor.js';
 import { MessageDialogError, MessageDialogYesNo } from '@ziroeda/common/dialogs/dialog_message.js';
 import { useState, type JSX } from 'react';
-import { iuToMM, mmToIU } from '@ziroeda/common';
-import { DialogShim } from '@ziroeda/common/dialog_shim.js';
+import { DisplayErrorMessage } from '@ziroeda/common/confirm.js';
+import { COORD_TYPES_T } from '@ziroeda/common/origin_transforms.js';
+import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
+import { UNIT_BINDER, unitLabel } from '@ziroeda/common/widgets/unit_binder.js';
 import { SCH_COMMIT } from '../sch_commit.js';
 import type { SCH_BITMAP } from '../sch_bitmap.js';
 import type { SCH_EDIT_FRAME } from '../sch_edit_frame.js';
+import { DIALOG_IMAGE_PROPERTIES_BASE } from './dialog_image_properties_base.js';
 
 export interface ImagePropsResult {
-  at: { x: number; y: number };
+  /** `m_ModPositionX` / `m_ModPositionY`'s text, read back through their UNIT_BINDERs. */
+  posX: string;
+  posY: string;
   scale: number;
   /** Set when Convert to Greyscale replaced the payload. */
   data?: string;
 }
 
 interface Props {
-  at: { x: number; y: number };
+  /** The position fields' text, as `m_posX.SetValue()` / `m_posY.SetValue()` wrote it. */
+  posX: string;
+  posY: string;
+  /** The frame's units, which the binders write into `m_XPosUnit` / `m_YPosUnit`. */
+  units: StatusUnits;
   scale: number;
   /** Base64 PNG payload, shown in the preview and rewritten by greyscale. */
   data: string;
@@ -43,7 +51,9 @@ interface Props {
 }
 
 export function DialogImageProperties({
-  at,
+  posX: posX0,
+  posY: posY0,
+  units,
   scale: scale0,
   data: data0,
   ppi,
@@ -51,18 +61,14 @@ export function DialogImageProperties({
   onOk,
   onCancel,
 }: Props): JSX.Element {
-  const [x, setX] = useState(String(iuToMM(at.x)));
-  const [y, setY] = useState(String(iuToMM(at.y)));
+  const [posX, setPosX] = useState(posX0);
+  const [posY, setPosY] = useState(posY0);
   const [scale, setScale] = useState(String(scale0));
   const [data, setData] = useState(data0);
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<string | null>(null);
   const accept = (sc: number): void =>
-    onOk({
-      at: { x: mmToIU(Number(x) || 0), y: mmToIU(Number(y) || 0) },
-      scale: sc,
-      ...(data !== data0 ? { data } : {}),
-    });
+    onOk({ posX, posY, scale: sc, ...(data !== data0 ? { data } : {}) });
   /** TransferDataFromWindow: PANEL_IMAGE_EDITOR::CheckValues first. */
   const submit = (): void => {
     const s = Number(scale);
@@ -73,48 +79,26 @@ export function DialogImageProperties({
   };
 
   return (
-    <DialogShim title="Image Properties" onClose={onCancel} className="ze-label-dialog">
-      <div
-        className="ze-label-dialog-body"
-        style={{ display: 'flex', flexDirection: 'column', gap: 6 }}
-      >
-        {/* PANEL_IMAGE_EDITOR (common/dialogs), as DIALOG_IMAGE_PROPERTIES embeds it. */}
-        <PANEL_IMAGE_EDITOR
-          data={data}
-          scaleText={scale}
-          onScaleText={setScale}
-          ppi={ppi}
-          onGreyscale={setData}
-        />
-        <label className="row">
-          <span>Position X:</span>
-          <input
-            className="ze-search"
-            style={{ width: 90 }}
-            value={x}
-            onChange={(e) => setX(e.target.value)}
-            onKeyDown={(e) => e.stopPropagation()}
+    <>
+      <DIALOG_IMAGE_PROPERTIES_BASE
+        m_ModPositionX={posX}
+        onPositionX={setPosX}
+        m_ModPositionY={posY}
+        onPositionY={setPosY}
+        unitsLabel={unitLabel(units)}
+        m_imageSizer={
+          // PANEL_IMAGE_EDITOR (common/dialogs), as DIALOG_IMAGE_PROPERTIES adds it.
+          <PANEL_IMAGE_EDITOR
+            data={data}
+            scaleText={scale}
+            onScaleText={setScale}
+            ppi={ppi}
+            onGreyscale={setData}
           />
-          <span className="ze-muted">mm</span>
-        </label>
-        <label className="row">
-          <span>Position Y:</span>
-          <input
-            className="ze-search"
-            style={{ width: 90 }}
-            value={y}
-            onChange={(e) => setY(e.target.value)}
-            onKeyDown={(e) => {
-              e.stopPropagation();
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                submit();
-              }
-            }}
-          />
-          <span className="ze-muted">mm</span>
-        </label>
-      </div>
+        }
+        onOK={submit}
+        onCancel={onCancel}
+      />
       {error && <MessageDialogError message={error} onClose={() => setError(null)} />}
       {confirm && (
         // IsOK( host, msg ) (confirm.cpp:278-298).
@@ -129,11 +113,7 @@ export function DialogImageProperties({
           }}
         />
       )}
-      <div className="ze-modal-footer">
-        <Button label="Cancel" onClick={onCancel} />
-        <Button label="OK" isDefault onClick={submit} />
-      </div>
-    </DialogShim>
+    </>
   );
 }
 
@@ -155,15 +135,23 @@ const fromBase64 = (aText: string): Uint8Array =>
 export class DIALOG_IMAGE_PROPERTIES {
   private readonly m_frame: SCH_EDIT_FRAME;
   private readonly m_bitmap: SCH_BITMAP;
+  private readonly m_posX: UNIT_BINDER;
+  private readonly m_posY: UNIT_BINDER;
 
   constructor(aParent: SCH_EDIT_FRAME, aBitmap: SCH_BITMAP) {
     this.m_frame = aParent;
     this.m_bitmap = aBitmap;
+    this.m_posX = new UNIT_BINDER(aParent, 'Position X:', (m) => DisplayErrorMessage(m));
+    this.m_posY = new UNIT_BINDER(aParent, 'Position Y:', (m) => DisplayErrorMessage(m));
+
+    this.m_posX.SetCoordType(COORD_TYPES_T.ABS_X_COORD);
+    this.m_posY.SetCoordType(COORD_TYPES_T.ABS_Y_COORD);
   }
 
   /** `TransferDataToWindow()`. */
   TransferDataToWindow(): {
-    at: { x: number; y: number };
+    posX: string;
+    posY: string;
     scale: number;
     data: string;
     ppi: number;
@@ -173,8 +161,12 @@ export class DIALOG_IMAGE_PROPERTIES {
     const pixels = image.GetImageData();
     const png = pixels?.SaveFilePng() ?? null;
 
+    this.m_posX.SetValue(this.m_bitmap.GetPosition().x);
+    this.m_posY.SetValue(this.m_bitmap.GetPosition().y);
+
     return {
-      at: { ...this.m_bitmap.GetPosition() },
+      posX: this.m_posX.GetText(),
+      posY: this.m_posY.GetText(),
       scale: this.m_bitmap.GetImageScale(),
       data: png ? toBase64(png) : '',
       ppi: image.GetPPI(),
@@ -195,7 +187,9 @@ export class DIALOG_IMAGE_PROPERTIES {
 
     if (aResult.data !== undefined) refImage.MutableImage().ReadImageFile(fromBase64(aResult.data));
 
-    this.m_bitmap.SetPosition({ x: aResult.at.x, y: aResult.at.y });
+    this.m_posX.SetText(aResult.posX);
+    this.m_posY.SetText(aResult.posY);
+    this.m_bitmap.SetPosition({ x: this.m_posX.GetIntValue(), y: this.m_posY.GetIntValue() });
 
     if (!commit.Empty()) commit.Push('Image Properties');
 

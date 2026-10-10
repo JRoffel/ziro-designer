@@ -2,8 +2,10 @@
 // Copyright (C) 2026 ZiroEDA and contributors.
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
 /**
- * DIALOG_IMAGE_PROPERTIES (dialog_image_properties.cpp) on a live bitmap: position, scale, the
- * image as the editor's PNG; OK as one "Image Properties" commit, a changed PNG read back.
+ * DIALOG_IMAGE_PROPERTIES (dialog_image_properties.cpp) on a live bitmap: the position through
+ * m_posX / m_posY's UNIT_BINDERs in the frame's units (schematic IU are 10000 per mm, so 2540 IU
+ * is 0.254 mm and 10 mils), scale, the image as the editor's PNG; OK as one "Image Properties"
+ * commit, a changed PNG read back.
  */
 import { PGM_BASE, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
 import { WX_IMAGE } from '@ziroeda/wx/wx_image.js';
@@ -27,16 +29,25 @@ describe('DIALOG_IMAGE_PROPERTIES', () => {
   it('shows the position, the scale, the pixel size and the image as PNG', () => {
     const { dlg } = setUp();
     const shown = dlg.TransferDataToWindow();
-    expect(shown.at).toEqual({ x: 2540, y: 5080 });
+    expect([shown.posX, shown.posY]).toEqual(['0.254', '0.508']);
     expect(shown.pixelSize).toEqual({ w: 8, h: 6 });
     expect(atob(shown.data).startsWith('\x89PNG')).toBe(true);
+  });
+
+  it('the position follows the frame units, both ways', () => {
+    const { h, bitmap, dlg } = setUp();
+    h.frame.SetUserUnits('mils');
+    const shown = dlg.TransferDataToWindow();
+    expect([shown.posX, shown.posY]).toEqual(['10', '20']);
+    dlg.TransferDataFromWindow({ ...shown, posX: '50', scale: shown.scale });
+    expect(bitmap.GetPosition()).toEqual({ x: 12700, y: 5080 });
   });
 
   it('OK moves and scales the bitmap as one undo step', () => {
     const { h, bitmap, dlg } = setUp();
     const undo = h.frame.GetUndoCommandCount();
 
-    dlg.TransferDataFromWindow({ at: { x: 0, y: 12700 }, scale: 2 });
+    dlg.TransferDataFromWindow({ posX: '0', posY: '1.27', scale: 2 });
 
     expect(bitmap.GetPosition()).toEqual({ x: 0, y: 12700 });
     expect(bitmap.GetImageScale()).toBe(2);
@@ -49,7 +60,7 @@ describe('DIALOG_IMAGE_PROPERTIES', () => {
     let bin = '';
     for (const b of other) bin += String.fromCharCode(b);
 
-    dlg.TransferDataFromWindow({ at: { x: 2540, y: 5080 }, scale: 1, data: btoa(bin) });
+    dlg.TransferDataFromWindow({ posX: '0.254', posY: '0.508', scale: 1, data: btoa(bin) });
 
     const pixels = bitmap.GetReferenceImage().GetImage().GetImageData()!;
     expect([pixels.GetWidth(), pixels.GetHeight()]).toEqual([3, 4]);

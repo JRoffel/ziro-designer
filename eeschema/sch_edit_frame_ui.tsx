@@ -7415,7 +7415,9 @@ export function SchematicEditor({
       {/* DIALOG_IMAGE_PROPERTIES on a live bitmap. */}
       {imageDialog && (
         <DialogImageProperties
-          at={imageDialog.shown.at}
+          posX={imageDialog.shown.posX}
+          posY={imageDialog.shown.posY}
+          units={units}
           scale={imageDialog.shown.scale}
           data={imageDialog.shown.data}
           ppi={imageDialog.shown.ppi}
