@@ -10,6 +10,8 @@
 import type { JSX, MouseEvent, ReactNode, Ref } from 'react';
 
 /** wxChoice and wxComboBox, part of the wx layer like the controls below. */
+import { Combo } from './combobox.js';
+
 export { Combo, TextCombo } from './combobox.js';
 
 export function Button({
@@ -55,27 +57,62 @@ export function CheckBox({
   label,
   checked,
   onChange,
+  check,
   disabled,
   title,
   className,
 }: {
   label: string;
-  checked: boolean;
-  onChange: (aChecked: boolean) => void;
+  checked?: boolean;
+  onChange?: (aChecked: boolean) => void;
+  /** The `_base` member instead of `checked` / `onChange` / `disabled`. */
+  check?: CHECK;
   disabled?: boolean;
   title?: string;
   className?: string;
 }): JSX.Element {
+  const value = check ? check.value : (checked ?? false);
+  const off = check ? check.enabled === false : disabled;
+  const change = check ? check.onChange : onChange;
+
   return (
     <label className={`ze-check${className ? ` ${className}` : ''}`} title={title}>
       <input
         type="checkbox"
-        checked={checked}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.checked)}
+        checked={value}
+        disabled={off}
+        onChange={(e) => change?.(e.target.checked)}
       />
       {label}
     </label>
+  );
+}
+
+/**
+ * `wxChoice` bound to its `_base` member: the base's strings, the selection (-1 is wxNOT_FOUND,
+ * an empty face) and the enable. `ariaLabel` is the label beside it.
+ */
+export function Choice({
+  choices,
+  choice,
+  ariaLabel,
+  title,
+}: {
+  choices: readonly string[];
+  choice: CHOICE;
+  ariaLabel: string;
+  title?: string;
+}): JSX.Element {
+  return (
+    <span title={title}>
+      <Combo
+        value={choice.value < 0 ? '' : String(choice.value)}
+        options={choices.map((label, i) => ({ value: String(i), label }))}
+        onChange={(v) => choice.onChange(Number(v))}
+        disabled={choice.enabled === false}
+        ariaLabel={ariaLabel}
+      />
+    </span>
   );
 }
 
@@ -221,16 +258,22 @@ export function StaticText({
   disabled,
   wrap,
   title,
+  font,
+  italic,
 }: {
   label: string;
   disabled?: boolean;
   /** `Wrap( width )`, in pixels; -1 or absent never wraps. */
   wrap?: number;
   title?: string;
+  /** `SetFont( KIUI::GetInfoFont( this ) )` or `KIUI::GetSmallInfoFont( this )`. */
+  font?: 'info' | 'smallInfo';
+  /** `.Italic()` on the font. */
+  italic?: boolean;
 }): JSX.Element {
   return (
     <span
-      className={`ze-statictext${disabled ? ' disabled' : ''}${wrap && wrap > 0 ? ' wrapped' : ''}`}
+      className={`ze-statictext${disabled ? ' disabled' : ''}${wrap && wrap > 0 ? ' wrapped' : ''}${font === 'info' ? ' info' : font === 'smallInfo' ? ' small-info' : ''}${italic ? ' italic' : ''}`}
       style={wrap && wrap > 0 ? { maxWidth: wrap } : undefined}
       title={title}
     >

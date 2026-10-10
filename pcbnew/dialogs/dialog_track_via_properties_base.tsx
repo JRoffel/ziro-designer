@@ -451,9 +451,11 @@ export function DIALOG_TRACK_VIA_PROPERTIES_BASE(
                       <BoxSizer orient={wxHORIZONTAL}>
                         <SizerItem flag={wxRIGHT | wxLEFT | wxALIGN_CENTER_VERTICAL} border={5}>
                           {/* m_techLayersLabel: KIUI::GetSmallInfoFont */}
-                          <span className="ze-small-info">
-                            <Label text="Technical Layers" enabled={p.techLayersEnabled} />
-                          </span>
+                          <StaticText
+                            label="Technical Layers"
+                            font="smallInfo"
+                            disabled={!p.techLayersEnabled}
+                          />
                         </SizerItem>
                         <SizerItem
                           proportion={1}
@@ -796,9 +798,7 @@ export function DIALOG_TRACK_VIA_PROPERTIES_BASE(
               <BoxSizer orient={wxHORIZONTAL}>
                 <SizerItem flag={wxALIGN_CENTER_VERTICAL | wxALL} border={5}>
                   {/* m_postMachineSectionLabel: KIUI::GetSmallInfoFont */}
-                  <span className="ze-small-info">
-                    <StaticText label="Hole Post-machining" />
-                  </span>
+                  <StaticText label="Hole Post-machining" font="smallInfo" />
                 </SizerItem>
                 <SizerItem
                   proportion={1}
@@ -917,12 +917,12 @@ export function DIALOG_TRACK_VIA_PROPERTIES_BASE(
                           {/* bSizer17 > m_minTrackWidthHint: KIUI::GetInfoFont().Italic() */}
                           <BoxSizer orient={wxVERTICAL}>
                             <SizerItem flag={wxEXPAND | wxTOP | wxBOTTOM} border={2}>
-                              <span className="ze-info-italic">
-                                <Label
-                                  text="(as a percentage of pad/via/track size)"
-                                  enabled={td}
-                                />
-                              </span>
+                              <StaticText
+                                label="(as a percentage of pad/via/track size)"
+                                font="info"
+                                italic
+                                disabled={!td}
+                              />
                             </SizerItem>
                           </BoxSizer>
                         </SizerItem>
@@ -970,9 +970,7 @@ export function DIALOG_TRACK_VIA_PROPERTIES_BASE(
                                   <Label text="%(" enabled={td} />
                                 </SizerItem>
                                 <SizerItem flag={wxALIGN_BOTTOM} border={1}>
-                                  <span className="ze-italic">
-                                    <Label text="d" enabled={td} />
-                                  </span>
+                                  <StaticText label="d" italic disabled={!td} />
                                 </SizerItem>
                                 <SizerItem flag={wxALIGN_CENTER_VERTICAL} border={5}>
                                   <Label text=" )" enabled={td} />
@@ -1013,9 +1011,7 @@ export function DIALOG_TRACK_VIA_PROPERTIES_BASE(
                                   <Label text="%(" enabled={td} />
                                 </SizerItem>
                                 <SizerItem flag={wxALIGN_BOTTOM} border={1}>
-                                  <span className="ze-italic">
-                                    <Label text="d" enabled={td} />
-                                  </span>
+                                  <StaticText label="d" italic disabled={!td} />
                                 </SizerItem>
                                 <SizerItem flag={wxALIGN_CENTER_VERTICAL} border={5}>
                                   <Label text=" )" enabled={td} />

@@ -314,6 +314,7 @@ export function TextCombo({
   className,
   title,
   autoFocus,
+  ariaLabel,
 }: {
   value: string;
   /** The suggestions; picking one replaces the entry's text. */
@@ -324,6 +325,8 @@ export function TextCombo({
   className?: string;
   title?: string;
   autoFocus?: boolean;
+  /** The entry's accessible name: its wxStaticText label. */
+  ariaLabel?: string;
 }): JSX.Element {
   const [open, setOpen] = useState(false);
   const [box, setBox] = useState<{ left: number; top: number; width: number } | null>(null);
@@ -358,6 +361,7 @@ export function TextCombo({
           ref={inputRef}
           value={value}
           title={title}
+          aria-label={ariaLabel}
           // biome-ignore lint/a11y/noAutofocus: wxDialog focuses its first control.
           autoFocus={autoFocus}
           onChange={(e) => onChange(e.target.value)}

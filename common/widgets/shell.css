@@ -8643,6 +8643,14 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
 .ze-nb-body > .ze-symprops-page {
   grid-area: 1 / 1;
 }
+/* external/wx/notebook_ui.tsx's page: the notebook's own face, laid out by the page's sizer. */
+.ze-nb-body > .ze-nb-page {
+  grid-area: 1 / 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--chrome-bg2);
+}
 /* NOT `[hidden]`: the shell's reset makes that `display: none !important`. */
 .ze-nb-body > [data-nbhide] {
   visibility: hidden;
@@ -11737,12 +11745,6 @@ textarea.ze-ds-textedit {
   text-align: center;
 }
 
-/* Track & Via Properties (dialog_track_via_properties_base.cpp): Common,
-   Tracks, Vias and the via teardrop box stacked, each a label/value/unit row. */
-.ze-tvp-dialog {
-  height: auto;
-  max-height: 92vh;
-}
 .ze-tvp-body .ze-tvp-row {
   display: flex;
   gap: 12px;
@@ -12801,12 +12803,6 @@ textarea.ze-ds-textedit {
   flex: 1;
 }
 
-/* Footprint Properties (dialog_footprint_properties_base.cpp): a notebook with
-   General and Clearance Overrides pages. */
-.ze-fpprops-dialog {
-  height: auto;
-  max-height: 92vh;
-}
 .ze-fpprops-tabs {
   padding: 8px 12px 0;
 }
@@ -13490,6 +13486,16 @@ fieldset.ze-sbox-sizer > .ze-sizer {
 }
 .ze-statictext.wrapped {
   white-space: normal;
+}
+/* SetFont( KIUI::GetInfoFont / GetSmallInfoFont ), and .Italic(). */
+.ze-statictext.info {
+  font-size: var(--ui-font-size-info);
+}
+.ze-statictext.small-info {
+  font-size: var(--ui-font-size-small);
+}
+.ze-statictext.italic {
+  font-style: italic;
 }
 
 fieldset.ze-sbox {
