@@ -105,7 +105,9 @@ describe('DIALOG_TABLE_PROPERTIES', () => {
     expect(table().GetBorderStroke().GetLineStyle()).toBe(LINE_STYLE.DOT);
     const again = dlg().TransferDataToWindow();
     expect(again.separatorRows).toBe(false);
-    expect(again.separatorWidth).toBe(0);
+    // TransferDataToWindow only SetValue()s a width >= 0, so the box is blank: the window
+    // carries the -1 (dialog_table_properties.cpp:236-237).
+    expect(again.separatorWidth).toBe(-1);
     // A flag left on over a -1 stroke still reads as off.
     table().SetStrokeRows(true);
     expect(dlg().TransferDataToWindow().separatorRows).toBe(false);

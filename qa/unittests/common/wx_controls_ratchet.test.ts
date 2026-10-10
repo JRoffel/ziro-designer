@@ -76,7 +76,7 @@ const BASELINE: Record<(typeof AREAS)[number], Record<Kind, number>> = {
   // 10-10 tree move: button 47 -> 45 (the menu drawing went down into external/wx); checkbox
   // 8 -> 9 and radio 2 -> 3 are the Preferences kit's Check/Radio, out of the exempt wx layer into
   // common/dialogs/pref_controls.tsx - not new controls, now counted; the sweep deletes the kit.
-  common: { button: 45, checkbox: 9, select: 0, frame: 1, radio: 3, entry: 27, sbox: 4 },
+  common: { button: 45, checkbox: 8, select: 0, frame: 1, radio: 3, entry: 26, sbox: 4 },
   cvpcb: { button: 0, checkbox: 0, select: 0, frame: 1, radio: 0, entry: 1, sbox: 0 },
   designer: { button: 77, checkbox: 2, select: 0, frame: 0, radio: 5, entry: 25, sbox: 13 },
   eeschema: { button: 23, checkbox: 27, select: 9, frame: 1, radio: 13, entry: 56, sbox: 37 },
@@ -88,7 +88,7 @@ const BASELINE: Record<(typeof AREAS)[number], Record<Kind, number>> = {
   // 10-10: the three export dialogs (IPC-2581, ODB++, VRML) on the sizers - 92/64/4/42 before.
   // ... then the drill and position-file dialogs: button 83 -> 81, entry 34 -> 31.
   // ... then DIALOG_PLOT: button 81 -> 79, checkbox 58 -> 42, entry 31 -> 30, sbox 61 -> 54.
-  pcbnew: { button: 73, checkbox: 42, select: 1, frame: 1, radio: 4, entry: 30, sbox: 45 },
+  pcbnew: { button: 73, checkbox: 41, select: 1, frame: 1, radio: 4, entry: 30, sbox: 45 },
 };
 
 function tsxFiles(aDir: string, aOut: string[] = []): string[] {

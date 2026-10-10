@@ -127,11 +127,6 @@ const KNOWN_HARDCODED = new Set([
   'pcbnew/panel_setup_teardrops.tsx',
   'pcbnew/panel_setup_text_and_graphics.tsx',
   'pcbnew/panel_setup_tuning_patterns.tsx',
-  // Table Properties, now `common/dialogs/dialog_table_properties.tsx` and shared with the
-  // board editor. The debt moved with the file rather than being paid: both
-  // width fields still print a literal "mm" where `UNIT_BINDER` would print the
-  // frame's unit. It is one fix for two editors now, which is the point.
-  'common/dialog_table_properties.tsx',
   // ---- the board editor -----------------------------------------------------
   // Ten when this scan could first see the folder, and none left.
   //

@@ -29,11 +29,8 @@ import type { PCB_VERTEX_EDITOR_PANE } from './widgets/vertex_editor_pane.js';
 import { PcbVertexEditorPane } from './widgets/vertex_editor_pane.js';
 
 import { DisplayErrorMessage, IsOK } from '@ziroeda/common/confirm.js';
-import { DialogTableProperties } from '@ziroeda/common/dialogs/dialog_table_properties.js';
-import { pcbIUScale } from '@ziroeda/common/eda_units.js';
 import { LSET } from '@ziroeda/common/lset.js';
 import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
-import { Combo } from '@ziroeda/wx/combobox.js';
 import type { BOARD } from './board.js';
 import {
   barcodePreview,
@@ -64,7 +61,10 @@ import {
 } from './dialogs/dialog_rule_area_properties.js';
 import { DialogRuleAreaProperties } from './dialogs/dialog_rule_area_properties_ui.js';
 import type { DIALOG_SHAPE_PROPERTIES, ShapeValues } from './dialogs/dialog_shape_properties.js';
-import type { DIALOG_TABLE_PROPERTIES, TableValues } from './dialogs/dialog_table_properties.js';
+import {
+  type DIALOG_TABLE_PROPERTIES,
+  DialogTableProperties,
+} from './dialogs/dialog_table_properties.js';
 import type { DIALOG_TEXT_PROPERTIES, TextValues } from './dialogs/dialog_text_properties.js';
 import { DialogTextProperties } from './dialogs/dialog_text_properties_ui.js';
 import type {
@@ -306,27 +306,6 @@ export function usePcbItemDialogs(aEnv: PCB_ITEM_DIALOGS_ENV): {
   const layers = enabledLayerNames(theBoard);
   const coloured = layers.map((name) => ({ name, color: layerColor(name) }));
 
-  const tableHeader = (v: TableValues, set: (patch: Partial<TableValues>) => void): JSX.Element => (
-    <div className="ze-tableprops-header">
-      <label className="row ze-tableprops-field">
-        <span className="ze-tableprops-lbl">Layer:</span>
-        <Combo
-          value={v.layer}
-          onChange={(layer) => set({ layer })}
-          options={layers.map((name) => ({ value: name, label: name, swatch: layerColor(name) }))}
-        />
-      </label>
-      <label className="row ze-tableprops-field">
-        <input
-          type="checkbox"
-          checked={v.locked}
-          onChange={(e) => set({ locked: e.target.checked })}
-        />
-        <span className="ze-tableprops-boxlbl">Locked</span>
-      </label>
-    </div>
-  );
-
   const zoneNode = ((): ReactNode => {
     if (!zone) return null;
 
@@ -412,21 +391,10 @@ export function usePcbItemDialogs(aEnv: PCB_ITEM_DIALOGS_ENV): {
         />
       )}
       {table && (
-        <DialogTableProperties<TableValues>
-          initial={table.dialog.TransferDataToWindow()}
-          iuScale={pcbIUScale}
-          columnWidths={Array.from({ length: table.table.GetColCount() }, (_, i) =>
-            table.table.GetColWidth(i),
-          )}
-          isNew={table.table.IsNew()}
-          header={tableHeader}
-          onOk={(values: TableValues) => {
-            const d = table;
-            setTable(null);
-            d.resolve(d.dialog.TransferDataFromWindow(values).ok);
-          }}
-          onCancel={() => {
-            table.resolve(false);
+        <DialogTableProperties
+          dlg={table.dialog}
+          onClose={(aOk) => {
+            table.resolve(aOk);
             setTable(null);
           }}
         />

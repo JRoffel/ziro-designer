@@ -66,13 +66,13 @@ const CALL_SITES: Record<string, string> = {
   'pcb/dialogs/dialog_textbox_properties.tsx': read(
     `../../../pcbnew/dialogs/dialog_textbox_properties_ui.tsx`,
   ),
-  // Was `schematic/dialogs/dialog_table_properties.tsx` AND
-  // `pcb/dialogs/dialog_table_properties.tsx`. DIALOG_TABLE_PROPERTIES is one
-  // dialog upstream, opened by both editors, so the two copies became
-  // `ui/DialogTableProperties.tsx` and the Line Style combo with them — one
-  // call site now, which is what this rule is for.
-  'common/dialogs/dialog_table_properties.tsx': read(
-    '../../../common/dialogs/dialog_table_properties.tsx',
+  // DIALOG_TABLE_PROPERTIES is two dialogs upstream, eeschema's and pcbnew's (10-11: one
+  // _base pair per KiCad dialog); each fills its style combos from lineTypeNames.
+  'eeschema/dialogs/dialog_table_properties_base.tsx': read(
+    '../../../eeschema/dialogs/dialog_table_properties_base.tsx',
+  ),
+  'pcbnew/dialogs/dialog_table_properties.tsx': read(
+    '../../../pcbnew/dialogs/dialog_table_properties.tsx',
   ),
   // `pcbnew/properties_panel.ts` left this list with the view-row panel: the
   // live PCB_PROPERTIES_PANEL offers ENUM_MAP<LINE_STYLE>'s own choices, as

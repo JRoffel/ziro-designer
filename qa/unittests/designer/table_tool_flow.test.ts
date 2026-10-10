@@ -29,18 +29,12 @@ const read = (rel: string): string =>
 
 const EDITOR = read('../../../eeschema/sch_edit_frame_ui.tsx');
 const DIALOG = read('../../../eeschema/dialogs/dialog_table_properties.tsx');
-/**
- * The dialog's body is shared with pcbnew now (`ui/DialogTableProperties.tsx`);
- * what stays in eeschema's file is the schematic's own scale, its stroke
- * colours and its greying rule. Assertions about the *layout* therefore read
- * the shared file, and assertions about what eeschema contributes read DIALOG.
- */
-const SHARED_DIALOG = read('../../../common/dialogs/dialog_table_properties.tsx');
+/** eeschema's DIALOG_TABLE_PROPERTIES_BASE: the layout; DIALOG is its logic. */
+const BASE = read('../../../eeschema/dialogs/dialog_table_properties_base.tsx');
 
 describe('the dialog the tool ends with', () => {
   it('edits the cell contents', () => {
-    expect(SHARED_DIALOG).toContain('Cell contents');
-    expect(SHARED_DIALOG).toContain('setCell(row, col, e.target.value)');
+    expect(BASE).toContain('Cell contents');
   });
 
   it('and the border and separator controls upstream has', () => {
@@ -52,12 +46,9 @@ describe('the dialog the tool ends with', () => {
       'Width:',
       'Style:',
     ])
-      expect(SHARED_DIALOG).toContain(label);
-    // "Color:" is eeschema's alone — a PCB_TABLE takes its layer's colour — so
-    // it is contributed through `renderColor` rather than living in the shared
-    // dialog.
-    expect(DIALOG).toContain('Color:');
-    expect(SHARED_DIALOG).not.toContain('Color:');
+      expect(BASE).toContain(label);
+    // "Color:" is eeschema's alone: a PCB_TABLE takes its layer's colour.
+    expect(BASE).toContain('Color:');
   });
 
   it('greying out the line controls when the lines are off', () => {

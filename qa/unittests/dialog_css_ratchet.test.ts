@@ -18,7 +18,7 @@ const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 /** 10-10, when the sizers landed. Lower a number when a pass removes some. */
 const BASELINE: Record<string, number> = {
   '3d-viewer': 6,
-  common: 194,
+  common: 183, // -11 (10-11): the shared Table Properties form, replaced by one pair per editor
   cvpcb: 8,
   designer: 138,
   eeschema: 140, // -2 (10-11): e74819168's Increment Annotations dropped two classes
