@@ -187,16 +187,27 @@ describe('no dialog keeps a Clear button the picker replaced', () => {
 
   it('keeps m_helpLabel2 where upstream has one, as a label', () => {
     // The two pages in our tree that correspond to a dialog carrying it.
+    {
+      // Shape Properties, not yet a _base pair, states it the same way.
+      const src = readFileSync(
+        join(SRC, '../../eeschema/dialogs/dialog_shape_properties.tsx'),
+        'utf8',
+      );
+      expect(src, 'dialog_shape_properties lost m_helpLabel2').toMatch(
+        /<StaticText label="Clear colors to use Schematic Editor colors\." font="info" italic \/>/,
+      );
+    }
+    // The converted bases state it as their .cpp does: a wxStaticText with
+    // GetInfoFont( this ).Italic().
     for (const rel of [
-      '../../eeschema/dialogs/dialog_shape_properties.tsx',
-      '../../eeschema/dialogs/dialog_line_properties.tsx',
+      '../../eeschema/dialogs/dialog_line_properties_base.tsx',
+      '../../eeschema/dialogs/dialog_wire_bus_properties_base.tsx',
+      '../../eeschema/dialogs/dialog_junction_props_base.tsx',
     ]) {
       const src = readFileSync(join(SRC, rel), 'utf8');
-      // The class among any others on the element, not the whole attribute:
-      // `ze-help-label` is what carries the style, and a layout class beside it
-      // does not make the label any less present.
-      expect(src, `${rel} lost m_helpLabel2`).toMatch(/className="[^"]*\bze-help-label\b/);
-      expect(src).toContain('to use Schematic Editor colors.');
+      expect(src, `${rel} lost m_helpLabel2`).toMatch(
+        /<StaticText label="Clear color to use Schematic Editor colors\." font="info" italic \/>/,
+      );
     }
   });
 });

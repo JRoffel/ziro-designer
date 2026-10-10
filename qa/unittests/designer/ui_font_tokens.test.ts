@@ -333,7 +333,8 @@ const BASELINE: Record<string, number> = {
   // `fontSize: '0.9em'` when the hand-rolled search bar it was on went. Five
   // plus one is six; 41 - 6. RESCANNED from this tree.
   // 35 -> 32: Import Settings is its _base (its three inline 12.5px sizes went).
-  'editors/schematic': 32,
+  // 32 -> 27: the stroke dialogs' and Shape Properties' help labels are StaticText info fonts.
+  'editors/schematic': 27,
   // 2 until the Symbol Editor parity pass deleted the invented
   // "Double-click a symbol..." hint that an empty SYMBOL_EDIT_FRAME does not
   // have; it carried an inline `fontSize: 14` and a `color: '#888'`.
@@ -744,7 +745,8 @@ describe('hardcoded font sizes do not grow', () => {
     // 89 -> 88 (10-09): the desktop gate's "Continue anyway" link.
     // 88 -> 83 (10-11): the old Plot panel's five inline font sizes, gone with DIALOG_PLOT_BASE.
     // 83 -> 80: the editors/schematic row above.
-    expect(sites.length).toBe(80);
+    // 80 -> 75: the editors/schematic row above.
+    expect(sites.length).toBe(75);
   });
 });
 

@@ -440,7 +440,8 @@ const BASELINE: Record<string, { colours: number; metrics: number }> = {
   // inline gap/padding/minHeight went with it.
   // metrics 108 -> 100: DIALOG_SCH_IMPORT_SETTINGS likewise (its inline font sizes and margins).
   // metrics 100 -> 99: DIALOG_IMAGE_PROPERTIES likewise.
-  'editors/schematic': { colours: 16, metrics: 99 },
+  // metrics 99 -> 96: Line, Wire & Bus and Junction Properties are their _base pairs.
+  'editors/schematic': { colours: 16, metrics: 96 },
   // 166 -> 163 metrics on `editors/schematic`, moved here whole: cvpcb's
   // three windows left `editors/schematic/dialogs/` for the root `cvpcb/`
   // package (cvpcb/STRUCTURE.md's stage two). No colours moved (the five
@@ -834,7 +835,8 @@ const BASELINE: Record<string, { colours: number; metrics: number }> = {
   // colours and nine px. (8d09a787's `.ze-fp3d-icon` height, one unmarked px
   // that briefly put this at 684, now carries its [px] like the width beside it:
   // GRID_CELL_STATUS_ICON_RENDERER's wxART_BUTTON bitmap, 16 x 16.) Rescanned.
-  'common/widgets': { colours: 127, metrics: 643 },
+  // metrics 643 -> 642: .ze-help-label's margins went with it (StaticText states the label).
+  'common/widgets': { colours: 127, metrics: 642 },
   // 10-10: metrics 1 -> 0, the menu drawing's one literal went to external/wx with it.
   'common/tool': { colours: 0, metrics: 0 },
   // metrics 0 -> 15 on 09-26: the stage-1 moves, 8 from `dialogs` and 7 from
@@ -1668,7 +1670,8 @@ describe('the scan totals, so the numbers in the PR stay true', () => {
     // 1013 -> 1009: the editors/schematic row above (Update Schematic from PCB).
     // 1009 -> 1001: Import Settings, the same row.
     // 1001 -> 1000: Image Properties, the same row.
-    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(1000);
+    // 1000 -> 996: the stroke dialogs (the two rows above).
+    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(996);
   });
 
   it('and the two agree with the per-area table, which is where they come from', () => {

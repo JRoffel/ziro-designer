@@ -33,10 +33,15 @@ import type { SCH_BITMAP } from './sch_bitmap.js';
 import type { SCH_SHAPE } from './sch_shape.js';
 import {
   DIALOG_WIRE_BUS_PROPERTIES,
+  DialogWireBusProperties,
   type WIRE_BUS_DIALOG_VALUES,
 } from './dialogs/dialog_wire_bus_properties.js';
 import type { SCH_ITEM } from './sch_item.js';
-import { DIALOG_JUNCTION_PROPS } from './dialogs/dialog_junction_props.js';
+import {
+  DIALOG_JUNCTION_PROPS,
+  DialogJunctionProps,
+  type JUNCTION_DIALOG_VALUES,
+} from './dialogs/dialog_junction_props.js';
 import type { SCH_JUNCTION } from './sch_junction.js';
 import { color4dToItemColor, itemColorToColor4d } from './dialogs/item_color.js';
 import { type ChooserFilter, type OpenedFile, WxFileDialog } from '@ziroeda/wx/filedlg.js';
@@ -256,7 +261,12 @@ import { DIALOG_CHANGE_SYMBOLS, DialogChangeSymbols } from './dialogs/dialog_cha
 import type { DIALOG_CHANGE_SYMBOLS_MODE } from './tools/sch_edit_tool.js';
 import { DialogEditSymbolsLibId } from './dialogs/dialog_edit_symbols_libid.js';
 import { DialogAnnotate, type AnnotateRun } from './dialogs/dialog_annotate.js';
-import { DialogLineProperties } from './dialogs/dialog_line_properties.js';
+import type { SCH_LINE } from './sch_line.js';
+import {
+  DIALOG_LINE_PROPERTIES,
+  DialogLineProperties,
+  type LINE_DIALOG_VALUES,
+} from './dialogs/dialog_line_properties.js';
 import {
   DIALOG_EESCHEMA_PAGE_SETTINGS,
   DialogEeschemaPageSettings,
@@ -1165,14 +1175,18 @@ export function SchematicEditor({
   const [wireBusDialog, setWireBusDialog] = useState<{
     dlg: DIALOG_WIRE_BUS_PROPERTIES;
     shown: WIRE_BUS_DIALOG_VALUES;
-    firstWidth: number;
     resolve: (aId: number) => void;
   } | null>(null);
   /** DIALOG_JUNCTION_PROPS while it is up for the live tools. */
   const [junctionDialog, setJunctionDialog] = useState<{
     dlg: DIALOG_JUNCTION_PROPS;
-    shown: ReturnType<DIALOG_JUNCTION_PROPS['TransferDataToWindow']>;
-    firstDiameter: number;
+    shown: JUNCTION_DIALOG_VALUES;
+    resolve: (aId: number) => void;
+  } | null>(null);
+  /** DIALOG_LINE_PROPERTIES while it is up for the live tools (graphic lines). */
+  const [lineDialog, setLineDialog] = useState<{
+    dlg: DIALOG_LINE_PROPERTIES;
+    shown: LINE_DIALOG_VALUES;
     resolve: (aId: number) => void;
   } | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -1586,14 +1600,8 @@ export function SchematicEditor({
         if (aDialog === 'DIALOG_WIRE_BUS_PROPERTIES') {
           const items = _aItems as SCH_ITEM[];
           const dlg = new DIALOG_WIRE_BUS_PROPERTIES(schFrameRef.current!, items);
-          const stroked = items.find((it) => it.HasLineStroke());
           return new Promise<number>((resolve) =>
-            setWireBusDialog({
-              dlg,
-              shown: dlg.TransferDataToWindow(),
-              firstWidth: stroked ? stroked.GetStroke().GetWidth() : 0,
-              resolve,
-            }),
+            setWireBusDialog({ dlg, shown: dlg.TransferDataToWindow(), resolve }),
           );
         }
         if (aDialog === 'DIALOG_SHAPE_PROPERTIES') {
@@ -1731,12 +1739,13 @@ export function SchematicEditor({
           const junctions = _aItems as SCH_JUNCTION[];
           const dlg = new DIALOG_JUNCTION_PROPS(schFrameRef.current!, junctions);
           return new Promise<number>((resolve) =>
-            setJunctionDialog({
-              dlg,
-              shown: dlg.TransferDataToWindow(),
-              firstDiameter: junctions[0]!.GetDiameter(),
-              resolve,
-            }),
+            setJunctionDialog({ dlg, shown: dlg.TransferDataToWindow(), resolve }),
+          );
+        }
+        if (aDialog === 'DIALOG_LINE_PROPERTIES') {
+          const dlg = new DIALOG_LINE_PROPERTIES(schFrameRef.current!, _aItems as SCH_LINE[]);
+          return new Promise<number>((resolve) =>
+            setLineDialog({ dlg, shown: dlg.TransferDataToWindow(), resolve }),
           );
         }
         if (aDialog === 'DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS') {
@@ -7225,31 +7234,36 @@ export function SchematicEditor({
 
       {/* DIALOG_WIRE_BUS_PROPERTIES on the live wires, buses and bus entries. */}
       {wireBusDialog && (
-        <DialogLineProperties
-          kind="wire"
-          widthIU={wireBusDialog.shown.width ?? wireBusDialog.firstWidth}
-          style={wireBusDialog.shown.style ?? 'default'}
-          color={color4dToItemColor(wireBusDialog.shown.color)}
-          {...(wireBusDialog.shown.junction !== undefined
-            ? { junctionIU: wireBusDialog.shown.junction ?? 0 }
-            : {})}
-          onOk={(widthIU, style, color, junctionIU) => {
+        <DialogWireBusProperties
+          dlg={wireBusDialog.dlg}
+          initial={wireBusDialog.shown}
+          units={units}
+          onOk={(values) => {
             setWireBusDialog(null);
-            const shown = wireBusDialog.shown;
-            // A binder left indeterminate leaves its value alone.
-            wireBusDialog.dlg.TransferDataFromWindow(
-              shown.width === null && widthIU === wireBusDialog.firstWidth ? null : widthIU,
-              shown.style === null && style === 'default' ? null : style,
-              itemColorToColor4d(color),
-              junctionIU === undefined || (shown.junction === null && junctionIU === 0)
-                ? null
-                : junctionIU,
-            );
+            wireBusDialog.dlg.TransferDataFromWindow(values);
             wireBusDialog.resolve(wxID_OK);
           }}
           onCancel={() => {
             setWireBusDialog(null);
             wireBusDialog.resolve(wxID_CANCEL);
+          }}
+        />
+      )}
+
+      {/* DIALOG_LINE_PROPERTIES on the live graphic lines. */}
+      {lineDialog && (
+        <DialogLineProperties
+          dlg={lineDialog.dlg}
+          initial={lineDialog.shown}
+          units={units}
+          onOk={(values) => {
+            setLineDialog(null);
+            lineDialog.dlg.TransferDataFromWindow(values);
+            lineDialog.resolve(wxID_OK);
+          }}
+          onCancel={() => {
+            setLineDialog(null);
+            lineDialog.resolve(wxID_CANCEL);
           }}
         />
       )}
@@ -7307,19 +7321,13 @@ export function SchematicEditor({
 
       {/* DIALOG_JUNCTION_PROPS on the live junctions (E / double-click on a junction). */}
       {junctionDialog && (
-        <DialogLineProperties
-          kind="junction"
-          diameterIU={junctionDialog.shown.diameter ?? junctionDialog.firstDiameter}
-          color={color4dToItemColor(junctionDialog.shown.color)}
-          onOk={(diameterIU, color) => {
+        <DialogJunctionProps
+          dlg={junctionDialog.dlg}
+          initial={junctionDialog.shown}
+          units={units}
+          onOk={(values) => {
             setJunctionDialog(null);
-            // The binder was indeterminate and the user left it so: leave the diameters.
-            const unchanged =
-              junctionDialog.shown.diameter === null && diameterIU === junctionDialog.firstDiameter;
-            junctionDialog.dlg.TransferDataFromWindow(
-              unchanged ? null : diameterIU,
-              itemColorToColor4d(color),
-            );
+            junctionDialog.dlg.TransferDataFromWindow(values);
             junctionDialog.resolve(wxID_OK);
           }}
           onCancel={() => {

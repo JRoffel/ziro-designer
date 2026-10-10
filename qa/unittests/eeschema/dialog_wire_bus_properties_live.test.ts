@@ -28,34 +28,46 @@ function wire(h: ReturnType<typeof schToolHarness>, aWidth: number): SCH_LINE {
   return w;
 }
 
+const LEAVE = '-- leave unchanged --';
+
+/** The combo rows: lineTypeNames (Solid 0 .. Dash-Dot-Dot 4), "Default" 5, "Leave unchanged" 6. */
+const DOT = 2;
+const DEFAULT_ROW = 5;
+const LEAVE_ROW = 6;
+
 describe('DIALOG_WIRE_BUS_PROPERTIES', () => {
-  it('shows the common width and style, none when they differ; no junction means no junction size', () => {
+  it('shows the common width and style, leave-unchanged when they differ; no junction disables its size', () => {
     const h = schToolHarness(schFrame({}));
     const a = wire(h, 1000);
     const b = wire(h, 1000);
     b.SetLineStyle(LINE_STYLE.DASH);
     const shown = new DIALOG_WIRE_BUS_PROPERTIES(h.frame, [a, b]).TransferDataToWindow();
-    expect(shown.width).toBe(1000);
-    expect(shown.style).toBe(null);
-    expect(shown.junction).toBe(undefined);
+    // 1000 schematic IU is 0.1 mm in the frame's default units.
+    expect(shown.width).toBe('0.1');
+    expect([shown.styleIndeterminate, shown.style]).toEqual([true, LEAVE_ROW]);
+    expect([shown.junction, shown.junctionEnabled]).toEqual([LEAVE, false]);
 
     const c = wire(h, 2000);
-    expect(new DIALOG_WIRE_BUS_PROPERTIES(h.frame, [a, c]).TransferDataToWindow().width).toBe(null);
+    expect(new DIALOG_WIRE_BUS_PROPERTIES(h.frame, [a, c]).TransferDataToWindow().width).toBe(
+      LEAVE,
+    );
   });
 
-  it('OK edits wires and bus entries in one commit; a null leaves that value alone', () => {
+  it('OK edits wires and bus entries in one commit; leave-unchanged keeps that value', () => {
     const h = schToolHarness(schFrame({}));
     const a = wire(h, 1000);
     const entry = new SCH_BUS_WIRE_ENTRY({ x: 0, y: 0 });
     h.frame.AddToScreen(entry, h.frame.GetScreen());
     const undo = h.frame.GetUndoCommandCount();
 
-    new DIALOG_WIRE_BUS_PROPERTIES(h.frame, [a, entry]).TransferDataFromWindow(
-      null,
-      'dot',
-      BLUE,
-      null,
-    );
+    new DIALOG_WIRE_BUS_PROPERTIES(h.frame, [a, entry]).TransferDataFromWindow({
+      width: LEAVE,
+      style: DOT,
+      styleIndeterminate: false,
+      color: BLUE,
+      junction: LEAVE,
+      junctionEnabled: false,
+    });
 
     expect(a.GetStroke().GetWidth()).toBe(1000);
     expect(a.GetLineStyle()).toBe(LINE_STYLE.DOT);
@@ -64,15 +76,48 @@ describe('DIALOG_WIRE_BUS_PROPERTIES', () => {
     expect(h.frame.GetUndoCommandCount()).toBe(undo + 1);
   });
 
-  it('sets a selected junction’s colour and size', () => {
+  it('the Default row is LINE_STYLE::DEFAULT; the leave-unchanged row keeps each style', () => {
     const h = schToolHarness(schFrame({}));
-    const j = new SCH_JUNCTION({ x: 0, y: 0 }, 900);
+    const a = wire(h, 1000);
+    const b = wire(h, 1000);
+    b.SetLineStyle(LINE_STYLE.DASH);
+    const dlg = new DIALOG_WIRE_BUS_PROPERTIES(h.frame, [a, b]);
+    const shown = dlg.TransferDataToWindow();
+
+    dlg.TransferDataFromWindow(shown);
+    // A new wire's style is DEFAULT; leave-unchanged keeps both as they were.
+    expect([a.GetLineStyle(), b.GetLineStyle()]).toEqual([LINE_STYLE.DEFAULT, LINE_STYLE.DASH]);
+
+    dlg.TransferDataFromWindow({ ...shown, style: DOT });
+    expect([a.GetLineStyle(), b.GetLineStyle()]).toEqual([LINE_STYLE.DOT, LINE_STYLE.DOT]);
+
+    dlg.TransferDataFromWindow({ ...shown, style: DEFAULT_ROW });
+    expect([a.GetLineStyle(), b.GetLineStyle()]).toEqual([LINE_STYLE.DEFAULT, LINE_STYLE.DEFAULT]);
+  });
+
+  it('Default resets width, colour, style and junction size', () => {
+    const h = schToolHarness(schFrame({}));
+    const w = wire(h, 1000);
+    w.SetLineStyle(LINE_STYLE.DASH);
+    const dlg = new DIALOG_WIRE_BUS_PROPERTIES(h.frame, [w]);
+    const shown = dlg.TransferDataToWindow();
+    expect(shown.style).toBe(1);
+    const reset = dlg.ResetDefaults({ ...shown, color: BLUE });
+    expect(reset).toMatchObject({ width: '0', style: DEFAULT_ROW, junction: '0' });
+    expect(reset.color.a).toBe(0);
+  });
+
+  it('sets a selected junction’s colour and size, in the frame units', () => {
+    const h = schToolHarness(schFrame({}));
+    h.frame.SetUserUnits('mils');
+    const j = new SCH_JUNCTION({ x: 0, y: 0 }, 2540);
     h.frame.AddToScreen(j, h.frame.GetScreen());
     const dlg = new DIALOG_WIRE_BUS_PROPERTIES(h.frame, [j]);
-    expect(dlg.TransferDataToWindow().junction).toBe(900);
+    const shown = dlg.TransferDataToWindow();
+    expect([shown.junction, shown.junctionEnabled]).toEqual(['10', true]);
 
-    dlg.TransferDataFromWindow(null, null, BLUE, 1500);
+    dlg.TransferDataFromWindow({ ...shown, color: BLUE, junction: '20' });
 
-    expect([j.GetDiameter(), j.GetColor()]).toEqual([1500, BLUE]);
+    expect([j.GetDiameter(), j.GetColor()]).toEqual([5080, BLUE]);
   });
 });

@@ -16,7 +16,7 @@
  * "use the schematic default width".
  */
 import { bitmapUrl } from '@ziroeda/common/bitmap_store.js';
-import { Button, CheckBox } from '@ziroeda/wx/controls.js';
+import { Button, CheckBox, StaticText } from '@ziroeda/wx/controls.js';
 import { useState, type JSX } from 'react';
 import { FILL_MODE_NAMES, FILL_MODE_TOKENS, iuToMM, mmToIU } from '@ziroeda/common';
 import { ColorSwatch } from '@ziroeda/common/widgets/color_swatch.js';
@@ -188,8 +188,13 @@ export function DialogShapeProperties({
 
           {/* m_helpLabel1 (base.cpp:125), at (3,0) span 1x2. We did not have
             it at all. */}
-          <span className="ze-help-label ze-shapeprops-span">
-            Set border width to 0 to use schematic&apos;s default line width.
+          <span className="ze-shapeprops-span">
+            <StaticText
+              label="Set border width to 0 to use schematic's default line width."
+              wrap={320}
+              font="info"
+              italic
+            />
           </span>
         </div>
 
@@ -211,8 +216,8 @@ export function DialogShapeProperties({
 
           {/* m_helpLabel2 (base.cpp:172), added `wxTOP|wxRIGHT, 8`. Plural
             "colors" here because this page has two of them. */}
-          <span className="ze-help-label ze-shapeprops-span">
-            Clear colors to use Schematic Editor colors.
+          <span className="ze-shapeprops-span">
+            <StaticText label="Clear colors to use Schematic Editor colors." font="info" italic />
           </span>
         </div>
       </div>

@@ -52,6 +52,9 @@ const CALL_SITES: Record<string, string> = {
   'schematic/dialogs/dialog_line_properties.tsx': read(
     `../../../eeschema/dialogs/dialog_line_properties.tsx`,
   ),
+  'schematic/dialogs/dialog_wire_bus_properties.tsx': read(
+    `../../../eeschema/dialogs/dialog_wire_bus_properties.tsx`,
+  ),
   'schematic/dialogs/dialog_text_properties.tsx': read(
     `../../../eeschema/dialogs/dialog_text_properties.tsx`,
   ),
@@ -174,12 +177,14 @@ describe('every dialog that lists line styles', () => {
   });
 
   it('offers "Default" only in the wire/bus dialog', () => {
-    // DIALOG_WIRE_BUS_PROPERTIES is the only one upstream that can express it,
-    // and ours lives in dialog_line_properties.tsx (see its header comment).
+    // DIALOG_WIRE_BUS_PROPERTIES is the only one upstream that can express it: its
+    // constructor appends DEFAULT_WIRE_STYLE_LABEL after lineTypeNames (10-11: it is its own
+    // _base pair again, no longer inside dialog_line_properties.tsx).
     for (const [name, src] of Object.entries(CALL_SITES)) {
-      if (name === 'schematic/dialogs/dialog_line_properties.tsx') {
-        expect(src, name).toContain('WIRE_STYLE_NAMES');
+      if (name === 'schematic/dialogs/dialog_wire_bus_properties.tsx') {
+        expect(src, name).toContain('DEFAULT_WIRE_STYLE_LABEL');
       } else {
+        expect(src, name).not.toContain('DEFAULT_WIRE_STYLE_LABEL');
         expect(src, name).not.toContain('WIRE_STYLE_NAMES');
       }
     }
