@@ -1145,7 +1145,7 @@ export function SchematicEditor({
   /** DIALOG_SHAPE_PROPERTIES while it is up for the live tools. */
   const [shapeDialog, setShapeDialog] = useState<{
     dlg: DIALOG_SHAPE_PROPERTIES;
-    name: string;
+    title?: string;
     shown: SHAPE_DIALOG_VALUES;
     resolve: (aId: number) => void;
   } | null>(null);
@@ -1610,7 +1610,8 @@ export function SchematicEditor({
           return new Promise<number>((resolve) =>
             setShapeDialog({
               dlg,
-              name: shape.GetFriendlyName(),
+              // SCH_EDIT_TOOL names a rule area's dialog itself (dlg.SetTitle()).
+              title: typeof aArg === 'string' ? aArg : undefined,
               shown: dlg.TransferDataToWindow(),
               resolve,
             }),
@@ -7445,30 +7446,13 @@ export function SchematicEditor({
       {/* DIALOG_SHAPE_PROPERTIES on a live shape. */}
       {shapeDialog && (
         <DialogShapeProperties
-          shapeName={shapeDialog.name}
+          dlg={shapeDialog.dlg}
+          initial={shapeDialog.shown}
+          title={shapeDialog.title}
           units={units}
-          initial={{
-            border: shapeDialog.shown.border,
-            borderWidthIU: shapeDialog.shown.borderWidth,
-            borderStyle: shapeDialog.shown.borderStyle,
-            ...(color4dToItemColor(shapeDialog.shown.borderColor)
-              ? { borderColor: color4dToItemColor(shapeDialog.shown.borderColor) }
-              : {}),
-            fillType: shapeDialog.shown.fillType,
-            ...(color4dToItemColor(shapeDialog.shown.fillColor)
-              ? { fillColor: color4dToItemColor(shapeDialog.shown.fillColor) }
-              : {}),
-          }}
-          onOk={(r) => {
+          onOk={(values) => {
             setShapeDialog(null);
-            shapeDialog.dlg.TransferDataFromWindow({
-              border: r.border,
-              borderWidth: r.borderWidthIU,
-              borderStyle: r.borderStyle,
-              borderColor: itemColorToColor4d(r.borderColor),
-              fillType: r.fillType,
-              fillColor: itemColorToColor4d(r.fillColor),
-            });
+            shapeDialog.dlg.TransferDataFromWindow(values);
             shapeDialog.resolve(wxID_OK);
           }}
           onCancel={() => {

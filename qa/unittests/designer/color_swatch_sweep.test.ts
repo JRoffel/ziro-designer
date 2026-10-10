@@ -188,12 +188,12 @@ describe('no dialog keeps a Clear button the picker replaced', () => {
   it('keeps m_helpLabel2 where upstream has one, as a label', () => {
     // The two pages in our tree that correspond to a dialog carrying it.
     {
-      // Shape Properties, not yet a _base pair, states it the same way.
+      // Shape Properties' page says "colors": it has two swatches.
       const src = readFileSync(
-        join(SRC, '../../eeschema/dialogs/dialog_shape_properties.tsx'),
+        join(SRC, '../../eeschema/dialogs/dialog_shape_properties_base.tsx'),
         'utf8',
       );
-      expect(src, 'dialog_shape_properties lost m_helpLabel2').toMatch(
+      expect(src, 'dialog_shape_properties_base lost m_helpLabel2').toMatch(
         /<StaticText label="Clear colors to use Schematic Editor colors\." font="info" italic \/>/,
       );
     }
