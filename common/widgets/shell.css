@@ -228,6 +228,11 @@
      Akshay saw as "the boxes are more whiter" in KiCad. */
   --grid-label-bg: #373737;
   --grid-cell-bg: #272727;
+  /* A covered table cell (DIALOG_TABLE_PROPERTIES::TransferDataToWindow):
+     wxSYS_COLOUR_BTNFACE, .ChangeLightness( 140 ) on a dark theme. [data] wx's
+     ChangeLightness blends toward white with alpha 1 - 0.4: 255 + 0.6 * (55 - 255)
+     = 135 per channel, on the measured BTNFACE #373737 (--grid-label-bg). */
+  --grid-covered-bg: #878787;
   /* The OTHER selection fill. `wxGridCellRenderer::Draw` chooses between two:
      `GetSelectionBackground()` when `grid.HasFocus()`, and
      `wxSYS_COLOUR_BTNSHADOW` when it does not — and a grid does not have focus
@@ -16851,6 +16856,23 @@ td.ze-grid-bool {
    real control is the dialog's own font in the theme's link colour. */
 /* wxStaticLine (common/wx/controls.tsx StaticLine): a GtkSeparator, whose
    colour is the measured --gtk-separator - it darkens whatever it is drawn on. */
+/* wxPanel. With wxBORDER_SIMPLE, the same one-pixel frame every wxBORDER_SIMPLE
+   here draws (.ze-bgjob-list, .ze-bgjob-panel); the panel sizes to its sizer. */
+.ze-panel {
+  display: flex;
+}
+.ze-panel.border-simple {
+  border: 1px solid var(--chrome-border);
+}
+/* GRID_CELL_COLOR_RENDERER at wxDefaultSize (common/widgets/grid_color_swatch_helpers.tsx):
+   the swatch fills the cell with the colour the cell holds. */
+.ze-grid-color-cell {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--swatch-color);
+}
+
 .ze-staticline {
   height: 1px; /* [css] Yaru `separator { min-height: 1px }` */
   background: var(--gtk-separator);

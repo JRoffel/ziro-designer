@@ -3,87 +3,133 @@
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
 /**
  * `DIALOG_TABLE_PROPERTIES` (eeschema/dialogs/dialog_table_properties.cpp) on a live SCH_TABLE,
- * over the form `common/dialogs/dialog_table_properties.tsx` shares with pcbnew. Opened by
- * DrawTable (a new table, discarded on Cancel) and by SCH_EDIT_TOOL::Properties.
+ * over DIALOG_TABLE_PROPERTIES_BASE. Opened by DrawTable (a new table, discarded on Cancel) and by
+ * SCH_EDIT_TOOL::Properties.
  *
- * Two rules from the C++: a pair of line flags both off stores the stroke -1 wide, and reading a
- * -1 separator back shows its boxes unticked whatever the flags say. The style list is
- * `lineTypeNames`, Solid first; anything out of range selects it.
+ * The cell grid is a WX_GRID with no labels: a covered cell is read-only and filled with the
+ * covered colour (GRID_CELL_COLOR_RENDERER), the others edit their text. The two widths go through
+ * UNIT_BINDERs in the frame's units. Rules from the C++: a pair of line flags both off stores the
+ * stroke -1 wide; a -1 stroke leaves its width box empty and shows a -1 separator's boxes unticked
+ * whatever the flags say; the style is the combo index, Solid for anything out of range.
+ *
+ * Not carried over: GRID_CELL_STC_EDITOR's text-variable autocomplete (a plain cell editor here),
+ * opening on the selected cell's editor (the CallAfter), and the row heights of sizeGridToTable
+ * (the grid view sizes rows to their text; the column widths keep the table's proportions).
+ *
+ * Deliberately different: upstream's covered cell holds coveredColor.GetAsString() and
+ * TransferDataFromWindow writes every cell back, so a covered cell's text becomes that colour
+ * (theme-dependent, e.g. "rgb(135, 135, 135)") in the saved file. Here it is written as ''.
  */
-import type { JSX } from 'react';
-import { DialogTableProperties as SharedTableDialog } from '@ziroeda/common/dialogs/dialog_table_properties.js';
-import { schIUScale } from '@ziroeda/common/eda_units.js';
+import { type JSX, useState } from 'react';
+import { DisplayErrorMessage } from '@ziroeda/common/confirm.js';
 import type { Color4d } from '@ziroeda/common/gal/color4d.js';
 import { LINE_STYLE, LINE_STYLE_NAMES } from '@ziroeda/common/stroke_params.js';
-import { ColorSwatch } from '@ziroeda/common/widgets/color_swatch.js';
+import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
+import { UNIT_BINDER, unitLabel } from '@ziroeda/common/widgets/unit_binder.js';
+import { type WX_GRID, useStringGrid } from '@ziroeda/common/widgets/wx_grid.js';
+import { GRID_CELL_COLOR_RENDERER } from '@ziroeda/common/widgets/grid_color_swatch_helpers.js';
+import { WxGridView } from '@ziroeda/wx/grid_ui.js';
 import { SCH_COMMIT } from '../sch_commit.js';
 import type { SCH_EDIT_FRAME } from '../sch_edit_frame.js';
 import type { SCH_TABLE } from '../sch_table.js';
+import { DIALOG_TABLE_PROPERTIES_BASE } from './dialog_table_properties_base.js';
 
 export interface SCH_TABLE_DIALOG_VALUES {
   /** One string per cell, row-major; a covered cell is ''. */
   cellText: readonly (readonly string[])[];
+  /** Row-major: true where the cell is covered by a span. */
+  covered: readonly (readonly boolean[])[];
   borderExternal: boolean;
   borderHeader: boolean;
-  borderWidth: number;
-  borderStyle: string;
+  /** `m_borderWidth`'s text; empty for a -1 stroke. */
+  borderWidth: string;
+  /** `m_borderStyleCombo->GetSelection()`. */
+  borderStyle: number;
   borderColor: Color4d;
   separatorRows: boolean;
   separatorCols: boolean;
-  separatorWidth: number;
-  separatorStyle: string;
+  separatorWidth: string;
+  separatorStyle: number;
   separatorColor: Color4d;
 }
 
-/** `m_borderWidth.Enable( StrokeExternal() || StrokeHeaderSeparator() )` and its siblings. */
-const borderControlsEnabled = (v: SCH_TABLE_DIALOG_VALUES): boolean =>
-  v.borderExternal || v.borderHeader;
-
-/** `m_separatorsWidth.Enable( rows || cols )` and its siblings. */
-const separatorControlsEnabled = (v: SCH_TABLE_DIALOG_VALUES): boolean =>
-  v.separatorRows || v.separatorCols;
-
 /** `m_borderStyleCombo->SetSelection( style )`: the first entry for anything out of range. */
-const styleToken = (aStyle: LINE_STYLE): string =>
-  LINE_STYLE_NAMES.find((d) => d.style === aStyle)?.value ?? LINE_STYLE_NAMES[0]!.value;
+const styleIndex = (aStyle: LINE_STYLE): number =>
+  aStyle >= 0 && aStyle < LINE_STYLE_NAMES.length ? aStyle : 0;
 
 /** `std::advance( lineTypeNames.begin(), selection )`: SOLID past the end. */
-const tokenStyle = (aToken: string): LINE_STYLE =>
-  LINE_STYLE_NAMES.find((d) => d.value === aToken)?.style ?? LINE_STYLE.SOLID;
+const indexStyle = (aIndex: number): LINE_STYLE =>
+  LINE_STYLE_NAMES[aIndex]?.style ?? LINE_STYLE.SOLID;
 
 export class DIALOG_TABLE_PROPERTIES {
   private readonly m_frame: SCH_EDIT_FRAME;
   private readonly m_table: SCH_TABLE;
+  private readonly m_borderWidth: UNIT_BINDER;
+  private readonly m_separatorsWidth: UNIT_BINDER;
 
   constructor(aFrame: SCH_EDIT_FRAME, aTable: SCH_TABLE) {
     this.m_frame = aFrame;
     this.m_table = aTable;
+    this.m_borderWidth = new UNIT_BINDER(aFrame, 'Width:', (m) => DisplayErrorMessage(m));
+    this.m_separatorsWidth = new UNIT_BINDER(aFrame, 'Width:', (m) => DisplayErrorMessage(m));
   }
 
-  /** The column widths the grid keeps the proportions of (sizeGridToTable). */
-  ColumnWidths(): number[] {
+  /** `m_infoBar->ShowMessage( … )` when item colours are overridden in Preferences. */
+  InfoBarMessage(): string | null {
+    return this.m_frame.GetColorSettings().GetOverrideSchItemColors()
+      ? 'Note: individual item colors overridden in Preferences.'
+      : null;
+  }
+
+  /** `SetSwatchBackground( canvas )`: LAYER_SCHEMATIC_BACKGROUND behind both swatches. */
+  SwatchBackground(): Color4d {
+    return this.m_frame.GetDrawBgColor();
+  }
+
+  /**
+   * `sizeGridToTable()`'s column widths: each column's share of the table's width, scaled to the
+   * grid's width (`m_gridSizer`'s 600 px floor, which is what Fit() gives it).
+   */
+  ColumnWidths(aAvailableWidth = 600): number[] {
+    const tableWidth = this.m_table.GetBoundingBox().GetWidth();
+    const scalerX = tableWidth > 0 ? aAvailableWidth / tableWidth : 0;
     const widths: number[] = [];
 
     for (let col = 0; col < this.m_table.GetColCount(); ++col)
-      widths.push(this.m_table.GetColWidth(col));
+      widths.push(Math.floor(this.m_table.GetColWidth(col) * scalerX));
 
     return widths;
+  }
+
+  /** `onBorderChecked()`: a line run switched on with no width takes the default thickness. */
+  DefaultWidthText(aWidthText: string, aOn: boolean, aWhich: 'border' | 'separators'): string {
+    const binder = aWhich === 'border' ? this.m_borderWidth : this.m_separatorsWidth;
+    binder.SetText(aWidthText);
+
+    // 10.0.6 hands m_Drawing.default_line_thickness (stored in mils) straight to SetValue(),
+    // which takes internal units; mirrored as written.
+    if (aOn && binder.GetValue() < 0)
+      binder.SetValue(this.m_frame.eeconfig()?.drawing.default_line_thickness ?? 0);
+
+    return binder.GetText();
   }
 
   /** `TransferDataToWindow()`. */
   TransferDataToWindow(): SCH_TABLE_DIALOG_VALUES {
     const t = this.m_table;
     const cellText: string[][] = [];
+    const covered: boolean[][] = [];
 
     for (let row = 0; row < t.GetRowCount(); ++row) {
       const line: string[] = [];
+      const coveredLine: boolean[] = [];
 
       for (let col = 0; col < t.GetColCount(); ++col) {
         const tableCell = t.GetCell(row, col)!;
 
-        // A covered cell shows the grid's covered colour, not text.
         if (tableCell.GetColSpan() === 0 || tableCell.GetRowSpan() === 0) {
           line.push('');
+          coveredLine.push(true);
           continue;
         }
 
@@ -94,25 +140,34 @@ export class DIALOG_TABLE_PROPERTIES {
         if (schematic) text = schematic.ConvertKIIDsToRefs(text);
 
         line.push(text);
+        coveredLine.push(false);
       }
 
       cellText.push(line);
+      covered.push(coveredLine);
     }
 
     const border = t.GetBorderStroke();
     const seps = t.GetSeparatorsStroke();
 
+    this.m_borderWidth.SetText('');
+    if (border.GetWidth() >= 0) this.m_borderWidth.SetValue(border.GetWidth());
+
+    this.m_separatorsWidth.SetText('');
+    if (seps.GetWidth() >= 0) this.m_separatorsWidth.SetValue(seps.GetWidth());
+
     return {
       cellText,
+      covered,
       borderExternal: t.StrokeExternal(),
       borderHeader: t.StrokeHeaderSeparator(),
-      borderWidth: border.GetWidth() >= 0 ? border.GetWidth() : 0,
-      borderStyle: styleToken(border.GetLineStyle()),
+      borderWidth: this.m_borderWidth.GetText(),
+      borderStyle: styleIndex(border.GetLineStyle()),
       borderColor: border.GetColor(),
       separatorRows: t.StrokeRows() && seps.GetWidth() >= 0,
       separatorCols: t.StrokeColumns() && seps.GetWidth() >= 0,
-      separatorWidth: seps.GetWidth() >= 0 ? seps.GetWidth() : 0,
-      separatorStyle: styleToken(seps.GetLineStyle()),
+      separatorWidth: this.m_separatorsWidth.GetText(),
+      separatorStyle: styleIndex(seps.GetLineStyle()),
       separatorColor: seps.GetColor(),
     };
   }
@@ -138,16 +193,19 @@ export class DIALOG_TABLE_PROPERTIES {
       }
     }
 
+    this.m_borderWidth.SetText(aValues.borderWidth);
+    this.m_separatorsWidth.SetText(aValues.separatorWidth);
+
     t.SetStrokeExternal(aValues.borderExternal);
     t.SetStrokeHeaderSeparator(aValues.borderHeader);
     {
       const stroke = t.GetBorderStroke().clone();
 
       if (aValues.borderExternal || aValues.borderHeader)
-        stroke.SetWidth(Math.max(0, aValues.borderWidth));
+        stroke.SetWidth(Math.max(0, this.m_borderWidth.GetIntValue()));
       else stroke.SetWidth(-1);
 
-      stroke.SetLineStyle(tokenStyle(aValues.borderStyle));
+      stroke.SetLineStyle(indexStyle(aValues.borderStyle));
       stroke.SetColor(aValues.borderColor);
 
       t.SetBorderStroke(stroke);
@@ -159,10 +217,10 @@ export class DIALOG_TABLE_PROPERTIES {
       const stroke = t.GetSeparatorsStroke().clone();
 
       if (aValues.separatorRows || aValues.separatorCols)
-        stroke.SetWidth(Math.max(0, aValues.separatorWidth));
+        stroke.SetWidth(Math.max(0, this.m_separatorsWidth.GetIntValue()));
       else stroke.SetWidth(-1);
 
-      stroke.SetLineStyle(tokenStyle(aValues.separatorStyle));
+      stroke.SetLineStyle(indexStyle(aValues.separatorStyle));
       stroke.SetColor(aValues.separatorColor);
 
       t.SetSeparatorsStroke(stroke);
@@ -174,40 +232,138 @@ export class DIALOG_TABLE_PROPERTIES {
   }
 }
 
-/** The shared form over DIALOG_TABLE_PROPERTIES, with eeschema's stroke colours. */
+/** DIALOG_TABLE_PROPERTIES' window: the base, its WX_GRID, and the onBorderChecked enables. */
 export function DialogTableProperties({
   dlg,
   initial,
-  isNew,
+  units,
   onOk,
   onCancel,
 }: {
   dlg: DIALOG_TABLE_PROPERTIES;
   initial: SCH_TABLE_DIALOG_VALUES;
-  isNew: boolean;
+  /** The frame's units, which the two UNIT_BINDERs label their entries with. */
+  units: StatusUnits;
+  /** Kept for DrawTable's caller; a new table is discarded on Cancel either way. */
+  isNew?: boolean;
   onOk: (aValues: SCH_TABLE_DIALOG_VALUES) => void;
   onCancel: () => void;
 }): JSX.Element {
+  const [v, setV] = useState<SCH_TABLE_DIALOG_VALUES>(initial);
+  const set = (patch: Partial<SCH_TABLE_DIALOG_VALUES>): void => setV((p) => ({ ...p, ...patch }));
+
+  const cols = initial.cellText[0]?.length ?? 0;
+  const { grid, tricks, onUpdate } = useStringGrid<readonly string[]>({
+    labels: Array.from({ length: cols }, () => ''),
+    rows: v.cellText,
+    toCells: (line) => line,
+    fromCells: (cells) => [...cells],
+    onChange: (rows) => set({ cellText: rows }),
+    setup: (aGrid: WX_GRID) => {
+      initial.covered.forEach((line, row) => {
+        line.forEach((isCovered, col) => {
+          if (isCovered) aGrid.SetReadOnly(row, col);
+        });
+      });
+    },
+  });
+
+  const borderOn = v.borderExternal || v.borderHeader;
+  const sepOn = v.separatorRows || v.separatorCols;
+
+  /** `onBorderChecked()`, which both runs' four checkboxes are connected to. */
+  const onBorderChecked = (patch: Partial<SCH_TABLE_DIALOG_VALUES>): void => {
+    const n = { ...v, ...patch };
+    set({
+      ...patch,
+      borderWidth: dlg.DefaultWidthText(
+        n.borderWidth,
+        n.borderExternal || n.borderHeader,
+        'border',
+      ),
+      separatorWidth: dlg.DefaultWidthText(
+        n.separatorWidth,
+        n.separatorRows || n.separatorCols,
+        'separators',
+      ),
+    });
+  };
+
+  const background = dlg.SwatchBackground();
+  const widths = dlg.ColumnWidths();
+
   return (
-    <SharedTableDialog<SCH_TABLE_DIALOG_VALUES>
-      initial={initial}
-      iuScale={schIUScale}
-      columnWidths={dlg.ColumnWidths()}
-      isNew={isNew}
-      borderEnabled={borderControlsEnabled}
-      separatorEnabled={separatorControlsEnabled}
-      renderColor={(key, enabled, v, set) => (
-        <label className="row ze-tableprops-field">
-          <span className="ze-tableprops-lbl">Color:</span>
-          <ColorSwatch
-            label="Color"
-            disabled={!enabled}
-            color={v[key]}
-            onChange={(c) => set({ [key]: c } as Partial<SCH_TABLE_DIALOG_VALUES>)}
-          />
-        </label>
-      )}
-      onOk={onOk}
+    <DIALOG_TABLE_PROPERTIES_BASE
+      m_infoBar={dlg.InfoBarMessage()}
+      m_grid={
+        <WxGridView
+          grid={grid}
+          tricks={tricks}
+          rowLabels={false}
+          colLabels={false}
+          columns={widths.map((width) => ({ width }))}
+          renderCell={(row, col) =>
+            // `SetCellValue( row, col, coveredColor.GetAsString() )` drawn by its
+            // GRID_CELL_COLOR_RENDERER; the colour is the theme's (--grid-covered-bg).
+            initial.covered[row]?.[col] ? (
+              <GRID_CELL_COLOR_RENDERER color="var(--grid-covered-bg)" />
+            ) : null
+          }
+          onUpdate={onUpdate}
+          ariaLabel="Cell contents"
+        />
+      }
+      m_borderCheckbox={{
+        value: v.borderExternal,
+        onChange: (on) => onBorderChecked({ borderExternal: on }),
+      }}
+      m_headerBorder={{
+        value: v.borderHeader,
+        onChange: (on) => onBorderChecked({ borderHeader: on }),
+      }}
+      m_borderWidth={{
+        text: v.borderWidth,
+        onChange: (t) => set({ borderWidth: t }),
+        units: unitLabel(units),
+        enabled: borderOn,
+      }}
+      m_borderColorSwatch={{
+        color: v.borderColor,
+        background,
+        enabled: borderOn,
+        onChange: (c) => set({ borderColor: c }),
+      }}
+      m_borderStyleCombo={{
+        value: v.borderStyle,
+        enabled: borderOn,
+        onChange: (i) => set({ borderStyle: i }),
+      }}
+      m_rowSeparators={{
+        value: v.separatorRows,
+        onChange: (on) => onBorderChecked({ separatorRows: on }),
+      }}
+      m_colSeparators={{
+        value: v.separatorCols,
+        onChange: (on) => onBorderChecked({ separatorCols: on }),
+      }}
+      m_separatorsWidth={{
+        text: v.separatorWidth,
+        onChange: (t) => set({ separatorWidth: t }),
+        units: unitLabel(units),
+        enabled: sepOn,
+      }}
+      m_separatorsColorSwatch={{
+        color: v.separatorColor,
+        background,
+        enabled: sepOn,
+        onChange: (c) => set({ separatorColor: c }),
+      }}
+      m_separatorsStyleCombo={{
+        value: v.separatorStyle,
+        enabled: sepOn,
+        onChange: (i) => set({ separatorStyle: i }),
+      }}
+      onOK={() => onOk(v)}
       onCancel={onCancel}
     />
   );

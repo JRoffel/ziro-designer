@@ -61,11 +61,12 @@ describe('the dialog the tool ends with', () => {
   });
 
   it('greying out the line controls when the lines are off', () => {
-    // `m_borderWidth.Enable( StrokeExternal() || StrokeHeaderSeparator() )`.
-    // The rule is eeschema's, so it is passed in; the shared dialog only asks.
-    expect(DIALOG).toContain('borderEnabled={borderControlsEnabled}');
-    expect(DIALOG).toContain('separatorEnabled={separatorControlsEnabled}');
-    expect(SHARED_DIALOG).toContain('borderEnabled ? borderEnabled(v) : true');
+    // `m_borderWidth.Enable( StrokeExternal() || StrokeHeaderSeparator() )`, in eeschema's own
+    // DIALOG_TABLE_PROPERTIES over its _base (10-11: one pair per editor, as KiCad has). The
+    // behaviour is pinned by qa/unittests/eeschema/dialogs/dialog_table_properties.test.tsx.
+    expect(DIALOG).toContain('const borderOn = v.borderExternal || v.borderHeader;');
+    expect(DIALOG).toContain('const sepOn = v.separatorRows || v.separatorCols;');
+    expect(DIALOG).not.toContain('common/dialogs/dialog_table_properties');
   });
 
   it('and the old read-only stub is gone', () => {

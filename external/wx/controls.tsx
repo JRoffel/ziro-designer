@@ -297,6 +297,21 @@ export function StaticLine({
   );
 }
 
+/**
+ * `wxPanel`: a child window that holds its own sizer. `border="simple"` is `wxBORDER_SIMPLE`, the
+ * one-pixel frame wxFormBuilder puts around a COLOR_SWATCH (`m_panelBorderColor`), which the
+ * swatch itself does not draw.
+ */
+export function Panel({
+  border,
+  children,
+}: {
+  border?: 'simple';
+  children?: ReactNode;
+}): JSX.Element {
+  return <div className={`ze-panel${border === 'simple' ? ' border-simple' : ''}`}>{children}</div>;
+}
+
 /** `wxHyperlinkCtrl`: a GtkLinkButton in the theme's link colour, on the dialog's own font. */
 export function HyperlinkCtrl({
   label,

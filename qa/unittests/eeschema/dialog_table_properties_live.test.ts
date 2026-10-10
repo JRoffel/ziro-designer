@@ -59,7 +59,13 @@ describe('DIALOG_TABLE_PROPERTIES', () => {
       ['A', ''],
       ['C', 'D'],
     ]);
-    expect([shown.separatorRows, shown.separatorWidth]).toEqual([false, 0]);
+    expect(shown.covered).toEqual([
+      [false, true],
+      [false, false],
+    ]);
+    // A -1 stroke never reaches m_separatorsWidth.SetValue(), so its box keeps the base's
+    // wxEmptyString.
+    expect([shown.separatorRows, shown.separatorWidth]).toEqual([false, '']);
   });
 
   it('writes the cells and strokes as one commit, refs as KIIDs', () => {
@@ -78,8 +84,9 @@ describe('DIALOG_TABLE_PROPERTIES', () => {
           [`\${${ref}:VALUE}`, 'B'],
           ['C', 'x'],
         ],
-        borderWidth: 2540,
-        borderStyle: 'dash',
+        // 2540 schematic IU is 0.254 mm (the frame's default units); DASH is index 1.
+        borderWidth: '0.254',
+        borderStyle: 1,
       }),
     ).toBe(true);
 
@@ -100,14 +107,32 @@ describe('DIALOG_TABLE_PROPERTIES', () => {
       ...shown,
       borderExternal: false,
       borderHeader: false,
-      borderWidth: 2540,
+      borderWidth: '0.254',
       separatorRows: true,
       separatorCols: false,
-      separatorWidth: 1270,
+      separatorWidth: '0.127',
     });
 
     expect(table.GetBorderStroke().GetWidth()).toBe(-1);
     expect(table.GetSeparatorsStroke().GetWidth()).toBe(1270);
     expect([table.StrokeRows(), table.StrokeColumns()]).toEqual([true, false]);
+  });
+
+  it('the widths follow the frame units', () => {
+    const { h, table, dlg } = setUp();
+    h.frame.SetUserUnits('mils');
+    const shown = dlg.TransferDataToWindow();
+    // 2540 IU is 10 mils.
+    dlg.TransferDataFromWindow({ ...shown, borderExternal: true, borderWidth: '10' });
+    expect(table.GetBorderStroke().GetWidth()).toBe(2540);
+  });
+
+  it('onBorderChecked: a run switched on with a negative width takes the default thickness', () => {
+    const { dlg } = setUp();
+    // m_Drawing.default_line_thickness is 6, which 10.0.6 hands to SetValue() as internal
+    // units: 6 IU is 0.0006 mm.
+    expect(dlg.DefaultWidthText('-1', true, 'border')).toBe('0.0006');
+    expect(dlg.DefaultWidthText('-1', false, 'border')).toBe('-1');
+    expect(dlg.DefaultWidthText('0.254', true, 'separators')).toBe('0.254');
   });
 });

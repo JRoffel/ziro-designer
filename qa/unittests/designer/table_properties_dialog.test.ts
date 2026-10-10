@@ -2,7 +2,12 @@
 // Copyright (C) 2026 ZiroEDA and contributors.
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
 /**
- * Table Properties: one dialog, shared by both editors.
+ * Table Properties: the board editor's shared form.
+ *
+ * 10-11: the schematic has its own DIALOG_TABLE_PROPERTIES pair again (eeschema/dialogs/
+ * dialog_table_properties(_base).tsx), built from its _base.cpp under the "one pair per KiCad
+ * dialog" rule; the board's pair follows, and then this form goes. Until then this pins the
+ * form pcbnew still uses.
  *
  * Upstream there are two — `eeschema/dialogs/dialog_table_properties.cpp` over
  * `SCH_TABLE : SCH_ITEM`, and `pcbnew/dialogs/dialog_table_properties.cpp` over
@@ -65,7 +70,6 @@ describe('the labels both upstream dialogs use', () => {
 describe('what each editor keeps, because it genuinely differs', () => {
   it('takes the IU scale from the caller — a schematic unit is not a board one', () => {
     expect(SHARED).toContain('iuScale');
-    expect(SCH).toContain('schIUScale');
   });
 
   it('lets the board add Layer and Locked, which a SCH_TABLE has neither of', () => {
@@ -73,21 +77,13 @@ describe('what each editor keeps, because it genuinely differs', () => {
     // The header lives with the dialogs every PCB_BASE_EDIT_FRAME window draws.
     const pcb = read('../../pcbnew/pcb_base_edit_frame_ui.tsx');
     expect(pcb).toContain('tableHeader');
-    // …and the schematic passes none.
-    expect(SCH).not.toContain('header=');
   });
 
-  it('lets the schematic add the stroke colours a PCB_TABLE takes from its layer', () => {
-    expect(SHARED).toContain('renderColor?:');
-    expect(SCH).toContain('renderColor=');
-    expect(SCH).toContain('ColorSwatch');
+  it('the schematic no longer goes through it: it has its own pair', () => {
+    expect(SCH).not.toContain('common/dialogs/dialog_table_properties');
+    expect(SCH).toContain('DIALOG_TABLE_PROPERTIES_BASE');
     // The shared file must not know about COLOR_SWATCH at all.
     expect(SHARED).not.toContain('ColorSwatch');
-  });
-
-  it('lets the schematic grey a switched-off line, which is its own rule', () => {
-    expect(SCH).toContain('borderControlsEnabled');
-    expect(SCH).toContain('separatorControlsEnabled');
   });
 });
 

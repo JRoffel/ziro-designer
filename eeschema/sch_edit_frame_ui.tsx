@@ -7586,6 +7586,7 @@ export function SchematicEditor({
         <DialogTableProperties
           dlg={tableDialog.dlg}
           initial={tableDialog.shown}
+          units={units}
           isNew={tableDialog.isNew}
           onOk={(values) => {
             if (!tableDialog.dlg.TransferDataFromWindow(values)) return;
