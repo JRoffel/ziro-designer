@@ -260,6 +260,8 @@ export const TREE_EXCEPTIONS: Record<string, string> = {
     "UNAUDITED: no KiCad file of this name - port it under KiCad's name, fold it into its owner, or justify it here",
   'eeschema/browser/eeschema_app.ts':
     "browser-only: the app's half of the editor, no KiCad counterpart by design (browser/ subfolders, agreed 10-10)",
+  'eeschema/browser/headless_pcb_netlist.ts':
+    "browser-only: the off-screen PCB_EDIT_FRAME's MAIL_PCB_GET_NETLIST answer, as pcbnew/browser/headless_netlist.ts is the schematic's",
   'eeschema/browser/global_sym_lib_table.ts':
     "browser-only: the app's half of the editor, no KiCad counterpart by design (browser/ subfolders, agreed 10-10)",
   'eeschema/browser/project_sync_transport.ts':

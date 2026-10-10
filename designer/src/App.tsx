@@ -1884,10 +1884,10 @@ export function App(): JSX.Element {
                 onShowPcb={pcbFile ? showPcb : undefined}
                 onEditSymbolInEditor={editSymbolInEditor}
                 editedSymbol={editedSymbol}
-                // Tools > Update Schematic from PCB: read the board here, so the
-                // schematic editor never has to know the board model — the adapter
-                // is the whole coupling between the two.
-                readBoardFootprints={
+                // Tools > Update Schematic from PCB with no board editor running: what an
+                // off-screen PCB_EDIT_FRAME answers to MAIL_PCB_GET_NETLIST, read here so the
+                // schematic editor never has to know the board model.
+                readBoardNetlist={
                   pcbFile
                     ? async () => {
                         try {
@@ -1895,11 +1895,11 @@ export function App(): JSX.Element {
                           // this file: statically, it put the whole .kicad_pcb
                           // parser into the entry chunk for every visitor,
                           // including the ones who never open a board.
-                          const [{ ParseBoard }, { boardFootprintData }] = await Promise.all([
+                          const [{ ParseBoard }, { formatPcbNetlist }] = await Promise.all([
                             import('@ziroeda/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.js'),
-                            import('./editors/schematic/back_annotate_source.js'),
+                            import('@ziroeda/pcbnew/cross-probing.js'),
                           ]);
-                          return boardFootprintData(ParseBoard(pcbFile.text));
+                          return formatPcbNetlist(ParseBoard(pcbFile.text));
                         } catch {
                           return null;
                         }

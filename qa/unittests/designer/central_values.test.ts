@@ -436,7 +436,9 @@ const BASELINE: Record<string, { colours: number; metrics: number }> = {
   // DIALOG_SHEET_PROPERTIES rebuild. Rescanned.
   // 126 -> 122 (10-09): the record table-cell form's four inline gaps (8, 12, 8, 8) went with its
   // rebuild from dialog_tablecell_properties_base.cpp. Rescanned.
-  'editors/schematic': { colours: 16, metrics: 112 },
+  // metrics 112 -> 108: DIALOG_UPDATE_FROM_PCB is its _base on the sizers; the old form's
+  // inline gap/padding/minHeight went with it.
+  'editors/schematic': { colours: 16, metrics: 108 },
   // 166 -> 163 metrics on `editors/schematic`, moved here whole: cvpcb's
   // three windows left `editors/schematic/dialogs/` for the root `cvpcb/`
   // package (cvpcb/STRUCTURE.md's stage two). No colours moved (the five
@@ -1661,7 +1663,8 @@ describe('the scan totals, so the numbers in the PR stay true', () => {
     // margins, replaced by its [data] Add() borders.
     // 1039 -> 1013 (10-10): editors/pcb 114 -> 88 - DIALOG_PLOT's inline styles, replaced by its
     // sizer tree (dialog_plot_base.tsx).
-    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(1013);
+    // 1013 -> 1009: the editors/schematic row above (Update Schematic from PCB).
+    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(1009);
   });
 
   it('and the two agree with the per-area table, which is where they come from', () => {

@@ -149,7 +149,6 @@ import {
   buildNetNavigatorHierarchy,
   netNavigatorOrder,
   stepNetItem,
-  type PcbFootprintData,
   buildSheetTree,
   repairPageNumbersOnLoad,
   findRootFile,
@@ -365,7 +364,8 @@ import type { InputPrefs } from '@ziroeda/common/view/wx_view_controls.js';
 import { LiveSchPropertiesPanel } from './widgets/sch_properties_panel_ui.js';
 import { SearchPanel } from './widgets/sch_search_pane.js';
 import { NetNavigatorPanel } from './widgets/net_navigator_panel.js';
-import { DialogUpdateFromPcb } from './dialogs/dialog_update_from_pcb.js';
+import { DIALOG_UPDATE_FROM_PCB } from './dialogs/dialog_update_from_pcb.js';
+import { setHeadlessPcbNetlistProvider } from './browser/headless_pcb_netlist.js';
 import type { DIALOG_SYNC_SHEET_PINS } from './sync_sheet_pin/dialog_sync_sheet_pins.js';
 import { DialogSyncSheetPins } from './sync_sheet_pin/dialog_sync_sheet_pins_ui.js';
 import {
@@ -593,7 +593,7 @@ export function SchematicEditor({
   editedSymbol,
   readOnlyNotice,
   readOnly,
-  readBoardFootprints,
+  readBoardNetlist,
   autosaveActive,
   onShowSymbolEditor,
   onShowFootprintEditor,
@@ -639,11 +639,12 @@ export function SchematicEditor({
   /** The edited symbol coming back (SaveSymbolToSchematic). Re-sent with a
    *  fresh nonce so a second save of the same symbol still applies. */
   editedSymbol?: { symbol: LibSymbol; targetId: string; nonce: number } | null;
-  /** Tools > Update Schematic from PCB: the board's footprints, read on demand
-   *  so a project with no board simply has no entry. Resolving to null means the
-   *  board could not be read, which the caller reports. Asynchronous because the
-   *  host loads the board reader on use, keeping it out of the entry chunk. */
-  readBoardFootprints?: () => Promise<PcbFootprintData[] | null>;
+  /** Tools > Update Schematic from PCB with no board editor running: the project's board read
+   *  and formatted as MAIL_PCB_GET_NETLIST's payload (`formatPcbNetlist`), what an off-screen
+   *  PCB_EDIT_FRAME answers upstream; null when there is no board or it cannot be read.
+   *  Asynchronous because the host loads the board reader on use, keeping it out of the entry
+   *  chunk. */
+  readBoardNetlist?: () => Promise<string | null>;
   /** A strip to show above the canvas, e.g. "this demo is not being saved". */
   readOnlyNotice?: JSX.Element | null;
   /**
@@ -1416,7 +1417,9 @@ export function SchematicEditor({
   // DIALOG_ERC's visibility, and the phase messages of a run in flight.
   const [ercOpen, setErcOpen] = useState(false);
   /** Tools > Update Schematic from PCB: the footprints read for this run. */
-  const [backAnnotateFps, setBackAnnotateFps] = useState<PcbFootprintData[] | null>(null);
+  const [updateFromPcbDialog, setUpdateFromPcbDialog] = useState<{
+    resolve: (aRet: number) => void;
+  } | null>(null);
   /** The open ERC dialog's marker-tree API, for the Inspect menu's entries. */
   const ercNav = useRef<ErcDialogNav | null>(null);
   /** A marker cross-probe waiting for the ERC dialog to exist (or to unfilter). */
@@ -1440,6 +1443,9 @@ export function SchematicEditor({
   );
   // The same map for the stable callbacks, which are built once and would
   // otherwise capture the first render's.
+  // Read by the live frame's dialog router, which outlives a render.
+  const readBoardNetlistRef = useRef(readBoardNetlist);
+  readBoardNetlistRef.current = readBoardNetlist;
   const libByIdRef = useRef(libById);
   libByIdRef.current = libById;
 
@@ -1752,6 +1758,15 @@ export function SchematicEditor({
         if (aDialog === 'DIALOG_INCREMENT_ANNOTATIONS_BASE') {
           const values = aArg as INCREMENT_ANNOTATIONS_VALUES;
           return new Promise<number>((resolve) => setIncrementDialog({ values, resolve }));
+        }
+        if (aDialog === 'DIALOG_UPDATE_FROM_PCB') {
+          // `DIALOG_UPDATE_FROM_PCB dlg( m_frame ); dlg.ShowQuasiModal();` The board is read first,
+          // so the dialog's dry runs get FetchNetlistFromPCB's answer synchronously.
+          return (async () => {
+            const netlist = (await readBoardNetlistRef.current?.()) ?? null;
+            setHeadlessPcbNetlistProvider(() => netlist);
+            return new Promise<number>((resolve) => setUpdateFromPcbDialog({ resolve }));
+          })();
         }
         if (aDialog === 'DIALOG_EESCHEMA_PAGE_SETTINGS') {
           const dlg = new DIALOG_EESCHEMA_PAGE_SETTINGS(schFrameRef.current!);
@@ -5373,18 +5388,8 @@ export function SchematicEditor({
         setImportGfxOpen(true);
       } else if (id === 'showPcbNew') onShowPcb?.();
       else if (id === 'updatePcbFromSch') onUpdatePcb?.();
-      else if (id === 'updateSchFromPcb') {
-        // The host loads the board reader on use, so the first invocation waits
-        // on a fetch. Everything below is state, so there is nothing for the
-        // command handler itself to return or await.
-        void (async () => {
-          const fps = (await readBoardFootprints?.()) ?? null;
-          // A board that cannot be read is worth saying so about; an empty one is
-          // a legitimate answer and the dialog reports "no changes".
-          if (fps) setBackAnnotateFps(fps);
-          else setInfoBar('No board to read, or the board could not be parsed.');
-        })();
-      } else if (id === 'symbolEditor') onShowSymbolEditor?.();
+      else if (id === 'updateSchFromPcb') runLiveAction(ACTIONS.updateSchematicFromPcb);
+      else if (id === 'symbolEditor') onShowSymbolEditor?.();
       else if (id === 'footprintEditor') onShowFootprintEditor?.();
       else if (id === 'bom') openFieldsTable('bom');
       else if (id === 'exportNetlist') setNetlistOpen(true);
@@ -6520,12 +6525,16 @@ export function SchematicEditor({
                 onClose={() => setClarify(null)}
               />
             )}
-            {backAnnotateFps && doc && (
-              <DialogUpdateFromPcb
-                doc={doc}
-                footprints={backAnnotateFps}
-                onApply={runCommand}
-                onClose={() => setBackAnnotateFps(null)}
+            {updateFromPcbDialog && schFrameRef.current && (
+              <DIALOG_UPDATE_FROM_PCB
+                frame={schFrameRef.current}
+                // The commit touched every sheet the board names; hand them back to the window.
+                onUpdated={adoptAllLiveScreens}
+                onClose={() => {
+                  setHeadlessPcbNetlistProvider(() => null);
+                  setUpdateFromPcbDialog(null);
+                  updateFromPcbDialog.resolve(wxID_CANCEL);
+                }}
               />
             )}
             {/* Hidden, not closed, while a placement queue is running: upstream

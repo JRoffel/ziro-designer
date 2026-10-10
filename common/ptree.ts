@@ -7,7 +7,8 @@
  *
  * `PTREE` is `boost::property_tree::ptree` upstream. This is the part of its interface KiCad's
  * callers use: an ordered list of (key, subtree) children, a data string, `push_back`, `front`,
- * `size`, iteration and `get_child( "a.b.c" )`, which throws PTREE_ERROR for a missing path.
+ * `size`, iteration, `back`, `get_child( "a.b.c" )`, which throws PTREE_ERROR for a missing path,
+ * and `get_child_optional`, which answers null instead.
  */
 import { T, type DSNLEXER } from './dsnlexer.js';
 import type { OUTPUTFORMATTER } from './richio.js';
@@ -49,18 +50,35 @@ export class PTREE {
     return first;
   }
 
+  back(): PTREE_VALUE {
+    const last = this.m_children[this.m_children.length - 1];
+
+    if (!last) throw new PTREE_ERROR('back() of an empty ptree');
+
+    return last;
+  }
+
   [Symbol.iterator](): IterableIterator<PTREE_VALUE> {
     return this.m_children[Symbol.iterator]();
   }
 
   /** `get_child( path )`: the first child of each '.'-separated key in turn. */
   get_child(aPath: string): PTREE {
+    const node = this.get_child_optional(aPath);
+
+    if (!node) throw new PTREE_ERROR(`No such node (${aPath})`);
+
+    return node;
+  }
+
+  /** `get_child_optional( path )`: the subtree at the dotted path, or null (an empty optional). */
+  get_child_optional(aPath: string): PTREE | null {
     let node: PTREE = this;
 
     for (const key of aPath.split('.')) {
       const hit = node.m_children.find(([k]) => k === key);
 
-      if (!hit) throw new PTREE_ERROR(`No such node (${aPath})`);
+      if (!hit) return null;
 
       node = hit[1];
     }

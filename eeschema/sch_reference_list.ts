@@ -1586,7 +1586,8 @@ export class SCH_REFERENCE_LIST {
     return ii < 0;
   }
 
-  private static sortByTimeStamp(item1: SCH_REFERENCE, item2: SCH_REFERENCE): boolean {
+  /** Private upstream, with `friend class BACK_ANNOTATE` (its one other caller). */
+  static sortByTimeStamp(item1: SCH_REFERENCE, item2: SCH_REFERENCE): boolean {
     const ii = item1.m_sheetPath.Cmp(item2.m_sheetPath);
     if (ii === 0) return item1.m_symbolUuid < item2.m_symbolUuid; // ensure a deterministic sort
     return ii < 0;

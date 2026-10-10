@@ -159,11 +159,14 @@ export class COMPONENT {
 
       aOut.Print(0, ')\n');
 
-      // Add DNP and Exclude from BOM properties if we have them
+      // Add DNP, Exclude from BOM, and Exclude from Position Files properties if we have them
       if (this.m_properties.has('dnp')) aOut.Print(nl + 1, '(property (name "dnp"))\n');
 
       if (this.m_properties.has('exclude_from_bom'))
         aOut.Print(nl + 1, '(property (name "exclude_from_bom"))\n');
+
+      if (this.m_properties.has('exclude_from_pos_files'))
+        aOut.Print(nl + 1, '(property (name "exclude_from_pos_files"))\n');
     }
 
     if (!(aCtl & CTL_OMIT_FILTERS) && this.m_footprintFilters.length > 0) {
