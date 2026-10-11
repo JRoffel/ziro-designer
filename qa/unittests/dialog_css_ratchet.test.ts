@@ -26,7 +26,9 @@ const BASELINE: Record<string, number> = {
   // and go with those dialogs; the ones nothing uses any more were deleted.
   // 122 -> 114 (10-11): Text Properties' pair; the .ze-tp-* form and the ze-lp-* classes it
   // alone still used.
-  eeschema: 114,
+  // 114 -> 124 (10-11): not new CSS. The ERC window's .ze-erc-* classes were shared with the
+  // old DRC window; with DRC a _base pair they are ERC's alone, and go when ERC is converted.
+  eeschema: 124,
   gerbview: 31,
   pagelayout_editor: 14,
   // 477 -> 465 (10-10): the drill and position-file dialogs on the sizers.
@@ -35,7 +37,8 @@ const BASELINE: Record<string, number> = {
   // 466 -> 467 (10-11), a reclassification: the old Pad Properties form shared .ze-fpprops-tabs
   // (footprint editor properties) and .ze-tvp-note (graphic properties); with it gone each has
   // one user, and goes when that dialog is converted. Its own .ze-padprops-dialog is deleted.
-  pcbnew: 467,
+  // 467 -> 463 (10-11): DRC on its _base pair.
+  pcbnew: 463,
 };
 
 const git = (...aSpecs: string[]): string[] =>

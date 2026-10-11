@@ -2,7 +2,7 @@
 // Copyright (C) 2026 ZiroEDA and contributors.
 /**
  * DRC_TOOL + DIALOG_DRC on the live engine: the dialog's own code
- * (`dialog_drc_model.ts`) driven the way the window drives it, over a frame
+ * (`dialog_drc.tsx`) driven the way the window drives it, over a frame
  * with no canvas. KiCad's creepage board (1 violation) is the fixture.
  */
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -15,7 +15,7 @@ import {
 import { RC_TREE_NODE_TYPE } from '@ziroeda/common/rc_item.js';
 import type { BOX2D } from '@ziroeda/kimath/src/math/box2.js';
 import type { Vec2 } from '@ziroeda/kimath/src/math/vector2.js';
-import { DIALOG_DRC, type DIALOG_DRC_WINDOW } from '@ziroeda/pcbnew/dialogs/dialog_drc_model.js';
+import { DIALOG_DRC, type DIALOG_DRC_WINDOW } from '@ziroeda/pcbnew/dialogs/dialog_drc.js';
 import { PCB_EDIT_FRAME } from '@ziroeda/pcbnew/pcb_edit_frame.js';
 import { PGM_BASE, SetPgm } from '@ziroeda/common/pgm_base.js';
 import { PCBNEW_SETTINGS } from '@ziroeda/pcbnew/pcbnew_settings.js';

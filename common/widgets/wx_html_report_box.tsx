@@ -27,14 +27,18 @@ export function reportBoxHtml(aMessages: readonly string[]): string {
 export function WX_HTML_REPORT_BOX({
   messages,
   className,
+  onLinkClicked,
 }: {
   /** `m_messages`, in `Report()` order. */
   messages: readonly string[];
   className?: string;
+  /** The owner's wxEVT_HTML_LINK_CLICKED. */
+  onLinkClicked?: (aHref: string) => void;
 }): JSX.Element {
   return (
     <HtmlWindow
       html={reportBoxHtml(messages)}
+      onLinkClicked={onLinkClicked}
       className={`ze-html-report-box${className ? ` ${className}` : ''}`}
     />
   );

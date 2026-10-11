@@ -496,8 +496,6 @@ export const TREE_EXCEPTIONS: Record<string, string> = {
     "browser-only: the app's half of the editor, no KiCad counterpart by design (browser/ subfolders, agreed 10-10)",
   'pcbnew/browser/pcbnew_live_settings.ts':
     "browser-only: the app's half of the editor, no KiCad counterpart by design (browser/ subfolders, agreed 10-10)",
-  'pcbnew/dialogs/dialog_drc_model.ts':
-    "documented extra: DRC dialog's data model, no KiCad file of its own (STRUCTURE.md dialogs/ row)",
   'pcbnew/dialogs/dialog_graphic_properties.tsx':
     'documented extra: dialog_text_properties.cpp + dialog_shape_properties.cpp in one (STRUCTURE.md dialogs/ row)',
   'pcbnew/dialogs/layer_tokens.ts':

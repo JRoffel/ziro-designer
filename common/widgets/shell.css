@@ -4941,47 +4941,34 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
 .ze-modeless {
   z-index: 60;
 }
-/* DRC Control (dialog_drc_base.cpp): the same DIALOG_SHIM chrome as the ERC
-   dialog (`.ze-erc-panel`), which is what the two share upstream. The stated
-   numbers of the base: `m_Notebook->SetMinSize( wxSize( 640,-1 ) )` (:104) and
-   `bSizerViolationsBox->SetMinSize( wxSize( -1,320 ) )` (:109) - the list
-   carries the 640 from the ERC rule; the 320 is here. */
-.ze-drc-panel .ze-erc-list {
-  /* [data] bSizerViolationsBox's 320, against the ERC tree's 260. */
-  min-height: 320px;
-}
-/* gbSizerOptions (:53-66): the two option boxes in a two-column growable row,
-   the config button spanning both rows at the right. Each box has 5 on
-   top/right/left; the button 10 on the right. */
-.ze-drc-options {
+/* A dialog's own wxStatusBar (external/wx/controls.tsx StatusBar), as DIALOG_DRC adds one. */
+.ze-wxstatusbar {
   display: flex;
   align-items: center;
-  /* [data] the boxes' wxLEFT|wxRIGHT 5 either side, 10 between them. */
-  gap: 10px;
-  /* [data] gbSizerOptions' wxTOP|wxLEFT 10 on the sizer plus the box's 5. */
-  padding: 5px 10px 0 15px;
-}
-.ze-drc-options .grow {
-  flex: 1;
-}
-/* m_drcStatusBar (dialog_drc.cpp:148-158): a wxStatusBar with two fields, the
-   first FromDIP( 12 ) wide and the second taking the rest. */
-.ze-drc-statusbar {
-  display: flex;
-  align-items: center;
-  /* [px] a GtkStatusbar row on the dialog font: 22 device px, as the frame's own
-     status bar (`.ze-statusbar`) measures. */
-  height: 22px;
+  height: 22px; /* [px] a GtkStatusbar row on the dialog font, as `.ze-statusbar` measures */
   border-top: 1px solid var(--chrome-border);
   color: var(--chrome-fg);
 }
-.ze-drc-statusbar .field0 {
-  /* [data] statusBarWidths[0] = FromDIP( 12 ) */
-  width: 12px;
-  flex: 0 0 auto;
+/* wxListCtrl in report mode (external/wx/controls.tsx ListCtrl): the generic GTK list the
+   Local History pane measured - its frame, its 3/5 cell padding, its hover and selection. */
+.ze-listctrl {
+  border: 1px solid var(--ctl-border);
+  background: var(--panel-bg);
+  overflow: auto;
 }
-.ze-drc-statusbar .field1 {
-  flex: 1;
+.ze-listctrl-row {
+  display: grid;
+  padding: 3px 5px; /* [px] the Local History wxListCtrl's cell: "Title" ink 5px in from the frame */
+  color: var(--chrome-fg);
+  cursor: default;
+  white-space: nowrap;
+}
+.ze-listctrl-row > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ze-listctrl-row:hover {
+  background: var(--chrome-hover);
 }
 /* RC_TREE_NODE::COMMENT rows are plain text under the excluded marker. */
 .ze-erc-subrow.comment {
@@ -9026,9 +9013,7 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
 .ze-erc-footer .grow {
   flex: 1;
 }
-/* The DRC dialog's two option boxes are the same wxCheckBox. */
-.ze-erc-footer .chk,
-.ze-drc-options .chk {
+.ze-erc-footer .chk {
   display: flex;
   align-items: center;
   gap: 4px;

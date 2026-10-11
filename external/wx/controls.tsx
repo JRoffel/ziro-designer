@@ -311,6 +311,77 @@ export function StaticBitmap({
   );
 }
 
+/** `wxGauge( …, range, …, wxGA_HORIZONTAL )`: the GtkProgressBar the shell styles as `.ze-gauge`. */
+export function Gauge({ value, range }: { value: number; range: number }): JSX.Element {
+  return <progress className="ze-gauge" max={range} value={value} />;
+}
+
+/**
+ * `wxListCtrl( …, wxLC_REPORT | wxLC_NO_HEADER )`: rows of columns at the widths
+ * `InsertColumn` / `SetColumnWidth` gave them. `onRightClick` is wxEVT_LIST_ITEM_RIGHT_CLICK.
+ */
+export function ListCtrl({
+  rows,
+  columnWidths,
+  onRightClick,
+  ariaLabel,
+}: {
+  rows: readonly (readonly string[])[];
+  columnWidths: readonly number[];
+  onRightClick?: (aRow: number, aEvent: MouseEvent) => void;
+  ariaLabel?: string;
+}): JSX.Element {
+  const columns = { gridTemplateColumns: columnWidths.map((w) => `${w}px`).join(' ') };
+
+  return (
+    <div className="ze-listctrl" role="list" aria-label={ariaLabel}>
+      {rows.map((row, i) => (
+        // A row is its index, as wxListCtrl items are.
+        // biome-ignore lint/suspicious/noArrayIndexKey: InsertItem order is the row's identity
+        <div
+          key={i}
+          role="listitem"
+          className="ze-listctrl-row"
+          style={columns}
+          onContextMenu={(e) => {
+            if (!onRightClick) return;
+            e.preventDefault();
+            onRightClick(i, e);
+          }}
+        >
+          {row.map((cell, c) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: the column index is the cell's identity
+            <span key={c}>{cell}</span>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * A dialog's own `wxStatusBar` with `SetFieldsCount( n )` and `SetStatusWidths`: a width of -1
+ * takes the rest, as wx's variable fields do.
+ */
+export function StatusBar({
+  widths,
+  texts,
+}: {
+  widths: readonly number[];
+  texts: readonly string[];
+}): JSX.Element {
+  return (
+    <div className="ze-wxstatusbar">
+      {widths.map((w, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: SetFieldsCount order is the field's identity
+        <span key={i} style={w < 0 ? { flex: -w } : { width: w, flex: '0 0 auto' }}>
+          {texts[i] ?? ''}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 /** `wxStaticLine`: a GtkSeparator, horizontal unless `vertical` (wxLI_VERTICAL). */
 export function StaticLine({
   vertical,

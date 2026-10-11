@@ -88,8 +88,9 @@ const BASELINE: Record<(typeof AREAS)[number], Record<Kind, number>> = {
   // 10-10: the three export dialogs (IPC-2581, ODB++, VRML) on the sizers - 92/64/4/42 before.
   // ... then the drill and position-file dialogs: button 83 -> 81, entry 34 -> 31.
   // ... then DIALOG_PLOT: button 81 -> 79, checkbox 58 -> 42, entry 31 -> 30, sbox 61 -> 54.
-  // 10-11: Pad Properties on its _base pair - button 73 -> 70, checkbox 41 -> 39, sbox 45 -> 38.
-  pcbnew: { button: 70, checkbox: 39, select: 1, frame: 1, radio: 4, entry: 30, sbox: 38 },
+  // 10-11: Pad Properties on its _base pair - button 73 -> 70, checkbox 41 -> 39, sbox 45 -> 38;
+  // then DRC on its pair - button 70 -> 69.
+  pcbnew: { button: 69, checkbox: 39, select: 1, frame: 1, radio: 4, entry: 30, sbox: 38 },
 };
 
 function tsxFiles(aDir: string, aOut: string[] = []): string[] {

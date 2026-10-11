@@ -382,7 +382,7 @@ import type { wxTextValidator } from '@ziroeda/common/validators.js';
 import type { DRC_TOOL } from './tools/drc_tool.js';
 import { BOX2D } from '@ziroeda/kimath/src/math/box2.js';
 import type { Vec2 as KVec2 } from '@ziroeda/kimath/src/math/vector2.js';
-import { DIALOG_DRC, type DIALOG_DRC_WINDOW } from './dialogs/dialog_drc_model.js';
+import { DIALOG_DRC, type DIALOG_DRC_WINDOW } from './dialogs/dialog_drc.js';
 import { MessageDialogYesNoCancel } from '@ziroeda/common/dialogs/dialog_message.js';
 import {
   loadPcbnewSettings,

@@ -32,12 +32,18 @@ export function HtmlWindow({
   html,
   selectable = true,
   className,
+  onLinkClicked,
 }: {
   /** `SetPage( aSource )`: the body's markup. A compiled-in constant only. */
   html: string;
   /** false is `wxHW_NO_SELECTION`. */
   selectable?: boolean;
   className?: string;
+  /**
+   * A connected wxEVT_HTML_LINK_CLICKED, with the link's href as written. Absent, a link opens
+   * in the browser, as wxHtmlWindow's default `OnLinkClicked` does.
+   */
+  onLinkClicked?: (aHref: string) => void;
 }): JSX.Element {
   const ref = useRef<HTMLDivElement>(null);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
@@ -76,7 +82,8 @@ export function HtmlWindow({
           const a = (e.target as HTMLElement).closest('a');
           if (!a) return;
           e.preventDefault();
-          window.open(a.href, '_blank', 'noopener,noreferrer');
+          if (onLinkClicked) onLinkClicked(a.getAttribute('href') ?? '');
+          else window.open(a.href, '_blank', 'noopener,noreferrer');
         }}
         onKeyDown={(e) => {
           if (!(e.ctrlKey || e.metaKey)) return;

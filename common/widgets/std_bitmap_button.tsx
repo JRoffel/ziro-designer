@@ -15,7 +15,7 @@
  * The chrome is `.ze-gridbtn` in `ui/shell.css`, which is also what the other
  * ported grid button rows use; this states nothing of its own.
  */
-import type { JSX } from 'react';
+import type { JSX, MouseEvent } from 'react';
 import { bitmapUrl } from '../bitmap_store.js';
 
 export interface StdBitmapButtonProps {
@@ -33,7 +33,8 @@ export interface StdBitmapButtonProps {
    */
   tooltip?: string | null;
   disabled?: boolean;
-  onClick: () => void;
+  /** wxEVT_BUTTON; the event carries the button, for a caller that anchors a menu on it. */
+  onClick: (aEvent: MouseEvent<HTMLButtonElement>) => void;
 }
 
 export function StdBitmapButton({

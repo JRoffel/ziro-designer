@@ -7,9 +7,10 @@
  * bitmap at its stated size, wxNullBitmap keeping that size, Enable( false ) as the insensitive
  * image; a simplebook that is as tall as its selected page when its owner SetMaxSize()s it so.
  */
-import { cleanup, render } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
-import { StaticBitmap } from '@ziroeda/wx/controls.js';
+import { cleanup, fireEvent, render } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { HtmlWindow } from '@ziroeda/common/widgets/html_window.js';
+import { Gauge, ListCtrl, StaticBitmap, StatusBar } from '@ziroeda/wx/controls.js';
 import { Simplebook } from '@ziroeda/wx/simplebook.js';
 
 afterEach(cleanup);
@@ -51,5 +52,53 @@ describe('Simplebook', () => {
     expect(container.firstElementChild!.className).toBe(
       'ze-simplebook fit-selection border-simple',
     );
+  });
+});
+
+describe('Gauge, ListCtrl and StatusBar', () => {
+  it('Gauge is the shared .ze-gauge over its range', () => {
+    const { container } = render(<Gauge value={250} range={500} />);
+    const bar = container.querySelector('progress') as HTMLProgressElement;
+
+    expect(bar.className).toBe('ze-gauge');
+    expect(bar.max).toBe(500);
+    expect(bar.value).toBe(250);
+  });
+
+  it('ListCtrl lays each row at the column widths and reports a right click with its row', () => {
+    const onRightClick = vi.fn();
+    const { container } = render(
+      <ListCtrl rows={[['a'], ['b']]} columnWidths={[660]} onRightClick={onRightClick} />,
+    );
+    const rows = container.querySelectorAll('.ze-listctrl-row');
+
+    expect(rows).toHaveLength(2);
+    expect((rows[1] as HTMLElement).style.gridTemplateColumns).toBe('660px');
+    fireEvent.contextMenu(rows[1]!);
+    expect(onRightClick).toHaveBeenCalledWith(1, expect.anything());
+  });
+
+  it('StatusBar: a fixed field is its width, -1 takes the rest', () => {
+    const { container } = render(<StatusBar widths={[12, -1]} texts={['', 'Done']} />);
+    const [a, b] = [...container.querySelectorAll('.ze-wxstatusbar > span')] as HTMLElement[];
+
+    expect(a!.style.width).toBe('12px');
+    expect(b!.style.flex).toContain('1');
+    expect(b!.textContent).toBe('Done');
+  });
+});
+
+describe('HtmlWindow links', () => {
+  it('a connected wxEVT_HTML_LINK_CLICKED gets the href as written, and nothing opens', () => {
+    const onLink = vi.fn();
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null);
+    const { container } = render(
+      <HtmlWindow html={'<a href="$CUSTOM_RULES">rules</a>'} onLinkClicked={onLink} />,
+    );
+
+    fireEvent.click(container.querySelector('a')!);
+    expect(onLink).toHaveBeenCalledWith('$CUSTOM_RULES');
+    expect(open).not.toHaveBeenCalled();
+    open.mockRestore();
   });
 });
