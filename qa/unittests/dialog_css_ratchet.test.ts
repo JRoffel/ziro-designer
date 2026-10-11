@@ -61,7 +61,8 @@ const BASELINE: Record<string, number> = {
   // 367 -> 334 (10-11): Non-Copper Zones, Rule Area (and its two panels) and Position Relative pairs.
   // 334 -> 276 (10-12): Find, Exchange Footprints, Tuning Pattern and Pad Table pairs.
   // 276 -> 257 (10-12): Global Edit Tracks & Vias and Text & Graphics pairs.
-  pcbnew: 257,
+  // 257 -> 236 (10-12): Global Edit Teardrops pair.
+  pcbnew: 236,
 };
 
 const git = (...aSpecs: string[]): string[] =>

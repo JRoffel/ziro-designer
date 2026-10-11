@@ -222,7 +222,7 @@ import { DumpJson } from '@ziroeda/common/settings/json_dump.js';
 import type { BOARD } from './board.js';
 import { DialogDrc } from './dialogs/dialog_drc.js';
 import { DialogUpdatePcb, type UpdatePcbOptions } from './dialogs/dialog_update_pcb.js';
-import { DialogGlobalEditTeardrops } from './dialogs/dialog_global_edit_teardrops_ui.js';
+import { DialogGlobalEditTeardrops } from './dialogs/dialog_global_edit_teardrops.js';
 import { BuildBomTextFromBoard } from './build_BOM_from_board.js';
 import { DialogBoardStatistics } from './dialogs/dialog_board_statistics.js';
 import {

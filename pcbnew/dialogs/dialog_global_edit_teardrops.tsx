@@ -17,6 +17,17 @@
  * dialog_global_edit_teardrops_ui.tsx.
  */
 
+import { type JSX, useReducer, useState } from 'react';
+import { KiBitmapBundle } from '@ziroeda/common/bitmap.js';
+import { unitLabel } from '@ziroeda/common/eda_units.js';
+import { BITMAPS } from '@ziroeda/include/bitmaps/bitmaps_list.js';
+import type { CHECK } from '@ziroeda/wx/controls.js';
+import type { CHECK3 } from '@ziroeda/wx/wx_checkbox.js';
+import {
+  DIALOG_GLOBAL_EDIT_TEARDROPS_BASE,
+  type ENTRY,
+  type TEARDROP_RADIO,
+} from './dialog_global_edit_teardrops_base.js';
 import { CHANGE_TYPE } from '@ziroeda/common/commit.js';
 import { PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
@@ -373,4 +384,177 @@ export class DIALOG_GLOBAL_EDIT_TEARDROPS {
 
     return true;
   }
+}
+
+/** A PCB_LAYER_BOX_SELECTOR row: the layer, its name and swatch. */
+export interface TEARDROP_LAYER_CHOICE {
+  layer: number;
+  label: string;
+  swatch?: string;
+}
+
+type FLAG =
+  | 'm_pthPads'
+  | 'm_smdPads'
+  | 'm_vias'
+  | 'm_netFilterOpt'
+  | 'm_netclassFilterOpt'
+  | 'm_layerFilterOpt'
+  | 'm_roundPadsFilter'
+  | 'm_existingFilter'
+  | 'm_selectedItemsFilter';
+
+const RADIO: Record<TEARDROP_RADIO, TEARDROP_ACTION> = {
+  remove: TEARDROP_ACTION.REMOVE,
+  removeAll: TEARDROP_ACTION.REMOVE_ALL,
+  addDefaults: TEARDROP_ACTION.ADD_DEFAULTS,
+  specified: TEARDROP_ACTION.SPECIFIED,
+};
+
+/** `ShowModal()` of DIALOG_GLOBAL_EDIT_TEARDROPS, its base over the class. */
+export function DialogGlobalEditTeardrops({
+  dialog,
+  nets,
+  layers,
+  onShowBoardSetup,
+  onApplied,
+  onClose,
+}: {
+  dialog: DIALOG_GLOBAL_EDIT_TEARDROPS;
+  nets: ReadonlyMap<number, string>;
+  /** The copper layers (`SetNotAllowedLayerSet( LSET::AllNonCuMask() )`). */
+  layers: readonly TEARDROP_LAYER_CHOICE[];
+  /** `onShowBoardSetup`: Board Setup on its Teardrops page. */
+  onShowBoardSetup: () => void;
+  /** After the teardrops were applied (OK or Apply). */
+  onApplied: () => void;
+  onClose: () => void;
+}): JSX.Element {
+  const [, redraw] = useReducer((n: number) => n + 1, 0);
+
+  // OnInitDialog -> TransferDataToWindow
+  useState(() => dialog.TransferDataToWindow());
+
+  const close = (): void => {
+    dialog.OnClose();
+    onClose();
+  };
+
+  const filtersOn = dialog.FiltersEnabled();
+  const specOn = dialog.SpecifiedValuesEnabled();
+  const labels = dialog.AddLabels();
+
+  const flag = (aKey: FLAG, aEnabled = true): CHECK => ({
+    value: dialog[aKey],
+    enabled: aEnabled,
+    onChange: (aOn) => {
+      dialog[aKey] = aOn;
+      redraw();
+    },
+  });
+  const tri = (
+    aKey: 'm_cbPreferZoneConnection' | 'm_cbTeardropsUseNextTrack' | 'm_curvedEdges',
+  ): CHECK3 => ({
+    value: dialog[aKey],
+    enabled: specOn,
+    onChange: (aValue) => {
+      dialog[aKey] = aValue;
+      redraw();
+    },
+  });
+  const entry = (b: UNIT_BINDER, aUnits?: string): ENTRY => ({
+    label: b.GetLabel(),
+    value: b.GetText(),
+    units: aUnits ?? unitLabel(b.GetUnits()),
+    enabled: specOn,
+    onChange: (aText) => {
+      b.SetText(aText);
+      redraw();
+    },
+  });
+  const radio = (Object.keys(RADIO) as TEARDROP_RADIO[]).find((k) => RADIO[k] === dialog.m_action)!;
+
+  return (
+    <DIALOG_GLOBAL_EDIT_TEARDROPS_BASE
+      m_pthPads={flag('m_pthPads')}
+      m_smdPads={flag('m_smdPads')}
+      m_vias={flag('m_vias')}
+      m_trackToTrack={{
+        value: dialog.m_trackToTrack,
+        onChange: (aOn) => {
+          dialog.OnTrackToTrack(aOn);
+          redraw();
+        },
+      }}
+      m_netFilterOpt={flag('m_netFilterOpt', filtersOn)}
+      m_netFilter={{
+        netInfo: nets,
+        netcode: dialog.m_netFilter,
+        enabled: filtersOn,
+        onChange: (aNetcode) => {
+          dialog.m_netFilter = aNetcode;
+          dialog.m_netFilterOpt = true; // OnNetFilterSelect
+          redraw();
+        },
+      }}
+      m_netclassFilterOpt={flag('m_netclassFilterOpt', filtersOn)}
+      m_netclassFilter={{
+        items: dialog.m_netclassNames,
+        choice: {
+          value: dialog.m_netclassNames.indexOf(dialog.m_netclassFilter),
+          enabled: filtersOn,
+          onChange: (aIndex) => {
+            dialog.m_netclassFilter = dialog.m_netclassNames[aIndex]!;
+            dialog.m_netclassFilterOpt = true; // OnNetclassFilterSelect
+            redraw();
+          },
+        },
+      }}
+      m_layerFilterOpt={flag('m_layerFilterOpt', filtersOn)}
+      m_layerFilter={{
+        rows: layers.map((l) => ({ value: String(l.layer), label: l.label, swatch: l.swatch })),
+        value: String(dialog.m_layerFilter),
+        enabled: filtersOn,
+        onChange: (aLayer) => {
+          dialog.m_layerFilter = Number(aLayer);
+          dialog.m_layerFilterOpt = true; // OnLayerFilterSelect
+          redraw();
+        },
+      }}
+      m_roundPadsFilter={flag('m_roundPadsFilter', filtersOn)}
+      m_existingFilter={flag('m_existingFilter', filtersOn)}
+      m_selectedItemsFilter={flag('m_selectedItemsFilter', filtersOn)}
+      action={radio}
+      onAction={(aAction) => {
+        dialog.m_action = RADIO[aAction];
+        redraw();
+      }}
+      addTeardropsLabel={labels.addTeardrops}
+      specifiedValuesLabel={labels.specifiedValues}
+      onBoardSetupLink={() => {
+        dialog.OnClose();
+        onShowBoardSetup();
+      }}
+      m_cbPreferZoneConnection={tri('m_cbPreferZoneConnection')}
+      m_cbTeardropsUseNextTrack={tri('m_cbTeardropsUseNextTrack')}
+      m_tcHDRatio={entry(dialog.m_teardropHDPercent, '%')}
+      m_bitmapTeardrop={KiBitmapBundle(BITMAPS.teardrop_sizes)}
+      m_tcLenPercent={entry(dialog.m_teardropLenPercent, '')}
+      m_tcTdMaxLen={entry(dialog.m_teardropMaxLen)}
+      m_tcHeightPercent={entry(dialog.m_teardropHeightPercent, '')}
+      m_tcMaxHeight={entry(dialog.m_teardropMaxHeight)}
+      m_curvedEdges={tri('m_curvedEdges')}
+      onOK={() => {
+        if (dialog.TransferDataFromWindow()) {
+          onApplied();
+          close();
+        }
+      }}
+      onApply={() => {
+        if (dialog.TransferDataFromWindow()) onApplied();
+        redraw();
+      }}
+      onCancel={close}
+    />
+  );
 }

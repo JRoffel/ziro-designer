@@ -99,7 +99,8 @@ const BASELINE: Record<(typeof AREAS)[number], Record<Kind, number>> = {
   // then Non-Copper Zones, Rule Area and Position Relative - button 46, checkbox 25, entry 16.
   // then Find, Exchange Footprints, Tuning Pattern and Pad Table - checkbox 24, radio 3.
   // then Global Edit Tracks & Vias and Text & Graphics - checkbox 20, entry 15.
-  pcbnew: { button: 46, checkbox: 20, select: 1, frame: 1, radio: 3, entry: 15, sbox: 31 },
+  // then Global Edit Teardrops - button 45, checkbox 18.
+  pcbnew: { button: 45, checkbox: 18, select: 1, frame: 1, radio: 3, entry: 15, sbox: 31 },
 };
 
 function tsxFiles(aDir: string, aOut: string[] = []): string[] {
