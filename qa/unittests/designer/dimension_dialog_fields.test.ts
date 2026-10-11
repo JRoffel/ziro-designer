@@ -34,17 +34,16 @@ const dimensionDialogFields = (k: DimensionKind) => fieldsFor(TYPE_OF[k]);
 const ALL: DimensionKind[] = ['aligned', 'orthogonal', 'center', 'radial', 'leader'];
 
 describe('an aligned or orthogonal dimension', () => {
-  it('shows everything except the leader text frame', () => {
+  it('shows Dimension Format, Text and Line, and only these two have an overshoot', () => {
+    // The constructor's `default:` hides m_sizerLeader and m_sizerCenter; TransferDataToWindow
+    // shows m_extensionOvershoot only for a PCB_DIM_ALIGNED, which an orthogonal one is too.
     for (const k of ['aligned', 'orthogonal'] as const) {
       const f = dimensionDialogFields(k);
-      expect(f.format, k).toBe(true);
-      expect(f.text, k).toBe(true);
-      expect(f.textPositionMode, k).toBe(true);
-      expect(f.arrowLength, k).toBe(true);
-      expect(f.extensionOffset, k).toBe(true);
-      expect(f.extensionOvershoot, k).toBe(true);
-      expect(f.arrowDirection, k).toBe(true);
-      expect(f.textFrame, k).toBe(false);
+      expect([f.leader, f.center, f.format, f.text], k).toEqual([false, false, true, true]);
+      expect(
+        [f.textPositionMode, f.arrowLength, f.extensionOffset, f.extensionOvershoot],
+        k,
+      ).toEqual([true, true, true, true]);
     }
   });
 });
@@ -52,39 +51,33 @@ describe('an aligned or orthogonal dimension', () => {
 describe('a centre dimension', () => {
   const f = dimensionDialogFields('center');
 
-  it('hides the format and text groups, because it measures nothing', () => {
-    expect(f.format).toBe(false);
-    expect(f.text).toBe(false);
+  it('keeps only its own layer box and the Dimension Line box', () => {
+    // case PCB_DIM_CENTER_T: hides m_sizerLeader, m_sizerFormat and m_sizerText.
+    expect([f.leader, f.center, f.format, f.text]).toEqual([false, true, false, false]);
   });
 
   it('hides the arrow length and extension offset, because it draws only a cross', () => {
     expect(f.arrowLength).toBe(false);
     expect(f.extensionOffset).toBe(false);
-  });
-
-  it('leaves nothing but the layer, lock and line thickness', () => {
     expect(f.extensionOvershoot).toBe(false);
-    expect(f.arrowDirection).toBe(false);
-    expect(f.textFrame).toBe(false);
   });
 });
 
 describe('a leader', () => {
   const f = dimensionDialogFields('leader');
 
-  it('hides the format group, showing typed text rather than a measurement', () => {
-    expect(f.format).toBe(false);
+  it('swaps Dimension Format for Leader Format, which holds its text, frame and layer', () => {
+    // case PCB_DIM_LEADER_T: hides m_sizerFormat and m_sizerCenter.
+    expect([f.leader, f.center, f.format, f.text]).toEqual([true, false, false, true]);
   });
 
-  it('keeps its text but loses the position-mode choice', () => {
-    expect(f.text).toBe(true);
+  it('loses the position-mode choice', () => {
     expect(f.textPositionMode).toBe(false);
   });
 
-  it('is the only kind with a text frame', () => {
-    expect(f.textFrame).toBe(true);
+  it('is the only kind with the Leader Format box', () => {
     for (const k of ALL.filter((x) => x !== 'leader'))
-      expect(dimensionDialogFields(k).textFrame, k).toBe(false);
+      expect(dimensionDialogFields(k).leader, k).toBe(false);
   });
 
   it('has no extension overshoot, the cast that gates it failing for a leader', () => {
@@ -100,12 +93,8 @@ describe('a radial dimension', () => {
     expect(f.text).toBe(true);
   });
 
-  it('has no extension overshoot or arrow direction, being no kind of aligned', () => {
-    // Both are gated on PCB_DIM_ALIGNED upstream. Arrow direction is the one
-    // deliberate divergence: upstream leaves the control visible even though
-    // the serializer never writes it for a radial, so it is hidden here rather
-    // than offered as a box that does nothing.
+  it('has no extension overshoot, being no kind of aligned', () => {
+    // Arrow direction is in gbSizerLine and nothing hides it, for any kind.
     expect(f.extensionOvershoot).toBe(false);
-    expect(f.arrowDirection).toBe(false);
   });
 });

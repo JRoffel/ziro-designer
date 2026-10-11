@@ -18,7 +18,7 @@ import {
   GENCAD_DO_NOT_SHOW_KEYS,
   GENCAD_EXPORT_OPT,
 } from '@ziroeda/pcbnew/dialogs/dialog_gencad_export_options.js';
-import { DialogGencadExportOptions } from '@ziroeda/pcbnew/dialogs/dialog_gencad_export_options_ui.js';
+import { DialogGencadExportOptions } from '@ziroeda/pcbnew/dialogs/dialog_gencad_export_options.js';
 import { writeGenCad } from '@ziroeda/pcbnew/exporters/export_gencad_writer.js';
 import { PCB_EDIT_FRAME, type PCB_EDIT_FRAME_HOOKS } from '@ziroeda/pcbnew/pcb_edit_frame.js';
 import { ParseBoard } from '@ziroeda/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.js';
@@ -107,8 +107,8 @@ describe('the dialog window', () => {
       />,
     );
 
-    const labels = [...document.querySelectorAll('.ze-gencad-opts label')].map(
-      (l) => l.textContent,
+    const labels = [...document.querySelectorAll('input[type="checkbox"]')].map(
+      (c) => c.closest('label')?.textContent,
     );
     expect(labels).toEqual([
       'Flip bottom footprint padstacks',
@@ -120,7 +120,7 @@ describe('the dialog window', () => {
 
     fireEvent.click(screen.getByLabelText('Generate unique pin names'));
     expect(dlg.GetOption(GENCAD_EXPORT_OPT.UNIQUE_PIN_NAMES)).toBe(true);
-    expect((screen.getByLabelText('Output File:') as HTMLInputElement).value).toBe(
+    expect((screen.getByRole('textbox', { name: 'Output File' }) as HTMLInputElement).value).toBe(
       'boards/interf_u.cad',
     );
   });

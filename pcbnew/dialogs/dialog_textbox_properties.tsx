@@ -31,6 +31,15 @@
  * of one, and the stroke stays in the file either way so the width survives
  * being toggled off and on.
  */
+import { type JSX, useState } from 'react';
+import { bitmapUrl } from '@ziroeda/common/bitmap_store.js';
+import { HtmlMessageBox } from '@ziroeda/common/dialogs/html_message_box.js';
+import { GetPenSizeForBold, GetPenSizeForNormal } from '@ziroeda/common/gr_text.js';
+import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
+import { PCB_TEXT_SYNTAX_HELP } from '../pcb_text_help_md.js';
+import { pcbUnitText, pcbUnitValue, unitLabel } from '../pcb_unit_binder.js';
+import type { FIELD } from './dialog_text_properties_base.js';
+import { DIALOG_TEXTBOX_PROPERTIES_BASE } from './dialog_textbox_properties_base.js';
 import { pcbIUScale } from '@ziroeda/common/eda_units.js';
 import { IN_EDIT } from '@ziroeda/common/eda_item_flags.js';
 import { TEXT_MAX_SIZE_MM, TEXT_MIN_SIZE_MM } from '@ziroeda/common/eda_text.js';
@@ -62,6 +71,9 @@ export interface TextBoxValues {
   locked: boolean;
   width: number;
   height: number;
+  /** `m_autoTextThickness`: GetAutoThickness(), the pen derived from the size. */
+  autoThickness: boolean;
+  /** The stored pen, or the effective one when automatic (what the disabled box shows). */
   thickness: number;
   orientation: number;
   bold: boolean;
@@ -134,6 +146,16 @@ export class DIALOG_TEXTBOX_PROPERTIES {
     this.m_textBox = aTextBox;
   }
 
+  /** The constructor's `m_cbLocked->Show( false )` for a footprint's text box. */
+  LockedShown(): boolean {
+    return this.m_textBox.GetParentFootprint() === null;
+  }
+
+  /** onBorderChecked's default: `bds.GetLineThickness( m_textBox->GetLayer() )`. */
+  DefaultBorderWidth(aLayer: string): number {
+    return this.m_frame.GetBoard()!.GetDesignSettings().GetLineThickness(LSET_NameToLayer(aLayer));
+  }
+
   TransferDataToWindow(): TextBoxValues {
     const board = this.m_frame.GetBoard()!;
     const tb = this.m_textBox;
@@ -152,10 +174,8 @@ export class DIALOG_TEXTBOX_PROPERTIES {
       locked: tb.IsLocked(),
       width: tb.GetTextSize().x,
       height: tb.GetTextSize().y,
-      // The React dialog has no m_autoTextThickness yet, so the stored value
-      // is shown: 0 is automatic, and stays automatic through OK. Upstream
-      // shows the effective pen in a disabled box instead.
-      thickness: tb.GetTextThickness(),
+      autoThickness: tb.GetAutoThickness(),
+      thickness: tb.GetAutoThickness() ? tb.GetEffectiveTextPenWidth() : tb.GetTextThickness(),
       orientation: new EDA_ANGLE(tb.GetTextAngle().AsDegrees()).Normalize180().AsDegrees(),
       bold: tb.IsBold(),
       italic: tb.IsItalic(),
@@ -214,9 +234,7 @@ export class DIALOG_TEXTBOX_PROPERTIES {
 
     tb.SetTextSize({ x: v.width, y: v.height });
 
-    // The React dialog's thickness box has no Auto check: a zero is automatic,
-    // `SetAutoThickness( true )` being `SetTextThickness( 0 )`.
-    if (v.thickness === 0) {
+    if (v.autoThickness) {
       tb.SetAutoThickness(true);
     } else {
       tb.SetTextThickness(v.thickness);
@@ -286,4 +304,195 @@ export class DIALOG_TEXTBOX_PROPERTIES {
 
     return message ? { ok: true, message } : { ok: true };
   }
+}
+
+type LengthKey = 'width' | 'height' | 'thickness' | 'borderWidth';
+
+/** `m_OrientCtrl`'s text: one of rot_list's entries when the angle is one of them. */
+function orientationText(aDegrees: number): string {
+  const turn = (a: number): number => ((a % 360) + 360) % 360;
+  return ([0, 90, -90, 180].find((o) => turn(o) === turn(aDegrees)) ?? aDegrees).toFixed(1);
+}
+
+/** `ShowQuasiModal()` of DIALOG_TEXTBOX_PROPERTIES: its base over the text box's values. */
+export function DialogTextBoxProperties({
+  dialog,
+  initial,
+  units,
+  layers,
+  layerColor,
+  onApply,
+  onClose,
+}: {
+  dialog: DIALOG_TEXTBOX_PROPERTIES;
+  initial: TextBoxValues;
+  units: StatusUnits;
+  layers: readonly string[];
+  /** The board colour of a layer, for PCB_LAYER_BOX_SELECTOR's swatch. */
+  layerColor: (layer: string) => string;
+  onApply: (v: TextBoxValues) => void;
+  onClose: () => void;
+}): JSX.Element {
+  const [v, setV] = useState<TextBoxValues>(initial);
+  const [texts, setTexts] = useState<Partial<Record<LengthKey | 'orientation', string>>>({});
+  const [syntaxHelp, setSyntaxHelp] = useState(false);
+  // onFontSelected's m_thickness.Show() / m_autoTextThickness->Show().
+  const [strokeShown, setStrokeShown] = useState(true);
+
+  const set = (patch: Partial<TextBoxValues>): void => setV((p) => ({ ...p, ...patch }));
+
+  /** onTextSize: the pen for the size and the bold state. */
+  const autoPen = (aValues: TextBoxValues): number => {
+    const textSize = Math.min(aValues.width, aValues.height);
+    return aValues.bold ? GetPenSizeForBold(textSize) : GetPenSizeForNormal(textSize);
+  };
+
+  /** onThickness / onFontSelected: bold is whichever pen the thickness is nearer. */
+  const boldFor = (aValues: TextBoxValues): boolean => {
+    const textSize = Math.min(aValues.width, aValues.height);
+    return (
+      Math.abs(aValues.thickness - GetPenSizeForBold(textSize)) <
+      Math.abs(aValues.thickness - GetPenSizeForNormal(textSize))
+    );
+  };
+
+  const length = (aKey: LengthKey, aLabel: string, aTitle?: string): FIELD => ({
+    label: aLabel,
+    title: aTitle,
+    value: texts[aKey] ?? pcbUnitText(v[aKey], units),
+    units: unitLabel(units),
+    onChange: (aText) => {
+      setTexts((t) => ({ ...t, [aKey]: aText }));
+      const iu = pcbUnitValue(aText, units);
+      if (!Number.isFinite(iu)) return;
+
+      setV((p) => {
+        const next = { ...p, [aKey]: iu };
+
+        if (aKey === 'width' || aKey === 'height') {
+          if (next.autoThickness) next.thickness = autoPen(next);
+        } else if (aKey === 'thickness') {
+          next.bold = boldFor(next);
+        }
+
+        return next;
+      });
+
+      if ((aKey === 'width' || aKey === 'height') && v.autoThickness)
+        setTexts((t) => ({ ...t, thickness: undefined }));
+    },
+    onBlur: () => setTexts((t) => ({ ...t, [aKey]: undefined })),
+  });
+
+  return (
+    <>
+      <DIALOG_TEXTBOX_PROPERTIES_BASE
+        m_MultiLineText={{ value: v.text, onChange: (aText) => set({ text: aText }) }}
+        onSyntaxHelp={() => setSyntaxHelp(true)}
+        m_cbLocked={{
+          value: v.locked,
+          onChange: (aOn) => set({ locked: aOn }),
+          shown: dialog.LockedShown(),
+        }}
+        m_LayerSelectionCtrl={{
+          rows: layers.map((l) => ({ value: l, label: l, swatch: layerColor(l) })),
+          value: v.layer,
+          onChange: (aLayer) => set({ layer: aLayer }),
+        }}
+        m_orientation={{
+          value: texts.orientation ?? orientationText(v.orientation),
+          onChange: (aText) => {
+            setTexts((t) => ({ ...t, orientation: aText }));
+            const n = Number(aText);
+            if (aText.trim() !== '' && Number.isFinite(n)) set({ orientation: n });
+          },
+        }}
+        m_fontCtrl={{
+          face: v.face,
+          onChange: (aFace) => {
+            const stroke = FONT.IsStrokeName(aFace === '' ? 'KiCad Font' : aFace);
+            setStrokeShown(stroke);
+            setV((p) => ({ ...p, face: aFace, ...(stroke ? { bold: boldFor(p) } : {}) }));
+          },
+        }}
+        m_bold={{
+          checked: v.bold,
+          onClick: () => {
+            // onBoldToggle: the thickness follows the new state.
+            setV((p) => {
+              const textSize = Math.min(p.width, p.height);
+              const bold = !p.bold;
+              return {
+                ...p,
+                bold,
+                thickness: bold ? GetPenSizeForBold(textSize) : GetPenSizeForNormal(textSize),
+              };
+            });
+            setTexts((t) => ({ ...t, thickness: undefined }));
+          },
+        }}
+        m_italic={{ checked: v.italic, onClick: () => set({ italic: !v.italic }) }}
+        hAlign={v.horizJustify}
+        onHAlign={(aAlign) => set({ horizJustify: aAlign })}
+        vAlign={v.vertJustify}
+        onVAlign={(aAlign) => set({ vertJustify: aAlign })}
+        m_mirrored={{ checked: v.mirrored, onClick: () => set({ mirrored: !v.mirrored }) }}
+        m_textWidth={length('width', 'Text width:', 'Text width')}
+        m_textHeight={length('height', 'Text height:', 'Text height')}
+        m_thickness={{
+          ...length('thickness', 'Thickness:', 'Text thickness'),
+          shown: strokeShown,
+          enabled: !v.autoThickness,
+        }}
+        m_autoTextThickness={{
+          checked: v.autoThickness,
+          shown: strokeShown,
+          onClick: () => {
+            // onAutoTextThickness: checking it sets the pen from the size and disables the field.
+            setV((p) =>
+              p.autoThickness
+                ? { ...p, autoThickness: false }
+                : { ...p, autoThickness: true, thickness: autoPen(p) },
+            );
+            setTexts((t) => ({ ...t, thickness: undefined }));
+          },
+        }}
+        m_borderCheckbox={{
+          value: v.border,
+          onChange: (aOn) => {
+            // onBorderChecked: a border with no width takes the layer's line thickness.
+            setV((p) => ({
+              ...p,
+              border: aOn,
+              ...(aOn && p.borderWidth <= 0
+                ? { borderWidth: dialog.DefaultBorderWidth(p.layer) }
+                : {}),
+            }));
+            setTexts((t) => ({ ...t, borderWidth: undefined }));
+          },
+        }}
+        m_borderWidth={{ ...length('borderWidth', 'Border width:'), enabled: v.border }}
+        m_borderStyleCombo={{
+          rows: LINE_STYLE_NAMES.map((s) => ({
+            value: s.value,
+            label: s.label,
+            ...(s.bitmap ? { bitmap: bitmapUrl(s.bitmap) } : {}),
+          })),
+          value: v.borderStyle,
+          enabled: v.border,
+          onChange: (aStyle) => set({ borderStyle: aStyle as LineStyleToken }),
+        }}
+        onOK={() => onApply(v)}
+        onCancel={onClose}
+      />
+      {syntaxHelp && (
+        <HtmlMessageBox
+          caption="Syntax Help"
+          className="ze-syntaxhelp"
+          html={PCB_TEXT_SYNTAX_HELP}
+          onClose={() => setSyntaxHelp(false)}
+        />
+      )}
+    </>
+  );
 }

@@ -17,6 +17,29 @@
  * from the *scale* factors, so editing the fields changes nothing; only the file
  * (or the previous call's scale, since the statics persist) sets the size.
  */
+import { type JSX, useRef, useState } from 'react';
+import { DialogShim } from '@ziroeda/common/dialog_shim.js';
+import { MessageDialogError } from '@ziroeda/common/dialogs/dialog_message.js';
+import { unitEntryText, unitEntryValue } from '@ziroeda/common/dialogs/dialog_unit_entry.js';
+import type { EdaIuScale } from '@ziroeda/common/eda_units.js';
+import { type EdaUnits, unitLabel } from '@ziroeda/common/widgets/unit_binder.js';
+import { Button, RadioBox, StaticText, TextCtrl } from '@ziroeda/wx/controls.js';
+import {
+  wxALIGN_CENTER_VERTICAL,
+  wxALL,
+  wxGROW,
+  wxHORIZONTAL,
+  wxLEFT,
+  wxRIGHT,
+  wxVERTICAL,
+} from '@ziroeda/wx/defs.js';
+import {
+  BoxSizer,
+  SizerItem,
+  StaticBoxSizer,
+  StdDialogButtonSizer,
+  StretchSpacer,
+} from '@ziroeda/wx/sizer.js';
 import { KiROUND } from '@ziroeda/kimath/src/math/util.js';
 import type { VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
 import { PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
@@ -283,4 +306,118 @@ export async function createPolygonShape(aHost: MICROWAVE_HOST): Promise<FOOTPRI
 
   aHost.OnModify();
   return footprint;
+}
+
+/** MWAVE_POLYGONAL_SHAPE_DLG's window, which its constructor builds (microwave_polygon.cpp:105-163). */
+export function MwavePolygonalShapeDlg({
+  units,
+  iuScale,
+  onResult,
+}: {
+  units: EdaUnits;
+  iuScale: EdaIuScale;
+  onResult: (ok: boolean) => void;
+}): JSX.Element {
+  const dlg = useRef<MWAVE_POLYGONAL_SHAPE_DLG | null>(null);
+  if (!dlg.current) dlg.current = new MWAVE_POLYGONAL_SHAPE_DLG();
+  // wxFileSelector( _( "Shape Description File" ), ... ): the browser's open dialog.
+  const file = useRef<HTMLInputElement>(null);
+  const [sizeX, setSizeX] = useState('');
+  const [sizeY, setSizeY] = useState('');
+  const [shape, setShape] = useState<MWAVE_POLY_SHAPE_TYPE>(MWAVE_POLY_SHAPE_TYPE.NORMAL);
+  const [error, setError] = useState<string | null>(null);
+
+  const cancel = (): void => {
+    dlg.current!.OnCancelClick();
+    onResult(false);
+  };
+
+  const ok = (): void => {
+    const d = dlg.current!;
+    const value = (t: string): number => (t.trim() === '' ? 0 : unitEntryValue(t, units, iuScale));
+    d.m_sizeX = value(sizeX);
+    d.m_sizeY = value(sizeY);
+    d.m_shapeOptionCtrl = shape;
+    if (d.TransferDataFromWindow()) onResult(true);
+  };
+
+  const readFile = (f: File | undefined): void => {
+    if (!f) return;
+    void f.text().then(
+      (text) => {
+        const d = dlg.current!;
+        d.ReadDataShapeDescr(text);
+        setSizeX(unitEntryText(d.m_sizeX, units, iuScale));
+        setSizeY(unitEntryText(d.m_sizeY, units, iuScale));
+      },
+      () => setError('File not found'),
+    );
+  };
+
+  // xSizer / ySizer: label wxALL 5, the ctrl proportion 1, units wxALL 5.
+  const sizeRow = (aLabel: string, aValue: string, aSet: (aText: string) => void) => (
+    <BoxSizer orient={wxHORIZONTAL}>
+      <SizerItem flag={wxALIGN_CENTER_VERTICAL | wxALL} border={5}>
+        <StaticText label={aLabel} />
+      </SizerItem>
+      <SizerItem proportion={1} flag={wxALIGN_CENTER_VERTICAL} border={5}>
+        <TextCtrl value={aValue} onChange={aSet} ariaLabel={aLabel.replace(/:$/, '')} />
+      </SizerItem>
+      <SizerItem flag={wxALIGN_CENTER_VERTICAL | wxALL} border={5}>
+        <StaticText label={unitLabel(units)} />
+      </SizerItem>
+    </BoxSizer>
+  );
+
+  return (
+    <DialogShim title="Complex Shape" onClose={cancel}>
+      {/* mainBoxSizer */}
+      <BoxSizer orient={wxVERTICAL}>
+        <SizerItem proportion={1} flag={wxGROW | wxALL} border={5}>
+          {/* topBoxSizer */}
+          <BoxSizer orient={wxHORIZONTAL}>
+            <SizerItem proportion={1} flag={wxGROW | wxALL} border={5}>
+              <RadioBox
+                label="Shape"
+                choices={['Normal', 'Symmetrical', 'Mirrored']}
+                selection={shape}
+                onChange={(aIndex) => setShape(aIndex as MWAVE_POLY_SHAPE_TYPE)}
+              />
+            </SizerItem>
+            <SizerItem proportion={1} flag={wxGROW | wxALL} border={5}>
+              <StaticBoxSizer label="Size" orient={wxVERTICAL}>
+                <SizerItem border={5}>{sizeRow('X:', sizeX, setSizeX)}</SizerItem>
+                <SizerItem border={5}>{sizeRow('Y:', sizeY, setSizeY)}</SizerItem>
+              </StaticBoxSizer>
+            </SizerItem>
+          </BoxSizer>
+        </SizerItem>
+        <SizerItem flag={wxALL} border={5}>
+          {/* buttonsBoxSizer */}
+          <BoxSizer orient={wxHORIZONTAL}>
+            <SizerItem flag={wxALIGN_CENTER_VERTICAL | wxLEFT | wxRIGHT} border={10}>
+              <Button
+                label="Read Shape Description File..."
+                onClick={() => file.current?.click()}
+              />
+            </SizerItem>
+            <StretchSpacer />
+            <SizerItem flag={wxALIGN_CENTER_VERTICAL | wxALL} border={5}>
+              <StdDialogButtonSizer onOk={ok} onCancel={cancel} />
+            </SizerItem>
+          </BoxSizer>
+        </SizerItem>
+      </BoxSizer>
+      <input
+        ref={file}
+        type="file"
+        hidden
+        onChange={(e) => {
+          readFile(e.target.files?.[0]);
+          e.target.value = '';
+        }}
+      />
+      {error !== null && <MessageDialogError message={error} onClose={() => setError(null)} />}
+    </DialogShim>
+  );
 }

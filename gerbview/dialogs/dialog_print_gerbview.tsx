@@ -5,7 +5,7 @@
  * `gerbview/dialogs/dialog_print_gerbview.cpp`: DIALOG_PRINT_GERBVIEW, the
  * controls' state and the transfers both ways, over the DIALOG_PRINT_GENERIC
  * state it derives (`common/dialogs/dialog_print_generic.cpp`).
- * `dialog_print_gerbview_ui.tsx` draws it through the shared
+ * `dialog_print_gerbview.tsx` draws it through the shared
  * `DIALOG_PRINT_GENERIC` view.
  *
  * Reproduced deliberately, because it is what GerbView does:
@@ -19,6 +19,20 @@
  *    saveSettings writes only to them (`dialog_print_generic.cpp:120-125`).
  */
 
+import { type JSX, useState } from 'react';
+import { DIALOG_PRINT_GENERIC } from '@ziroeda/common/dialogs/dialog_print_generic.js';
+import { CheckListBox } from '@ziroeda/wx/checklst.js';
+import { Button, CheckBox } from '@ziroeda/wx/controls.js';
+import {
+  wxALL,
+  wxBOTTOM,
+  wxEXPAND,
+  wxHORIZONTAL,
+  wxLEFT,
+  wxRIGHT,
+  wxVERTICAL,
+} from '@ziroeda/wx/defs.js';
+import { BoxSizer, SizerItem, StaticBoxSizer } from '@ziroeda/wx/sizer.js';
 import {
   getScaleValue,
   type PrintScaleMode,
@@ -241,4 +255,125 @@ export async function GERBVIEW_CONTROL_Print(
   await aFrame.Host().PrintDialog(dlg);
 
   return 0;
+}
+
+/** DIALOG_PRINT_GERBVIEW's window: createLeftPanel() and createExtraOptions() on DIALOG_PRINT_GENERIC. */
+export function DialogPrintGerbview({
+  dlg,
+  onMessage,
+  onPrint,
+  onClose,
+}: {
+  dlg: DIALOG_PRINT_GERBVIEW;
+  /** A message the dialog raised; `aIsError` for DisplayError. */
+  onMessage: (aMessage: string, aIsError: boolean) => void;
+  onPrint: () => void;
+  onClose: () => void;
+}): JSX.Element {
+  const [, setTick] = useState(0);
+  const changed = (): void => setTick((t) => t + 1);
+
+  return (
+    <DIALOG_PRINT_GENERIC
+      blackWhite={dlg.m_outputMode === 1}
+      onBlackWhite={(v) => {
+        dlg.m_outputMode = v ? 1 : 0;
+        changed();
+      }}
+      titleBlock={dlg.m_titleBlock}
+      titleBlockShown={dlg.m_titleBlockShown}
+      onTitleBlock={(v) => {
+        dlg.m_titleBlock = v;
+        changed();
+      }}
+      scaleMode={dlg.m_scaleMode}
+      onScaleMode={(m) => {
+        dlg.m_scaleMode = m;
+        changed();
+      }}
+      customScale={dlg.m_customScale}
+      onCustomScale={(t) => {
+        dlg.m_customScale = t;
+        changed();
+      }}
+      mainSizerInserts={
+        // createLeftPanel(): getMainSizer()->Insert( 0, sbLayersSizer, 1, wxEXPAND | wxALL, 5 )
+        <SizerItem proportion={1} flag={wxEXPAND | wxALL} border={5}>
+          <StaticBoxSizer label="Include Layers" orient={wxVERTICAL}>
+            <SizerItem proportion={1} flag={wxEXPAND} border={5}>
+              {/* bLayerListsSizer */}
+              <BoxSizer orient={wxHORIZONTAL}>
+                {dlg.m_layerLists.map((list, li) => (
+                  // biome-ignore lint/suspicious/noArrayIndexKey: m_layerLists[i] is fixed, LAYER_LIST_COUNT long
+                  <SizerItem key={li} proportion={1} flag={wxEXPAND} border={5}>
+                    <CheckListBox
+                      items={list.items}
+                      checked={list.items.map((_, i) => list.checked[i] === true)}
+                      onCheck={(aIndex, aOn) => {
+                        list.checked[aIndex] = aOn;
+                        changed();
+                      }}
+                    />
+                  </SizerItem>
+                ))}
+              </BoxSizer>
+            </SizerItem>
+            <SizerItem flag={wxEXPAND} border={5}>
+              {/* buttonSizer */}
+              <BoxSizer orient={wxHORIZONTAL}>
+                <SizerItem proportion={1} flag={wxALL} border={5}>
+                  <Button
+                    label="Select all"
+                    onClick={() => {
+                      dlg.onSelectAllClick();
+                      changed();
+                    }}
+                  />
+                </SizerItem>
+                <SizerItem proportion={1} flag={wxALL} border={5}>
+                  <Button
+                    label="Deselect all"
+                    onClick={() => {
+                      dlg.onDeselectAllClick();
+                      changed();
+                    }}
+                  />
+                </SizerItem>
+              </BoxSizer>
+            </SizerItem>
+          </StaticBoxSizer>
+        </SizerItem>
+      }
+      optionsSizerAdds={
+        // createExtraOptions(): wxGBPosition( rows, 0 ), wxGBSpan( 1, cols ), the base's 2 x 2.
+        <SizerItem pos={[2, 0]} span={[1, 2]} flag={wxBOTTOM | wxRIGHT | wxLEFT} border={5}>
+          <CheckBox
+            label="Print mirrored"
+            check={{
+              value: dlg.m_checkboxMirror,
+              onChange: (aOn) => {
+                dlg.m_checkboxMirror = aOn;
+                changed();
+              },
+            }}
+          />
+        </SizerItem>
+      }
+      onPrint={() => {
+        const { info, error } = dlg.onPrintButtonClick();
+        changed();
+        if (info !== null) onMessage(info, false);
+        if (error !== null) {
+          onMessage(error, true);
+          return;
+        }
+        onPrint();
+      }}
+      onClose={() => {
+        const info = dlg.saveSettings();
+        if (info !== null) onMessage(info, false);
+        onClose();
+      }}
+    />
+  );
 }

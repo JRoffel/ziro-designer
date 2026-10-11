@@ -184,6 +184,7 @@ export function RadioBox({
   onChange,
   majorDimension = 1,
   disabled,
+  itemEnabled,
   title,
 }: {
   label: string;
@@ -193,6 +194,8 @@ export function RadioBox({
   onChange: (aSelection: number) => void;
   majorDimension?: number;
   disabled?: boolean;
+  /** `Enable( n, false )`: which items are live; absent, all of them. */
+  itemEnabled?: readonly boolean[];
   /** `SetToolTip`. */
   title?: string;
 }): JSX.Element {
@@ -212,7 +215,7 @@ export function RadioBox({
             key={i}
             label={choice}
             checked={selection === i}
-            disabled={disabled}
+            disabled={disabled || itemEnabled?.[i] === false}
             onChange={() => onChange(i)}
           />
         ))}

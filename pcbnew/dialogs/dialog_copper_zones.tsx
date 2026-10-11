@@ -43,7 +43,7 @@ import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js'
 import type { PCB_BASE_EDIT_FRAME } from '../pcb_base_edit_frame.js';
 import type { CONVERT_SETTINGS } from '../pcbnew_settings.js';
 import { CONVERSION_BOX, type ConversionBoxValues } from '../tools/convert_settings_dialog.js';
-import { ConversionSettingsBox } from '../tools/convert_settings_dialog_ui.js';
+import { ConversionSettingsBox } from '../tools/convert_settings_dialog.js';
 import type { ZONE } from '../zone.js';
 import type { ZONE_SETTINGS } from '../zone_settings.js';
 import { DIALOG_COPPER_ZONE_BASE } from './dialog_copper_zones_base.js';
@@ -207,7 +207,14 @@ export function DialogCopperZones({
             : 'Copper Zone Properties'
       }
       conversionBox={
-        conv ? <ConversionSettingsBox values={conv} units={units} onChange={setConv} /> : null
+        conv ? (
+          <ConversionSettingsBox
+            values={conv}
+            units={units}
+            gapBorders="copperZone"
+            onChange={setConv}
+          />
+        ) : null
       }
       m_layers={layers.map((l) => ({
         toggle: v.layers.includes(l.name),

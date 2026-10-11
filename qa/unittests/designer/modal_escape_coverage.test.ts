@@ -177,9 +177,11 @@ describe('what the registered cancel means', () => {
     // The board's is DIALOG_PRINT_PCBNEW on the common DIALOG_PRINT_GENERIC:
     // the base registers its Close, and the board's Close runs saveSettings
     // before it closes, as onCancelButtonClick / onClose do.
-    expect(registered('../../common/dialogs/dialog_print_generic_ui.tsx')).toEqual(['onClose']);
+    expect(registered('../../common/dialogs/dialog_print_generic_base.tsx')).toEqual([
+      'p.onCancel',
+    ]);
     expect(
-      FILES.find((f) => f.rel === '../../pcbnew/dialogs/dialog_print_pcbnew_ui.tsx')?.src,
+      FILES.find((f) => f.rel === '../../pcbnew/dialogs/dialog_print_pcbnew.tsx')?.src,
     ).toMatch(
       /onClose=\{\(\) => \{\s*\/\/ onCancelButtonClick \/ onClose: saveSettings first\.\s*const info = dlg\.saveSettings\(\);/,
     );

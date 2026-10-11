@@ -38,14 +38,14 @@ import {
   type BarcodeValues,
   type DIALOG_BARCODE_PROPERTIES,
 } from './dialogs/dialog_barcode_properties.js';
-import { DialogBarcodeProperties } from './dialogs/dialog_barcode_properties_ui.js';
+import { DialogBarcodeProperties } from './dialogs/dialog_barcode_properties.js';
 import { DialogCopperZones } from './dialogs/dialog_copper_zones.js';
 import type {
   DIALOG_DIMENSION_PROPERTIES,
   DimensionValues,
 } from './dialogs/dialog_dimension_properties.js';
-import { DialogDimensionProperties } from './dialogs/dialog_dimension_properties_ui.js';
-import { DialogShapeProperties } from './dialogs/dialog_graphic_properties.js';
+import { DialogDimensionProperties } from './dialogs/dialog_dimension_properties.js';
+import { DialogShapeProperties } from './dialogs/dialog_shape_properties.js';
 import type { DIALOG_NON_COPPER_ZONES_EDITOR } from './dialogs/dialog_non_copper_zones_properties.js';
 import { DialogNonCopperZonesProperties } from './dialogs/dialog_non_copper_zones_properties.js';
 import {
@@ -61,18 +61,18 @@ import {
   DIALOG_RULE_AREA_PROPERTIES,
 } from './dialogs/dialog_rule_area_properties.js';
 import { DialogRuleAreaProperties } from './dialogs/dialog_rule_area_properties.js';
-import type { DIALOG_SHAPE_PROPERTIES, ShapeValues } from './dialogs/dialog_shape_properties.js';
+import type { DIALOG_SHAPE_PROPERTIES } from './dialogs/dialog_shape_properties.js';
 import {
   type DIALOG_TABLE_PROPERTIES,
   DialogTableProperties,
 } from './dialogs/dialog_table_properties.js';
 import type { DIALOG_TEXT_PROPERTIES, TextValues } from './dialogs/dialog_text_properties.js';
-import { DialogTextProperties } from './dialogs/dialog_text_properties_ui.js';
+import { DialogTextProperties } from './dialogs/dialog_text_properties.js';
 import type {
   DIALOG_TEXTBOX_PROPERTIES,
   TextBoxValues,
 } from './dialogs/dialog_textbox_properties.js';
-import { DialogTextBoxProperties } from './dialogs/dialog_textbox_properties_ui.js';
+import { DialogTextBoxProperties } from './dialogs/dialog_textbox_properties.js';
 import { DIALOG_COPPER_ZONE } from './dialogs/dialog_copper_zones.js';
 import type { PCB_BASE_EDIT_FRAME_DIALOG_HOOKS } from './pcb_base_edit_frame.js';
 import type { PCB_TABLE } from './pcb_table.js';
@@ -338,6 +338,7 @@ export function usePcbItemDialogs(aEnv: PCB_ITEM_DIALOGS_ENV): {
       {text && (
         <DialogTextProperties
           initial={text.dialog.TransferDataToWindow()}
+          shape={text.dialog.GetWindowShape()}
           units={units}
           layers={layers}
           layerColor={layerColor}
@@ -356,16 +357,10 @@ export function usePcbItemDialogs(aEnv: PCB_ITEM_DIALOGS_ENV): {
       )}
       {shape && (
         <DialogShapeProperties
-          units={units}
-          initial={shape.TransferDataToWindow()}
-          shape={shape.GetShape()}
+          dialog={shape}
           layers={layers}
-          onApply={(values: ShapeValues) => {
-            const d = shape;
-            setShape(null);
-            // DIALOG_SHAPE_PROPERTIES on the live PCB_SHAPE: one BOARD_COMMIT.
-            d.TransferDataFromWindow(values);
-          }}
+          layerColor={layerColor}
+          onApplied={() => setShape(null)}
           onClose={() => setShape(null)}
         />
       )}
@@ -380,6 +375,7 @@ export function usePcbItemDialogs(aEnv: PCB_ITEM_DIALOGS_ENV): {
       )}
       {textBox && (
         <DialogTextBoxProperties
+          dialog={textBox.dialog}
           initial={textBox.dialog.TransferDataToWindow()}
           units={units}
           layers={layers}
@@ -406,10 +402,10 @@ export function usePcbItemDialogs(aEnv: PCB_ITEM_DIALOGS_ENV): {
       )}
       {dimension && (
         <DialogDimensionProperties
+          dialog={dimension}
           units={units}
-          initial={dimension.TransferDataToWindow()}
-          type={dimension.GetDimensionType()}
           layers={layers}
+          layerColor={layerColor}
           onApply={(values: DimensionValues) => {
             const d = dimension;
             setDimension(null);

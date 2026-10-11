@@ -10,8 +10,10 @@ import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { installPgm } from '@ziroeda/designer/src/editors/pcb/pcb_canvas.js';
 import type { BOARD } from '@ziroeda/pcbnew/board.js';
 import type { BOARD_ITEM } from '@ziroeda/pcbnew/board_item.js';
+import type { DIALOG_SHAPE_PROPERTIES } from '@ziroeda/pcbnew/dialogs/dialog_shape_properties.js';
 import { PCB_EDIT_FRAME, type PCB_EDIT_FRAME_HOOKS } from '@ziroeda/pcbnew/pcb_edit_frame.js';
 import { ParseBoard } from '@ziroeda/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.js';
+import type { PCB_SHAPE } from '@ziroeda/pcbnew/pcb_shape.js';
 import { PCBNEW_SETTINGS } from '@ziroeda/pcbnew/pcbnew_settings.js';
 
 const BOARD_TEXT = `(kicad_pcb (version 20241229) (generator "pcbnew") (generator_version "9.0")
@@ -99,7 +101,10 @@ describe('PCB_EDIT_FRAME::OnEditItemRequest', () => {
   it('the dialog it opens is on the live item', () => {
     const shape = of(KICAD_T.PCB_SHAPE_T);
     frame.OnEditItemRequest(shape);
-    const dlg = opened[0]![1] as { GetShape(): number };
-    expect(dlg.GetShape()).toBe((shape as unknown as { GetShape(): number }).GetShape());
+    // What OK writes lands on the shape the request named.
+    const dlg = opened[0]![1] as DIALOG_SHAPE_PROPERTIES;
+    const v = dlg.TransferDataToWindow();
+    expect(dlg.TransferDataFromWindow({ ...v, lineWidth: v.lineWidth + 1000 }).ok).toBe(true);
+    expect((shape as unknown as PCB_SHAPE).GetStroke().GetWidth()).toBe(v.lineWidth + 1000);
   });
 });

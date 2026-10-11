@@ -70,7 +70,7 @@ import type { ToolEntry } from '@ziroeda/common/tool/action_toolbar_types.js';
 import { graphicLayerKey } from './dialogs/panel_gerbview_color_settings.js';
 import type { DIALOG_DRAW_LAYERS_SETTINGS } from './dialogs/dialog_draw_layers_settings.js';
 import type { DIALOG_PRINT_GERBVIEW } from './dialogs/dialog_print_gerbview.js';
-import { DialogPrintGerbview } from './dialogs/dialog_print_gerbview_ui.js';
+import { DialogPrintGerbview } from './dialogs/dialog_print_gerbview.js';
 import { DialogDrawLayersSettings } from './dialogs/dialog_draw_layers_settings_ui.js';
 import type { DIALOG_MAP_GERBER_LAYERS_TO_PCB } from './dialogs/dialog_map_gerber_layers_to_pcb.js';
 import { DialogMapGerberLayersToPcb } from './dialogs/dialog_map_gerber_layers_to_pcb_ui.js';

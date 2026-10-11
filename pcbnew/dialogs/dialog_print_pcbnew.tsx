@@ -5,10 +5,25 @@
  * `pcbnew/dialogs/dialog_print_pcbnew.cpp`: DIALOG_PRINT_PCBNEW, the controls'
  * state and the transfers both ways over the DIALOG_PRINT_GENERIC state it
  * derives (`common/dialogs/dialog_print_generic.cpp`), and PCB_CONTROL::Print,
- * which upstream defines in this file. `dialog_print_pcbnew_ui.tsx` draws it
+ * which upstream defines in this file. `dialog_print_pcbnew.tsx` draws it
  * through the shared `DIALOG_PRINT_GENERIC` view; the pages are PCBNEW_PRINTOUT's.
  */
 
+import { type JSX, useState } from 'react';
+import { DIALOG_PRINT_GENERIC } from '@ziroeda/common/dialogs/dialog_print_generic.js';
+import { CheckListBox } from '@ziroeda/wx/checklst.js';
+import { CheckBox, Choice, StaticText } from '@ziroeda/wx/controls.js';
+import {
+  wxALIGN_CENTER_VERTICAL,
+  wxALL,
+  wxBOTTOM,
+  wxEXPAND,
+  wxLEFT,
+  wxRIGHT,
+  wxVERTICAL,
+} from '@ziroeda/wx/defs.js';
+import { ContextMenu } from '@ziroeda/wx/menu_ui.js';
+import { SizerItem, StaticBoxSizer } from '@ziroeda/wx/sizer.js';
 import {
   getScaleValue,
   type PrintScaleMode,
@@ -358,4 +373,254 @@ export async function PCB_CONTROL_Print(
   await aFrame.ShowPrintDialog(dlg);
 
   return 0;
+}
+
+/** DIALOG_PRINT_PCBNEW's window: createLeftPanel() and createExtraOptions() on DIALOG_PRINT_GENERIC. */
+export function DialogPcbPrint({
+  dlg,
+  onMessage,
+  onPrint,
+  onClose,
+}: {
+  dlg: DIALOG_PRINT_PCBNEW;
+  /** A message the dialog raised; `aIsError` for DisplayError. */
+  onMessage: (aMessage: string, aIsError: boolean) => void;
+  onPrint: () => void;
+  onClose: () => void;
+}): JSX.Element {
+  const [, setTick] = useState(0);
+  const changed = (): void => setTick((t) => t + 1);
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+
+  const check = (aGet: () => boolean, aSet: (aOn: boolean) => void, aEnabled = true) => ({
+    value: aGet(),
+    enabled: aEnabled,
+    onChange: (aOn: boolean) => {
+      aSet(aOn);
+      changed();
+    },
+  });
+
+  // createExtraOptions(): `rows = optionsSizer->GetEffectiveRowsCount()`, the base's two.
+  const ROW_AS_ITEMS = 2;
+  const ROW_DRILL_MARKS = 7; // after the theme row, `rows++` leaves one empty
+
+  return (
+    <>
+      <DIALOG_PRINT_GENERIC
+        blackWhite={dlg.m_outputMode === 1}
+        onBlackWhite={(v) => {
+          dlg.m_outputMode = v ? 1 : 0;
+          dlg.onColorModeClicked();
+          changed();
+        }}
+        titleBlock={dlg.m_titleBlock}
+        titleBlockShown={dlg.m_titleBlockShown}
+        onTitleBlock={(v) => {
+          dlg.m_titleBlock = v;
+          changed();
+        }}
+        scaleMode={dlg.m_scaleMode}
+        onScaleMode={(m) => {
+          dlg.m_scaleMode = m;
+          changed();
+        }}
+        customScale={dlg.m_customScale}
+        onCustomScale={(t) => {
+          dlg.m_customScale = t;
+          changed();
+        }}
+        infoText="Right-click for layer selection commands."
+        mainSizerInserts={
+          // createLeftPanel(): getMainSizer()->Insert( 0, sbLayersSizer, 1, wxEXPAND | wxALL, 5 )
+          <SizerItem proportion={1} flag={wxEXPAND | wxALL} border={5}>
+            <StaticBoxSizer label="Include Layers" orient={wxVERTICAL}>
+              <SizerItem proportion={1} flag={wxEXPAND | wxBOTTOM | wxRIGHT} border={5}>
+                <CheckListBox
+                  items={dlg.m_layerNames}
+                  checked={dlg.m_layerNames.map((_, i) => dlg.m_layerChecked[i] === true)}
+                  onCheck={(aIndex, aOn) => {
+                    dlg.m_layerChecked[aIndex] = aOn;
+                    changed();
+                  }}
+                  onContextMenu={(e) => setMenu({ x: e.clientX, y: e.clientY })}
+                  ariaLabel="Include Layers"
+                />
+              </SizerItem>
+            </StaticBoxSizer>
+          </SizerItem>
+        }
+        optionsSizerAdds={
+          <>
+            <SizerItem
+              pos={[ROW_AS_ITEMS, 0]}
+              span={[1, 2]}
+              flag={wxLEFT | wxRIGHT | wxBOTTOM}
+              border={5}
+            >
+              <CheckBox
+                label="Print according to objects tab of appearance manager"
+                check={check(
+                  () => dlg.m_checkAsItems,
+                  (aOn) => {
+                    dlg.m_checkAsItems = aOn;
+                  },
+                )}
+              />
+            </SizerItem>
+            <SizerItem
+              pos={[ROW_AS_ITEMS + 1, 0]}
+              span={[1, 2]}
+              flag={wxLEFT | wxRIGHT | wxBOTTOM}
+              border={5}
+            >
+              <CheckBox
+                label="Print background color"
+                check={check(
+                  () => dlg.m_checkBackground,
+                  (aOn) => {
+                    dlg.m_checkBackground = aOn;
+                  },
+                  dlg.m_checkBackgroundEnabled,
+                )}
+              />
+            </SizerItem>
+            <SizerItem pos={[ROW_AS_ITEMS + 2, 0]} span={[1, 2]} flag={wxLEFT | wxRIGHT} border={5}>
+              <CheckBox
+                label="Use a different color theme for printing:"
+                check={check(
+                  () => dlg.m_checkUseTheme,
+                  (aOn) => {
+                    dlg.m_checkUseTheme = aOn;
+                    dlg.onUseThemeClicked();
+                  },
+                  dlg.m_checkUseThemeEnabled,
+                )}
+              />
+            </SizerItem>
+            <SizerItem
+              pos={[ROW_AS_ITEMS + 3, 0]}
+              span={[1, 2]}
+              flag={wxLEFT}
+              border={28}
+              minSize={[200, -1]}
+            >
+              <Choice
+                choices={dlg.m_colorThemes.map((t) => t.GetName())}
+                choice={{
+                  value: dlg.m_colorThemeSelection,
+                  enabled: dlg.m_colorThemeEnabled,
+                  onChange: (aIndex) => {
+                    dlg.m_colorThemeSelection = aIndex;
+                    changed();
+                  },
+                }}
+                ariaLabel="Color theme"
+              />
+            </SizerItem>
+            <SizerItem
+              pos={[ROW_DRILL_MARKS, 0]}
+              flag={wxALIGN_CENTER_VERTICAL | wxLEFT | wxRIGHT | wxBOTTOM}
+              border={5}
+            >
+              <StaticText label="Drill marks:" />
+            </SizerItem>
+            <SizerItem
+              pos={[ROW_DRILL_MARKS, 1]}
+              flag={wxALIGN_CENTER_VERTICAL | wxRIGHT | wxBOTTOM}
+              border={5}
+            >
+              <Choice
+                choices={['No drill mark', 'Small mark', 'Real drill']}
+                choice={{
+                  value: dlg.m_drillMarksChoice,
+                  onChange: (aIndex) => {
+                    dlg.m_drillMarksChoice = aIndex;
+                    changed();
+                  },
+                }}
+                ariaLabel="Drill marks"
+              />
+            </SizerItem>
+            <SizerItem
+              pos={[ROW_DRILL_MARKS + 1, 0]}
+              span={[1, 2]}
+              flag={wxLEFT | wxRIGHT | wxBOTTOM}
+              border={5}
+            >
+              <CheckBox
+                label="Print mirrored"
+                check={check(
+                  () => dlg.m_checkboxMirror,
+                  (aOn) => {
+                    dlg.m_checkboxMirror = aOn;
+                  },
+                )}
+              />
+            </SizerItem>
+            <SizerItem
+              pos={[ROW_DRILL_MARKS + 2, 0]}
+              span={[1, 2]}
+              flag={wxLEFT | wxRIGHT}
+              border={5}
+            >
+              <CheckBox
+                label="Print one page per layer"
+                check={check(
+                  () => dlg.m_checkboxPagePerLayer,
+                  (aOn) => {
+                    dlg.m_checkboxPagePerLayer = aOn;
+                    dlg.onPagePerLayerClicked();
+                  },
+                )}
+              />
+            </SizerItem>
+            <SizerItem pos={[ROW_DRILL_MARKS + 3, 0]} span={[1, 2]} flag={wxLEFT} border={28}>
+              <CheckBox
+                label="Print board edges on all pages"
+                check={check(
+                  () => dlg.m_checkboxEdgesOnAllPages,
+                  (aOn) => {
+                    dlg.m_checkboxEdgesOnAllPages = aOn;
+                  },
+                  dlg.m_checkboxEdgesOnAllPagesEnabled,
+                )}
+              />
+            </SizerItem>
+          </>
+        }
+        onPrint={() => {
+          const { info, error } = dlg.onPrintButtonClick();
+          changed();
+          if (info !== null) onMessage(info, false);
+          if (error !== null) {
+            onMessage(error, true);
+            return;
+          }
+          onPrint();
+        }}
+        onClose={() => {
+          // onCancelButtonClick / onClose: saveSettings first.
+          const info = dlg.saveSettings();
+          if (info !== null) onMessage(info, false);
+          onClose();
+        }}
+      />
+      {menu && (
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          onClose={() => setMenu(null)}
+          items={PRINT_LAYER_MENU_ITEMS.map((item) => ({
+            label: item.label,
+            action: () => {
+              dlg.onPopUpLayers(item.id);
+              setMenu(null);
+              changed();
+            },
+          }))}
+        />
+      )}
+    </>
+  );
 }

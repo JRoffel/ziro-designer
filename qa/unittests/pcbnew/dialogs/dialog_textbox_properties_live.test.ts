@@ -81,11 +81,16 @@ describe('DIALOG_TEXTBOX_PROPERTIES', () => {
     expect(tb().GetEnd().y).toBeGreaterThan(MM(20));
   });
 
-  it('a zero thickness is automatic, and stays automatic', () => {
+  it('auto thickness is written as automatic, and shows the effective pen', () => {
+    // m_autoTextThickness->IsChecked() -> SetAutoThickness( true ); TransferDataToWindow then
+    // puts GetEffectiveTextPenWidth() in the disabled box (dialog_textbox_properties.cpp:212-216).
     const v = dlg().TransferDataToWindow();
-    dlg().TransferDataFromWindow({ ...v, thickness: 0 });
+    dlg().TransferDataFromWindow({ ...v, autoThickness: true });
     expect(tb().GetAutoThickness()).toBe(true);
-    expect(dlg().TransferDataToWindow().thickness).toBe(0);
+    const shown = dlg().TransferDataToWindow();
+    expect(shown.autoThickness).toBe(true);
+    expect(shown.thickness).toBe(tb().GetEffectiveTextPenWidth());
+    expect(shown.thickness).toBeGreaterThan(0);
   });
 
   it('does not write margins or knockout, which the C++ dialog has no control for', () => {

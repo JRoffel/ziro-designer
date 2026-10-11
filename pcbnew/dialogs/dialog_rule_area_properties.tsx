@@ -33,7 +33,7 @@ import { type JSX, useState } from 'react';
 import { MessageDialogError } from '@ziroeda/common/dialogs/dialog_message.js';
 import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
 import { pcbUnitText, pcbUnitValue, unitLabel } from '../pcb_unit_binder.js';
-import { ConversionSettingsBox } from '../tools/convert_settings_dialog_ui.js';
+import { ConversionSettingsBox } from '../tools/convert_settings_dialog.js';
 import { DIALOG_RULE_AREA_PROPERTIES_BASE } from './dialog_rule_area_properties_base.js';
 import { PANEL_RULE_AREA_PROPERTIES_KEEPOUT_BASE } from './panel_rule_area_properties_keepout_base.js';
 import { PANEL_RULE_AREA_PROPERTIES_PLACEMENT_BASE } from './panel_rule_area_properties_placement_base.js';
@@ -599,7 +599,14 @@ export function DialogRuleAreaProperties({
       <DIALOG_RULE_AREA_PROPERTIES_BASE
         title={conv ? 'Convert to Rule Area' : 'Rule Area Properties'}
         conversionBox={
-          conv ? <ConversionSettingsBox values={conv} units={units} onChange={setConv} /> : null
+          conv ? (
+            <ConversionSettingsBox
+              values={conv}
+              units={units}
+              gapBorders="ruleArea"
+              onChange={setConv}
+            />
+          ) : null
         }
         m_layers={layers.map((l) => ({
           toggle: v.layers.includes(l.name),

@@ -57,6 +57,8 @@ export const wxALL = wxTOP | wxBOTTOM | wxRIGHT | wxLEFT;
 
 /** Sizer item flags (wx/defs.h `wxStretch`, `wxAlignment`). Left and top are 0. */
 export const wxEXPAND = 0x2000;
+/** `wxGROW`: defs.h spells it as `wxEXPAND`. */
+export const wxGROW = wxEXPAND;
 export const wxSHAPED = 0x4000;
 export const wxFIXED_MINSIZE = 0x8000;
 /** `wxRESERVE_SPACE_EVEN_IF_HIDDEN`: a hidden item keeps its room (wx/defs.h `wxSizerFlagBits`). */

@@ -6,8 +6,10 @@
  * three Scale radios and the Custom text stand for, both ways. Pure, so the
  * engine halves of the dialogs that derive it (DIALOG_PRINT_PCBNEW,
  * DIALOG_PRINT_GERBVIEW) can use it without a DOM;
- * `dialog_print_generic_ui.tsx` draws the dialog.
+ * `dialog_print_generic_base.tsx` draws the dialog.
  */
+import type { JSX, ReactNode } from 'react';
+import { DIALOG_PRINT_GENERIC_BASE } from './dialog_print_generic_base.js';
 
 /** dialog_print_generic.cpp:34-35. */
 export const MIN_SCALE = 0.01;
@@ -66,4 +68,66 @@ export function getScaleValue(
     };
   }
   return { scale };
+}
+
+/**
+ * DIALOG_PRINT_GENERIC's window: the base with SetupStandardButtons' Print / Close. Its
+ * Print Preview (wxID_APPLY) is hidden `#if defined(__WXMAC__) or defined(__WXGTK__)`.
+ */
+export function DIALOG_PRINT_GENERIC({
+  blackWhite,
+  onBlackWhite,
+  titleBlock,
+  onTitleBlock,
+  titleBlockShown = true,
+  scaleMode,
+  onScaleMode,
+  customScale,
+  onCustomScale,
+  mainSizerInserts,
+  optionsSizerAdds,
+  infoText,
+  onPrint,
+  onClose,
+}: {
+  blackWhite: boolean;
+  onBlackWhite: (v: boolean) => void;
+  titleBlock: boolean;
+  onTitleBlock: (v: boolean) => void;
+  /** False after ForcePrintBorder(). */
+  titleBlockShown?: boolean;
+  scaleMode: PrintScaleMode;
+  onScaleMode: (m: PrintScaleMode) => void;
+  customScale: string;
+  onCustomScale: (text: string) => void;
+  /** createLeftPanel()'s Insert( 0, ... ) into getMainSizer(). */
+  mainSizerInserts?: ReactNode;
+  /** createExtraOptions()'s rows in getOptionsSizer(). */
+  optionsSizerAdds?: ReactNode;
+  infoText?: string;
+  onPrint: () => void;
+  onClose: () => void;
+}): JSX.Element {
+  return (
+    <DIALOG_PRINT_GENERIC_BASE
+      m_outputMode={{ value: blackWhite ? 1 : 0, onChange: (aIndex) => onBlackWhite(aIndex === 1) }}
+      m_titleBlock={{ value: titleBlock, onChange: onTitleBlock, shown: titleBlockShown }}
+      scaleMode={scaleMode}
+      onScaleMode={onScaleMode}
+      m_scaleCustomText={{
+        value: customScale,
+        onChange: (aText) => {
+          onCustomScale(aText);
+          onScaleMode('custom');
+        },
+      }}
+      mainSizerInserts={mainSizerInserts}
+      optionsSizerAdds={optionsSizerAdds}
+      m_infoText={infoText}
+      okLabel="Print"
+      cancelLabel="Close"
+      onOK={onPrint}
+      onCancel={onClose}
+    />
+  );
 }

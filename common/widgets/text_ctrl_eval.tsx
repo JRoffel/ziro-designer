@@ -47,6 +47,8 @@ export interface TextCtrlEvalProps {
   /** Layout only. */
   style?: CSSProperties;
   ariaLabel?: string;
+  /** `SetToolTip()`. */
+  title?: string;
 }
 
 export function TextCtrlEval({
@@ -59,6 +61,7 @@ export function TextCtrlEval({
   className,
   style,
   ariaLabel,
+  title,
 }: TextCtrlEvalProps): JSX.Element {
   const m_eval = useRef(new NUMERIC_EVALUATOR_COMPAT('unscaled'));
 
@@ -77,6 +80,7 @@ export function TextCtrlEval({
       className={className}
       style={style}
       aria-label={ariaLabel}
+      title={title}
       disabled={disabled}
       value={value}
       onChange={(e) => onChange(e.target.value)}

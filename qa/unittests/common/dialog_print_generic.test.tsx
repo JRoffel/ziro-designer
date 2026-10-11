@@ -7,13 +7,14 @@
  */
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
+import { SizerItem } from '@ziroeda/wx/sizer.js';
 import {
   getScaleValue,
   MAX_SCALE,
   MIN_SCALE,
   setScaleValue,
 } from '@ziroeda/common/dialogs/dialog_print_generic.js';
-import { DIALOG_PRINT_GENERIC } from '@ziroeda/common/dialogs/dialog_print_generic_ui.js';
+import { DIALOG_PRINT_GENERIC } from '@ziroeda/common/dialogs/dialog_print_generic.js';
 
 afterEach(cleanup);
 
@@ -98,13 +99,22 @@ describe('DIALOG_PRINT_GENERIC', () => {
   });
 
   it('puts the derived dialog’s pane first and its rows after Print drawing sheet', () => {
-    const { container } = dlg({
-      leading: <div data-testid="lead">Include Layers</div>,
-      extraOptions: <span data-testid="extra">Print mirrored</span>,
+    dlg({
+      mainSizerInserts: (
+        <SizerItem proportion={1}>
+          <div data-testid="lead">Include Layers</div>
+        </SizerItem>
+      ),
+      optionsSizerAdds: (
+        <SizerItem pos={[2, 0]} span={[1, 2]}>
+          <span data-testid="extra">Print mirrored</span>
+        </SizerItem>
+      ),
     });
-    const upper = container.ownerDocument.querySelector('.ze-printdlg-upper')!;
-    expect(upper.firstElementChild?.getAttribute('data-testid')).toBe('lead');
-    const grid = container.ownerDocument.querySelector('.ze-printdlg-optgrid')!;
-    expect(grid.lastElementChild?.getAttribute('data-testid')).toBe('extra');
+    const before = (a: Node, b: Node) =>
+      (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    expect(before(screen.getByTestId('lead'), screen.getByText('Options'))).toBe(true);
+    expect(before(screen.getByText('Print drawing sheet'), screen.getByTestId('extra'))).toBe(true);
+    expect(before(screen.getByTestId('extra'), screen.getByText('Scale'))).toBe(true);
   });
 });

@@ -124,7 +124,7 @@ describe('SelectCopperLayerPairDialog', () => {
   it('clicking a row in the left grid changes the top layer, not the bottom', () => {
     const b = boardWithLayers(PCB_LAYER_ID.F_Cu, PCB_LAYER_ID.In1_Cu, PCB_LAYER_ID.B_Cu);
     const settings = makeFrameWithScreen().GetLayerPairSettings();
-    const { container } = render(
+    render(
       <SelectCopperLayerPairDialog
         board={b}
         theme={theme}
@@ -132,7 +132,7 @@ describe('SelectCopperLayerPairDialog', () => {
         onClose={() => {}}
       />,
     );
-    const leftGrid = container.querySelectorAll('.ze-grid-pane')[0]!;
+    const leftGrid = screen.getByLabelText('Top layer');
     const in1Cell = Array.from(leftGrid.querySelectorAll('td')).find((td) =>
       /In1/.test(td.textContent ?? ''),
     )!;
@@ -149,7 +149,7 @@ describe('SelectCopperLayerPairDialog', () => {
     const b = boardWithLayers(PCB_LAYER_ID.F_Cu, PCB_LAYER_ID.In1_Cu, PCB_LAYER_ID.B_Cu);
     const settings = makeFrame().GetLayerPairSettings();
     const before = settings.GetCurrentLayerPair();
-    const { container } = render(
+    render(
       <SelectCopperLayerPairDialog
         board={b}
         theme={theme}
@@ -157,7 +157,7 @@ describe('SelectCopperLayerPairDialog', () => {
         onClose={() => {}}
       />,
     );
-    const leftGrid = container.querySelectorAll('.ze-grid-pane')[0]!;
+    const leftGrid = screen.getByLabelText('Top layer');
     const in1Cell = Array.from(leftGrid.querySelectorAll('td')).find((td) =>
       /In1/.test(td.textContent ?? ''),
     )!;
@@ -178,7 +178,7 @@ describe('SelectCopperLayerPairDialog', () => {
         onClose={() => {}}
       />,
     );
-    fireEvent.click(screen.getByTitle('Add current pair to presets'));
+    fireEvent.click(screen.getByRole('button', { name: 'Add current pair to presets' }));
     expect(screen.getByText('F.Cu / B.Cu')).toBeTruthy();
   });
 

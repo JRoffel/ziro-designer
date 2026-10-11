@@ -165,6 +165,8 @@ export interface DialogShimProps {
    * tool's cancel, not the dialog's.
    */
   modeless?: boolean;
+  /** `Enable( false )` while a tool picks for the dialog: see wxDialog's `enabled`. */
+  enabled?: boolean;
   /** The dialog's own layout class (its `_base.cpp` sizer tree), never its chrome. */
   className?: string;
   /** `SetInitialFocus( aWindow )`; the dialog itself when absent. */
@@ -211,6 +213,7 @@ export function DialogShim({
   title,
   onClose,
   modeless = false,
+  enabled = true,
   className,
   initialFocus,
   hashKey,
@@ -228,6 +231,7 @@ export function DialogShim({
       title={title}
       onClose={onClose}
       modeless={modeless}
+      enabled={enabled}
       resizable={resizable}
       className={className}
       style={style}

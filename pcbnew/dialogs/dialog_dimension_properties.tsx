@@ -31,7 +31,15 @@
  * to the wrong kind produces a file KiCad reads back differently from what was
  * saved.
  */
+import { type JSX, useMemo, useState } from 'react';
+import { GetPenSizeForBold, GetPenSizeForNormal } from '@ziroeda/common/gr_text.js';
+import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
+import { pcbUnitText, pcbUnitValue, unitLabel } from '../pcb_unit_binder.js';
+import { DIALOG_DIMENSION_PROPERTIES_BASE } from './dialog_dimension_properties_base.js';
+import type { FIELD } from './dialog_text_properties_base.js';
 import { IN_EDIT } from '@ziroeda/common/eda_item_flags.js';
+import { FONT } from '@ziroeda/common/font/font.js';
+import { GR_TEXT_H_ALIGN_T } from '@ziroeda/common/font/text_attributes.js';
 import { LSET_Name, LSET_NameToLayer } from '@ziroeda/common/layer_ids.js';
 import { EDA_ANGLE } from '@ziroeda/kimath/src/geometry/eda_angle.js';
 import { BOARD_COMMIT } from '../board_commit.js';
@@ -100,6 +108,10 @@ export interface DimensionValues {
   textX: number;
   textY: number;
   locked: boolean;
+  /** `m_fontCtrl`; '' is the stroke font. */
+  face: string;
+  /** `m_alignLeft` / `m_alignCenter` / `m_alignRight`. */
+  hJustify: 'left' | 'center' | 'right';
 }
 
 /** The single selected dimension's index, or null. */
@@ -108,55 +120,37 @@ export interface DimensionValues {
 
 /** Which groups of controls the properties dialog shows, by kind. */
 export interface DimensionDialogFields {
-  /** Prefix, suffix, units, format, precision, suppress zeroes, override text. */
+  /** `m_sizerLeader`: a leader's text, frame and layer. */
+  leader: boolean;
+  /** `m_sizerCenter`: a center mark's layer. */
+  center: boolean;
+  /** `m_sizerFormat`: value, override, prefix, suffix, units, precision, layer, preview. */
   format: boolean;
-  /** Text size, thickness, orientation, bold/italic/mirrored. */
+  /** `m_sizerText`. */
   text: boolean;
-  /** The Outside/Inline/Manual choice, inside the text group. */
+  /** `m_lblTextPositionMode` / `m_cbTextPositionMode`. */
   textPositionMode: boolean;
   arrowLength: boolean;
   extensionOffset: boolean;
-  /** Extension line overshoot. */
+  /** `m_extensionOvershoot.Show( false )` unless the item is a PCB_DIM_ALIGNED. */
   extensionOvershoot: boolean;
-  arrowDirection: boolean;
-  /** The leader's text frame (none/rectangle/circle/round rectangle). */
-  textFrame: boolean;
 }
 
-/**
- * `DIALOG_DIMENSION_PROPERTIES`' constructor switch, which hides whole sizers
- * depending on the dimension's class.
- *
- * - A **centre** mark measures nothing and has no text, so the format and text
- *   groups go, and with them the arrow length and extension offset — it draws
- *   only a cross.
- * - A **leader** shows text you typed rather than a measurement, so the format
- *   group goes and the text-position choice with it, but the text frame appears.
- * - **Extension overshoot** is gated on `dynamic_cast<PCB_DIM_ALIGNED*>`
- *   (`m_extensionOvershoot.Show(false)` otherwise), so radial and leader do not
- *   get it either.
- *
- * **One deliberate divergence.** Upstream leaves the arrow-direction choice
- * visible for radial and leader, but `updateDimensionFromDialog` only ever
- * reaches `SetArrowDirection` through the base pointer while the *serializer*
- * writes `(arrow_direction …)` for aligned and orthogonal alone — so on those
- * kinds the control changes nothing that survives a save. It is hidden here for
- * the same reason Create Array does not offer numbering: a control that quietly
- * does nothing is worse than its absence.
- */
+/** The constructor's `switch( m_dimension->Type() )` and TransferDataToWindow's overshoot cast. */
 export function dimensionDialogFields(aType: KICAD_T): DimensionDialogFields {
   const aligned = aType === KICAD_T.PCB_DIM_ALIGNED_T || aType === KICAD_T.PCB_DIM_ORTHOGONAL_T;
   const centre = aType === KICAD_T.PCB_DIM_CENTER_T;
   const leader = aType === KICAD_T.PCB_DIM_LEADER_T;
+
   return {
+    leader,
+    center: centre,
     format: !centre && !leader,
     text: !centre,
-    textPositionMode: !centre && !leader,
+    textPositionMode: !leader,
     arrowLength: !centre,
     extensionOffset: !centre,
     extensionOvershoot: aligned,
-    arrowDirection: aligned,
-    textFrame: leader,
   };
 }
 
@@ -221,6 +215,13 @@ export class DIALOG_DIMENSION_PROPERTIES {
       textX: d.GetTextPos().x,
       textY: d.GetTextPos().y,
       locked: d.IsLocked(),
+      face: d.GetFont()?.GetName() ?? '',
+      hJustify:
+        d.GetHorizJustify() === GR_TEXT_H_ALIGN_T.GR_TEXT_H_ALIGN_LEFT
+          ? 'left'
+          : d.GetHorizJustify() === GR_TEXT_H_ALIGN_T.GR_TEXT_H_ALIGN_RIGHT
+            ? 'right'
+            : 'center',
     };
   }
 
@@ -259,9 +260,19 @@ export class DIALOG_DIMENSION_PROPERTIES {
     aTarget.SetTextHeight(v.textHeight);
     aTarget.SetTextThickness(v.textThickness);
 
+    // m_fontCtrl->GetFontSelection( bold, italic )
+    aTarget.SetFont(v.face === '' ? null : FONT.GetFont(v.face, v.bold, v.italic));
+
     // Must come after SetTextWidth/Height()
     aTarget.SetBold(v.bold);
     aTarget.SetItalic(v.italic);
+    aTarget.SetHorizJustify(
+      v.hJustify === 'left'
+        ? GR_TEXT_H_ALIGN_T.GR_TEXT_H_ALIGN_LEFT
+        : v.hJustify === 'center'
+          ? GR_TEXT_H_ALIGN_T.GR_TEXT_H_ALIGN_CENTER
+          : GR_TEXT_H_ALIGN_T.GR_TEXT_H_ALIGN_RIGHT,
+    );
 
     aTarget.SetMirrored(v.mirrored);
 
@@ -275,6 +286,19 @@ export class DIALOG_DIMENSION_PROPERTIES {
       aTarget.SetTextBorder(v.textFrame as number as DIM_TEXT_BORDER);
 
     aTarget.Update();
+  }
+
+  /** `m_dimension->GetValueText()`: the measurement, for m_txtValue when not overridden. */
+  GetValueText(): string {
+    return this.m_dimension.GetValueText();
+  }
+
+  /** updatePreviewText(): `m_previewDimension` updated from the dialog, its shown text. */
+  GetPreviewText(v: DimensionValues): string {
+    const preview = this.m_dimension.Clone() as PCB_DIMENSION_BASE;
+    preview.SetParent(this.m_frame.GetBoard());
+    this.updateDimensionFromDialog(preview, v);
+    return preview.GetShownText(true);
   }
 
   TransferDataFromWindow(v: DimensionValues): TransferResult {
@@ -296,4 +320,207 @@ export class DIALOG_DIMENSION_PROPERTIES {
 
     return { ok: true };
   }
+}
+
+type LengthKey =
+  | 'lineThickness'
+  | 'arrowLength'
+  | 'extensionOffset'
+  | 'extensionOvershoot'
+  | 'textWidth'
+  | 'textHeight'
+  | 'textThickness'
+  | 'textX'
+  | 'textY';
+
+/** `m_cbTextOrientation`'s text: one of rot_list's entries when the angle is one of them. */
+function orientationText(aDegrees: number): string {
+  const turn = (a: number): number => ((a % 360) + 360) % 360;
+  return ([0, 90, -90, 180].find((o) => turn(o) === turn(aDegrees)) ?? aDegrees).toFixed(1);
+}
+
+/** `ShowModal()` of DIALOG_DIMENSION_PROPERTIES: its base over the dimension's values. */
+export function DialogDimensionProperties({
+  dialog,
+  units,
+  layers,
+  layerColor,
+  onApply,
+  onClose,
+}: {
+  dialog: DIALOG_DIMENSION_PROPERTIES;
+  units: StatusUnits;
+  layers: readonly string[];
+  /** The board colour of a layer, for PCB_LAYER_BOX_SELECTOR's swatch. */
+  layerColor: (layer: string) => string;
+  onApply: (v: DimensionValues) => void;
+  onClose: () => void;
+}): JSX.Element {
+  const [v, setV] = useState<DimensionValues>(() => dialog.TransferDataToWindow());
+  const [texts, setTexts] = useState<Partial<Record<LengthKey | 'orientation', string>>>({});
+  // onFontSelected's m_textThickness.Show().
+  const [strokeShown, setStrokeShown] = useState(true);
+
+  const show = dimensionDialogFields(dialog.GetDimensionType());
+  const set = (patch: Partial<DimensionValues>): void => setV((p) => ({ ...p, ...patch }));
+  const preview = useMemo(() => dialog.GetPreviewText(v), [dialog, v]);
+
+  /** onThickness / onFontSelected: bold is whichever pen the thickness is nearer. */
+  const boldFor = (aValues: DimensionValues): boolean => {
+    const textSize = Math.min(aValues.textWidth, aValues.textHeight);
+    return (
+      Math.abs(aValues.textThickness - GetPenSizeForBold(textSize)) <
+      Math.abs(aValues.textThickness - GetPenSizeForNormal(textSize))
+    );
+  };
+
+  const length = (aKey: LengthKey, aLabel: string, aTitle?: string): FIELD => ({
+    label: aLabel,
+    title: aTitle,
+    value: texts[aKey] ?? pcbUnitText(v[aKey], units),
+    units: unitLabel(units),
+    onChange: (aText) => {
+      setTexts((t) => ({ ...t, [aKey]: aText }));
+      const iu = pcbUnitValue(aText, units);
+      if (!Number.isFinite(iu)) return;
+      setV((p) => {
+        const next = { ...p, [aKey]: iu };
+        if (aKey === 'textThickness') next.bold = boldFor(next);
+        return next;
+      });
+    },
+    onBlur: () => setTexts((t) => ({ ...t, [aKey]: undefined })),
+  });
+
+  const layerBox = {
+    rows: layers.map((l) => ({ value: l, label: l, swatch: layerColor(l) })),
+    value: v.layer,
+    onChange: (aLayer: string) => set({ layer: aLayer }),
+  };
+
+  const manual = v.textPositionMode === 2;
+  const overridden = v.overrideValue !== undefined;
+  // m_txtValueActual: the override when there is one, else the measurement.
+  const valueText = v.overrideValue ?? dialog.GetValueText();
+
+  return (
+    <DIALOG_DIMENSION_PROPERTIES_BASE
+      m_sizerLeader={show.leader}
+      m_sizerCenter={show.center}
+      m_sizerFormat={show.format}
+      m_sizerText={show.text}
+      m_txtLeaderValue={{ value: valueText, onChange: (aText) => set({ overrideValue: aText }) }}
+      m_cbTextFrame={{
+        value: v.textFrame,
+        onChange: (aIndex) => set({ textFrame: aIndex as DimTextBorder }),
+      }}
+      m_cbLeaderLayer={layerBox}
+      m_cbCenterLayer={layerBox}
+      m_txtValue={{
+        value: valueText,
+        enabled: overridden,
+        onChange: (aText) => set({ overrideValue: aText }),
+      }}
+      m_cbOverrideValue={{
+        value: overridden,
+        // Unchecked, m_txtValue goes back to the measurement.
+        onChange: (aOn) => set({ overrideValue: aOn ? dialog.GetValueText() : undefined }),
+      }}
+      m_cbUnits={{ value: v.units, onChange: (aIndex) => set({ units: aIndex as DimUnitsMode }) }}
+      m_txtPrefix={{ value: v.prefix, onChange: (aText) => set({ prefix: aText }) }}
+      m_cbUnitsFormat={{
+        value: v.unitsFormat,
+        onChange: (aIndex) => set({ unitsFormat: aIndex as DimUnitsFormat }),
+      }}
+      m_txtSuffix={{ value: v.suffix, onChange: (aText) => set({ suffix: aText }) }}
+      m_cbPrecision={{
+        value: v.precision,
+        onChange: (aIndex) => set({ precision: aIndex as DimPrecision }),
+      }}
+      m_cbLayer={layerBox}
+      m_cbSuppressZeroes={{
+        value: v.suppressZeroes,
+        onChange: (aOn) => set({ suppressZeroes: aOn }),
+      }}
+      m_staticTextPreview={preview}
+      m_fontCtrl={{
+        face: v.face,
+        onChange: (aFace) => {
+          const stroke = FONT.IsStrokeName(aFace === '' ? 'KiCad Font' : aFace);
+          setStrokeShown(stroke);
+          setV((p) => ({ ...p, face: aFace, ...(stroke ? { bold: boldFor(p) } : {}) }));
+        },
+      }}
+      m_bold={{
+        checked: v.bold,
+        onClick: () => {
+          // onBoldToggle: the thickness follows the new state.
+          setV((p) => {
+            const textSize = Math.min(p.textWidth, p.textHeight);
+            const bold = !p.bold;
+            return {
+              ...p,
+              bold,
+              textThickness: bold ? GetPenSizeForBold(textSize) : GetPenSizeForNormal(textSize),
+            };
+          });
+          setTexts((t) => ({ ...t, textThickness: undefined }));
+        },
+      }}
+      m_italic={{ checked: v.italic, onClick: () => set({ italic: !v.italic }) }}
+      hAlign={v.hJustify}
+      onHAlign={(aAlign) => set({ hJustify: aAlign })}
+      m_mirrored={{ checked: v.mirrored, onClick: () => set({ mirrored: !v.mirrored }) }}
+      m_textWidth={length('textWidth', 'Width:', 'Text width')}
+      m_textPosX={{ ...length('textX', 'Position X:', 'Text pos X'), enabled: manual }}
+      m_textHeight={length('textHeight', 'Height:', 'Text height')}
+      m_textPosY={{ ...length('textY', 'Position Y:', 'Text pos Y'), enabled: manual }}
+      m_textThickness={{
+        ...length('textThickness', 'Thickness:', 'Text thickness'),
+        shown: strokeShown,
+      }}
+      m_cbTextOrientation={{
+        value: texts.orientation ?? orientationText(v.textOrientation),
+        enabled: !v.keepTextAligned,
+        onChange: (aText) => {
+          setTexts((t) => ({ ...t, orientation: aText }));
+          const n = Number(aText);
+          if (aText.trim() !== '' && Number.isFinite(n)) set({ textOrientation: n });
+        },
+      }}
+      m_cbTextPositionMode={{
+        value: v.textPositionMode,
+        shown: show.textPositionMode,
+        onChange: (aIndex) => set({ textPositionMode: aIndex as DimTextPosition }),
+      }}
+      m_cbKeepAligned={{
+        value: v.keepTextAligned,
+        onChange: (aOn) => set({ keepTextAligned: aOn }),
+      }}
+      m_lineThickness={length(
+        'lineThickness',
+        'Line thickness:',
+        'Thickness of the dimension lines',
+      )}
+      m_arrowLength={{ ...length('arrowLength', 'Arrow length:'), shown: show.arrowLength }}
+      m_extensionOffset={{
+        ...length(
+          'extensionOffset',
+          'Extension line offset:',
+          'Gap between the measured points and the start of the extension lines',
+        ),
+        shown: show.extensionOffset,
+      }}
+      m_extensionOvershoot={{
+        ...length('extensionOvershoot', 'Extension line overshoot:'),
+        shown: show.extensionOvershoot,
+      }}
+      m_cbArrowDirection={{
+        value: v.arrowDirection === 'inward' ? 0 : 1,
+        onChange: (aIndex) => set({ arrowDirection: aIndex === 0 ? 'inward' : 'outward' }),
+      }}
+      onOK={() => onApply(v)}
+      onCancel={onClose}
+    />
+  );
 }

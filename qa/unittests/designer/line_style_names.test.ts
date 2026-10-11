@@ -63,11 +63,11 @@ const CALL_SITES: Record<string, string> = {
   ),
   'schematic/net_overrides.ts': read('../../../eeschema/net_overrides.ts'),
   'eeschema/schematic_settings.ts': read('../../../eeschema/schematic_settings.ts'),
-  'pcb/dialogs/dialog_graphic_properties.tsx': read(
-    `../../../pcbnew/dialogs/dialog_graphic_properties.tsx`,
+  'pcbnew/dialogs/dialog_shape_properties.tsx': read(
+    `../../../pcbnew/dialogs/dialog_shape_properties.tsx`,
   ),
-  'pcb/dialogs/dialog_textbox_properties.tsx': read(
-    `../../../pcbnew/dialogs/dialog_textbox_properties_ui.tsx`,
+  'pcbnew/dialogs/dialog_textbox_properties.tsx': read(
+    `../../../pcbnew/dialogs/dialog_textbox_properties.tsx`,
   ),
   // DIALOG_TABLE_PROPERTIES is two dialogs upstream, eeschema's and pcbnew's (10-11: one
   // _base pair per KiCad dialog); each fills its style combos from lineTypeNames.

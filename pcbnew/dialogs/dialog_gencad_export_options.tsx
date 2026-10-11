@@ -11,6 +11,21 @@
  * the jobset runner's, which is not ported.
  */
 
+import { type JSX, useEffect, useState } from 'react';
+import { DialogShim } from '@ziroeda/common/dialog_shim.js';
+import { StdBitmapButton } from '@ziroeda/common/widgets/std_bitmap_button.js';
+import { CheckBox, StaticLine, StaticText, TextCtrl } from '@ziroeda/wx/controls.js';
+import {
+  wxALIGN_CENTER_VERTICAL,
+  wxALL,
+  wxBOTTOM,
+  wxEXPAND,
+  wxHORIZONTAL,
+  wxLEFT,
+  wxRIGHT,
+  wxVERTICAL,
+} from '@ziroeda/wx/defs.js';
+import { BoxSizer, FlexGridSizer, SizerItem, StdDialogButtonSizer } from '@ziroeda/wx/sizer.js';
 import type { KiDialogRequest } from '@ziroeda/common/kidialog.js';
 import type { KiDialogResult } from '@ziroeda/common/kidialog_do_not_show.js';
 
@@ -127,4 +142,104 @@ export class DIALOG_GENCAD_EXPORT_OPTIONS {
 
     return true;
   }
+}
+
+/**
+ * The window DIALOG_GENCAD_EXPORT_OPTIONS's constructor and createOptCheckboxes() build in code
+ * (dialog_gencad_export_options.cpp:56-82,227-229) - KiCad has no _base for it.
+ */
+export function DialogGencadExportOptions({
+  dialog,
+  onBrowse,
+  onResult,
+}: {
+  dialog: DIALOG_GENCAD_EXPORT_OPTIONS;
+  /** `onBrowseClicked`: the file dialog, resolving to the chosen path or null. */
+  onBrowse: () => Promise<string | null>;
+  onResult: (aOk: boolean) => void;
+}): JSX.Element {
+  const [, setTick] = useState(0);
+  const changed = (): void => setTick((t) => t + 1);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: TransferDataToWindow runs once per dialog, as ShowModal() does; `changed` is a fresh closure each render.
+  useEffect(() => {
+    dialog.TransferDataToWindow();
+    changed();
+  }, [dialog]);
+
+  return (
+    <DialogShim title={dialog.m_title} onClose={() => onResult(false)}>
+      {/* m_mainSizer */}
+      <BoxSizer orient={wxVERTICAL}>
+        <SizerItem flag={wxEXPAND | wxALL} border={5}>
+          {/* m_fileSizer */}
+          <BoxSizer orient={wxHORIZONTAL}>
+            <SizerItem flag={wxALIGN_CENTER_VERTICAL | wxLEFT} border={5}>
+              <StaticText label="Output File:" />
+            </SizerItem>
+            <SizerItem proportion={1} flag={wxALL | wxEXPAND} border={5} minSize={[350, -1]}>
+              <TextCtrl
+                value={dialog.m_outputFileName}
+                onChange={(aValue) => {
+                  dialog.m_outputFileName = aValue;
+                  changed();
+                }}
+                title="Enter a filename if you do not want to use default file names"
+                ariaLabel="Output File"
+              />
+            </SizerItem>
+            <SizerItem flag={wxALIGN_CENTER_VERTICAL | wxRIGHT} border={5}>
+              <StdBitmapButton
+                bitmap="small_folder"
+                title="Browse"
+                tooltip={null}
+                onClick={() => {
+                  void onBrowse().then((aPath) => {
+                    if (aPath === null) return;
+                    dialog.m_outputFileName = aPath;
+                    changed();
+                  });
+                }}
+              />
+            </SizerItem>
+          </BoxSizer>
+        </SizerItem>
+        <SizerItem proportion={1} flag={wxEXPAND | wxALL} border={5}>
+          {/* m_optsSizer = wxGridSizer( 0, 1, 3, 3 ) */}
+          <FlexGridSizer cols={1} vgap={3} hgap={3}>
+            {GENCAD_EXPORT_OPT_LABELS.map(([opt, label]) => (
+              <SizerItem key={opt}>
+                <CheckBox
+                  label={label}
+                  checked={dialog.GetOption(opt)}
+                  onChange={(aChecked) => {
+                    dialog.SetOption(opt, aChecked);
+                    changed();
+                  }}
+                />
+              </SizerItem>
+            ))}
+          </FlexGridSizer>
+        </SizerItem>
+        <SizerItem flag={wxALL | wxEXPAND} border={5}>
+          {/* CreateSeparatedButtonSizer( wxOK | wxCANCEL ): a wxStaticLine, Expand().DoubleBorder( wxBOTTOM ), over the buttons */}
+          <BoxSizer orient={wxVERTICAL}>
+            <SizerItem flag={wxEXPAND | wxBOTTOM} border={10}>
+              <StaticLine />
+            </SizerItem>
+            <SizerItem flag={wxEXPAND}>
+              <StdDialogButtonSizer
+                onOk={() => {
+                  void dialog.TransferDataFromWindow().then((aOk) => {
+                    if (aOk) onResult(true);
+                  });
+                }}
+                onCancel={() => onResult(false)}
+              />
+            </SizerItem>
+          </BoxSizer>
+        </SizerItem>
+      </BoxSizer>
+    </DialogShim>
+  );
 }

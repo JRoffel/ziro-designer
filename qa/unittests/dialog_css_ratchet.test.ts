@@ -19,7 +19,8 @@ const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const BASELINE: Record<string, number> = {
   '3d-viewer': 6,
   // 183 -> 162 (10-11): the shared Page Settings pair; the .ze-pgs-* block and ze-btn-bitmap.
-  common: 162, // -11 (10-11): the shared Table Properties form, replaced by one pair per editor
+  // 162 -> 151 (10-12): DIALOG_PRINT_GENERIC_BASE pair.
+  common: 151, // -11 (10-11): the shared Table Properties form, replaced by one pair per editor
   cvpcb: 8,
   designer: 138,
   // 114 -> 122 (10-11): not new CSS. ze-lp-* classes the old Table Cell and Label forms shared
@@ -42,7 +43,8 @@ const BASELINE: Record<string, number> = {
   // that batch left to eeschema alone.
   // 32 -> 21 (10-11): ERC's pair; the .ze-erc-* block it held since DRC converted.
   eeschema: 21,
-  gerbview: 31,
+  // 31 -> 27 (10-12): Print on DIALOG_PRINT_GENERIC_BASE.
+  gerbview: 27,
   pagelayout_editor: 14,
   // 477 -> 465 (10-10): the drill and position-file dialogs on the sizers.
   // 465 -> 466 (10-11): not new CSS. `span2` was shared with eeschema's Find dialog; with Find a
@@ -62,7 +64,9 @@ const BASELINE: Record<string, number> = {
   // 334 -> 276 (10-12): Find, Exchange Footprints, Tuning Pattern and Pad Table pairs.
   // 276 -> 257 (10-12): Global Edit Tracks & Vias and Text & Graphics pairs.
   // 257 -> 236 (10-12): Global Edit Teardrops pair.
-  pcbnew: 236,
+  // 236 -> 188 (10-12): Barcode, Layer Selection, GenCAD, Print, Text, Text Box, Dimension.
+  // 188 -> 182 (10-12): Shape, Import Graphics, Convert Settings, Complex Shape.
+  pcbnew: 182,
 };
 
 const git = (...aSpecs: string[]): string[] =>

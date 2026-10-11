@@ -9,7 +9,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { pcbIUScale } from '@ziroeda/common/eda_units.js';
-import { MwavePolygonalShapeDlg } from '@ziroeda/pcbnew/microwave/microwave_polygon_ui.js';
+import { MwavePolygonalShapeDlg } from '@ziroeda/pcbnew/microwave/microwave_polygon.js';
 import {
   g_MwaveShape,
   g_PolyEdges,
@@ -54,8 +54,8 @@ describe('MWAVE_POLYGONAL_SHAPE_DLG', () => {
       false,
       false,
     ]);
-    expect(entry('X:').value).toBe('');
-    expect(entry('Y:').value).toBe('');
+    expect(entry('X').value).toBe('');
+    expect(entry('Y').value).toBe('');
     expect(screen.getAllByText('mm')).toHaveLength(2);
     expect(screen.getByText('Read Shape Description File...')).toBeTruthy();
   });
@@ -63,8 +63,8 @@ describe('MWAVE_POLYGONAL_SHAPE_DLG', () => {
   it('OK transfers the radio selection into g_PolyShapeType and the sizes into g_ShapeSize', () => {
     const onResult = show();
     fireEvent.click(radio('Mirrored'));
-    fireEvent.change(entry('X:'), { target: { value: '2' } });
-    fireEvent.change(entry('Y:'), { target: { value: '0.5' } });
+    fireEvent.change(entry('X'), { target: { value: '2' } });
+    fireEvent.change(entry('Y'), { target: { value: '0.5' } });
     fireEvent.click(screen.getByRole('button', { name: 'OK' }));
 
     expect(onResult).toHaveBeenCalledWith(true);
@@ -96,8 +96,8 @@ describe('MWAVE_POLYGONAL_SHAPE_DLG', () => {
     show();
     chooseFile(FILE);
     // XScale 10 mm, YScale 2 mm.
-    await waitFor(() => expect(entry('X:').value).toBe('10'));
-    expect(entry('Y:').value).toBe('2');
+    await waitFor(() => expect(entry('X').value).toBe('10'));
+    expect(entry('Y').value).toBe('2');
     expect(g_PolyEdges).toEqual([
       { x: 0, y: 0.5 },
       { x: 1, y: 1 },

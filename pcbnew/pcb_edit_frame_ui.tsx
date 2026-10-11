@@ -192,7 +192,7 @@ import type { DIALOG_FIND } from './dialogs/dialog_find.js';
 import { DialogPageSettings } from '@ziroeda/common/dialogs/dialog_page_settings.js';
 import { pageSettingsValue, toPaperToken } from '@ziroeda/common/dialogs/dialog_page_settings.js';
 import { type ExtentsBox, pcbZoomFitBox } from './pcb_base_frame.js';
-import { DialogPcbPrint } from './dialogs/dialog_print_pcbnew_ui.js';
+import { DialogPcbPrint } from './dialogs/dialog_print_pcbnew.js';
 import type { DIALOG_PRINT_PCBNEW } from './dialogs/dialog_print_pcbnew.js';
 import { wxPrinter } from '@ziroeda/wx/printer.js';
 import { MessageDialogError, MessageDialogOk } from '@ziroeda/common/dialogs/dialog_message.js';
@@ -202,7 +202,7 @@ import { DialogExport2581 } from './dialogs/dialog_export_2581.js';
 import { DialogExportOdbpp, type ODBPP_DIALOG_RESULT } from './dialogs/dialog_export_odbpp.js';
 import { DialogExportVrml, type VRML_DIALOG_RESULT } from './dialogs/dialog_export_vrml.js';
 import { DialogGendrill } from './dialogs/dialog_gendrill.js';
-import { DialogGencadExportOptions } from './dialogs/dialog_gencad_export_options_ui.js';
+import { DialogGencadExportOptions } from './dialogs/dialog_gencad_export_options.js';
 import type { DIALOG_GENCAD_EXPORT_OPTIONS } from './dialogs/dialog_gencad_export_options.js';
 import { gencadFileWildcard } from '@ziroeda/common/wildcards_and_files_ext.js';
 import {
@@ -263,7 +263,7 @@ import {
   DialogGetFootprintByName,
 } from './dialogs/dialog_get_footprint_by_name.js';
 import { CONVERT_SETTINGS_DIALOG } from './tools/convert_settings_dialog.js';
-import { ConvertSettingsDialog } from './tools/convert_settings_dialog_ui.js';
+import { ConvertSettingsDialog } from './tools/convert_settings_dialog.js';
 import type { OUTSET_PARAMETERS } from './tools/item_modification_routine.js';
 import type { CONVERT_SETTINGS } from './pcbnew_settings.js';
 import type { ZONE_SETTINGS } from './zone_settings.js';
@@ -380,7 +380,7 @@ import { EDA_ANGLE, EDA_ANGLE_T } from '@ziroeda/kimath/src/geometry/eda_angle.j
 import { ARRAY_TOOL } from './tools/array_tool.js';
 import type { PCB_SELECTION } from './tools/pcb_selection.js';
 import { PCB_ACTIONS } from './tools/pcb_actions.js';
-import { MwavePolygonalShapeDlg } from './microwave/microwave_polygon_ui.js';
+import { MwavePolygonalShapeDlg } from './microwave/microwave_polygon.js';
 import {
   DialogZoneManager,
   type ZonePreviewCanvasFactory,

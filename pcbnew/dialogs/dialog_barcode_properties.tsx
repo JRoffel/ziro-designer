@@ -21,6 +21,11 @@
  * not encode is refused with `m_lastError` in a message box, rather than being
  * committed as an empty symbol.
  */
+import { type JSX, useEffect, useRef, useState } from 'react';
+import { MessageDialogError } from '@ziroeda/common/dialogs/dialog_message.js';
+import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
+import { pcbUnitText, pcbUnitValue, unitLabel } from '../pcb_unit_binder.js';
+import { DIALOG_BARCODE_PROPERTIES_BASE, type FIELD } from './dialog_barcode_properties_base.js';
 import { LSET_Name, LSET_NameToLayer } from '@ziroeda/common/layer_ids.js';
 import { EDA_ANGLE, EDA_ANGLE_T } from '@ziroeda/kimath/src/geometry/eda_angle.js';
 import { BOARD_COMMIT } from '../board_commit.js';
@@ -260,4 +265,174 @@ export class DIALOG_BARCODE_PROPERTIES {
 
     return { ok: true };
   }
+}
+
+/** The preview: the barcode's outline filled in the layer colour, fitted to the panel. */
+function drawPreview(
+  aCanvas: HTMLCanvasElement,
+  aPreview: BarcodePreview,
+  aInk: string,
+  aBackground: string,
+): void {
+  const ctx = aCanvas.getContext('2d');
+  if (!ctx) return;
+
+  const w = aCanvas.width;
+  const h = aCanvas.height;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = aBackground;
+  ctx.fillRect(0, 0, w, h);
+
+  if (aPreview.rings.length === 0) return;
+
+  const bw = aPreview.bbox.x2 - aPreview.bbox.x1;
+  const bh = aPreview.bbox.y2 - aPreview.bbox.y1;
+  if (bw <= 0 || bh <= 0) return;
+
+  const scale = Math.min(w / bw, h / bh) * 0.7;
+  const cx = (aPreview.bbox.x1 + aPreview.bbox.x2) / 2;
+  const cy = (aPreview.bbox.y1 + aPreview.bbox.y2) / 2;
+  ctx.setTransform(scale, 0, 0, scale, w / 2 - cx * scale, h / 2 - cy * scale);
+  ctx.fillStyle = aInk;
+  ctx.beginPath();
+
+  for (const ring of aPreview.rings) {
+    if (ring.length < 3) continue;
+    ctx.moveTo(ring[0]!.x, ring[0]!.y);
+    for (let i = 1; i < ring.length; i++) ctx.lineTo(ring[i]!.x, ring[i]!.y);
+    ctx.closePath();
+  }
+
+  ctx.fill('nonzero');
+}
+
+/** `ShowModal()` of DIALOG_BARCODE_PROPERTIES, its base over the values. */
+export function DialogBarcodeProperties({
+  preview,
+  commitError,
+  initial,
+  units,
+  layers,
+  layerColor,
+  background,
+  onApply,
+  onClose,
+}: {
+  units: StatusUnits;
+  /** The barcode the values make, for m_panelShowBarcodeGal. */
+  preview: (v: BarcodeValues) => BarcodePreview;
+  /** What OK would refuse with, or ''. */
+  commitError: (v: BarcodeValues) => string;
+  initial: BarcodeValues;
+  layers: readonly string[];
+  layerColor: (layer: string) => string;
+  background: string;
+  onApply: (v: BarcodeValues) => void;
+  onClose: () => void;
+}): JSX.Element {
+  const [v, setV] = useState<BarcodeValues>(initial);
+  const [texts, setTexts] = useState<Partial<Record<string, string>>>({});
+  const [error, setError] = useState<string | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    const c = canvasRef.current;
+    if (c) drawPreview(c, preview(v), layerColor(v.layer), background);
+  }, [preview, v, layerColor, background]);
+
+  const ui = barcodeUiState(v);
+  const set = (patch: Partial<BarcodeValues>): void =>
+    setV((p) => correctEccForKind({ ...p, ...patch }));
+
+  const length = (
+    aKey: string,
+    aLabel: string,
+    aValue: number,
+    aApply: (aIu: number) => void,
+    aEnabled = true,
+  ): FIELD => ({
+    label: aLabel,
+    value: texts[aKey] ?? pcbUnitText(aValue, units),
+    units: unitLabel(units),
+    enabled: aEnabled,
+    onChange: (aText) => {
+      setTexts((t) => ({ ...t, [aKey]: aText }));
+      const iu = pcbUnitValue(aText, units);
+      if (Number.isFinite(iu)) aApply(iu);
+    },
+    onBlur: () => setTexts((t) => ({ ...t, [aKey]: undefined })),
+  });
+
+  return (
+    <>
+      <DIALOG_BARCODE_PROPERTIES_BASE
+        m_textInput={{ value: v.text, onChange: (aText) => set({ text: aText }) }}
+        m_cbLocked={{ value: v.locked, onChange: (aOn) => set({ locked: aOn }) }}
+        m_cbKnockout={{ value: v.knockout, onChange: (aOn) => set({ knockout: aOn }) }}
+        m_cbShowText={{ value: v.showText, onChange: (aOn) => set({ showText: aOn }) }}
+        m_cbLayer={{
+          rows: layers.map((l) => ({ value: l, label: l, swatch: layerColor(l) })),
+          value: v.layer,
+          onChange: (aLayer) => set({ layer: aLayer }),
+        }}
+        m_posX={length('x', 'Position X:', v.at.x, (iu) => set({ at: { ...v.at, x: iu } }))}
+        m_posY={length('y', 'Position Y:', v.at.y, (iu) => set({ at: { ...v.at, y: iu } }))}
+        m_sizeX={length('w', 'Size X:', v.width, (iu) => set({ width: iu }))}
+        m_sizeY={length('h', 'Size Y:', v.height, (iu) => set({ height: iu }))}
+        m_orientation={{
+          label: 'Orientation:',
+          value: texts.angle ?? String(v.angle),
+          units: 'deg',
+          onChange: (aText) => {
+            setTexts((t) => ({ ...t, angle: aText }));
+            const n = Number(aText);
+            if (aText.trim() !== '' && Number.isFinite(n)) set({ angle: n });
+          },
+        }}
+        m_textSize={length(
+          'ts',
+          'Text size:',
+          v.textHeight,
+          (iu) => set({ textHeight: iu }),
+          ui.textSizeEnabled,
+        )}
+        m_marginX={length(
+          'mx',
+          'Min margin X:',
+          v.margin.x,
+          (iu) => set({ margin: { ...v.margin, x: iu } }),
+          ui.marginsEnabled,
+        )}
+        m_marginY={length(
+          'my',
+          'Min margin Y:',
+          v.margin.y,
+          (iu) => set({ margin: { ...v.margin, y: iu } }),
+          ui.marginsEnabled,
+        )}
+        m_barcode={{
+          choices: BARCODE_KIND_CHOICES.map((c) => c.label),
+          selection: BARCODE_KIND_CHOICES.findIndex((c) => c.value === v.kind),
+          onChange: (aIndex) => set({ kind: BARCODE_KIND_CHOICES[aIndex]!.value }),
+        }}
+        m_errorCorrection={{
+          choices: BARCODE_ECC_CHOICES.map((c) => c.label),
+          selection: BARCODE_ECC_CHOICES.findIndex((c) => c.value === v.ecc),
+          enabled: ui.eccEnabled,
+          itemEnabled: BARCODE_ECC_CHOICES.map((c) => c.value !== 'H' || ui.eccHEnabled),
+          onChange: (aIndex) => set({ ecc: BARCODE_ECC_CHOICES[aIndex]!.value }),
+        }}
+        m_panelShowBarcodeGal={
+          <canvas ref={canvasRef} width={280} height={280} aria-label="Preview" />
+        }
+        onOK={() => {
+          const message = commitError(v);
+          if (message) setError(message);
+          else onApply(v);
+        }}
+        onCancel={onClose}
+      />
+      {error !== null && <MessageDialogError message={error} onClose={() => setError(null)} />}
+    </>
+  );
 }

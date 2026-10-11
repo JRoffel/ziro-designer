@@ -173,7 +173,7 @@ describe('the board editor’s Text Box Properties takes the units as a prop', (
   // Named for the same reason the two schematic ones below are: the scan passes
   // for a dialog with no distance field at all, so "clean" is not the same as
   // "fixed". This one has four.
-  const src = readFileSync(pathOf('pcbnew/dialog_textbox_properties_ui.tsx'), 'utf8');
+  const src = readFileSync(pathOf('pcbnew/dialog_textbox_properties.tsx'), 'utf8');
 
   it('binds every distance through UNIT_BINDER rather than assuming millimetres', () => {
     expect(src).toMatch(/units:\s*StatusUnits/);
@@ -182,12 +182,10 @@ describe('the board editor’s Text Box Properties takes the units as a prop', (
     // than the Double form, because these fields bind int IU: `GetIntValue()`
     // quantises to the board's nanometre, which is what makes mm -> mils -> mm
     // round-trip instead of drifting by the display rounding.
-    expect(src).toMatch(/stringFromValue\(/);
-    expect(src).toMatch(/parseUnitValue\(/);
-    // The board's IU scale, not the drawing sheet's default: `stringFromValue`
-    // picks its digit count from `IU_PER_MM`, so the wrong scale prints a
-    // schematic's three decimals for a board's five.
-    expect(src).toMatch(/pcbIUScale/);
+    // pcb_unit_binder's pair, over the board's scale: pcbUnitText is StringFromValue,
+    // pcbUnitValue is ValueFromString quantised to IU.
+    expect(src).toMatch(/pcbUnitText\(/);
+    expect(src).toMatch(/pcbUnitValue\(/);
   });
 
   it('and no longer parses the field with Number(), which cannot read mils', () => {

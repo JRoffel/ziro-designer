@@ -850,7 +850,9 @@ const BASELINE: Record<string, { colours: number; metrics: number }> = {
   // metrics 586 -> 583 (10-11): the .ze-cz-* rules, gone with the Copper Zones pairs;
   // colours 126 -> 125, metrics 583 -> 542: Symbol Fields Table's .ze-sft-* rules.
   // colours 125 -> 119, metrics 542 -> 516 (10-11): ERC's .ze-erc-* rules.
-  'common/widgets': { colours: 119, metrics: 516 },
+  // colours 119 -> 116, metrics 516 -> 504 (10-12): the old Print, Text, Shape, Import Graphics
+  // and Zone-shared forms' .ze-printdlg-* / .ze-txt-* / .ze-tvp-* rules, gone with their _ui files.
+  'common/widgets': { colours: 116, metrics: 504 },
   // 10-10: metrics 1 -> 0, the menu drawing's one literal went to external/wx with it.
   'common/tool': { colours: 0, metrics: 0 },
   // metrics 0 -> 15 on 09-26: the stage-1 moves, 8 from `dialogs` and 7 from
@@ -1467,7 +1469,8 @@ describe('the scan totals, so the numbers in the PR stay true', () => {
     // 267 -> 264: the Schematic Setup panels.
     // 264 -> 263: the Symbol Fields Table.
     // 263 -> 257: ERC.
-    expect(SITES.filter((s) => s.kind === 'colours').length).toBe(257);
+    // 257 -> 254 (10-12): the common/widgets row above.
+    expect(SITES.filter((s) => s.kind === 'colours').length).toBe(254);
     // 1657 -> 1649: the same sweep. A native colour input has no useful
     // default size, so eight of the sixteen sites gave theirs an inline
     // width and height; the shared swatch takes --swatch-*-w/h. Rescanned.
@@ -1706,7 +1709,8 @@ describe('the scan totals, so the numbers in the PR stay true', () => {
     // 833 -> 830 (10-11): the .ze-cz-* rules, gone with the Copper Zones pairs;
     // 830 -> 789: the Symbol Fields Table.
     // 789 -> 763: ERC.
-    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(763);
+    // 763 -> 751 (10-12): the common/widgets row above.
+    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(751);
   });
 
   it('and the two agree with the per-area table, which is where they come from', () => {

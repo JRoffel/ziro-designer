@@ -496,8 +496,6 @@ export const TREE_EXCEPTIONS: Record<string, string> = {
     "browser-only: the app's half of the editor, no KiCad counterpart by design (browser/ subfolders, agreed 10-10)",
   'pcbnew/browser/pcbnew_live_settings.ts':
     "browser-only: the app's half of the editor, no KiCad counterpart by design (browser/ subfolders, agreed 10-10)",
-  'pcbnew/dialogs/dialog_graphic_properties.tsx':
-    'documented extra: dialog_text_properties.cpp + dialog_shape_properties.cpp in one (STRUCTURE.md dialogs/ row)',
   'pcbnew/dialogs/layer_tokens.ts':
     "UNAUDITED: no KiCad file of this name - port it under KiCad's name, fold it into its owner, or justify it here",
   'pcbnew/drc/drc_rule_view.ts':
@@ -514,10 +512,8 @@ export const TREE_EXCEPTIONS: Record<string, string> = {
     "UNAUDITED: no KiCad file of this name - port it under KiCad's name, fold it into its owner, or justify it here",
   'pcbnew/router/route_headless.ts':
     "UNAUDITED: no KiCad file of this name - port it under KiCad's name, fold it into its owner, or justify it here",
-  'pcbnew/tools/convert_settings_dialog.ts':
-    "UNAUDITED: no KiCad file of this name - port it under KiCad's name, fold it into its owner, or justify it here",
-  'pcbnew/tools/convert_settings_dialog_ui.tsx':
-    "UNAUDITED: no KiCad file of this name - port it under KiCad's name, fold it into its owner, or justify it here",
+  'pcbnew/tools/convert_settings_dialog.tsx':
+    'CONVERT_SETTINGS_DIALOG, which KiCad declares inside convert_tool.cpp; split out so the headless CONVERT_TOOL does not import React',
   'pcbnew/tools/pcb_origins.ts':
     "UNAUDITED: no KiCad file of this name - port it under KiCad's name, fold it into its owner, or justify it here",
   'pcbnew/tools/window_action_bridge.ts':

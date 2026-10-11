@@ -80,7 +80,8 @@ const BASELINE: Record<(typeof AREAS)[number], Record<Kind, number>> = {
   cvpcb: { button: 0, checkbox: 0, select: 0, frame: 1, radio: 0, entry: 1, sbox: 0 },
   designer: { button: 77, checkbox: 2, select: 0, frame: 0, radio: 5, entry: 25, sbox: 13 },
   eeschema: { button: 9, checkbox: 15, select: 6, frame: 1, radio: 1, entry: 22, sbox: 11 },
-  gerbview: { button: 3, checkbox: 3, select: 0, frame: 0, radio: 0, entry: 2, sbox: 2 },
+  // checkbox 3 -> 2 (10-12): Print on DIALOG_PRINT_GENERIC_BASE.
+  gerbview: { button: 3, checkbox: 2, select: 0, frame: 0, radio: 0, entry: 2, sbox: 2 },
   pagelayout_editor: { button: 4, checkbox: 0, select: 0, frame: 0, radio: 0, entry: 3, sbox: 1 },
   // +9 buttons, +6 checkboxes, +3 frames (10-10): pcb-exports' IPC-2581, ODB++ and VRML export
   // dialogs, merged in after being written before this ratchet existed; their session owns them
@@ -100,7 +101,9 @@ const BASELINE: Record<(typeof AREAS)[number], Record<Kind, number>> = {
   // then Find, Exchange Footprints, Tuning Pattern and Pad Table - checkbox 24, radio 3.
   // then Global Edit Tracks & Vias and Text & Graphics - checkbox 20, entry 15.
   // then Global Edit Teardrops - button 45, checkbox 18.
-  pcbnew: { button: 45, checkbox: 18, select: 1, frame: 1, radio: 3, entry: 15, sbox: 31 },
+  // then Barcode, Layer Selection, GenCAD, Print, Text, Text Box, Dimension.
+  // then Shape, Import Graphics, Convert Settings, Complex Shape: no raw select or radio left.
+  pcbnew: { button: 34, checkbox: 13, select: 0, frame: 1, radio: 0, entry: 9, sbox: 16 },
 };
 
 function tsxFiles(aDir: string, aOut: string[] = []): string[] {

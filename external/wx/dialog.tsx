@@ -163,6 +163,11 @@ export interface DialogProps {
   onClose: () => void;
   /** `Show()` rather than `ShowModal()`: no backdrop, and Escape only while it has the focus. */
   modeless?: boolean;
+  /**
+   * `Enable( false )`: the window stays up but takes no input, and the frame behind it is live -
+   * what a dialog does while an interactive tool picks on the canvas for it.
+   */
+  enabled?: boolean;
   /** `wxRESIZE_BORDER`: grips on every edge, the fitted size the floor. */
   resizable?: boolean;
   /** The dialog's own class on the window (its layout, never its chrome). */
@@ -190,6 +195,7 @@ export function Dialog({
   title,
   onClose,
   modeless = false,
+  enabled = true,
   resizable = true,
   className,
   style,
@@ -358,6 +364,9 @@ export function Dialog({
       }}
       role="dialog"
       aria-modal={!modeless}
+      aria-disabled={enabled ? undefined : true}
+      // `inert`, which React 18's types do not list, passed as the plain attribute.
+      {...(enabled ? {} : ({ inert: '' } as Record<string, string>))}
       aria-label={title}
       tabIndex={-1}
       onMouseDown={(e) => e.stopPropagation()}
@@ -389,5 +398,9 @@ export function Dialog({
     </div>
   );
 
-  return modeless ? frame : <div className="ze-modal-backdrop">{frame}</div>;
+  return modeless ? (
+    frame
+  ) : (
+    <div className={`ze-modal-backdrop${enabled ? '' : ' ze-disabled-dialog'}`}>{frame}</div>
+  );
 }
