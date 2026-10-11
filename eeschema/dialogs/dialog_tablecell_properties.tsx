@@ -20,22 +20,17 @@
  * "-- mixed values --" text, an unchecked alignment group, the colour book's popup page), and an
  * indeterminate control writes nothing. Not here: the Scintilla text-variable auto-complete.
  */
-import { Button } from '@ziroeda/wx/controls.js';
 import { type JSX, useState } from 'react';
 import { DisplayErrorMessage } from '@ziroeda/common/confirm.js';
-import { DialogShim } from '@ziroeda/common/dialog_shim.js';
 import { FONT } from '@ziroeda/common/font/font.js';
 import { GR_TEXT_H_ALIGN_T, GR_TEXT_V_ALIGN_T } from '@ziroeda/common/font/text_attributes.js';
 import { COLOR4D_UNSPECIFIED, type Color4d, color4dEquals } from '@ziroeda/common/gal/color4d.js';
 import { FILL_T } from '@ziroeda/common/eda_shape.js';
-import { BitmapButton } from '@ziroeda/common/widgets/bitmap_button.js';
-import { ColorSwatch } from '@ziroeda/common/widgets/color_swatch.js';
-import { FontChoice } from '@ziroeda/common/widgets/font_choice.js';
 import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
 import { INDETERMINATE_STATE } from '@ziroeda/common/widgets/ui_common.js';
-import { type CHECK_STATE, TriStateCheck } from '@ziroeda/wx/wx_checkbox.js';
+import type { CHECK_STATE } from '@ziroeda/wx/wx_checkbox.js';
 import { UNIT_BINDER, unitLabel } from '@ziroeda/common/widgets/unit_binder.js';
-import { Combo } from '@ziroeda/wx/combobox.js';
+import { DIALOG_TABLECELL_PROPERTIES_BASE } from './dialog_tablecell_properties_base.js';
 import { SCH_COMMIT } from '../sch_commit.js';
 import type { SCH_EDIT_FRAME } from '../sch_edit_frame.js';
 import type { SCH_TABLE } from '../sch_table.js';
@@ -97,6 +92,11 @@ export class DIALOG_TABLECELL_PROPERTIES {
   /** m_infoBar: "Note: individual item colors overridden in Preferences." */
   ShowsOverrideNote(): boolean {
     return this.m_frame.GetColorSettings().GetOverrideSchItemColors();
+  }
+
+  /** `OnFormattingHelp()`: SCH_TEXT::ShowSyntaxHelp, the frame's syntax help window. */
+  ShowSyntaxHelp(): void {
+    this.m_frame.ShowBusSyntaxHelp();
   }
 
   /** `TransferDataToWindow()`. */
@@ -300,7 +300,7 @@ const V_BUTTONS: { align: GR_TEXT_V_ALIGN_T; bitmap: string; tip: string }[] = [
   },
 ];
 
-/** The form over DIALOG_TABLECELL_PROPERTIES; onClose carries GetReturnValue(). */
+/** DIALOG_TABLECELL_PROPERTIES' window over its base; onClose carries GetReturnValue(). */
 export function DialogTableCellProperties({
   dlg,
   initial,
@@ -309,158 +309,95 @@ export function DialogTableCellProperties({
 }: {
   dlg: DIALOG_TABLECELL_PROPERTIES;
   initial: TABLECELL_DIALOG_VALUES;
+  /** The frame's units, which the five UNIT_BINDERs label their entries with. */
   units: StatusUnits;
   onClose: (aRetval: TABLECELL_PROPS_RETVALUE) => void;
 }): JSX.Element {
   const cancel = (): void => onClose(TABLECELL_PROPS_RETVALUE.TABLECELL_PROPS_CANCEL);
 
   const [v, setValues] = useState(initial);
+  // A colour book whose "Set Color..." was chosen: its swatch opens the picker as it comes up.
+  const [pickNow, setPickNow] = useState<{ text: boolean; fill: boolean }>({
+    text: false,
+    fill: false,
+  });
   const set = <K extends keyof TABLECELL_DIALOG_VALUES>(
     k: K,
     x: TABLECELL_DIALOG_VALUES[K],
   ): void => setValues((s) => ({ ...s, [k]: x }));
 
-  const numBox = (
-    aKey: 'textSize' | 'marginLeft' | 'marginTop' | 'marginRight' | 'marginBottom',
-  ) => (
-    <input
-      className="ze-lp-size"
-      value={v[aKey]}
-      onChange={(e) => set(aKey, e.target.value)}
-      onKeyDown={(e) => e.stopPropagation()}
-    />
-  );
+  const align = <T,>(
+    aButtons: { align: T; bitmap: string; tip: string }[],
+    aValue: T,
+    aSet: (aAlign: T) => void,
+  ) =>
+    aButtons.map((b) => ({
+      bitmap: b.bitmap,
+      tooltip: b.tip,
+      checked: aValue === b.align,
+      onClick: () => aSet(b.align),
+    }));
 
-  /** m_textColorBook / m_fillColorBook: the popup page while mixed, the swatch once set. */
-  const colorBook = (aSet: 'textColorSet' | 'fillColorSet', aColor: 'textColor' | 'fillColor') =>
-    v[aSet] ? (
-      <span className="ze-lp-swatch-frame">
-        <ColorSwatch
-          className="ze-lp-swatch"
-          label={aColor === 'textColor' ? 'Text color' : 'Background fill'}
-          color={v[aColor]}
-          onChange={(c) => set(aColor, c)}
-        />
-      </span>
-    ) : (
-      <Combo
-        value="mixed"
-        options={[
-          { value: 'mixed', label: INDETERMINATE_STATE },
-          { value: 'set', label: 'Set Color...' },
-        ]}
-        onChange={(next) => {
-          if (next === 'set') set(aSet, true);
-        }}
-      />
-    );
+  /** `onTextColorPopup` / `onFillColorPopup`: "Set Color..." flips to the swatch and picks. */
+  const book = (aWhich: 'text' | 'fill') => {
+    const setKey = aWhich === 'text' ? 'textColorSet' : 'fillColorSet';
+    const colorKey = aWhich === 'text' ? 'textColor' : 'fillColor';
+
+    return {
+      page: v[setKey] ? 1 : 0,
+      popup: {
+        value: 0,
+        onChange: (i: number) => {
+          if (i === 1) {
+            setPickNow((p) => ({ ...p, [aWhich]: true }));
+            set(setKey, true);
+          }
+        },
+      },
+      color: v[colorKey],
+      onColor: (c: Color4d) => set(colorKey, c),
+      pickNow: pickNow[aWhich],
+    };
+  };
+
+  const margins = {
+    top: 'marginTop',
+    left: 'marginLeft',
+    right: 'marginRight',
+    bottom: 'marginBottom',
+  } as const;
 
   return (
-    <DialogShim title="Table Cell Properties" onClose={cancel} className="ze-label-props">
-      <div className="ze-modal-body ze-lp-body">
-        {dlg.ShowsOverrideNote() && (
-          <div className="ze-infobar">Note: individual item colors overridden in Preferences.</div>
-        )}
-        {/* bSizer16: the cell text beside the formatting column. */}
-        <div className="ze-lp-options">
-          <div className="ze-lp-entry">
-            <span className="ze-lp-caption">Cell contents:</span>
-            <textarea
-              className="ze-lp-value ze-lp-multiline"
-              rows={8}
-              value={v.text}
-              autoFocus
-              onChange={(e) => set('text', e.target.value)}
-              onKeyDown={(e) => e.stopPropagation()}
-            />
-          </div>
-
-          <div className="ze-lp-fmt-grid">
-            <span className="ze-lp-fmt-label" title="Horizontal alignment">
-              Horizontal alignment:
-            </span>
-            <div className="ze-lp-iconbar">
-              {H_BUTTONS.map((b) => (
-                <BitmapButton
-                  key={b.bitmap}
-                  bitmap={b.bitmap}
-                  tooltip={b.tip}
-                  checked={v.hAlign === b.align}
-                  onClick={() => set('hAlign', b.align)}
-                />
-              ))}
-            </div>
-            <span className="ze-lp-fmt-label" title="Vertical alignment">
-              Vertical alignment:
-            </span>
-            <div className="ze-lp-iconbar">
-              {V_BUTTONS.map((b) => (
-                <BitmapButton
-                  key={b.bitmap}
-                  bitmap={b.bitmap}
-                  tooltip={b.tip}
-                  checked={v.vAlign === b.align}
-                  onClick={() => set('vAlign', b.align)}
-                />
-              ))}
-            </div>
-
-            <span className="ze-lp-fmt-label">Font:</span>
-            <FontChoice face={v.face ?? ''} onChange={(face) => set('face', face)} />
-            <span className="ze-lp-fmt-label">Size:</span>
-            <div className="ze-lp-sizerow">
-              {numBox('textSize')}
-              <span className="ze-lp-units">{unitLabel(units)}</span>
-            </div>
-            <span className="ze-lp-fmt-label">Style:</span>
-            <div className="ze-lp-sizerow">
-              <TriStateCheck label="Bold" value={v.bold} onChange={(x) => set('bold', x)} />
-              <TriStateCheck label="Italic" value={v.italic} onChange={(x) => set('italic', x)} />
-            </div>
-
-            <span className="ze-lp-fmt-label">Text color:</span>
-            {colorBook('textColorSet', 'textColor')}
-            <span className="ze-lp-fmt-label">Background fill:</span>
-            {colorBook('fillColorSet', 'fillColor')}
-
-            {/* gMarginsSizer: three columns - label, top, units / left, -, right / bottom. */}
-            <span className="ze-lp-fmt-label">Cell margins:</span>
-            <div className="ze-lp-sizerow">
-              {numBox('marginTop')}
-              <span className="ze-lp-units">{unitLabel(units)}</span>
-            </div>
-            {numBox('marginLeft')}
-            {numBox('marginRight')}
-            <span />
-            {numBox('marginBottom')}
-          </div>
-        </div>
-      </div>
-      <div className="ze-modal-footer">
-        <Button
-          label="Edit Table..."
-          title="Edit table properties and cell contents"
-          onClick={() => {
-            if (dlg.OnEditTable(v)) onClose(dlg.GetReturnValue());
-          }}
-        />
-        <a
-          className="ze-lp-syntax"
-          href="https://docs.kicad.org/GetStarted#text"
-          target="_blank"
-          rel="noreferrer"
-        >
-          Syntax help
-        </a>
-        <Button label="Cancel" onClick={cancel} />
-        <Button
-          label="OK"
-          isDefault
-          onClick={() => {
-            if (dlg.TransferDataFromWindow(v)) onClose(dlg.GetReturnValue());
-          }}
-        />
-      </div>
-    </DialogShim>
+    <DIALOG_TABLECELL_PROPERTIES_BASE
+      m_infoBar={
+        dlg.ShowsOverrideNote() ? 'Note: individual item colors overridden in Preferences.' : null
+      }
+      m_cellTextCtrl={v.text}
+      onCellText={(t) => set('text', t)}
+      hAlign={align(H_BUTTONS, v.hAlign, (a) => set('hAlign', a))}
+      vAlign={align(V_BUTTONS, v.vAlign, (a) => set('vAlign', a))}
+      font={v.face ?? ''}
+      onFont={(f) => set('face', f)}
+      m_textSizeCtrl={v.textSize}
+      onTextSize={(t) => set('textSize', t)}
+      units={unitLabel(units)}
+      m_bold={{ value: v.bold, onChange: (x) => set('bold', x) }}
+      m_italic={{ value: v.italic, onChange: (x) => set('italic', x) }}
+      m_textColorBook={book('text')}
+      m_fillColorBook={book('fill')}
+      m_marginTopCtrl={v.marginTop}
+      m_marginLeftCtrl={v.marginLeft}
+      m_marginRightCtrl={v.marginRight}
+      m_marginBottomCtrl={v.marginBottom}
+      onMargin={(w, t) => set(margins[w], t)}
+      onEditTable={() => {
+        if (dlg.OnEditTable(v)) onClose(dlg.GetReturnValue());
+      }}
+      onFormattingHelp={() => dlg.ShowSyntaxHelp()}
+      onOK={() => {
+        if (dlg.TransferDataFromWindow(v)) onClose(dlg.GetReturnValue());
+      }}
+      onCancel={cancel}
+    />
   );
 }

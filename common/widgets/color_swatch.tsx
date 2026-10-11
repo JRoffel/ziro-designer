@@ -88,6 +88,11 @@ export interface ColorSwatchProps {
   label: string;
   disabled?: boolean;
   className?: string;
+  /**
+   * `GetNewSwatchColor()` as the swatch appears: open DIALOG_COLOR_PICKER at once. The colour
+   * books do it when "Set Color..." flips them from the mixed-values popup to the swatch.
+   */
+  openOnMount?: boolean;
 }
 
 /** Whether a colour is `COLOR4D::UNSPECIFIED`, which is compared by value. */
@@ -107,8 +112,9 @@ export function ColorSwatch({
   label,
   disabled,
   className,
+  openOnMount = false,
 }: ColorSwatchProps): JSX.Element {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(openOnMount);
 
   // `RenderToDC`'s two branches, chosen by `GetBrightness() > 0.4`. The dark
   // one is the CSS default, so only the bright one is stated here.

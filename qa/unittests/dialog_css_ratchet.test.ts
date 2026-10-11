@@ -21,7 +21,9 @@ const BASELINE: Record<string, number> = {
   common: 183, // -11 (10-11): the shared Table Properties form, replaced by one pair per editor
   cvpcb: 8,
   designer: 138,
-  eeschema: 114, // -26 (10-11): Shape, Annotate and Find's own classes went with their _base pairs
+  // 114 -> 117 (10-11): not new CSS. ze-lp-caption / -entry / -multiline were shared with the old
+  // Table Cell form; with it a _base pair they are Label Properties' alone, and go with it.
+  eeschema: 117,
   gerbview: 31,
   pagelayout_editor: 14,
   // 477 -> 465 (10-10): the drill and position-file dialogs on the sizers.
