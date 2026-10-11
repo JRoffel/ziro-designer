@@ -23,6 +23,7 @@ export function Button({
   title,
   className,
   buttonRef,
+  exactFit,
 }: {
   label: string;
   /** wxEVT_BUTTON; the event's target is GetEventObject(), e.g. to anchor a popup at it. */
@@ -33,12 +34,14 @@ export function Button({
   className?: string;
   /** The button element, e.g. as a dialog's initialFocus. */
   buttonRef?: Ref<HTMLButtonElement>;
+  /** wxBU_EXACTFIT: as wide as its label, not the standard button width. */
+  exactFit?: boolean;
 }): JSX.Element {
   return (
     <button
       ref={buttonRef}
       type="button"
-      className={`ze-btn${isDefault ? ' primary' : ''}${className ? ` ${className}` : ''}`}
+      className={`ze-btn${isDefault ? ' primary' : ''}${exactFit ? ' ze-btn-exactfit' : ''}${className ? ` ${className}` : ''}`}
       disabled={disabled}
       title={title}
       onClick={onClick}

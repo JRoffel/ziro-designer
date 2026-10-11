@@ -39,8 +39,7 @@
  * DOM node), then the sizer tree and its event plumbing.
  */
 
-import { Button, CheckBox } from '@ziroeda/wx/controls.js';
-import { Fragment, useEffect, useMemo, useRef, useState, type JSX } from 'react';
+import { useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import {
   PAPER_CHOICES,
   defaultDrawingSheet,
@@ -52,9 +51,8 @@ import {
   type WksSheet,
 } from '../index.js';
 import { Combo, type ComboOption } from '@ziroeda/wx/combobox.js';
-import { UnitField } from '../widgets/unit_binder_ui.js';
 import type { EdaUnits } from '../widgets/unit_binder.js';
-import { DialogShim } from '../dialog_shim.js';
+import { DIALOG_PAGES_SETTINGS_BASE } from './dialog_page_settings_base.js';
 import { MessageDialogError } from './dialog_message.js';
 import { WxFileDialog } from '@ziroeda/wx/filedlg.js';
 import { drawingSheetWildcard } from '../wildcards_and_files_ext.js';
@@ -521,26 +519,6 @@ const ORIENTATION_CHOICES: readonly ComboOption[] = [
 /** No preview item is ever selected. */
 const NO_PREVIEW_SELECTION: ReadonlySet<number> = new Set();
 
-/**
- * A centred section heading with a rule under it — the pattern repeated four
- * times in this dialog (`dialog_page_settings_base.cpp:27-32`, `:123-128`,
- * `:148-153`, `:183-188`): a `wxStaticText` added `wxALIGN_CENTER_HORIZONTAL`
- * followed by a `wxStaticLine( wxLI_HORIZONTAL )` added `wxEXPAND|wxTOP, 1`.
- */
-function SectionHeader({ children }: { children: string }): JSX.Element {
-  return (
-    <>
-      <div className="ze-pgs-head">{children}</div>
-      <div className="ze-pgs-rule" />
-    </>
-  );
-}
-
-/** A wx spacer, in multiples of the `wxALL, 5` border every dialog is built on. */
-function Spacer({ px }: { px: number }): JSX.Element {
-  return <div style={{ height: px }} />;
-}
-
 export interface PageSettingsDialogProps {
   value: PageSettingsValue;
   /** Which frame opened it — see {@link PageSettingsFrame}. */
@@ -707,24 +685,6 @@ export function DialogPageSettings({
     ctx.restore();
   }, [wksSheet, s, pageW, pageH, thumb, sheetCount, sheetNumber, preview.background, preview.ink]);
 
-  /*
-   * `UNIT_BINDER::Enable( false )` / `m_staticTextOrient->Enable( false )` grey
-   * a label the way GTK does — `label:disabled { color: #929292 }` — never with
-   * an opacity fade, which would wash out a control's face and border too.
-   */
-  const dim = (on: boolean): string => (on ? 'ze-pgs-label' : 'ze-pgs-label disabled-label');
-
-  /** One of the thirteen `fgSizer2` rows' third cell (:237-382). */
-  const exportChk = (checked: boolean, onSet: (v: boolean) => void): JSX.Element | null =>
-    exportsOn ? (
-      <CheckBox
-        label="Export to other sheets"
-        checked={checked}
-        className="ze-pgs-export"
-        onChange={(aChecked) => onSet(aChecked)}
-      />
-    ) : null;
-
   const rowValue = (row: (typeof TITLE_BLOCK_ROWS)[number]): string =>
     row.comment === null
       ? String(s[row.field as 'date' | 'rev' | 'title' | 'company'])
@@ -740,223 +700,100 @@ export function DialogPageSettings({
     set({ comments });
   };
 
-  const rowExport = (row: (typeof TITLE_BLOCK_ROWS)[number]): JSX.Element | null => {
+  const rowExport = (row: (typeof TITLE_BLOCK_ROWS)[number]) => {
     if (row.comment !== null) {
       const i = row.comment;
-      return exportChk(exports.comments[i] ?? false, (v) => {
-        const comments = [...exports.comments];
-        comments[i] = v;
-        setExports({ ...exports, comments });
-      });
+      return {
+        value: exports.comments[i] ?? false,
+        onChange: (v: boolean) => {
+          const comments = [...exports.comments];
+          comments[i] = v;
+          setExports({ ...exports, comments });
+        },
+      };
     }
     const key = row.field as 'date' | 'rev' | 'title' | 'company';
-    return exportChk(exports[key], (v) => setExports({ ...exports, [key]: v }));
+    return { value: exports[key], onChange: (v: boolean) => setExports({ ...exports, [key]: v }) };
   };
 
+  const dateRow = TITLE_BLOCK_ROWS.find((r) => r.field === 'date')!;
+
   return (
-    <DialogShim title={labels.title} onClose={onCancel} className="ze-pgs">
-      <div className="ze-pgs-body">
-        {/* ---- bleftSizer (dialog_page_settings_base.cpp:24-140) ---- */}
-        <div className="ze-pgs-left">
-          <SectionHeader>{labels.paper}</SectionHeader>
-          <Spacer px={10} />
-          {/* The label sits ABOVE its combo: both are added to a VERTICAL
-            bleftSizer (:37-58), not to a row. */}
-          <span className="ze-pgs-label">Size:</span>
-          <Combo
-            value={s.paper}
-            options={PAPER_CHOICES.map((p) => ({ value: p.id, label: p.label }))}
-            onChange={(v) => set({ paper: v })}
-            autoFocus
+    <>
+      <DIALOG_PAGES_SETTINGS_BASE
+        title={labels.title}
+        paperLabel={labels.paper}
+        paperChoices={PAPER_CHOICES.map((c) => ({ value: c.id, label: c.label }))}
+        m_paperSizeComboBox={s.paper}
+        onPaperSize={(v) => set({ paper: v })}
+        orientationEnabled={orientOn}
+        m_orientationComboBox={portrait ? 'portrait' : 'landscape'}
+        onOrientation={(v) => set({ portrait: v === 'portrait' })}
+        customSizeEnabled={customOn}
+        m_userSizeYCtrl={{
+          label: 'Height:',
+          units,
+          range,
+          size: 1,
+          value: s.customHeightMM,
+          onCommit: (mm: number) => set({ customHeightMM: mm }),
+          onError: setError,
+          title: 'Custom paper height.',
+          disabled: !customOn,
+        }}
+        m_userSizeXCtrl={{
+          label: 'Width:',
+          units,
+          range,
+          size: 1,
+          value: s.customWidthMM,
+          onCommit: (mm: number) => set({ customWidthMM: mm }),
+          onError: setError,
+          title: 'Custom paper width.',
+          disabled: !customOn,
+        }}
+        exportsShown={exportsOn}
+        m_PaperExport={{
+          value: exports.paper,
+          onChange: (v) => setExports({ ...exports, paper: v }),
+        }}
+        preview={
+          <canvas
+            ref={canvasRef}
+            style={{ width: thumb.width, height: thumb.height, display: 'block' }}
           />
-          <Spacer px={3} />
-          <span className={dim(orientOn)}>Orientation:</span>
-          <Combo
-            value={portrait ? 'portrait' : 'landscape'}
-            options={ORIENTATION_CHOICES}
-            onChange={(v) => set({ portrait: v === 'portrait' })}
-            disabled={!orientOn}
-          />
-          {/* Always present, ENABLED or DISABLED by OnPaperSizeChoice
-            (:230-259) — never shown and hidden. Height comes before Width,
-            which is the order of fgSizer1 (:67-115). */}
-          <span className={dim(customOn)}>Custom paper size:</span>
-          <Spacer px={2} />
-          <div className="ze-pgs-custom">
-            <span className={dim(customOn)}>Height:</span>
-            <UnitField
-              label="Height:"
-              units={units}
-              range={range}
-              size={1}
-              value={s.customHeightMM}
-              onCommit={(mm) => set({ customHeightMM: mm })}
-              onError={setError}
-              title="Custom paper height."
-              disabled={!customOn}
-            />
-            <span className={dim(customOn)}>Width:</span>
-            <UnitField
-              label="Width:"
-              units={units}
-              range={range}
-              size={1}
-              value={s.customWidthMM}
-              onCommit={(mm) => set({ customWidthMM: mm })}
-              onError={setError}
-              title="Custom paper width."
-              disabled={!customOn}
-            />
-          </div>
-          {/* m_PaperExport (:117-118) — the fourteenth checkbox, and the only
-            one NOT in fgSizer2: it is added to bleftSizer under the custom
-            size. Show(false) for every frame but eeschema (:172). */}
-          {exportChk(exports.paper, (v) => setExports({ ...exports, paper: v }))}
-          <Spacer px={20} />
-          <SectionHeader>Preview</SectionHeader>
-          <Spacer px={12} />
-          {/* m_PageLayoutExampleBitmap: wxBORDER_SIMPLE on wxSYS_COLOUR_WINDOW
-            (:133-137), added wxALL|wxEXPAND, 5 at proportion 1. */}
-          <div className="ze-pgs-preview">
-            <canvas
-              ref={canvasRef}
-              style={{ width: thumb.width, height: thumb.height, display: 'block' }}
-            />
-          </div>
-        </div>
-
-        {/* bUpperSizerH->Add( 15, 0, … ) (:143) */}
-        <div className="ze-pgs-gutter" />
-
-        {/* ---- bSizerRight (dialog_page_settings_base.cpp:145-388) ---- */}
-        <div className="ze-pgs-right">
-          <SectionHeader>Drawing Sheet</SectionHeader>
-          <Spacer px={10} />
-          <div className="ze-pgs-filerow">
-            <span className={dim(pickerOn)}>File:</span>
-            {/* m_textCtrlFilePicker — a wxTextCtrl, not a drop-down. Ours was
-              a <select> of the project's .kicad_wks files, which is neither
-              the control nor the reach upstream has. */}
-            <input
-              className="ze-search"
-              size={1}
-              value={wksName}
-              disabled={!pickerOn}
-              title={wksName}
-              onChange={(e) => setWksName(e.target.value)}
-            />
-            {/* STD_BITMAP_BUTTON, wxBU_AUTODRAW, BITMAPS::small_folder
-              (dialog_page_settings_base.cpp:171, dialog_page_settings.cpp:69).
-              A bitmap button is sized by its bitmap, not by the standard
-              button width: [px] 25 x 24 on a live pl_editor against our 85
-              x 34. The path is KiCad's own small_folder.svg. */}
-            <button
-              type="button"
-              className="ze-btn ze-btn-bitmap"
-              disabled={!pickerOn}
-              title="Drawing Sheet File"
-              onClick={() => setBrowsing(true)}
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-                <path
-                  d="M 2.9511719,2 A 2,2 0 0 0 1,4 2,2 0 0 0 1,4.048828 V 12 a 2,2 0 0 0 2,2 2,2 0 0 0 0.048828,0 H 13 a 2,2 0 0 0 2,-2 2,2 0 0 0 0,-0.04883 V 6 A 2,2 0 0 0 13,4 H 12.951172 8.5 L 6.5,2 H 3 a 2,2 0 0 0 -0.048828,0 z"
-                  fill="currentColor"
-                />
-              </svg>
-            </button>
-          </div>
-          <Spacer px={10} />
-          <SectionHeader>{labels.titleBlock}</SectionHeader>
-          <Spacer px={10} />
-          {/* SheetInfoSizer (:193-208), Show(false) unless eeschema
-            (:170-171 against dialog_eeschema_page_settings.cpp:87-88). */}
-          {talliesOn && (
-            <div className="ze-pgs-tallies">
-              <span>Number of sheets: {sheetCount}</span>
-              <span className="ze-pgs-tallygap" />
-              <span>Sheet number: {sheetNumber}</span>
-            </div>
-          )}
-          {/* fgSizer2 — ONE wxFlexGridSizer( 0, 3, 0, 0 ) for all thirteen
-            rows (:210-382), which is what puts the thirteen checkboxes in a
-            single aligned column. */}
-          <div className={exportsOn ? 'ze-pgs-tb with-exports' : 'ze-pgs-tb'}>
-            {TITLE_BLOCK_ROWS.map((row) => (
-              <Fragment key={row.field}>
-                <span className="ze-pgs-tblabel">{row.label}</span>
-                {row.field === 'date' ? (
-                  /* bSizerDate (:220-235): the entry at proportion 3, the
-                   "<<<" button wxBU_EXACTFIT, then the wxDatePickerCtrl at
-                   2. All three are ONE cell of fgSizer2, so the export
-                   checkbox stays in the third column with the others. */
-                  <div className="ze-pgs-daterow">
-                    <input
-                      className="ze-search"
-                      style={{ flex: 3 }}
-                      size={1}
-                      value={s.date}
-                      onChange={(e) => set({ date: e.target.value })}
-                    />
-                    <button
-                      type="button"
-                      className="ze-btn ze-btn-exactfit"
-                      onClick={() => set({ date: pick })}
-                    >
-                      {/* The label really is three less-than signs (:228),
-                        and the button carries wxBU_EXACTFIT — it is as wide
-                        as that label and no wider. */}
-                      &lt;&lt;&lt;
-                    </button>
-                    {/* m_PickDate, a wxDatePickerCtrl at proportion 2
-                      (:231-232). On GTK that is an entry with its own
-                      drop-down button beside it, so the native in-field
-                      calendar glyph is hidden and this button takes its
-                      place. */}
-                    <div className="ze-pgs-datepick">
-                      <input
-                        ref={pickRef}
-                        className="ze-search"
-                        type="date"
-                        value={pick}
-                        onChange={(e) => setPick(e.target.value)}
-                      />
-                      <button
-                        type="button"
-                        className="ze-btn"
-                        aria-label="Pick a date"
-                        onClick={() => pickRef.current?.showPicker?.()}
-                      >
-                        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
-                          <path
-                            d="M1 3.5 L5 7 L9 3.5"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                          />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <input
-                    className={row.minWidth === 100 ? 'ze-search short' : 'ze-search'}
-                    size={1}
-                    value={rowValue(row)}
-                    onChange={(e) => setRowValue(row, e.target.value)}
-                  />
-                )}
-                {rowExport(row)}
-              </Fragment>
-            ))}
-          </div>
-        </div>
-      </div>
+        }
+        wksPickerEnabled={pickerOn}
+        m_textCtrlFilePicker={wksName}
+        onFilePicker={setWksName}
+        onBrowse={() => setBrowsing(true)}
+        titleBlockLabel={labels.titleBlock}
+        talliesShown={talliesOn}
+        sheetCount={sheetCount}
+        sheetNumber={sheetNumber}
+        m_TextDate={s.date}
+        onDate={(t) => set({ date: t })}
+        onApplyDate={() => set({ date: pick })}
+        m_PickDate={pick}
+        onPickDate={setPick}
+        m_DateExport={rowExport(dateRow)}
+        rows={TITLE_BLOCK_ROWS.filter((r) => r.field !== 'date').map((r) => ({
+          label: r.label,
+          value: rowValue(r),
+          onChange: (t: string) => setRowValue(r, t),
+          minWidth: r.minWidth,
+          labelBorder: r.field === 'title' ? 4 : 5,
+          exportCheck: rowExport(r),
+        }))}
+        onOK={() => onOk({ ...s, portrait }, exports, wksSheet, wksName)}
+        onCancel={onCancel}
+      />
 
       {error && <MessageDialogError message={error} onClose={() => setError(null)} />}
 
-      {/* OnWksFileSelection (:686-777): a wxFileDialog titled "Drawing Sheet
-        File" on FILEEXT::DrawingSheetFileWildcard, then LoadDrawingSheet on
-        what came back and DisplayErrorMessage if it will not parse. */}
+      {/* OnWksFileSelection (:686-777): a wxFileDialog titled "Drawing Sheet File" on
+          FILEEXT::DrawingSheetFileWildcard, then LoadDrawingSheet on what came back and
+          DisplayErrorMessage if it will not parse. */}
       {browsing && (
         <WxFileDialog
           title="Drawing Sheet File"
@@ -983,15 +820,6 @@ export function DialogPageSettings({
           }}
         />
       )}
-
-      <div className="ze-modal-footer">
-        <Button label="Cancel" onClick={onCancel} />
-        <Button
-          label="OK"
-          isDefault
-          onClick={() => onOk({ ...s, portrait }, exports, wksSheet, wksName)}
-        />
-      </div>
-    </DialogShim>
+    </>
   );
 }

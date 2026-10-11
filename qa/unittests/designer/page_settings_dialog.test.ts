@@ -479,6 +479,15 @@ function blankComments(text: string): string {
 }
 
 const DIALOG = blankComments(SOURCE);
+/** DIALOG_PAGES_SETTINGS_BASE: the sizer tree the window renders, where the controls live. */
+const BASE = blankComments(
+  readFileSync(
+    fileURLToPath(
+      new URL('../../../common/dialogs/dialog_page_settings_base.tsx', import.meta.url),
+    ),
+    'utf8',
+  ),
+);
 
 /**
  * Upstream's structure, not just its behaviour.
@@ -550,11 +559,14 @@ describe('what the merged component must NOT draw', () => {
     // (dialog_page_settings.cpp:65-66) re-labels the static text from the
     // frame's unit (unit_binder.cpp:109-110). Ours had `mm` written twice, and
     // that is why real eeschema showed mils beside a field where ours said mm.
-    const spans = [...DIALOG.matchAll(/>\s*(mm|mils|in)\s*</g)];
-    expect(spans.map((m) => m[0])).toEqual([]);
-    // …and both fields are the shared UnitField, taking the frame's unit.
-    expect([...DIALOG.matchAll(/<UnitField\b/g)]).toHaveLength(2);
-    expect([...DIALOG.matchAll(/units=\{units\}/g)]).toHaveLength(2);
+    for (const src of [DIALOG, BASE]) {
+      const spans = [...src.matchAll(/>\s*(mm|mils|in)\s*</g)];
+      expect(spans.map((m) => m[0])).toEqual([]);
+    }
+    // …and both fields are the shared UnitField (in the base), each handed the frame's unit by
+    // the window.
+    expect([...BASE.matchAll(/<UnitField\b/g)]).toHaveLength(2);
+    expect([...DIALOG.matchAll(/^\s*units,\n\s*range,$/gm)]).toHaveLength(2);
   });
 
   it('prints no dimension line under the preview', () => {
@@ -572,8 +584,9 @@ describe('what the merged component must NOT draw', () => {
     // STD_BITMAP_BUTTON (dialog_page_settings_base.cpp:168-172); the button
     // opens a wxFileDialog (dialog_page_settings.cpp:722-735). Ours was a
     // <select> of the project's .kicad_wks files, which is neither.
-    expect([...DIALOG.matchAll(/<select\b/g)]).toEqual([]);
-    expect(DIALOG).toContain('ze-btn-bitmap');
+    for (const src of [DIALOG, BASE]) expect([...src.matchAll(/<select\b/g)]).toEqual([]);
+    // m_browseButton: STD_BITMAP_BUTTON with BITMAPS::small_folder.
+    expect([...BASE.matchAll(/<StdBitmapButton\s+bitmap="small_folder"/g)]).toHaveLength(1);
     // wxFileDialog: the app's chooser, reached through common/wx (09-26).
     expect(DIALOG).toContain('<WxFileDialog');
   });

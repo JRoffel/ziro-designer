@@ -76,7 +76,7 @@ const BASELINE: Record<(typeof AREAS)[number], Record<Kind, number>> = {
   // 10-10 tree move: button 47 -> 45 (the menu drawing went down into external/wx); checkbox
   // 8 -> 9 and radio 2 -> 3 are the Preferences kit's Check/Radio, out of the exempt wx layer into
   // common/dialogs/pref_controls.tsx - not new controls, now counted; the sweep deletes the kit.
-  common: { button: 45, checkbox: 8, select: 0, frame: 1, radio: 3, entry: 26, sbox: 4 },
+  common: { button: 42, checkbox: 8, select: 0, frame: 1, radio: 3, entry: 22, sbox: 4 },
   cvpcb: { button: 0, checkbox: 0, select: 0, frame: 1, radio: 0, entry: 1, sbox: 0 },
   designer: { button: 77, checkbox: 2, select: 0, frame: 0, radio: 5, entry: 25, sbox: 13 },
   eeschema: { button: 18, checkbox: 21, select: 8, frame: 1, radio: 8, entry: 30, sbox: 17 },
