@@ -234,6 +234,7 @@ import {
 import { loadKicadNetlist } from './netlist_reader/kicad_netlist_reader.js';
 import { fetchNetlistFromSchematic } from './browser/headless_netlist.js';
 import type { DIALOG_GET_FOOTPRINT_BY_NAME } from './dialogs/dialog_get_footprint_by_name.js';
+import type { DIALOG_PNS_SETTINGS } from './dialogs/dialog_pns_settings.js';
 
 /** `INSPECT_DRC_ERROR_DIALOG_NAME` (pcb_edit_frame.cpp:160). */
 const INSPECT_DRC_ERROR_DIALOG_NAME = 'InspectDrcErrorDialog';
@@ -932,8 +933,8 @@ export interface PCB_EDIT_FRAME_HOOKS extends PCB_BASE_EDIT_FRAME_DIALOG_HOOKS {
   ): Promise<'ignore' | 'all' | null>;
   /** `PCB_BASE_EDIT_FRAME::OpenVertexEditor( aItem )`. */
   openVertexEditor?(aItem: BOARD_ITEM): void;
-  /** `DIALOG_PNS_SETTINGS( frame(), aSettings ).ShowModal()`; resolves when it closes. */
-  showPnsSettingsDialog?(aSettings: RoutingSettings): Promise<void>;
+  /** `DIALOG_PNS_SETTINGS::ShowModal() == wxID_OK`. */
+  showPnsSettingsDialog?(aDialog: DIALOG_PNS_SETTINGS): Promise<boolean>;
   /** `DIALOG_PNS_DIFF_PAIR_DIMENSIONS::ShowModal() == wxID_OK`. */
   showDiffPairDimensionsDialog?(aDialog: DIALOG_PNS_DIFF_PAIR_DIMENSIONS): Promise<boolean>;
   /** `DIALOG_TRACK_VIA_SIZE::ShowModal() == wxID_OK`. */
@@ -1656,8 +1657,8 @@ export class PCB_EDIT_FRAME extends PCB_BASE_EDIT_FRAME {
   }
 
   /** `DIALOG_PNS_SETTINGS::ShowModal`, through the window. */
-  ShowPnsSettingsDialog(aSettings: RoutingSettings): Promise<void> {
-    return this.hooks.showPnsSettingsDialog?.(aSettings) ?? Promise.resolve();
+  ShowPnsSettingsDialog(aDialog: DIALOG_PNS_SETTINGS): Promise<boolean> {
+    return this.hooks.showPnsSettingsDialog?.(aDialog) ?? Promise.resolve(false);
   }
 
   /** `DIALOG_PNS_DIFF_PAIR_DIMENSIONS::ShowModal() == wxID_OK`, through the window. */

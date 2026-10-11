@@ -267,13 +267,14 @@ import { ConvertSettingsDialog } from './tools/convert_settings_dialog_ui.js';
 import type { OUTSET_PARAMETERS } from './tools/item_modification_routine.js';
 import type { CONVERT_SETTINGS } from './pcbnew_settings.js';
 import type { ZONE_SETTINGS } from './zone_settings.js';
-import { DialogPnsSettings } from './dialogs/dialog_pns_settings.js';
+import { type DIALOG_PNS_SETTINGS, DialogPnsSettings } from './dialogs/dialog_pns_settings.js';
 import {
   type DIALOG_PNS_DIFF_PAIR_DIMENSIONS,
   DialogPnsDiffPairDimensions,
 } from './dialogs/dialog_pns_diff_pair_dimensions.js';
 import { type DIALOG_TRACK_VIA_SIZE, DialogTrackViaSize } from './dialogs/dialog_track_via_size.js';
-import type { RoutingSettings } from './router/pns_routing_settings.js';
+import { writeRoutingSettings } from './router/pns_routing_settings.js';
+import { updatePcbnewLiveSettings } from './browser/pcbnew_live_settings.js';
 import { DialogPositionRelativeModeless } from './dialogs/dialog_position_relative_ui.js';
 import type { DIALOG_POSITION_RELATIVE } from './dialogs/dialog_position_relative.js';
 import { DialogOffsetItem } from './dialogs/dialog_offset_item.js';
@@ -1673,8 +1674,8 @@ export function PcbEditor({
    * coroutine waiting in RunMainStackModal.
    */
   const [pnsSettingsReq, setPnsSettingsReq] = useState<{
-    settings: RoutingSettings;
-    resolve: () => void;
+    dialog: DIALOG_PNS_SETTINGS;
+    resolve: (aOk: boolean) => void;
   } | null>(null);
   const [dpDimsReq, setDpDimsReq] = useState<{
     dialog: DIALOG_PNS_DIFF_PAIR_DIMENSIONS;
@@ -2342,8 +2343,8 @@ export function PcbEditor({
       selectCopperLayerPair: () => drcWindowRef.current!.selectCopperLayerPair(),
       showInfoBarError: (aMsg) => drcWindowRef.current?.showInfoBarError(aMsg),
       /** `m_appearancePanel->OnLayerChanged()`: the layer combo follows a layer a tool chose. */
-      showPnsSettingsDialog: (aSettings) =>
-        new Promise<void>((resolve) => setPnsSettingsReq({ settings: aSettings, resolve })),
+      showPnsSettingsDialog: (aDialog) =>
+        new Promise<boolean>((resolve) => setPnsSettingsReq({ dialog: aDialog, resolve })),
       showDiffPairDimensionsDialog: (aDialog) =>
         new Promise((resolve) => setDpDimsReq({ dialog: aDialog, resolve })),
       showTrackViaSizeDialog: (aDialog) =>
@@ -7858,11 +7859,17 @@ export function PcbEditor({
       )}
       {pnsSettingsReq && (
         <DialogPnsSettings
-          onClose={() => {
-            pnsSettingsReq.resolve();
+          dialog={pnsSettingsReq.dialog}
+          onClose={(aOk) => {
+            // ROUTING_SETTINGS is a NESTED_SETTINGS of the pcbnew settings: what OK wrote is
+            // what tools.pns holds.
+            if (aOk)
+              updatePcbnewLiveSettings((s) => {
+                s.tools.pns = writeRoutingSettings(pnsSettingsReq.dialog.m_settings);
+              });
             setPnsSettingsReq(null);
+            pnsSettingsReq.resolve(aOk);
           }}
-          settings={pnsSettingsReq.settings}
         />
       )}
       {dpDimsReq && (

@@ -50,7 +50,8 @@ const BASELINE: Record<string, number> = {
   // Diff Pair Dimensions pairs.
   // 434 -> 427 (10-11): Move Exact, Footprint Associations, Global Deletion and Outset Items pairs.
   // 427 -> 402 (10-11): Cleanup Graphics, Cleanup Tracks & Vias and Reference Image pairs.
-  pcbnew: 402,
+  // 402 -> 389 (10-11): PNS Settings, Import Netlist, Update PCB and Import Settings pairs.
+  pcbnew: 389,
 };
 
 const git = (...aSpecs: string[]): string[] =>

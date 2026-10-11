@@ -494,7 +494,8 @@ export function DialogBoardSetup({
       next.viaSizesMM = structuredClone(other.viaSizesMM);
       next.diffPairsMM = structuredClone(other.diffPairsMM);
     }
-    if (opts.zones) next.zones = structuredClone(other.zones);
+    if (opts.zoneHatchingOffsets)
+      next.zoneLayerProperties = structuredClone(other.zoneLayerProperties);
     if (opts.teardrops) next.teardrops = structuredClone(other.teardrops);
     if (opts.tuningPatterns) next.tuning = structuredClone(other.tuning);
     if (opts.maskAndPaste) next.maskPaste = structuredClone(other.maskPaste);

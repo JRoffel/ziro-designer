@@ -49,6 +49,7 @@ import {
 } from '@ziroeda/pcbnew/router/router_tool.js';
 import { MM, mm, mouse, type TOOL_HARNESS, toolHarness } from '../support/pcb_tool_harness.js';
 import { TEST_PCB_FRAME } from '../support/test_pcb_frame.js';
+import type { DIALOG_PNS_SETTINGS } from '@ziroeda/pcbnew/dialogs/dialog_pns_settings.js';
 
 /** Two pads of N1 on F.Cu, 10 mm apart, and a lone pad of N2. */
 const BOARD_TEXT = `(kicad_pcb (version 20241229) (generator "pcbnew")
@@ -73,14 +74,14 @@ class ROUTER_TEST_FRAME extends TEST_PCB_FRAME {
   readonly infobar: string[] = [];
   chosenLayer: PCB_LAYER_ID = PCB_LAYER_ID.UNDEFINED_LAYER;
   /** The ROUTING_SETTINGS the settings dialog was opened on. */
-  pnsSettingsShown: RoutingSettings[] = [];
+  pnsSettingsShown: DIALOG_PNS_SETTINGS[] = [];
   /** What the user types into the dialog before OK; null is Cancel. */
   dpDimsAnswer: ((aDlg: DIALOG_PNS_DIFF_PAIR_DIMENSIONS) => void) | null = null;
   trackViaAnswer: ((aDlg: DIALOG_TRACK_VIA_SIZE) => void) | null = null;
 
-  ShowPnsSettingsDialog(aSettings: RoutingSettings): Promise<void> {
-    this.pnsSettingsShown.push(aSettings);
-    return Promise.resolve();
+  ShowPnsSettingsDialog(aDialog: DIALOG_PNS_SETTINGS): Promise<boolean> {
+    this.pnsSettingsShown.push(aDialog);
+    return Promise.resolve(false);
   }
 
   /** ShowModal: OnInitDialog's TransferDataToWindow, the typing, then OK's TransferDataFromWindow. */
@@ -487,7 +488,7 @@ describe('ROUTER_TOOL dialogs (router_tool.cpp:1698-1727, 2874-2910)', () => {
     await settle();
 
     expect(h.frame.pnsSettingsShown).toHaveLength(1);
-    expect(h.frame.pnsSettingsShown[0]).toBe(h.frame.GetPcbNewSettings().m_PnsSettings);
+    expect(h.frame.pnsSettingsShown[0]!.m_settings).toBe(h.frame.GetPcbNewSettings().m_PnsSettings);
   });
 
   it('Differential Pair Dimensions: OK sets the router sizes and the board custom pair', async () => {

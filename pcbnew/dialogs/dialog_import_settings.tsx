@@ -2,168 +2,264 @@
 // Copyright (C) 2026 ZiroEDA and contributors.
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
 /**
- * Import Settings from Another Board. Counterpart:
- * `pcbnew/dialogs/dialog_import_settings.cpp` (DIALOG_IMPORT_SETTINGS), a
- * board-file picker plus one checkbox per importable settings group, in the
- * base dialog's order. KiCad behaviors translated exactly:
+ * `DIALOG_IMPORT_SETTINGS` (pcbnew/dialogs/dialog_import_settings.cpp): Board Setup's Import
+ * Settings from Another Board, one checkbox per importable group in the base file's order.
  *
- *  - "Import Settings" (OK) stays disabled until at least one group is
- *    checked (UpdateImportSettingsButton).
- *  - The Select All button toggles: it reads "Select All" until everything
- *    would be selected, then "Deselect All" (m_showSelectAllOnBtn); clearing
- *    the last checkbox flips it back to "Select All".
- *  - The chosen path is remembered for the session (static m_filePath).
+ *  - "Import Settings" (OK) stays disabled until at least one group is checked
+ *    (UpdateImportSettingsButton).
+ *  - "Select All" toggles on its own flag (m_showSelectAllOnBtn), not on what is checked;
+ *    clearing the last checkbox puts it back to "Select All".
+ *  - The chosen file is remembered for the session (static m_filePath).
  *
- * The browse control is a browser file input: KiCad browses for the other
- * `.kicad_pcb` and requires its sibling `.kicad_pro`, on the web both files
- * (plus the optional `.kicad_dru`) are picked together, since there is no
- * path-based sibling lookup.
+ * KiCad browses for the other `.kicad_pcb` and finds its `.kicad_pro` beside it. A browser has no
+ * sibling lookup, so Browse picks the board, its project and the optional `.kicad_dru` together,
+ * and the path field shows their names. A path typed there names no file this page can read, so
+ * OK then says "File not found.", as upstream does for a path that does not exist.
  *
- * "Zone hatched fill offsets" is not offered: the zone_defaults block it
- * imports is preserved-opaque board data this clone does not model yet.
+ * `DialogImportSettings` below is the window, DIALOG_IMPORT_SETTINGS_BASE over the class.
  */
-import { Button } from '@ziroeda/wx/controls.js';
-import { useRef, useState, type JSX } from 'react';
-import { DialogShim } from '@ziroeda/common/dialog_shim.js';
+import { type JSX, useReducer, useRef, useState } from 'react';
+import { MessageDialogError } from '@ziroeda/common/dialogs/dialog_message.js';
+import type { CHECK } from '@ziroeda/wx/controls.js';
+import { DIALOG_IMPORT_SETTINGS_BASE } from './dialog_import_settings_base.js';
 
-/** One checkbox per importable group (DIALOG_IMPORT_SETTINGS_BASE order). */
+/** The checkboxes, as BOARD_SETUP's OnAuxiliaryAction reads them. */
 export interface ImportSettingsOpts {
-  layers: boolean; // Board layers and physical stackup (+ board finish)
-  maskAndPaste: boolean; // Solder mask/paste defaults
-  textAndGraphics: boolean; // Text && graphics default properties
-  formatting: boolean; // Text && graphics formatting
-  constraints: boolean; // Design rule constraints
-  tracksAndVias: boolean; // Predefined track && via dimensions
-  zones: boolean; // Zone defaults
-  teardrops: boolean; // Teardrop defaults
-  tuningPatterns: boolean; // Length-tuning pattern defaults
-  netclasses: boolean; // Net classes
-  componentClasses: boolean; // Component classes
-  tuningProfiles: boolean; // Tuning Profiles
-  customRules: boolean; // Custom rules
-  severities: boolean; // Violation severities
+  layers: boolean;
+  maskAndPaste: boolean;
+  zoneHatchingOffsets: boolean;
+  textAndGraphics: boolean;
+  formatting: boolean;
+  constraints: boolean;
+  tracksAndVias: boolean;
+  teardrops: boolean;
+  tuningPatterns: boolean;
+  netclasses: boolean;
+  componentClasses: boolean;
+  tuningProfiles: boolean;
+  customRules: boolean;
+  severities: boolean;
 }
 
-const GROUPS: { key: keyof ImportSettingsOpts; label: string }[] = [
-  { key: 'layers', label: 'Board layers and physical stackup' },
-  { key: 'maskAndPaste', label: 'Solder mask/paste defaults' },
-  { key: 'textAndGraphics', label: 'Text & graphics default properties' },
-  { key: 'formatting', label: 'Text & graphics formatting' },
-  { key: 'constraints', label: 'Design rule constraints' },
-  { key: 'tracksAndVias', label: 'Predefined track & via dimensions' },
-  { key: 'zones', label: 'Zone defaults' },
-  { key: 'teardrops', label: 'Teardrop defaults' },
-  { key: 'tuningPatterns', label: 'Length-tuning pattern defaults' },
-  { key: 'netclasses', label: 'Net classes' },
-  { key: 'componentClasses', label: 'Component classes' },
-  { key: 'tuningProfiles', label: 'Tuning Profiles' },
-  { key: 'customRules', label: 'Custom rules' },
-  { key: 'severities', label: 'Violation severities' },
+/** A file Browse picked: its name and text. */
+export interface IMPORT_FILE {
+  name: string;
+  text: string;
+}
+
+const OPTS: readonly [keyof ImportSettingsOpts, OPT][] = [
+  ['layers', 'm_LayersOpt'],
+  ['maskAndPaste', 'm_MaskAndPasteOpt'],
+  ['zoneHatchingOffsets', 'm_ZoneHatchingOffsetsOpt'],
+  ['textAndGraphics', 'm_TextAndGraphicsOpt'],
+  ['formatting', 'm_FormattingOpt'],
+  ['constraints', 'm_ConstraintsOpt'],
+  ['tracksAndVias', 'm_TracksAndViasOpt'],
+  ['teardrops', 'm_TeardropsOpt'],
+  ['tuningPatterns', 'm_TuningPatternsOpt'],
+  ['netclasses', 'm_NetclassesOpt'],
+  ['componentClasses', 'm_ComponentClassesOpt'],
+  ['tuningProfiles', 'm_TuningProfilesOpt'],
+  ['customRules', 'm_CustomRulesOpt'],
+  ['severities', 'm_SeveritiesOpt'],
 ];
 
-export function emptyImportOpts(): ImportSettingsOpts {
-  return Object.fromEntries(GROUPS.map((g) => [g.key, false])) as unknown as ImportSettingsOpts;
+type OPT =
+  | 'm_LayersOpt'
+  | 'm_MaskAndPasteOpt'
+  | 'm_ZoneHatchingOffsetsOpt'
+  | 'm_TextAndGraphicsOpt'
+  | 'm_FormattingOpt'
+  | 'm_ConstraintsOpt'
+  | 'm_TracksAndViasOpt'
+  | 'm_TeardropsOpt'
+  | 'm_TuningPatternsOpt'
+  | 'm_NetclassesOpt'
+  | 'm_ComponentClassesOpt'
+  | 'm_TuningProfilesOpt'
+  | 'm_CustomRulesOpt'
+  | 'm_SeveritiesOpt';
+
+export class DIALOG_IMPORT_SETTINGS {
+  /** `static wxString m_filePath`: remember for session. */
+  private static m_filePath: IMPORT_FILE[] = [];
+
+  m_filePathCtrl = '';
+  /** The files behind m_filePathCtrl while it shows what Browse picked. */
+  m_files: IMPORT_FILE[] = [];
+
+  m_LayersOpt = false;
+  m_MaskAndPasteOpt = false;
+  m_ZoneHatchingOffsetsOpt = false;
+  m_TextAndGraphicsOpt = false;
+  m_FormattingOpt = false;
+  m_ConstraintsOpt = false;
+  m_TracksAndViasOpt = false;
+  m_TeardropsOpt = false;
+  m_TuningPatternsOpt = false;
+  m_NetclassesOpt = false;
+  m_ComponentClassesOpt = false;
+  m_TuningProfilesOpt = false;
+  m_CustomRulesOpt = false;
+  m_SeveritiesOpt = false;
+
+  m_selectAllLabel = 'Select All';
+  /** Disable "Import Settings" button until user selects at least one import option */
+  m_okEnabled = false;
+  /** Store state to toggle message/usage of "Select All" button */
+  m_showSelectAllOnBtn = true;
+  /** `DisplayError( this, … )`, answered by the window. */
+  m_error: string | null = null;
+
+  OnCheckboxClicked(): void {
+    const importButtonEnabled = this.UpdateImportSettingsButton();
+
+    // If clicking this checkbox clears the last of the import selection checkboxes,
+    // then make sure the "Select All" button is actually going to select all.
+    if (!importButtonEnabled) {
+      this.m_showSelectAllOnBtn = true;
+      this.UpdateSelectAllButton();
+    }
+  }
+
+  UpdateImportSettingsButton(): boolean {
+    // Enable "Import Settings" button if at least one import option is selected
+    const buttonEnableState = OPTS.some(([, m]) => this[m]);
+
+    this.m_okEnabled = buttonEnableState;
+    return buttonEnableState;
+  }
+
+  UpdateSelectAllButton(): void {
+    // Update message on button
+    this.m_selectAllLabel = this.m_showSelectAllOnBtn ? 'Select All' : 'Deselect All';
+  }
+
+  TransferDataToWindow(): boolean {
+    this.SetFiles(DIALOG_IMPORT_SETTINGS.m_filePath);
+    return true;
+  }
+
+  /** OnBrowseClicked, after the files were picked. */
+  SetFiles(aFiles: IMPORT_FILE[]): void {
+    this.m_files = aFiles;
+    this.m_filePathCtrl = aFiles.map((f) => f.name).join(', ');
+  }
+
+  /** The path field typed into: it no longer names what Browse picked. */
+  SetFilePathText(aText: string): void {
+    this.m_filePathCtrl = aText;
+    this.m_files = [];
+  }
+
+  TransferDataFromWindow(): boolean {
+    if (this.m_files.length === 0) {
+      this.m_error = 'File not found.';
+      return false;
+    }
+
+    DIALOG_IMPORT_SETTINGS.m_filePath = this.m_files;
+    return true;
+  }
+
+  OnSelectAll(): void {
+    // Select or deselect all options based on internal flag
+    for (const [, m] of OPTS) this[m] = this.m_showSelectAllOnBtn;
+
+    // Ensure "Import Settings" button state is enabled as appropriate
+    this.UpdateImportSettingsButton();
+
+    // Toggle whether button selects or deselects all.
+    this.m_showSelectAllOnBtn = !this.m_showSelectAllOnBtn;
+    this.UpdateSelectAllButton();
+  }
+
+  /** The checkboxes, for BOARD_SETUP's OnAuxiliaryAction. */
+  GetOptions(): ImportSettingsOpts {
+    return Object.fromEntries(OPTS.map(([k, m]) => [k, this[m]])) as unknown as ImportSettingsOpts;
+  }
 }
 
-// Remembered for the session, like DIALOG_IMPORT_SETTINGS::m_filePath.
-let g_lastFiles: { name: string; text: string }[] = [];
-
-interface Props {
-  onImport: (files: { name: string; text: string }[], opts: ImportSettingsOpts) => void;
+/** `DIALOG_IMPORT_SETTINGS importDlg( this, m_frame ); importDlg.ShowModal() == wxID_OK`. */
+export function DialogImportSettings({
+  onImport,
+  onClose,
+}: {
+  onImport: (aFiles: IMPORT_FILE[], aOpts: ImportSettingsOpts) => void;
   onClose: () => void;
-}
-
-export function DialogImportSettings({ onImport, onClose }: Props): JSX.Element {
-  const [files, setFiles] = useState<{ name: string; text: string }[]>(g_lastFiles);
-  const [opts, setOpts] = useState<ImportSettingsOpts>(emptyImportOpts);
-  // m_showSelectAllOnBtn: what the toggle button will do next.
-  const [selectAllNext, setSelectAllNext] = useState(true);
+}): JSX.Element {
+  const [dialog] = useState(() => {
+    const d = new DIALOG_IMPORT_SETTINGS();
+    d.TransferDataToWindow();
+    return d;
+  });
+  const [, redraw] = useReducer((n: number) => n + 1, 0);
   const fileInput = useRef<HTMLInputElement>(null);
 
-  const anyChecked = GROUPS.some((g) => opts[g.key]);
-  const allChecked = GROUPS.every((g) => opts[g.key]);
-
-  const toggle = (key: keyof ImportSettingsOpts): void => {
-    const next = { ...opts, [key]: !opts[key] };
-    setOpts(next);
-    // Clearing the last selection resets the button to "Select All".
-    if (!GROUPS.some((g) => next[g.key])) setSelectAllNext(true);
-    else if (GROUPS.every((g) => next[g.key])) setSelectAllNext(false);
-  };
-
-  const selectAll = (): void => {
-    const value = selectAllNext;
-    setOpts(Object.fromEntries(GROUPS.map((g) => [g.key, value])) as unknown as ImportSettingsOpts);
-    setSelectAllNext(!value);
-  };
-
-  const onPick = async (list: FileList | null): Promise<void> => {
-    if (!list || list.length === 0) return;
-    const read = await Promise.all(
-      [...list].map(
-        async (f) => ({ name: f.name, text: await f.text() }) as { name: string; text: string },
-      ),
-    );
-    g_lastFiles = read;
-    setFiles(read);
-  };
-
-  const check: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 7,
-    margin: '4px 0',
-    fontSize: 12.5,
-  };
+  const opt = (aMember: OPT): CHECK => ({
+    value: dialog[aMember],
+    onChange: (aOn) => {
+      dialog[aMember] = aOn;
+      dialog.OnCheckboxClicked();
+      redraw();
+    },
+  });
+  const checks = Object.fromEntries(OPTS.map(([, m]) => [m, opt(m)])) as Record<OPT, CHECK>;
 
   return (
-    <DialogShim title="Import Settings" onClose={onClose}>
-      <div className="ze-modal-body" style={{ display: 'block', padding: '10px 14px' }}>
-        <div style={{ fontSize: 12.5, marginBottom: 4 }}>Import from:</div>
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 10 }}>
-          <input
-            className="ze-search"
-            style={{ flex: 1, minWidth: 0, boxSizing: 'border-box' }}
-            readOnly
-            value={files.map((f) => f.name).join(', ')}
-            placeholder="Select the other project's .kicad_pcb + .kicad_pro files"
-          />
-          <Button label="Browse..." className="sm" onClick={() => fileInput.current?.click()} />
-          <input
-            ref={fileInput}
-            type="file"
-            accept=".kicad_pcb,.kicad_pro,.kicad_dru"
-            multiple
-            style={{ display: 'none' }}
-            onChange={(e) => void onPick(e.target.files)}
-          />
-        </div>
-
-        <div style={{ fontSize: 12.5, margin: '4px 0 6px' }}>Import:</div>
-        {GROUPS.map((g) => (
-          <label key={g.key} style={check}>
-            <input type="checkbox" checked={opts[g.key]} onChange={() => toggle(g.key)} />
-            {g.label}
-          </label>
-        ))}
-      </div>
-      <div className="ze-modal-footer">
-        <button
-          type="button"
-          className="ze-btn"
-          style={{ marginRight: 'auto' }}
-          onClick={selectAll}
-        >
-          {selectAllNext && !allChecked ? 'Select All' : 'Deselect All'}
-        </button>
-        <Button label="Cancel" onClick={onClose} />
-        <Button
-          label="Import Settings"
-          isDefault
-          disabled={!anyChecked || files.length === 0}
-          onClick={() => onImport(files, opts)}
+    <>
+      <DIALOG_IMPORT_SETTINGS_BASE
+        m_filePathCtrl={{
+          value: dialog.m_filePathCtrl,
+          onChange: (aText) => {
+            dialog.SetFilePathText(aText);
+            redraw();
+          },
+        }}
+        OnBrowseClicked={() => fileInput.current?.click()}
+        {...checks}
+        selectAllLabel={dialog.m_selectAllLabel}
+        OnSelectAll={() => {
+          dialog.OnSelectAll();
+          redraw();
+        }}
+        okEnabled={dialog.m_okEnabled}
+        onOK={() => {
+          if (dialog.TransferDataFromWindow()) onImport(dialog.m_files, dialog.GetOptions());
+          redraw();
+        }}
+        onCancel={onClose}
+      />
+      {/* OnBrowseClicked's wxFileDialog: FILEEXT::PcbFileWildcard(), with the sibling project
+          files a browser cannot look up beside it. */}
+      <input
+        ref={fileInput}
+        type="file"
+        accept=".kicad_pcb,.kicad_pro,.kicad_dru"
+        multiple
+        hidden
+        onChange={(e) => {
+          const list = e.target.files;
+          if (!list || list.length === 0) return;
+          void Promise.all(
+            [...list].map(
+              async (f): Promise<IMPORT_FILE> => ({ name: f.name, text: await f.text() }),
+            ),
+          ).then((aFiles) => {
+            dialog.SetFiles(aFiles);
+            redraw();
+          });
+        }}
+      />
+      {dialog.m_error !== null && (
+        <MessageDialogError
+          message={dialog.m_error}
+          onClose={() => {
+            dialog.m_error = null;
+            redraw();
+          }}
         />
-      </div>
-    </DialogShim>
+      )}
+    </>
   );
 }

@@ -5201,21 +5201,6 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
 /* Update PCB from Schematic (dialog_update_pcb_base.cpp): Options / Update
    Footprints / Update Fields stacked above the report panel, whose lower sizer
    sets a 660x300 minimum. */
-/* `DIALOG_UPDATE_PCB` states no width. `dialog_update_pcb_base.cpp:16` is
-   `SetSizeHints( wxSize( -1,-1 ), wxDefaultSize )` and `:107` ends
-   `bMainSizer->Fit( this )`, so the dialog is as wide as its content - and its
-   content is the option CHECKBOXES, whose minimum is the whole of their labels
-   ("Re-link footprints to schematic symbols based on their reference
-   designators" is the longest). That is why a real one measures 813 px and our
-   700 clipped: the number was a pick, and it was under what the labels need.
-
-   The one real number is the report area's floor, `bLowerSizer->SetMinSize(
-   wxSize( 660, 300 ) )` (:88), which belongs on the report pane rather than on
-   the dialog. */
-.ze-update-pcb-dialog {
-  height: auto;
-  max-height: 92vh;
-}
 .ze-update-pcb-body {
   display: flex;
   flex-direction: column;
@@ -5249,32 +5234,6 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
 }
 .ze-update-pcb-body .ze-report-panel {
   min-height: 300px;
-}
-/* Interactive Router Settings (dialog_pns_settings_base.cpp): two columns,
-   Mode at its natural width and General Options taking the rest, the
-   proportions bColumns gives them (0 and 1). The mode-gated checkboxes are
-   indented under their radio button by the 20 px their sizer uses. */
-.ze-pns-dialog {
-  height: auto;
-  max-height: 92vh;
-}
-.ze-pns-body {
-  flex-direction: row;
-  align-items: flex-start;
-}
-.ze-pns-body fieldset.ze-pns-mode {
-  flex: 0 0 auto;
-}
-.ze-pns-body fieldset.ze-pns-options {
-  flex: 1 1 auto;
-}
-.ze-pns-body label.ze-pns-sub {
-  margin-left: 20px;
-}
-/* The 15 px spacer sbModeSizer puts between one mode's boxes and the next
-   radio button. */
-.ze-pns-body label.ze-pns-sub + label:not(.ze-pns-sub) {
-  margin-top: 11px;
 }
 
 /* DisplayErrorMessage's box: a short message with optional developer detail. */
@@ -12187,6 +12146,17 @@ fieldset.ze-sbox-sizer > .ze-sizer {
 .ze-statictext.italic {
   font-style: italic;
 }
+/* wxButton's SetMinSize( GetBestSize() ) of another label (controls.tsx Button minSizeLabel): both
+   labels share one cell, the other one invisible, so the wider sets the button's width. */
+.ze-btn-minsize {
+  display: inline-grid;
+}
+.ze-btn-minsize > * {
+  grid-area: 1 / 1;
+}
+.ze-btn-minsize > [aria-hidden] {
+  visibility: hidden;
+}
 /* wxRadioBox (external/wx/controls.tsx RadioBox): the buttons in majorDimension columns. */
 .ze-radiobox {
   display: grid;
@@ -16430,44 +16400,6 @@ fieldset.ze-maplayers-box {
 .ze-maplayers-bottom > button:first-child,
 .ze-maplayers-bottom > .ze-pref-check {
   margin: 5px; /* [data] `wxALL, 5` on the Auto-Match button and the checkbox. */
-}
-
-/* ---------------------------------------------------------------------------
-   DIALOG_IMPORT_NETLIST (dialog_import_netlist_base.cpp), every margin that
-   Add()'s own border. */
-.ze-modal.ze-import-netlist .ze-modal-body.ze-import-netlist-body {
-  flex-direction: column;
-  padding: 0;
-}
-.ze-import-netlist-file {
-  display: flex;
-  align-items: center;
-  margin: 10px; /* [data] `bMainSizer->Add( bSizerNetlistFilename, 0, wxEXPAND|wxALL, 10 )`. */
-}
-.ze-import-netlist-file > label {
-  margin: 0 5px; /* [data] `Add( staticTextNetlistFile, 0, …|wxLEFT|wxRIGHT, 5 )`. */
-}
-.ze-import-netlist-file > .ze-search {
-  flex: 1; /* [data] `Add( m_NetlistFilenameCtrl, 1, wxALIGN_CENTER_VERTICAL, 5 )`. */
-}
-.ze-import-netlist-upper {
-  display: flex;
-  margin: 5px 5px 0; /* [data] `bMainSizer->Add( bUpperSizer, 0, wxEXPAND|wxTOP|wxRIGHT|wxLEFT, 5 )`. */
-}
-fieldset.ze-import-netlist-link,
-fieldset.ze-import-netlist-options {
-  flex: 1; /* [data] proportion 1 on both. */
-  margin: 5px 5px 0; /* [data] `wxEXPAND|wxLEFT|wxRIGHT|wxTOP, 5`. */
-}
-.ze-import-netlist-lower {
-  display: flex;
-  flex: 1;
-  min-height: 250px; /* [data] `bLowerSizer->SetMinSize( wxSize( -1,250 ) )`. */
-  margin: 5px 5px 0; /* [data] `bMainSizer->Add( bLowerSizer, 1, wxEXPAND|wxLEFT|wxRIGHT|wxTOP, 5 )`. */
-}
-.ze-import-netlist-lower > * {
-  flex: 1;
-  margin: 5px; /* [data] `bLowerSizer->Add( m_MessageWindow, 1, wxEXPAND | wxALL, 5 )`. */
 }
 
 /* ---------------------------------------------------------------------------

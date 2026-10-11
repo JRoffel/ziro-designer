@@ -11,14 +11,15 @@
  * The dialog is a live preview of the update: TransferDataToWindow runs the netlist
  * update as a *dry run* so the panel opens already reading "Changes to Be Applied",
  * and every checkbox re-runs that dry run. Pressing Update PCB relabels the panel
- * "Changes Applied to PCB", runs it for real, and hands the new board back.
+ * "Changes Applied to PCB" (for good: a later option change does not relabel it), runs it for
+ * real, and hands the new board back. `DialogUpdatePcb` below is the window.
  */
 
-import { Button } from '@ziroeda/wx/controls.js';
-import { useEffect, useMemo, useRef, useState, type JSX } from 'react';
+import { type JSX, useReducer, useState } from 'react';
 import type { ReportLine, Severity } from '@ziroeda/common';
-import { HtmlReportPanel, RPT_SEVERITY_ALL } from '@ziroeda/common/widgets/wx_html_report_panel.js';
-import { DialogShim } from '@ziroeda/common/dialog_shim.js';
+import { RPT_SEVERITY_ALL } from '@ziroeda/common/widgets/wx_html_report_panel.js';
+import type { CHECK } from '@ziroeda/wx/controls.js';
+import { DIALOG_UPDATE_PCB_BASE } from './dialog_update_pcb_base.js';
 
 /** The option set BOARD_NETLIST_UPDATER is driven with (the dialog's checkboxes). */
 export interface UpdatePcbOptions {
@@ -52,9 +53,106 @@ export const DEFAULT_UPDATE_PCB_OPTIONS: UpdatePcbOptions = {
   removeExtraFields: false,
 };
 
+/** `PerformUpdate`'s BOARD_NETLIST_UPDATER run, which the frame owns: its report lines. */
+export type NETLIST_UPDATE = (
+  aOptions: UpdatePcbOptions,
+  aDryRun: boolean,
+) => readonly ReportLine[];
+
+/** A wxCheckBox: its value and Enable(). */
+interface BOX {
+  value: boolean;
+  enabled: boolean;
+}
+
+export class DIALOG_UPDATE_PCB {
+  readonly m_cbRelinkFootprints: BOX = { value: false, enabled: true };
+  readonly m_cbTransferGroups: BOX = { value: false, enabled: true };
+  readonly m_cbApplyDesignBlockLayouts: BOX = { value: false, enabled: true };
+  /** `m_cbUpdateFootprints->SetValue( true )` in the base. */
+  readonly m_cbUpdateFootprints: BOX = { value: true, enabled: true };
+  readonly m_cbDeleteExtraFootprints: BOX = { value: false, enabled: true };
+  readonly m_cbOverrideLocks: BOX = { value: false, enabled: true };
+  /** `m_cbUpdateFields->SetValue( true )` in the base. */
+  readonly m_cbUpdateFields: BOX = { value: true, enabled: true };
+  readonly m_cbRemoveExtraFields: BOX = { value: false, enabled: true };
+
+  /** `m_messagePanel`: its label and lines. */
+  m_messageLabel = 'Changes to Be Applied';
+  m_messageLines: readonly ReportLine[] = [];
+  m_okEnabled = true;
+
+  constructor(
+    private readonly m_update: NETLIST_UPDATE,
+    /**
+     * Design blocks are not modelled yet, so "Apply design block layouts" stays shown but greyed
+     * whatever the groups box says.
+     */
+    readonly m_designBlocksSupported = false,
+  ) {
+    this.m_cbApplyDesignBlockLayouts.enabled = this.applyLayoutsEnabled();
+  }
+
+  private applyLayoutsEnabled(): boolean {
+    return this.m_cbTransferGroups.value && this.m_designBlocksSupported;
+  }
+
+  private options(): UpdatePcbOptions {
+    return {
+      relinkFootprints: this.m_cbRelinkFootprints.value,
+      transferGroups: this.m_cbTransferGroups.value,
+      applyDesignBlockLayouts: this.m_cbApplyDesignBlockLayouts.value,
+      updateFootprints: this.m_cbUpdateFootprints.value,
+      deleteExtraFootprints: this.m_cbDeleteExtraFootprints.value,
+      overrideLocks: this.m_cbOverrideLocks.value,
+      updateFields: this.m_cbUpdateFields.value,
+      removeExtraFields: this.m_cbRemoveExtraFields.value,
+    };
+  }
+
+  PerformUpdate(aDryRun: boolean): void {
+    this.m_messageLines = this.m_update(this.options(), aDryRun);
+  }
+
+  TransferDataToWindow(): boolean {
+    this.m_cbApplyDesignBlockLayouts.enabled = this.applyLayoutsEnabled();
+    this.PerformUpdate(true);
+    return true;
+  }
+
+  OnOptionChanged(): void {
+    const transferGroups = this.m_cbTransferGroups.value;
+
+    if (!transferGroups) this.m_cbApplyDesignBlockLayouts.value = false;
+
+    this.m_cbApplyDesignBlockLayouts.enabled = this.applyLayoutsEnabled();
+
+    this.PerformUpdate(true);
+    this.m_okEnabled = true;
+  }
+
+  OnUpdateClick(): void {
+    this.m_messageLabel = 'Changes Applied to PCB';
+    this.PerformUpdate(false);
+
+    // wxWidgets has a tendency to keep both buttons highlighted without the following:
+    this.m_okEnabled = false;
+  }
+}
+
+type OPT =
+  | 'm_cbRelinkFootprints'
+  | 'm_cbTransferGroups'
+  | 'm_cbApplyDesignBlockLayouts'
+  | 'm_cbUpdateFootprints'
+  | 'm_cbDeleteExtraFootprints'
+  | 'm_cbOverrideLocks'
+  | 'm_cbUpdateFields'
+  | 'm_cbRemoveExtraFields';
+
 interface Props {
   /** PerformUpdate( aDryRun ), the caller runs the updater and returns its report. */
-  onPerformUpdate: (options: UpdatePcbOptions, dryRun: boolean) => readonly ReportLine[];
+  onPerformUpdate: NETLIST_UPDATE;
   onClose: () => void;
   /**
    * Design blocks are not modelled yet, so "Apply design block layouts" is shown
@@ -63,134 +161,58 @@ interface Props {
   designBlocksSupported?: boolean;
 }
 
+/** `DIALOG_UPDATE_PCB( frame, &netlist ).ShowModal()`. */
 export function DialogUpdatePcb({
   onPerformUpdate,
   onClose,
   designBlocksSupported = false,
 }: Props): JSX.Element {
-  const [options, setOptions] = useState<UpdatePcbOptions>(DEFAULT_UPDATE_PCB_OPTIONS);
-  const [messages, setMessages] = useState<readonly ReportLine[]>([]);
+  const [dialog] = useState(() => {
+    const d = new DIALOG_UPDATE_PCB(onPerformUpdate, designBlocksSupported);
+    // OnInitDialog -> TransferDataToWindow
+    d.TransferDataToWindow();
+    return d;
+  });
+  const [, redraw] = useReducer((n: number) => n + 1, 0);
   const [severities, setSeverities] = useState<Severity>(RPT_SEVERITY_ALL);
-  /** SetLabel: "Changes to Be Applied" until Update PCB has been pressed. */
-  const [applied, setApplied] = useState(false);
-  /** m_sdbSizer1OK->Enable( false ) after a successful update. */
-  const [okEnabled, setOkEnabled] = useState(true);
 
-  // TransferDataToWindow: PerformUpdate( true ). The ref keeps the effect from
-  // re-running the dry run when only the report changes.
-  const performRef = useRef(onPerformUpdate);
-  performRef.current = onPerformUpdate;
-
-  useEffect(() => {
-    setMessages(performRef.current(options, true));
-  }, [options]);
-
-  /** OnOptionChanged: design block layouts only apply when groups are transferred. */
-  const change = (patch: Partial<UpdatePcbOptions>): void => {
-    setOptions((prev) => {
-      const next = { ...prev, ...patch };
-      if (!next.transferGroups) next.applyDesignBlockLayouts = false;
-      return next;
-    });
-    // The dry run made the button meaningful again.
-    setOkEnabled(true);
-    setApplied(false);
-  };
-
-  const update = (): void => {
-    setApplied(true);
-    setMessages(onPerformUpdate(options, false));
-    // wxWidgets keeps both buttons highlighted without disabling OK.
-    setOkEnabled(false);
-  };
-
-  const applyLayoutsEnabled = options.transferGroups && designBlocksSupported;
-
-  const checkbox = (
-    key: keyof UpdatePcbOptions,
-    label: string,
-    opts: { title?: string; disabled?: boolean } = {},
-  ): JSX.Element => (
-    <label className={opts.disabled ? 'disabled' : ''} title={opts.title}>
-      <input
-        type="checkbox"
-        checked={options[key]}
-        disabled={opts.disabled}
-        onChange={(e) => change({ [key]: e.target.checked } as Partial<UpdatePcbOptions>)}
-      />
-      {label}
-    </label>
-  );
-
-  const label = useMemo(
-    () => (applied ? 'Changes Applied to PCB' : 'Changes to Be Applied'),
-    [applied],
-  );
+  const opt = (aKey: OPT): CHECK => ({
+    value: dialog[aKey].value,
+    enabled: dialog[aKey].enabled,
+    onChange: (aOn) => {
+      dialog[aKey].value = aOn;
+      dialog.OnOptionChanged();
+      redraw();
+    },
+  });
 
   return (
-    <DialogShim
-      title="Update PCB from Schematic"
-      onClose={onClose}
-      className="ze-update-pcb-dialog"
-    >
-      <div className="ze-modal-body ze-update-pcb-body">
-        <fieldset>
-          <legend>Options</legend>
-          {checkbox(
-            'relinkFootprints',
-            'Re-link footprints to schematic symbols based on their reference designators',
-            {
-              title:
-                'Normally footprints are linked to their symbols via their Unique IDs.  Select this option only if you want to reset the footprint linkages based on their reference designators.',
-            },
-          )}
-          {checkbox('transferGroups', 'Group footprints based on symbol group')}
-          {checkbox('applyDesignBlockLayouts', 'Apply design block layouts to new groups', {
-            disabled: !applyLayoutsEnabled,
-            title: designBlocksSupported
-              ? "For each new group created from a design block, apply the block's saved footprint placement and routing automatically."
-              : 'Design blocks are not supported yet.',
-          })}
-        </fieldset>
-
-        <fieldset>
-          <legend>Update Footprints</legend>
-          {checkbox('updateFootprints', 'Replace footprints with those specified by symbols', {
-            title:
-              "Normally footprints on the board should be changed to match footprint assignment changes made in the schematic. Uncheck this only if you don't want to change existing footprints on the board.",
-          })}
-          {checkbox('deleteExtraFootprints', 'Delete footprints with no symbols', {
-            title:
-              'Remove from the board unlocked footprints which are not linked to a schematic symbol.',
-          })}
-          {checkbox('overrideLocks', 'Override locks')}
-        </fieldset>
-
-        <fieldset>
-          <legend>Update Fields</legend>
-          {checkbox('updateFields', 'Update footprint fields from symbols')}
-          {checkbox('removeExtraFields', 'Remove footprint fields not found in symbols')}
-        </fieldset>
-
-        <HtmlReportPanel
-          label={label}
-          lines={messages}
-          fileName="report.txt"
-          visibleSeverities={severities}
-          onVisibleSeveritiesChange={setSeverities}
-          minHeight={300}
-          sorted
-        />
-      </div>
-      {/* `m_sdbSizer1`, a wxStdDialogButtonSizer: GTK's order, and both of
-        them ordinary wxButtons. They were BARE `<button type="button">`s, so they took
-        the user-agent's control font and padding instead of `.ze-btn` -
-        the shared rule that states what a wxButton is once for the app. */}
-      <div className="ze-modal-footer">
-        <span style={{ flex: 1 }} />
-        <Button label="Close" onClick={onClose} />
-        <Button label="Update PCB" isDefault disabled={!okEnabled} onClick={update} />
-      </div>
-    </DialogShim>
+    <DIALOG_UPDATE_PCB_BASE
+      m_cbRelinkFootprints={opt('m_cbRelinkFootprints')}
+      m_cbTransferGroups={opt('m_cbTransferGroups')}
+      m_cbApplyDesignBlockLayouts={opt('m_cbApplyDesignBlockLayouts')}
+      applyDesignBlockLayoutsTip={
+        dialog.m_designBlocksSupported
+          ? "For each new group created from a design block, apply the block's saved footprint placement and routing automatically."
+          : 'Design blocks are not supported yet.'
+      }
+      m_cbUpdateFootprints={opt('m_cbUpdateFootprints')}
+      m_cbDeleteExtraFootprints={opt('m_cbDeleteExtraFootprints')}
+      m_cbOverrideLocks={opt('m_cbOverrideLocks')}
+      m_cbUpdateFields={opt('m_cbUpdateFields')}
+      m_cbRemoveExtraFields={opt('m_cbRemoveExtraFields')}
+      m_messagePanel={{
+        label: dialog.m_messageLabel,
+        lines: dialog.m_messageLines,
+        severities,
+        onSeveritiesChange: setSeverities,
+      }}
+      okEnabled={dialog.m_okEnabled}
+      OnUpdateClick={() => {
+        dialog.OnUpdateClick();
+        redraw();
+      }}
+      onCancel={onClose}
+    />
   );
 }

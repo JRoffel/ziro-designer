@@ -14,8 +14,7 @@
  * The model, its defaults and the round-trip live here rather than beside the
  * dialog because the dialog is a `.tsx` and the test package cannot import
  * one. The two derived predicates (`pnsFollowMouse`, `pnsAllowDrcViolations`)
- * and the mode interlock (`pnsSettingsEnableState`) are the parts with a
- * decision in them, and they are here for the same reason.
+ * are the parts with a decision in them, and they are here for the same reason.
  */
 import { CornerMode, Direction45, Directions } from '@ziroeda/kimath/src/geometry/direction45.js';
 
@@ -253,34 +252,6 @@ export function pnsAllowDrcViolations(s: RoutingSettings): boolean {
 /** ROUTING_SETTINGS::InitialDirection. */
 export function pnsInitialDirection(s: RoutingSettings): Direction45 {
   return Direction45.of(s.startDiagonal ? Directions.NE : Directions.N);
-}
-
-/** Which of the four mode-gated checkboxes DIALOG_PNS_SETTINGS leaves enabled. */
-export interface PnsSettingsEnableState {
-  freeAngleMode: boolean;
-  violateDrc: boolean;
-  shoveVias: boolean;
-  jumpOverObstacles: boolean;
-}
-
-/**
- * DIALOG_PNS_SETTINGS::onModeChange: the free-angle and allow-DRC-violations
- * boxes belong to Highlight collisions, the shove-vias and jump-over-obstacles
- * boxes to Shove. Walk around enables none of them — upstream tests the two
- * radio buttons directly, so the third mode leaves all four greyed out.
- *
- * Greying out does not clear the value: the dialog still writes every box back
- * on OK, as TransferDataFromWindow does unconditionally.
- */
-export function pnsSettingsEnableState(mode: PnsMode): PnsSettingsEnableState {
-  const markObstacles = mode === PnsMode.RM_MarkObstacles;
-  const shove = mode === PnsMode.RM_Shove;
-  return {
-    freeAngleMode: markObstacles,
-    violateDrc: markObstacles,
-    shoveVias: shove,
-    jumpOverObstacles: shove,
-  };
 }
 
 /** ROUTER_TOOL::CycleRouterMode's order: highlight -> shove -> walk around. */

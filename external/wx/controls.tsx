@@ -24,6 +24,7 @@ export function Button({
   className,
   buttonRef,
   exactFit,
+  minSizeLabel,
 }: {
   label: string;
   /** wxEVT_BUTTON; the event's target is GetEventObject(), e.g. to anchor a popup at it. */
@@ -36,6 +37,11 @@ export function Button({
   buttonRef?: Ref<HTMLButtonElement>;
   /** wxBU_EXACTFIT: as wide as its label, not the standard button width. */
   exactFit?: boolean;
+  /**
+   * `SetMinSize( GetBestSize() )` taken with another label: the button stays wide enough for it
+   * while showing `label` (a Select All that toggles to Deselect All).
+   */
+  minSizeLabel?: string;
 }): JSX.Element {
   return (
     <button
@@ -46,7 +52,14 @@ export function Button({
       title={title}
       onClick={onClick}
     >
-      {label}
+      {minSizeLabel === undefined ? (
+        label
+      ) : (
+        <span className="ze-btn-minsize">
+          <span>{label}</span>
+          <span aria-hidden="true">{minSizeLabel}</span>
+        </span>
+      )}
     </button>
   );
 }
@@ -170,6 +183,7 @@ export function RadioBox({
   onChange,
   majorDimension = 1,
   disabled,
+  title,
 }: {
   label: string;
   choices: readonly string[];
@@ -178,11 +192,14 @@ export function RadioBox({
   onChange: (aSelection: number) => void;
   majorDimension?: number;
   disabled?: boolean;
+  /** `SetToolTip`. */
+  title?: string;
 }): JSX.Element {
   return (
     <StaticBox label={label}>
       <div
         className="ze-radiobox"
+        title={title}
         role="radiogroup"
         aria-label={label}
         style={{ gridTemplateColumns: `repeat(${majorDimension}, max-content)` }}

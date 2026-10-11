@@ -31,8 +31,7 @@
  * "exists" when the caller can produce its text (`readFile`), or when it was
  * just chosen with Browse.
  */
-import { useRef, useState, type JSX } from 'react';
-import { DialogShim } from '@ziroeda/common/dialog_shim.js';
+import { type JSX, useReducer, useState } from 'react';
 import { MessageDialogOk } from '@ziroeda/common/dialogs/dialog_message.js';
 import {
   RPT_SEVERITY_ERROR,
@@ -40,10 +39,10 @@ import {
   type ReportLine,
   type Severity,
 } from '@ziroeda/common/reporter.js';
-import { HtmlReportPanel, RPT_SEVERITY_ALL } from '@ziroeda/common/widgets/wx_html_report_panel.js';
-import { Button, StaticBox, TextCtrl } from '@ziroeda/wx/controls.js';
-import { Check, Radio } from '@ziroeda/common/dialogs/pref_controls.js';
-import { WxFileDialog, type ChooserFilter } from '@ziroeda/wx/filedlg.js';
+import { RPT_SEVERITY_ALL } from '@ziroeda/common/widgets/wx_html_report_panel.js';
+import type { CHECK } from '@ziroeda/wx/controls.js';
+import { type ChooserFilter, WxFileDialog } from '@ziroeda/wx/filedlg.js';
+import { DIALOG_IMPORT_NETLIST_BASE } from './dialog_import_netlist_base.js';
 
 /** `FILEEXT::NetlistFileWildcard()`. */
 export const NETLIST_FILE_FILTER: ChooserFilter = {
@@ -97,6 +96,164 @@ export function netlistHeadLines(
   ];
 }
 
+/** `ReadNetlistFromFile` + `BOARD_NETLIST_UPDATER::UpdateNetlist`, which the frame owns. */
+export type NETLIST_LOADER = (
+  aFileName: string,
+  aText: string,
+  aOptions: ImportNetlistOptions,
+  aDryRun: boolean,
+) => Promise<readonly ReportLine[] | null>;
+
+export class DIALOG_IMPORT_NETLIST {
+  m_NetlistFilenameCtrl: string;
+  /** `m_netlistPath`: the last path found to exist; InstallNetlistFrame stores it on close. */
+  m_netlistPath: string;
+  /** `m_matchByTimestamp->GetSelection()`: 1 links by reference designators. */
+  m_matchByTimestamp = 0;
+  m_cbDeleteExtraFootprints = DEFAULT_IMPORT_NETLIST_OPTIONS.deleteExtraFootprints;
+  m_cbUpdateFootprints = DEFAULT_IMPORT_NETLIST_OPTIONS.updateFootprints;
+  m_cbTransferGroups = DEFAULT_IMPORT_NETLIST_OPTIONS.transferGroups;
+  m_cbOverrideLocks = DEFAULT_IMPORT_NETLIST_OPTIONS.overrideLocks;
+  /** Drawn, and read by nothing in 10.0.6. */
+  m_cbDeleteShortingTracks = DEFAULT_IMPORT_NETLIST_OPTIONS.deleteShortingTracks;
+
+  /** `m_MessageWindow`: its label and lines. */
+  m_messageLabel = 'Changes to Be Applied';
+  m_messageLines: readonly ReportLine[] = [];
+  /** `wxMessageBox( … )`, answered by the window. */
+  m_messageBox: string | null = null;
+
+  /** The files Browse has handed us, by path: a browser has no paths to stat. */
+  private readonly m_chosen = new Map<string, string>();
+  private readonly m_listeners = new Set<() => void>();
+
+  constructor(
+    aNetlistFullFilename: string,
+    private readonly m_readFile: (aPath: string) => string | null,
+    private readonly m_loader: NETLIST_LOADER,
+  ) {
+    this.m_netlistPath = aNetlistFullFilename;
+    this.m_NetlistFilenameCtrl = aNetlistFullFilename;
+  }
+
+  /** `wxFileName::FileExists()`: the text of a file the caller can reach, or one Browse chose. */
+  private fileText(aPath: string): string | null {
+    if (aPath === '') return null;
+
+    return this.m_chosen.get(aPath) ?? this.m_readFile(aPath);
+  }
+
+  private options(): ImportNetlistOptions {
+    return {
+      matchByReference: this.m_matchByTimestamp === 1,
+      deleteExtraFootprints: this.m_cbDeleteExtraFootprints,
+      updateFootprints: this.m_cbUpdateFootprints,
+      transferGroups: this.m_cbTransferGroups,
+      overrideLocks: this.m_cbOverrideLocks,
+      deleteShortingTracks: this.m_cbDeleteShortingTracks,
+    };
+  }
+
+  /** `onBrowseNetlistFiles`, after the wxFileDialog returned a file. */
+  OnNetlistFileChosen(aPath: string, aText: string): void {
+    this.m_chosen.set(aPath, aText);
+    this.m_NetlistFilenameCtrl = aPath;
+    this.onFilenameChanged(false);
+  }
+
+  onImportNetlist(): void {
+    this.onFilenameChanged(true);
+  }
+
+  onUpdatePCB(): void {
+    const name = this.m_NetlistFilenameCtrl;
+
+    if (name === '') {
+      this.m_messageBox = 'Please choose a valid netlist file.';
+      this.notify();
+      return;
+    }
+
+    if (this.fileText(name) === null) {
+      this.m_messageBox = 'The netlist file does not exist.';
+      this.notify();
+      return;
+    }
+
+    this.m_messageLabel = 'Changes Applied to PCB';
+    void this.loadNetlist(false);
+  }
+
+  onFilenameChanged(aLoadNetlist: boolean): void {
+    if (this.m_NetlistFilenameCtrl === '') return;
+
+    if (this.fileText(this.m_NetlistFilenameCtrl) !== null) {
+      this.m_netlistPath = this.m_NetlistFilenameCtrl;
+
+      if (aLoadNetlist) void this.loadNetlist(true);
+    } else {
+      this.m_messageLines = [
+        {
+          message: 'The netlist file does not exist.',
+          severity: RPT_SEVERITY_ERROR,
+          location: 'body',
+        },
+      ];
+      this.notify();
+    }
+  }
+
+  OnMatchChanged(): void {
+    void this.loadNetlist(true);
+  }
+
+  OnOptionChanged(): void {
+    void this.loadNetlist(true);
+  }
+
+  async loadNetlist(aDryRun: boolean): Promise<void> {
+    const netlistFileName = this.m_NetlistFilenameCtrl;
+    const text = this.fileText(netlistFileName);
+
+    if (text === null) return;
+
+    const options = this.options();
+    const head = netlistHeadLines(netlistFileName, options.matchByReference);
+
+    this.m_messageLines = head;
+    this.notify();
+
+    const body = await this.m_loader(netlistFileName, text, options, aDryRun);
+
+    if (body) {
+      this.m_messageLines = [...head, ...body];
+      this.notify();
+    }
+  }
+
+  Subscribe(aListener: () => void): () => void {
+    this.m_listeners.add(aListener);
+    return () => {
+      this.m_listeners.delete(aListener);
+    };
+  }
+
+  private notify(): void {
+    for (const l of this.m_listeners) l();
+  }
+}
+
+type OPT =
+  | 'm_cbDeleteExtraFootprints'
+  | 'm_cbUpdateFootprints'
+  | 'm_cbTransferGroups'
+  | 'm_cbOverrideLocks'
+  | 'm_cbDeleteShortingTracks';
+
+/**
+ * `PCB_EDIT_FRAME::InstallNetlistFrame`: DIALOG_IMPORT_NETLIST over the frame's last netlist
+ * path, ShowModal, then `SetLastPath( LAST_PATH_NETLIST, netlistName )` through `onClose`.
+ */
 export function DialogImportNetlist({
   netlistName,
   readFile,
@@ -107,175 +264,85 @@ export function DialogImportNetlist({
   netlistName: string;
   /** The text of a netlist the caller can reach by that path, or null. */
   readFile: (aPath: string) => string | null;
-  /**
-   * `ReadNetlistFromFile` + `BOARD_NETLIST_UPDATER::UpdateNetlist`: the body lines
-   * of the report, or null when the file could not be read (nothing more is shown).
-   */
-  performLoad: (
-    aFileName: string,
-    aText: string,
-    aOptions: ImportNetlistOptions,
-    aDryRun: boolean,
-  ) => Promise<readonly ReportLine[] | null>;
+  /** The body lines of the report, or null when the file could not be read. */
+  performLoad: NETLIST_LOADER;
   /** `SetLastPath( LAST_PATH_NETLIST, netlistName )`, then the dialog goes. */
   onClose: (aNetlistName: string) => void;
 }): JSX.Element {
-  const [name, setName] = useState(netlistName);
-  const [options, setOptions] = useState(DEFAULT_IMPORT_NETLIST_OPTIONS);
-  const [lines, setLines] = useState<readonly ReportLine[]>([]);
+  const [dialog] = useState(() => new DIALOG_IMPORT_NETLIST(netlistName, readFile, performLoad));
+  const [, redraw] = useReducer((n: number) => n + 1, 0);
   const [severities, setSeverities] = useState<Severity>(RPT_SEVERITY_ALL);
-  const [label, setLabel] = useState('Changes to Be Applied');
   const [browsing, setBrowsing] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  /** The files Browse has handed us, by path. */
-  const chosen = useRef(new Map<string, string>());
-  /** `m_netlistPath`, the last path found to exist. */
-  const pathRef = useRef(netlistName);
 
-  const textOf = (aPath: string): string | null => chosen.current.get(aPath) ?? readFile(aPath);
+  useState(() => dialog.Subscribe(redraw));
 
-  /** `loadNetlist( aDryRun )`. */
-  const loadNetlist = async (aDryRun: boolean, aOptions = options, aName = name): Promise<void> => {
-    const text = aName === '' ? null : textOf(aName);
-
-    if (text === null) return;
-
-    setLines(netlistHeadLines(aName, aOptions.matchByReference));
-
-    const body = await performLoad(aName, text, aOptions, aDryRun);
-
-    if (body) setLines([...netlistHeadLines(aName, aOptions.matchByReference), ...body]);
-  };
-
-  /** `onFilenameChanged( aLoadNetlist )`. */
-  const onFilenameChanged = (aLoadNetlist: boolean, aName = name): void => {
-    if (aName === '') return;
-
-    if (textOf(aName) !== null) {
-      pathRef.current = aName;
-
-      if (aLoadNetlist) void loadNetlist(true, options, aName);
-    } else {
-      setLines([
-        {
-          message: 'The netlist file does not exist.',
-          severity: RPT_SEVERITY_ERROR,
-          location: 'body',
-        },
-      ]);
-    }
-  };
-
-  /** `OnMatchChanged` / `OnOptionChanged`: every control re-runs the dry run. */
-  const change = (patch: Partial<ImportNetlistOptions>): void => {
-    const next = { ...options, ...patch };
-    setOptions(next);
-    void loadNetlist(true, next);
-  };
-
-  /** `onUpdatePCB`. */
-  const updatePcb = (): void => {
-    if (name === '') {
-      setMessage('Please choose a valid netlist file.');
-      return;
-    }
-
-    if (textOf(name) === null) {
-      setMessage('The netlist file does not exist.');
-      return;
-    }
-
-    setLabel('Changes Applied to PCB');
-    void loadNetlist(false);
-  };
-
-  const check = (key: keyof ImportNetlistOptions, text: string): JSX.Element => (
-    <Check label={text} checked={options[key] as boolean} onChange={(v) => change({ [key]: v })} />
-  );
+  const opt = (aKey: OPT): CHECK => ({
+    value: dialog[aKey],
+    onChange: (aOn) => {
+      dialog[aKey] = aOn;
+      dialog.OnOptionChanged();
+      redraw();
+    },
+  });
+  const close = (): void => onClose(dialog.m_netlistPath);
 
   return (
-    <DialogShim
-      title="Import Netlist"
-      onClose={() => onClose(pathRef.current)}
-      className="ze-import-netlist"
-    >
-      <div className="ze-modal-body ze-import-netlist-body">
-        <div className="ze-import-netlist-file">
-          <label htmlFor="ze-import-netlist-name">Netlist file:</label>
-          <TextCtrl
-            value={name}
-            onChange={(aValue) => setName(aValue)}
-            id="ze-import-netlist-name"
-            className="ze-search"
-          />
-          <button
-            type="button"
-            className="ze-btn ze-import-netlist-browse"
-            title="Browse"
-            aria-label="Browse"
-            onClick={() => setBrowsing(true)}
-          >
-            ...
-          </button>
-        </div>
-        <div className="ze-import-netlist-upper">
-          <StaticBox label="Link Method" className="ze-import-netlist-link">
-            {/* The tooltip is the radio box's own. */}
-            <div title="Select whether to update footprint references to match their currently-assigned symbols, or to re-assign footprints to symbols which match their current references.">
-              <Radio
-                name="ze-import-netlist-link"
-                value={options.matchByReference ? 1 : 0}
-                options={[
-                  [0, 'Link footprints using component tstamps (unique ids)'],
-                  [1, 'Link footprints using reference designators'],
-                ]}
-                onChange={(v) => change({ matchByReference: v === 1 })}
-              />
-            </div>
-          </StaticBox>
-          <StaticBox label="Options" className="ze-import-netlist-options">
-            {check('deleteExtraFootprints', 'Delete footprints with no components in netlist')}
-            {check('updateFootprints', 'Replace footprints with those specified in netlist')}
-            {check('transferGroups', 'Group footprints based on symbol group')}
-            {check('overrideLocks', 'Delete/replace footprints even if locked')}
-            {check('deleteShortingTracks', 'Delete tracks shorting multiple nets')}
-          </StaticBox>
-        </div>
-        <div className="ze-import-netlist-lower">
-          <HtmlReportPanel
-            label={label}
-            lines={lines}
-            fileName="report.txt"
-            visibleSeverities={severities}
-            onVisibleSeveritiesChange={setSeverities}
-            minHeight={250}
-            sorted
-          />
-        </div>
-      </div>
-      {/* `wxStdDialogButtonSizer` on GTK: Cancel, Apply, then the affirmative. */}
-      <div className="ze-modal-footer">
-        <span className="ze-sdb-spacer" />
-        <Button label="Close" onClick={() => onClose(pathRef.current)} />
-        <Button label="Update PCB" onClick={updatePcb} />
-        <Button label="Load and Test Netlist" isDefault onClick={() => onFilenameChanged(true)} />
-      </div>
+    <>
+      <DIALOG_IMPORT_NETLIST_BASE
+        m_NetlistFilenameCtrl={{
+          value: dialog.m_NetlistFilenameCtrl,
+          onChange: (aText) => {
+            dialog.m_NetlistFilenameCtrl = aText;
+            redraw();
+          },
+        }}
+        onBrowseNetlistFiles={() => setBrowsing(true)}
+        m_matchByTimestamp={dialog.m_matchByTimestamp}
+        OnMatchChanged={(aSelection) => {
+          dialog.m_matchByTimestamp = aSelection;
+          dialog.OnMatchChanged();
+          redraw();
+        }}
+        m_cbDeleteExtraFootprints={opt('m_cbDeleteExtraFootprints')}
+        m_cbUpdateFootprints={opt('m_cbUpdateFootprints')}
+        m_cbTransferGroups={opt('m_cbTransferGroups')}
+        m_cbOverrideLocks={opt('m_cbOverrideLocks')}
+        m_cbDeleteShortingTracks={opt('m_cbDeleteShortingTracks')}
+        m_MessageWindow={{
+          label: dialog.m_messageLabel,
+          // SetFileName( Prj().GetProjectPath() + "report.txt" )
+          fileName: 'report.txt',
+          lines: dialog.m_messageLines,
+          severities,
+          onSeveritiesChange: setSeverities,
+        }}
+        okLabel="Load and Test Netlist"
+        applyLabel="Update PCB"
+        cancelLabel="Close"
+        onImportNetlist={() => dialog.onImportNetlist()}
+        onUpdatePCB={() => dialog.onUpdatePCB()}
+        onCancel={close}
+      />
       {browsing && (
         <WxFileDialog
           title="Import Netlist"
           filters={[NETLIST_FILE_FILTER]}
           onDone={(file) => {
             setBrowsing(false);
-
-            if (!file) return;
-
-            chosen.current.set(file.path, file.text);
-            setName(file.path);
-            onFilenameChanged(false, file.path);
+            if (file) dialog.OnNetlistFileChosen(file.path, file.text);
+            redraw();
           }}
         />
       )}
-      {message !== null && <MessageDialogOk message={message} onClose={() => setMessage(null)} />}
-    </DialogShim>
+      {dialog.m_messageBox !== null && (
+        <MessageDialogOk
+          message={dialog.m_messageBox}
+          onClose={() => {
+            dialog.m_messageBox = null;
+            redraw();
+          }}
+        />
+      )}
+    </>
   );
 }

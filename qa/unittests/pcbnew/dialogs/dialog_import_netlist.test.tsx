@@ -142,7 +142,7 @@ describe('DIALOG_IMPORT_NETLIST', () => {
     const { performLoad, onClose } = open();
     fireEvent.click(screen.getByRole('button', { name: 'Browse' }));
     await act(async () => fireEvent.click(screen.getByRole('button', { name: 'pick' })));
-    expect((screen.getByLabelText('Netlist file:') as HTMLInputElement).value).toBe('/q/b.net');
+    expect((screen.getByLabelText('Netlist file') as HTMLInputElement).value).toBe('/q/b.net');
     expect(performLoad).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     // `m_netlistPath` is what LAST_PATH_NETLIST is set to.

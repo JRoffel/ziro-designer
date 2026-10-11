@@ -21,11 +21,11 @@ import {
   pnsCycleMode,
   pnsFollowMouse,
   pnsInitialDirection,
-  pnsSettingsEnableState,
   readRoutingSettings,
   writeRoutingSettings,
   type RoutingSettings,
 } from '@ziroeda/pcbnew/router/pns_routing_settings.js';
+import { DIALOG_PNS_SETTINGS } from '@ziroeda/pcbnew/dialogs/dialog_pns_settings.js';
 
 /** Every key `m_params` registers, in registration order (plus `meta`). */
 const PARAM_KEYS = [
@@ -281,9 +281,18 @@ describe('the mode overrules stored flags', () => {
   });
 });
 
-describe('the dialog interlock', () => {
+describe('the dialog interlock (DIALOG_PNS_SETTINGS::onModeChange)', () => {
+  const enabled = (d: DIALOG_PNS_SETTINGS) => ({
+    freeAngleMode: d.m_freeAngleMode.enabled,
+    violateDrc: d.m_violateDrc.enabled,
+    shoveVias: d.m_shoveVias.enabled,
+    jumpOverObstacles: d.m_backPressure.enabled,
+  });
+  const dlg = (aMode: PnsMode) =>
+    new DIALOG_PNS_SETTINGS(null, { ...DEFAULT_ROUTING_SETTINGS, routingMode: aMode });
+
   it('gives Highlight collisions the free-angle and DRC boxes only', () => {
-    expect(pnsSettingsEnableState(PnsMode.RM_MarkObstacles)).toEqual({
+    expect(enabled(dlg(PnsMode.RM_MarkObstacles))).toEqual({
       freeAngleMode: true,
       violateDrc: true,
       shoveVias: false,
@@ -292,7 +301,7 @@ describe('the dialog interlock', () => {
   });
 
   it('gives Shove the vias and jump boxes only', () => {
-    expect(pnsSettingsEnableState(PnsMode.RM_Shove)).toEqual({
+    expect(enabled(dlg(PnsMode.RM_Shove))).toEqual({
       freeAngleMode: false,
       violateDrc: false,
       shoveVias: true,
@@ -304,12 +313,26 @@ describe('the dialog interlock', () => {
     // onModeChange tests only the two other radios, so Walk around enables
     // nothing — easy to "improve" into enabling the shove boxes, which would
     // let the user set an option that mode cannot act on.
-    expect(pnsSettingsEnableState(PnsMode.RM_Walkaround)).toEqual({
+    expect(enabled(dlg(PnsMode.RM_Walkaround))).toEqual({
       freeAngleMode: false,
       violateDrc: false,
       shoveVias: false,
       jumpOverObstacles: false,
     });
+  });
+
+  it('a mode picked re-greys at once, and OK writes greyed and hidden boxes back', () => {
+    const s = { ...DEFAULT_ROUTING_SETTINGS, routingMode: PnsMode.RM_Shove, suggestFinish: true };
+    const d = new DIALOG_PNS_SETTINGS(null, s);
+    d.m_shoveVias.value = !s.shoveVias;
+    d.SetMode(PnsMode.RM_MarkObstacles);
+    expect(enabled(d).shoveVias).toBe(false);
+    expect(enabled(d).freeAngleMode).toBe(true);
+    const shoveVias = d.m_shoveVias.value;
+    expect(d.TransferDataFromWindow()).toBe(true);
+    expect(s.routingMode).toBe(PnsMode.RM_MarkObstacles);
+    expect(s.shoveVias).toBe(shoveVias);
+    expect(s.suggestFinish).toBe(true);
   });
 });
 

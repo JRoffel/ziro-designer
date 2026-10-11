@@ -334,7 +334,7 @@ const BASELINE: Record<string, { colours: number; metrics: number }> = {
   // (`pcb_draw_panel_gal_ui.tsx`) went; they draw on PCB_DRAW_PANEL_GAL.
   // 10-10: colours 20 -> 19, metrics 114 -> 88 - DIALOG_PLOT's inline box/legend/row styles, gone
   // with the dialog transcribed onto the sizers (dialog_plot_base.tsx).
-  'editors/pcb': { colours: 14, metrics: 45 }, // -4 colours, -30 metrics (10-11): the old Move Exact and Outset Items forms' inline styles, gone with their _base pairs
+  'editors/pcb': { colours: 14, metrics: 36 }, // -9 metrics (10-11): the batch-5 pcbnew pairs' old forms; // -4 colours, -30 metrics (10-11): the old Move Exact and Outset Items forms' inline styles, gone with their _base pairs
   // At zero, and listed rather than absent: `prefs/` is the settings store, and
   // the one literal it had - the 3D viewer's `rgb(0,255,0)` selection colour -
   // is `PARAM<COLOR4D>( "render.opengl_selection_color", …, COLOR4D( 0, 1, 0, 1 ) )`
@@ -843,7 +843,8 @@ const BASELINE: Record<string, { colours: number; metrics: number }> = {
   // metrics 599 -> 591: the last .ze-lp-* rules (Global Edit's pair).
   // metrics 591 -> 590: Change Symbols' .ze-chsym-* rules.
   // metrics 590 -> 588: the shared Page Settings pair's .ze-pgs-* rules.
-  'common/widgets': { colours: 126, metrics: 588 },
+  // metrics 588 -> 586 (10-11): the batch-5 pcbnew pairs' shell.css rules.
+  'common/widgets': { colours: 126, metrics: 586 },
   // 10-10: metrics 1 -> 0, the menu drawing's one literal went to external/wx with it.
   'common/tool': { colours: 0, metrics: 0 },
   // metrics 0 -> 15 on 09-26: the stage-1 moves, 8 from `dialogs` and 7 from
@@ -1689,7 +1690,8 @@ describe('the scan totals, so the numbers in the PR stay true', () => {
     // pair); 932 -> 931: Change Symbols' .ze-chsym-* rules.
     // 931 -> 901 (10-11): the old Move Exact and Outset Items forms, gone with their _base pairs.
     // 901 -> 899: the shared Page Settings pair.
-    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(899);
+    // 899 -> 888 (10-11): the batch-5 pcbnew pairs' old forms and their shell.css rules.
+    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(888);
   });
 
   it('and the two agree with the per-area table, which is where they come from', () => {

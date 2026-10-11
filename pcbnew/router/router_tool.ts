@@ -120,6 +120,7 @@ import type { VIEW_GROUP } from '@ziroeda/common/view/view_group.js';
 import { KeyNameFromKeyCode, PSEUDO_WXK_CLICK } from '@ziroeda/common/hotkeys_basic.js';
 import { MD_CTRL } from '@ziroeda/common/tool/tool_event.js';
 import { ROUTER_STATUS_VIEW_ITEM } from './router_status_view_item.js';
+import { DIALOG_PNS_SETTINGS } from '../dialogs/dialog_pns_settings.js';
 
 /** One row of either menu. */
 export interface RouterSizeMenuItem {
@@ -2654,9 +2655,9 @@ export class ROUTER_TOOL extends PNS_TOOL_BASE {
 
   /** `SettingsDialog` (router_tool.cpp:1718-1727). */
   *SettingsDialog(_aEvent: TOOL_EVENT): COROUTINE_BODY<number> {
-    yield* this.RunMainStackModal(() =>
-      this.editFrame().ShowPnsSettingsDialog(this.routingSettings()),
-    );
+    const settingsDlg = new DIALOG_PNS_SETTINGS(this.editFrame(), this.routingSettings());
+
+    yield* this.RunMainStackModal(() => this.editFrame().ShowPnsSettingsDialog(settingsDlg));
 
     this.UpdateMessagePanel();
 
