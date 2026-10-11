@@ -14,10 +14,8 @@
  * Not here: DIALOG_SIM_MODEL behind "Simulation Model..." (the simulator is not in this build),
  * PANEL_EMBEDDED_FILES' add / remove / export, and KIUI::SelectReferenceNumber on first focus.
  */
-import { Button, CheckBox } from '@ziroeda/wx/controls.js';
 import { type JSX, useReducer, useState } from 'react';
 import { DisplayErrorMessage } from '@ziroeda/common/confirm.js';
-import { DialogShim } from '@ziroeda/common/dialog_shim.js';
 import { PIN_NUMBERS } from '@ziroeda/common/pin_numbers.js';
 import { strNumCmp, unescapeString } from '@ziroeda/common/string_utils.js';
 import {
@@ -29,9 +27,8 @@ import {
 import { GRID_CELL_COMBOBOX } from '@ziroeda/common/widgets/grid_combobox.js';
 import { GRID_CELL_ICON_TEXT_RENDERER } from '@ziroeda/common/widgets/grid_icon_text_helpers.js';
 import type { GRID_TEXT_BUTTON_HOST } from '@ziroeda/common/widgets/grid_text_button_helpers.js';
-import { StdBitmapButton } from '@ziroeda/common/widgets/std_bitmap_button.js';
 import { WX_GRID, WX_GRID_TABLE_BASE } from '@ziroeda/common/widgets/wx_grid.js';
-import { Combo } from '@ziroeda/wx/combobox.js';
+import { DIALOG_SYMBOL_PROPERTIES_BASE } from './dialog_symbol_properties_base.js';
 import {
   type wxAttrKind,
   type wxGridEvent,
@@ -853,7 +850,7 @@ const FIELD_COLUMNS = [
 /** The pin grid's widths (dialog_symbol_properties_base.cpp:279-283). */
 const PIN_COLUMNS = [{ width: 66 }, { width: 140 }, { width: 140 }, { width: 120 }, { width: 120 }];
 
-/** The form over DIALOG_SYMBOL_PROPERTIES; onClose carries the return code. */
+/** DIALOG_SYMBOL_PROPERTIES' window over its base; onClose carries the return code. */
 export function DialogSymbolProperties({
   dlg,
   initial,
@@ -866,282 +863,91 @@ export function DialogSymbolProperties({
   onCancel: () => void;
 }): JSX.Element {
   const [, redraw] = useReducer((n: number) => n + 1, 0);
-  const [tab, setTab] = useState<'general' | 'pins'>('general');
-  const [values, setValues] = useState(initial);
-  const set = <K extends keyof SYMBOL_DIALOG_VALUES>(k: K, v: SYMBOL_DIALOG_VALUES[K]): void =>
-    setValues((s) => ({ ...s, [k]: v }));
+  const [page, setPage] = useState(0);
+  const [v, setV] = useState(initial);
+  const set = (patch: Partial<SYMBOL_DIALOG_VALUES>): void => setV((s) => ({ ...s, ...patch }));
+  const check = (aKey: keyof SYMBOL_DIALOG_VALUES) => ({
+    value: v[aKey] as boolean,
+    onChange: (on: boolean) => set({ [aKey]: on }),
+  });
 
   const end = (aRetval: SYMBOL_PROPS_RETVALUE): void => {
-    const code = dlg.EndWith(values, aRetval);
+    const code = dlg.EndWith(v, aRetval);
     if (code !== null) onClose(code);
   };
 
-  const button = (aBitmap: string, aTip: string, aRun: () => void): JSX.Element => (
-    <StdBitmapButton
-      bitmap={aBitmap}
-      title={aTip}
-      onClick={() => {
-        aRun();
-        redraw();
-      }}
-    />
-  );
-
-  const check = (aKey: keyof SYMBOL_DIALOG_VALUES, aLabel: string, aTip?: string): JSX.Element => (
-    <CheckBox
-      label={aLabel}
-      checked={values[aKey] as boolean}
-      title={aTip}
-      onChange={(v) => set(aKey, v as never)}
-    />
-  );
-
-  const multiUnit = values.unit >= 0;
-  const multiBodyStyle = values.bodyStyle >= 0;
+  const fieldAction = (aAction: () => void) => () => {
+    aAction();
+    redraw();
+  };
 
   return (
-    <DialogShim title={dlg.m_title} onClose={onCancel} className="ze-symprops">
-      <div className="ze-symprops-body">
-        {/* m_notebook1: a wxNotebook keeps every page, so the dialog fits the largest. */}
-        <div className="ze-nb-frame">
-          <div className="ze-nb-tabs" role="tablist">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={tab === 'general'}
-              className={tab === 'general' ? 'active' : ''}
-              onClick={() => setTab('general')}
-            >
-              General
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={tab === 'pins'}
-              className={tab === 'pins' ? 'active' : ''}
-              disabled={dlg.m_pinsDisabled}
-              title={
-                dlg.m_pinsDisabled
-                  ? 'Alternate pin assignments are not available for symbols with multiple body styles.'
-                  : undefined
-              }
-              onClick={() => {
-                // OnPageChanging: a pending cell edit must commit first.
-                if (dlg.FieldsGrid().CommitPendingChanges()) setTab('pins');
-              }}
-            >
-              Pin Functions
-            </button>
-          </div>
-
-          <div className="ze-nb-body">
-            <div
-              className="ze-symprops-page"
-              aria-hidden={tab !== 'pins'}
-              data-nbhide={tab !== 'pins' ? '' : undefined}
-            >
-              <div className="ze-grid-pane ze-symprops-pin-pane">
-                {dlg.PinModel() && (
-                  <WxGridView
-                    grid={dlg.PinGrid()}
-                    columns={PIN_COLUMNS}
-                    ariaLabel="Pin functions"
-                    onUpdate={redraw}
-                  />
-                )}
-              </div>
-            </div>
-
-            <div
-              className="ze-symprops-page"
-              aria-hidden={tab !== 'general'}
-              data-nbhide={tab !== 'general' ? '' : undefined}
-            >
-              {/* sbFields */}
-              <fieldset className="ze-ds-group ze-symprops-fields">
-                <legend>Fields</legend>
-                <div className="ze-grid-pane ze-symprops-grid-pane">
-                  <WxGridView
-                    grid={dlg.FieldsGrid()}
-                    columns={FIELD_COLUMNS}
-                    flexCol={FIELDS_DATA_COL_ORDER.FDC_VALUE}
-                    ariaLabel="Fields"
-                    onUpdate={redraw}
-                  />
-                </div>
-
-                {/* bButtonSize: add, up, down, a 20px spacer, delete. */}
-                <div className="ze-grid-btns">
-                  {button('small_plus', 'Add field', () => dlg.OnAddField())}
-                  {button('small_up', 'Move up', () => dlg.OnMoveUp())}
-                  {button('small_down', 'Move down', () => dlg.OnMoveDown())}
-                  <span className="ze-symprops-btngap" />
-                  {button('small_trash', 'Delete field', () => dlg.OnDeleteField())}
-                </div>
-              </fieldset>
-
-              {/* bLowerSizer: General | Attributes | buttons. */}
-              <div className="ze-symprops-lower">
-                <fieldset className="ze-ds-group ze-symprops-general">
-                  <legend>General</legend>
-                  <div className="ze-symprops-gb">
-                    <label
-                      className={multiUnit ? 'ze-symprops-lbl' : 'ze-symprops-lbl disabled'}
-                      htmlFor="ze-symprops-unit"
-                    >
-                      Unit:
-                    </label>
-                    <Combo
-                      id="ze-symprops-unit"
-                      ariaLabel="Unit"
-                      disabled={!multiUnit}
-                      value={String(values.unit)}
-                      onChange={(v) => {
-                        set('unit', Number(v));
-                        dlg.OnUnitChoice(Number(v));
-                        redraw();
-                      }}
-                      options={dlg.m_unitChoices.map((c, i) => ({ value: String(i), label: c }))}
-                    />
-
-                    <label
-                      className={multiBodyStyle ? 'ze-symprops-lbl' : 'ze-symprops-lbl disabled'}
-                      htmlFor="ze-symprops-bodystyle"
-                    >
-                      Body style:
-                    </label>
-                    <Combo
-                      id="ze-symprops-bodystyle"
-                      ariaLabel="Body style"
-                      disabled={!multiBodyStyle}
-                      value={String(values.bodyStyle)}
-                      onChange={(v) => set('bodyStyle', Number(v))}
-                      options={dlg.m_bodyStyleChoices.map((c, i) => ({
-                        value: String(i),
-                        label: c,
-                      }))}
-                    />
-
-                    {/* gbSizer1 leaves row 2 empty at SetEmptyCellSize( -1, 12 ). */}
-                    <span className="ze-symprops-gbgap" />
-
-                    <label className="ze-symprops-lbl" htmlFor="ze-symprops-angle">
-                      Angle:
-                    </label>
-                    <Combo
-                      id="ze-symprops-angle"
-                      ariaLabel="Angle"
-                      value={String(values.orientation)}
-                      onChange={(v) => set('orientation', Number(v))}
-                      options={['0', '+90', '-90', '180'].map((label, i) => ({
-                        value: String(i),
-                        label,
-                      }))}
-                    />
-
-                    <label className="ze-symprops-lbl" htmlFor="ze-symprops-mirror">
-                      Mirror:
-                    </label>
-                    <Combo
-                      id="ze-symprops-mirror"
-                      ariaLabel="Mirror"
-                      value={String(values.mirror)}
-                      onChange={(v) => set('mirror', Number(v))}
-                      options={['Not mirrored', 'Around X axis', 'Around Y axis'].map(
-                        (label, i) => ({ value: String(i), label }),
-                      )}
-                    />
-                  </div>
-
-                  {/* bSizer11, inside the General box. */}
-                  <div className="ze-symprops-pinchecks">
-                    {check('showPinNumbers', 'Show pin numbers', 'Show or hide pin numbers')}
-                    {check('showPinNames', 'Show pin names', 'Show or hide pin names')}
-                  </div>
-                </fieldset>
-
-                {/* sbAttributes: simulation, a 10px spacer, BOM, board, position files, DNP. */}
-                <fieldset className="ze-ds-group ze-symprops-attrs">
-                  <legend>Attributes</legend>
-                  {check('excludeFromSim', 'Exclude from simulation')}
-                  <span className="ze-symprops-attrgap" />
-                  {check(
-                    'excludeFromBom',
-                    'Exclude from bill of materials',
-                    'This is useful for adding symbols for board footprints such as fiducials\n' +
-                      'and logos that you do not want to appear in the bill of materials export',
-                  )}
-                  {check(
-                    'excludeFromBoard',
-                    'Exclude from board',
-                    'This is useful for adding symbols that only get exported to the bill of materials but\n' +
-                      'not required to layout the board such as mechanical fasteners and enclosures',
-                  )}
-                  {check(
-                    'excludeFromPosFiles',
-                    'Exclude from position files',
-                    'This is useful for adding symbols that should not be included in the \n' +
-                      'exported position files used for pick and place machines',
-                  )}
-                  {check('dnp', 'Do not populate')}
-                </fieldset>
-
-                {/* buttonsSizer: a 20px gap before the one that acts on the library part. */}
-                <div className="ze-symprops-buttons">
-                  <Button
-                    label="Update Symbol from Library..."
-                    onClick={() => end(SYMBOL_PROPS_RETVALUE.SYMBOL_PROPS_WANT_UPDATE_SYMBOL)}
-                  />
-                  <Button
-                    label="Change Symbol..."
-                    onClick={() => end(SYMBOL_PROPS_RETVALUE.SYMBOL_PROPS_WANT_EXCHANGE_SYMBOL)}
-                  />
-                  <Button
-                    label="Edit Symbol..."
-                    disabled={!dlg.m_canEditSymbol}
-                    onClick={() => end(SYMBOL_PROPS_RETVALUE.SYMBOL_PROPS_EDIT_SCHEMATIC_SYMBOL)}
-                  />
-                  <span className="ze-symprops-btnsgap" />
-                  <Button
-                    label="Edit Library Symbol..."
-                    disabled={!dlg.m_canEditSymbol}
-                    onClick={() => end(SYMBOL_PROPS_RETVALUE.SYMBOL_PROPS_EDIT_LIBRARY_SYMBOL)}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* bSizerBottom, outside the notebook. */}
-      <div className="ze-modal-footer ze-symprops-foot">
-        <span className="ze-symprops-libid-label">Library link:</span>
-        <input
-          className="ze-symprops-libid ze-bare"
-          readOnly
-          aria-readonly="true"
-          aria-label="Library link"
-          value={dlg.m_libraryId}
-          title={dlg.m_libraryId}
+    <DIALOG_SYMBOL_PROPERTIES_BASE
+      title={dlg.m_title}
+      selection={page}
+      // OnPageChanging: a pending cell edit must commit first.
+      onPageChanging={() => dlg.FieldsGrid().CommitPendingChanges()}
+      onPageChanged={setPage}
+      m_fieldsGrid={
+        <WxGridView
+          grid={dlg.FieldsGrid()}
+          columns={FIELD_COLUMNS}
+          flexCol={FIELDS_DATA_COL_ORDER.FDC_VALUE}
+          ariaLabel="Fields"
         />
-        {/* m_spiceFieldsButton: hidden for a power symbol; DIALOG_SIM_MODEL is not ported. */}
-        {!dlg.m_isPower && (
-          <Button
-            label="Simulation Model..."
-            disabled
-            title="The simulator is not available in this build"
-          />
-        )}
-        <Button label="Cancel" onClick={onCancel} />
-        <Button
-          label="OK"
-          isDefault
-          onClick={() => {
-            if (dlg.TransferDataFromWindow(values)) onClose(wxID_OK);
-          }}
-        />
-      </div>
-    </DialogShim>
+      }
+      onAddField={fieldAction(() => dlg.OnAddField())}
+      onMoveUp={fieldAction(() => dlg.OnMoveUp())}
+      onMoveDown={fieldAction(() => dlg.OnMoveDown())}
+      onDeleteField={fieldAction(() => dlg.OnDeleteField())}
+      unitChoices={dlg.m_unitChoices}
+      m_unitChoice={{
+        value: v.unit,
+        enabled: v.unit >= 0,
+        onChange: (i) => {
+          set({ unit: i });
+          dlg.OnUnitChoice(i);
+          redraw();
+        },
+      }}
+      bodyStyleChoices={dlg.m_bodyStyleChoices}
+      m_bodyStyleChoice={{
+        value: v.bodyStyle,
+        enabled: v.bodyStyle >= 0,
+        onChange: (i) => set({ bodyStyle: i }),
+      }}
+      m_orientationCtrl={{ value: v.orientation, onChange: (i) => set({ orientation: i }) }}
+      m_mirrorCtrl={{ value: v.mirror, onChange: (i) => set({ mirror: i }) }}
+      m_ShowPinNumButt={check('showPinNumbers')}
+      m_ShowPinNameButt={check('showPinNames')}
+      m_cbExcludeFromSim={check('excludeFromSim')}
+      m_cbExcludeFromBom={check('excludeFromBom')}
+      m_cbExcludeFromBoard={check('excludeFromBoard')}
+      m_cbExcludeFromPosFiles={check('excludeFromPosFiles')}
+      m_cbDNP={check('dnp')}
+      onUpdateSymbol={() => end(SYMBOL_PROPS_RETVALUE.SYMBOL_PROPS_WANT_UPDATE_SYMBOL)}
+      onExchangeSymbol={() => end(SYMBOL_PROPS_RETVALUE.SYMBOL_PROPS_WANT_EXCHANGE_SYMBOL)}
+      onEditSymbol={() => end(SYMBOL_PROPS_RETVALUE.SYMBOL_PROPS_EDIT_SCHEMATIC_SYMBOL)}
+      onEditLibrarySymbol={() => end(SYMBOL_PROPS_RETVALUE.SYMBOL_PROPS_EDIT_LIBRARY_SYMBOL)}
+      editSymbolEnabled={dlg.m_canEditSymbol}
+      // m_pinTablePage->Disable() for a multi-body-style symbol: no table, and the tooltip.
+      m_pinGrid={
+        dlg.PinModel() ? (
+          <WxGridView grid={dlg.PinGrid()} columns={PIN_COLUMNS} ariaLabel="Pin functions" />
+        ) : null
+      }
+      {...(dlg.m_pinsDisabled
+        ? {
+            pinTablePageTip:
+              'Alternate pin assignments are not available for symbols with multiple body styles.',
+          }
+        : {})}
+      m_tcLibraryID={dlg.m_libraryId}
+      spiceFieldsShown={!dlg.m_isPower}
+      onOK={() => {
+        if (dlg.TransferDataFromWindow(v)) onClose(wxID_OK);
+      }}
+      onCancel={onCancel}
+    />
   );
 }

@@ -404,12 +404,19 @@ export function StaticLine({
  */
 export function Panel({
   border,
+  title,
   children,
 }: {
   border?: 'simple';
+  /** `SetToolTip()`. */
+  title?: string;
   children?: ReactNode;
 }): JSX.Element {
-  return <div className={`ze-panel${border === 'simple' ? ' border-simple' : ''}`}>{children}</div>;
+  return (
+    <div className={`ze-panel${border === 'simple' ? ' border-simple' : ''}`} title={title}>
+      {children}
+    </div>
+  );
 }
 
 /** `wxHyperlinkCtrl`: a GtkLinkButton in the theme's link colour, on the dialog's own font. */
