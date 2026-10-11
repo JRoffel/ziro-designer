@@ -29,9 +29,8 @@
  *   7. the exclusion comment came BEFORE the item rows instead of after;
  *   8. the config button carried the board-setup bitmap, not BITMAPS::config.
  */
+import { bitmapUrl } from '@ziroeda/common/bitmap_store.js';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { ErcViolation } from '@ziroeda/eeschema';
 import {
@@ -80,19 +79,22 @@ function open(over: Partial<Parameters<typeof ErcDialog>[0]> = {}) {
 
 /** The "Show:" row's four checkboxes, in the order bSeveritySizer adds them. */
 const severityRow = (): { label: string; checked: boolean }[] =>
-  Array.from(document.querySelectorAll('.ze-erc-footer .chk')).map((l) => ({
+  Array.from(document.querySelectorAll('label.ze-check')).map((l) => ({
     label: l.textContent ?? '',
     checked: (l.querySelector('input') as HTMLInputElement | null)?.checked ?? false,
   }));
 
 const buttonRow = (): { label: string; disabled: boolean }[] =>
-  Array.from(document.querySelectorAll('.ze-erc-buttons button')).map((b) => ({
+  // m_buttonsSizer: the sizer row Delete Marker sits in.
+  Array.from(
+    screen.getByText('Delete Marker').closest('.ze-sizer')?.querySelectorAll('button') ?? [],
+  ).map((b) => ({
     label: b.textContent ?? '',
     disabled: (b as HTMLButtonElement).disabled,
   }));
 
 const badges = (): { text: string; kind: string }[] =>
-  Array.from(document.querySelectorAll('.ze-erc-footer .ze-badge')).map((b) => ({
+  Array.from(document.querySelectorAll('.ze-badge')).map((b) => ({
     text: b.textContent ?? '',
     kind: Array.from(b.classList)
       .filter((c) => c !== 'ze-badge')
@@ -107,7 +109,7 @@ describe('DIALOG_ERC: the Show: severity row', () => {
    */
   it('is Show: All Errors Warnings Exclusions and nothing else', () => {
     open();
-    expect(document.querySelector('.ze-erc-footer .show-label')?.textContent).toBe('Show:');
+    expect(screen.getByText('Show:').textContent).toBe('Show:');
     expect(severityRow().map((c) => c.label)).toStrictEqual([
       'All',
       'Errors',
@@ -153,7 +155,7 @@ describe('DIALOG_ERC: the Show: severity row', () => {
    */
   it('All forces Errors on in both directions', () => {
     open();
-    const all = document.querySelectorAll('.ze-erc-footer .chk input')[0]!;
+    const all = document.querySelectorAll('label.ze-check input')[0]!;
 
     fireEvent.click(all); // -> checked
     expect(severityRow()).toStrictEqual([
@@ -178,7 +180,7 @@ describe('DIALOG_ERC: the Show: severity row', () => {
    */
   it('All is not driven by the other three', () => {
     open();
-    const boxes = document.querySelectorAll('.ze-erc-footer .chk input');
+    const boxes = document.querySelectorAll('label.ze-check input');
     fireEvent.click(boxes[3]!); // Exclusions on; Errors and Warnings already on
     expect(severityRow()).toStrictEqual([
       { label: 'All', checked: false },
@@ -204,7 +206,7 @@ describe('DIALOG_ERC: the Show: severity row', () => {
       Array.from(document.querySelectorAll('.ze-erc-row .msg')).map((m) => m.textContent ?? '');
     expect(rows()).toStrictEqual(['Error: Pin not connected', 'Warning: Warn']);
 
-    const boxes = document.querySelectorAll('.ze-erc-footer .chk input');
+    const boxes = document.querySelectorAll('label.ze-check input');
     fireEvent.click(boxes[2]!); // Warnings off
     expect(rows()).toStrictEqual(['Error: Pin not connected']);
 
@@ -263,7 +265,7 @@ describe('DIALOG_ERC: NUMBER_BADGE', () => {
    */
   it('badges count every marker while the tab counts the shown ones', () => {
     open({ violations: [violation(), violation({ severity: 'warning' })] });
-    const boxes = document.querySelectorAll('.ze-erc-footer .chk input');
+    const boxes = document.querySelectorAll('label.ze-check input');
     fireEvent.click(boxes[2]!); // Warnings off
     expect(badges()).toStrictEqual([
       { text: '1', kind: 'err' },
@@ -333,7 +335,7 @@ describe('DIALOG_ERC: the marker tree', () => {
       excluded: new Set([key]),
       exclusionComments: new Map([[key, 'reviewed']]),
     });
-    const boxes = document.querySelectorAll('.ze-erc-footer .chk input');
+    const boxes = document.querySelectorAll('label.ze-check input');
     fireEvent.click(boxes[3]!); // show exclusions
 
     const item = document.querySelector('.ze-erc-item')!;
@@ -365,7 +367,10 @@ describe('DIALOG_ERC: the marker tree', () => {
    */
   it('is a two-page notebook whose counts appear only after a run', () => {
     const tabs = (): string[] =>
-      Array.from(document.querySelectorAll('.ze-erc-tabs .tab')).map((t) => t.textContent ?? '');
+      // m_notebook's tabs: the tablist the Violations tab is in.
+      Array.from(
+        screen.getByRole('tab', { name: /^Violations/ }).closest('[role=tablist]')!.children,
+      ).map((t) => t.textContent ?? '');
     open({ violations: null, ignoredTests: ['Pin not connected'] });
     expect(tabs()).toStrictEqual(['Violations', 'Ignored Tests']);
     cleanup();
@@ -381,6 +386,9 @@ describe('DIALOG_ERC: the marker tree', () => {
   it('bullets each ignored test and offers Edit ignored tests', () => {
     open({ violations: [], ignoredTests: ['Pin not connected'], onEditSeverities: NOOP });
     fireEvent.click(screen.getByText('Ignored Tests (1)'));
+    expect(
+      screen.getByRole('tab', { name: 'Ignored Tests (1)' }).getAttribute('aria-selected'),
+    ).toBe('true');
     expect(screen.getByText('• Pin not connected')).toBeTruthy();
     expect(screen.getByText('Edit ignored tests')).toBeTruthy();
   });
@@ -390,8 +398,8 @@ describe('DIALOG_ERC: chrome', () => {
   /** m_bMenu->SetBitmap( KiBitmapBundle( BITMAPS::config ) ), dialog_erc.cpp:98. */
   it('puts KiCad config bitmap on the options button', () => {
     open();
-    const img = document.querySelector('.ze-erc-menu-btn img');
-    expect(img?.getAttribute('src') ?? '').toMatch(/config\.svg/);
+    const img = screen.getByLabelText('Options').querySelector('img');
+    expect(img?.getAttribute('src')).toBe(bitmapUrl('config'));
   });
 
   /**
@@ -400,7 +408,7 @@ describe('DIALOG_ERC: chrome', () => {
    */
   it('offers exactly the three config toggles', () => {
     open();
-    fireEvent.click(document.querySelector('.ze-erc-menu-btn')!);
+    fireEvent.click(screen.getByLabelText('Options'));
     expect(
       Array.from(document.querySelectorAll('.ze-mitem .lbl')).map((m) => m.textContent),
     ).toStrictEqual(['Cross-probe Selected Items', 'Center on Cross-probe', 'Show all errors']);
@@ -412,13 +420,24 @@ describe('DIALOG_ERC: chrome', () => {
    * manager offer maximise as well. happy-dom loads no stylesheet, so the rule
    * itself is what is read.
    */
-  it('carries the wxRESIZE_BORDER as a resizable panel', () => {
+  it('carries the wxRESIZE_BORDER as resize grips', () => {
+    // DialogShim draws its eight resize grips unless a dialog says resizable={false}.
     open();
-    expect(document.querySelector('.ze-erc-panel')).toBeTruthy();
-    // `import.meta.url` is not a file: URL under happy-dom, so the path is
-    // resolved from the vitest root the way the other .tsx suites resolve it.
-    const css = readFileSync(resolve(process.cwd(), '../common/widgets/shell.css'), 'utf8');
-    const rule = css.slice(css.indexOf('.ze-erc-panel {'));
-    expect(rule.slice(0, rule.indexOf('}'))).toContain('resize: both');
+    expect(document.querySelectorAll('.ze-shim-grip').length).toBe(8);
+  });
+
+  describe('DIALOG_ERC: m_runningResultsBook', () => {
+    /** The running page is shown while a run is in flight, the results page otherwise. */
+    it('shows the running page during a run and the results after', () => {
+      const page = (text: RegExp | string) =>
+        (screen.getByText(text).closest('.ze-simplebook-page') as HTMLElement).hasAttribute(
+          'data-hide',
+        );
+      open({ running: ['Checking sheet names...'] });
+      expect(page('Tests Running...')).toBe(false);
+      cleanup();
+      open({ violations: [], running: null });
+      expect(page('Tests Running...')).toBe(true);
+    });
   });
 });

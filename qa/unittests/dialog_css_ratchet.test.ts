@@ -40,7 +40,8 @@ const BASELINE: Record<string, number> = {
   // 55 -> 31 (10-11): Symbol Fields Table's pair; the whole .ze-sft-* block.
   // 31 -> 32 (10-11): not new CSS; appeared on rebasing onto the Copper Zones pairs, a class
   // that batch left to eeschema alone.
-  eeschema: 32,
+  // 32 -> 21 (10-11): ERC's pair; the .ze-erc-* block it held since DRC converted.
+  eeschema: 21,
   gerbview: 31,
   pagelayout_editor: 14,
   // 477 -> 465 (10-10): the drill and position-file dialogs on the sizers.

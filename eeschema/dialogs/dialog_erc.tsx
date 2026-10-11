@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 ZiroEDA and contributors.
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
-import { Button, CheckBox } from '@ziroeda/wx/controls.js';
+import { DIALOG_ERC_BASE } from './dialog_erc_base.js';
 import { WX_TEXT_ENTRY_DIALOG } from '@ziroeda/common/dialogs/dialog_text_entry.js';
 import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import { iuToMM } from '@ziroeda/common';
@@ -15,9 +15,6 @@ import {
 } from '../index.js';
 import { ContextMenu, type MenuItem } from '@ziroeda/wx/menu_ui.js';
 import { ERC_PHASES } from '../index.js';
-import { KiBitmapBundle } from '@ziroeda/common/bitmap.js';
-import { BITMAPS } from '@ziroeda/include/bitmaps/bitmaps_list.js';
-import { useModalEscape } from '@ziroeda/common/dialog_shim.js';
 import { numberBadge, type NumberBadgeState } from '@ziroeda/common/widgets/number_badge.js';
 import {
   RPT_SEVERITY_ERROR,
@@ -246,9 +243,6 @@ export function ErcDialog({
   const exclusionCount = markers.length - active.length;
   // updateDisplayedCounts hides the error and warning badges, rather than
   // showing them green, only while ERC has not been run.
-  const errorsBadge = ercBadge(notRun && errors === 0 ? -1 : errors, 'error');
-  const warningsBadge = ercBadge(notRun && warnings === 0 ? -1 : warnings, 'warning');
-  const exclusionsBadge = ercBadge(exclusionCount, 'exclusion');
 
   // An excluded marker shows only under the Exclusions filter; an active one
   // shows per its severity filter (DIALOG_ERC::OnSeverity display rules).
@@ -406,37 +400,6 @@ export function ErcDialog({
     download('erc.rpt', parts.join('\n'));
   };
 
-  // ----- movable / resizable panel (a DIALOG_SHIM is a real window) ---------
-  // The drag writes straight to the element's style: re-rendering a list of
-  // markers on every pointermove is what made the window lag behind the mouse.
-  const panelRef = useRef<HTMLDivElement>(null);
-  const dragStart = (down: React.PointerEvent): void => {
-    const panel = panelRef.current;
-    if (!panel || (down.target as HTMLElement).closest('.x')) return;
-    const box = panel.getBoundingClientRect();
-    down.preventDefault();
-    const dx = down.clientX - box.left;
-    const dy = down.clientY - box.top;
-    panel.style.right = 'auto';
-    panel.style.bottom = 'auto';
-    const move = (e: PointerEvent): void => {
-      panel.style.left = `${Math.max(0, Math.min(window.innerWidth - 80, e.clientX - dx))}px`;
-      panel.style.top = `${Math.max(0, Math.min(window.innerHeight - 40, e.clientY - dy))}px`;
-    };
-    const up = (): void => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
-    };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
-  };
-
-  // Escape closes, as the dialog's Cancel/Close button does. On the shared
-  // stack rather than a listener of its own (ui/modal_escape.ts): ERC opens
-  // Severities, the Pin Conflicts Map and the Connection Grid on top of
-  // itself, and a plain window listener closed those *and* ERC with one key.
-  useModalEscape(onClose);
-
   /** OnERCItemRClick's menu for one violation. */
   const rowMenu = (index: number): MenuItem[] => {
     const v = markers[index]!;
@@ -535,247 +498,148 @@ export function ErcDialog({
   } | null>(null);
 
   return (
-    <div className="ze-erc-panel" ref={panelRef}>
-      <div className="ze-modal-header ze-drag-handle" onPointerDown={dragStart}>
-        Electrical Rules Checker
-        <span className="x" onClick={onClose}>
-          ✕
-        </span>
-      </div>
-
-      {unannotated && (
-        <div className="ze-infobar">
-          Schematic is not fully annotated. ERC results will be incomplete.
-          {onShowAnnotate && (
-            <a onClick={onShowAnnotate} className="lnk">
-              Show Annotation dialog
-            </a>
-          )}
-        </div>
-      )}
-
-      {/* gbSizerOptions: the config menu button sits above the notebook. */}
-      <div className="ze-erc-options">
-        <button
-          type="button"
-          className="ze-erc-menu-btn"
-          title="Options"
-          onClick={(e) => {
-            const r = (e.target as HTMLElement).getBoundingClientRect();
-            setConfigOpen({ x: r.left, y: r.bottom });
-          }}
-        >
-          {/* m_bMenu->SetBitmap( KiBitmapBundle( BITMAPS::config ) ),
-              dialog_erc.cpp:98 — the gear, not options_board. */}
-          <img src={KiBitmapBundle(BITMAPS.config)} alt="" />
-        </button>
-      </div>
-
-      {running ? (
-        <div className="ze-erc-tabs">
-          <div className="tab active">Tests Running...</div>
-        </div>
-      ) : (
-        <div className="ze-erc-tabs">
-          <div
-            className={`tab${tab === 'violations' ? ' active' : ''}`}
-            onClick={() => setTab('violations')}
-          >
-            {notRun ? 'Violations' : `Violations (${shown.length})`}
-          </div>
-          <div
-            className={`tab${tab === 'ignored' ? ' active' : ''}`}
-            onClick={() => setTab('ignored')}
-          >
-            {notRun ? 'Ignored Tests' : `Ignored Tests (${ignoredTests.length})`}
-          </div>
-        </div>
-      )}
-
-      {running ? (
-        /* The running page: the phase messages so far over the gauge. */
-        <div className="ze-erc-list" data-testid="erc-running">
-          {running.map((line) => (
-            <div key={line} className="ze-erc-progress-line">
-              {line}
-            </div>
-          ))}
-          <div className="ze-erc-gauge">
-            <div
-              className="bar"
-              style={{ width: `${Math.round((running.length / ERC_PHASE_COUNT) * 100)}%` }}
-            />
-          </div>
-        </div>
-      ) : tab === 'violations' ? (
-        <div className="ze-erc-list" data-testid="erc-violation-list">
-          {shown.map(({ v, i }) => (
-            <div key={`${i}:${v.code}`} className="ze-erc-item">
-              <div
-                // `DIALOG_ERC::SelectMarker` ends in `EnsureVisible`, so a row
-                // reached by cross-probing from the canvas is scrolled to
-                // rather than merely marked selected somewhere off-screen.
-                ref={selected?.index === i ? selectedRowRef : undefined}
-                className={`ze-erc-row ${v.severity}${
-                  selected?.index === i && selected.item === null ? ' selected' : ''
-                }${isExcl(v) ? ' excluded' : ''}`}
-                onClick={() => {
-                  setSelected({ index: i, item: null });
-                  if (options.crossprobe) onLocate(v, options.scrollOnCrossprobe);
-                }}
-                onDoubleClick={() => onLocate(v, true)}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  setSelected({ index: i, item: null });
-                  setMenu({ x: e.clientX, y: e.clientY, index: i });
-                }}
-              >
-                {/* The shared disclosure chevron, `.twisty` — "declared without
+    <>
+      <DIALOG_ERC_BASE
+        m_infoBar={
+          unannotated ? 'Schematic is not fully annotated. ERC results will be incomplete.' : null
+        }
+        {...(onShowAnnotate ? { onShowAnnotate } : {})}
+        onMenu={(aAnchor) => {
+          const r = aAnchor.getBoundingClientRect();
+          setConfigOpen({ x: r.left, y: r.bottom });
+        }}
+        runningResultsPage={running ? 0 : 1}
+        m_messages={running ?? []}
+        gauge={Math.round(((running?.length ?? 0) / ERC_PHASE_COUNT) * 1000)}
+        resultsPage={tab === 'violations' ? 0 : 1}
+        onResultsPageChanged={(i) => setTab(i === 0 ? 'violations' : 'ignored')}
+        violationsTitle={notRun ? 'Violations' : `Violations (${shown.length})`}
+        ignoredTitle={notRun ? 'Ignored Tests' : `Ignored Tests (${ignoredTests.length})`}
+        m_markerDataView={
+          <div className="ze-erc-list" data-testid="erc-violation-list">
+            {shown.map(({ v, i }) => (
+              <div key={`${i}:${v.code}`} className="ze-erc-item">
+                <div
+                  // `DIALOG_ERC::SelectMarker` ends in `EnsureVisible`, so a row
+                  // reached by cross-probing from the canvas is scrolled to
+                  // rather than merely marked selected somewhere off-screen.
+                  ref={selected?.index === i ? selectedRowRef : undefined}
+                  className={`ze-erc-row ${v.severity}${
+                    selected?.index === i && selected.item === null ? ' selected' : ''
+                  }${isExcl(v) ? ' excluded' : ''}`}
+                  onClick={() => {
+                    setSelected({ index: i, item: null });
+                    if (options.crossprobe) onLocate(v, options.scrollOnCrossprobe);
+                  }}
+                  onDoubleClick={() => onLocate(v, true)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setSelected({ index: i, item: null });
+                    setMenu({ x: e.clientX, y: e.clientY, index: i });
+                  }}
+                >
+                  {/* The shared disclosure chevron, `.twisty` — "declared without
                     an ancestor so every tree-ish expander in the app is the
                     same mark". This drew a raw "⌄" character in a span of its
                     own instead, which is why it read smaller and thinner than
                     KiCad's: a glyph at a font size rather than GTK's expander,
                     whose arms the shared rule measures at 11 x 6. A marker row
                     always has children and is always expanded here. */}
-                <span className="twisty expandable open" />
-                <span className="msg">
-                  {rowPrefix(v)}
-                  {v.message}
-                </span>
-              </div>
-              {/* RC_TREE_MODEL::rebuildModel (rc_item.cpp:363-383) gives a
+                  <span className="twisty expandable open" />
+                  <span className="msg">
+                    {rowPrefix(v)}
+                    {v.message}
+                  </span>
+                </div>
+                {/* RC_TREE_MODEL::rebuildModel (rc_item.cpp:363-383) gives a
                   marker one child per non-null item id — MAIN_ITEM, AUX_ITEM,
                   AUX_ITEM2, AUX_ITEM3, so four and not three — and appends the
                   COMMENT node AFTER them, not before. */}
-              {v.items.slice(0, 4).map((id, k) => (
-                <div
-                  key={id}
-                  className={`ze-erc-subrow${isExcl(v) ? ' excluded' : ''}${
-                    selected?.index === i && selected.item === k ? ' selected' : ''
-                  }`}
-                  onClick={() => {
-                    setSelected({ index: i, item: k });
-                    if (options.crossprobe) onLocate(v, options.scrollOnCrossprobe, id);
-                  }}
-                  onDoubleClick={() => onLocate(v, true, id)}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    setSelected({ index: i, item: k });
-                    setMenu({ x: e.clientX, y: e.clientY, index: i });
-                  }}
-                >
-                  {describeItem?.(id, v.file) ?? id}
-                </div>
-              ))}
-              {/* RC_TREE_NODE::COMMENT: an excluded marker's comment, when it
+                {v.items.slice(0, 4).map((id, k) => (
+                  <div
+                    key={id}
+                    className={`ze-erc-subrow${isExcl(v) ? ' excluded' : ''}${
+                      selected?.index === i && selected.item === k ? ' selected' : ''
+                    }`}
+                    onClick={() => {
+                      setSelected({ index: i, item: k });
+                      if (options.crossprobe) onLocate(v, options.scrollOnCrossprobe, id);
+                    }}
+                    onDoubleClick={() => onLocate(v, true, id)}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      setSelected({ index: i, item: k });
+                      setMenu({ x: e.clientX, y: e.clientY, index: i });
+                    }}
+                  >
+                    {describeItem?.(id, v.file) ?? id}
+                  </div>
+                ))}
+                {/* RC_TREE_NODE::COMMENT: an excluded marker's comment, when it
                   has one, last of the marker's children. */}
-              {isExcl(v) && exclusionComments?.get(ercExclusionKey(v)) && (
-                <div className="ze-erc-subrow excluded">
-                  {exclusionComments.get(ercExclusionKey(v))}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="ze-erc-list">
-          {ignoredTests.map((t) => (
-            <div key={t} className="ze-erc-row">
-              <span className="msg"> • {t}</span>
-            </div>
-          ))}
-          {onEditSeverities && (
-            <a className="ze-erc-link" onClick={onEditSeverities}>
-              Edit ignored tests
-            </a>
-          )}
-        </div>
-      )}
-
-      <div className="ze-erc-footer">
-        <span className="show-label">Show:</span>
-        <CheckBox
-          label="All"
-          checked={showAll}
-          className="chk"
-          onChange={(
-            v, // DIALOG_ERC::OnSeverity (dialog_erc.cpp:1118-1129): the All box
-          ) =>
-            // turns Errors on whichever way it is moved, and hands only
-            // Warnings and Exclusions its own new state.
-            {
-              setShowAll(v);
-              setFilters({
-                errors: true,
-                warnings: v,
-                exclusions: v,
-              });
-            }
+                {isExcl(v) && exclusionComments?.get(ercExclusionKey(v)) && (
+                  <div className="ze-erc-subrow excluded">
+                    {exclusionComments.get(ercExclusionKey(v))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        }
+        ignoredRows={ignoredTests.map((t) => ` • ${t}`)}
+        {...(onEditSeverities ? { onEditIgnoredTests: onEditSeverities } : {})}
+        // DIALOG_ERC::OnSeverity (dialog_erc.cpp:1118-1129): the All box turns Errors on whichever
+        // way it is moved, and hands only Warnings and Exclusions its own new state.
+        m_showAll={{
+          value: showAll,
+          onChange: (v) => {
+            setShowAll(v);
+            setFilters({ errors: true, warnings: v, exclusions: v });
+          },
+        }}
+        m_showErrors={{
+          check: { value: filters.errors, onChange: (v) => setFilters({ ...filters, errors: v }) },
+          count: notRun && errors === 0 ? -1 : errors,
+          severity: RPT_SEVERITY_ERROR,
+        }}
+        m_showWarnings={{
+          check: {
+            value: filters.warnings,
+            onChange: (v) => setFilters({ ...filters, warnings: v }),
+          },
+          count: notRun && warnings === 0 ? -1 : warnings,
+          severity: RPT_SEVERITY_WARNING,
+        }}
+        m_showExclusions={{
+          check: {
+            value: filters.exclusions,
+            onChange: (v) => setFilters({ ...filters, exclusions: v }),
+          },
+          count: exclusionCount,
+          severity: RPT_SEVERITY_EXCLUSION,
+        }}
+        badgeMax={ERC_BADGE_MAX}
+        saveEnabled={!running}
+        onSaveReport={(aAnchor) => {
+          const r = aAnchor.getBoundingClientRect();
+          setSaveMenu({ x: r.left, y: r.top });
+        }}
+        // Both delete buttons are live except while a run is in flight, the only place DIALOG_ERC
+        // disables them (dialog_erc.cpp:523-525, 565-568); Delete Marker with no current item rings
+        // the bell (rc_item.cpp:664-668).
+        deleteEnabled={!running}
+        onDeleteOneMarker={() => {
+          if (selected) {
+            onDelete(selected.index);
+            setSelected(null);
           }
-        />
-        <span className="gap-35" />
-        <CheckBox
-          label="Errors"
-          checked={filters.errors}
-          className="chk"
-          onChange={(v) => setFilters({ ...filters, errors: v })}
-        />
-        {errorsBadge && <span className={`ze-badge ${errorsBadge.kind}`}>{errorsBadge.text}</span>}
-        <span className="gap-25" />
-        <CheckBox
-          label="Warnings"
-          checked={filters.warnings}
-          className="chk"
-          onChange={(v) => setFilters({ ...filters, warnings: v })}
-        />
-        {warningsBadge && (
-          <span className={`ze-badge ${warningsBadge.kind}`}>{warningsBadge.text}</span>
-        )}
-        <span className="gap-25" />
-        <CheckBox
-          label="Exclusions"
-          checked={filters.exclusions}
-          className="chk"
-          onChange={(v) => setFilters({ ...filters, exclusions: v })}
-        />
-        {exclusionsBadge && (
-          <span className={`ze-badge ${exclusionsBadge.kind}`}>{exclusionsBadge.text}</span>
-        )}
-        <span className="grow" />
-        <Button
-          label="Save..."
-          disabled={!!running}
-          onClick={(e) => {
-            const r = (e.target as HTMLElement).getBoundingClientRect();
-            setSaveMenu({ x: r.left, y: r.top });
-          }}
-        />
-      </div>
-
-      {/* Both delete buttons are live except while a run is in flight, which is
-          the only place DIALOG_ERC disables them (dialog_erc.cpp:523-525 and
-          565-568). Neither is gated on a selection or on the list being
-          non-empty: RC_TREE_MODEL::DeleteItems answers Delete Marker with no
-          current item by ringing the bell and returning (rc_item.cpp:664-668). */}
-      <div className="ze-erc-buttons">
-        <Button
-          label="Delete Marker"
-          disabled={!!running}
-          onClick={() => {
-            if (selected) {
-              onDelete(selected.index);
-              setSelected(null);
-            }
-          }}
-        />
-        <Button label="Delete All Markers" disabled={!!running} onClick={onDeleteAll} />
-        <span className="grow" />
-        <Button
-          label={running ? 'Cancel' : 'Close'}
-          onClick={() => (running && onCancelRun ? onCancelRun() : onClose())}
-        />
-        <Button label="Run ERC" isDefault disabled={!!running} onClick={onRun} />
-      </div>
+        }}
+        onDeleteAllMarkers={onDeleteAll}
+        runEnabled={!running}
+        cancelLabel={running ? 'Cancel' : 'Close'}
+        onRunERC={onRun}
+        onCancel={() => (running && onCancelRun ? onCancelRun() : onClose())}
+      />
 
       {menu && (
         <ContextMenu
@@ -817,6 +681,6 @@ export function ErcDialog({
           }}
         />
       )}
-    </div>
+    </>
   );
 }

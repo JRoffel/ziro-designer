@@ -7810,62 +7810,9 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
   flex: 0 0 auto;
 }
 
-/* ERC results panel (KiCad DIALOG_ERC, modeless) */
-/* Electrical Rules Checker (dialog_erc_base.cpp). A DIALOG_SHIM is a real
-   window: this floats over the canvas, drags by its title bar and resizes from
-   its corner. The marker tree carries m_markerDataView's 640 x 260 minimum. */
-.ze-erc-panel {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  width: 700px;
-  height: 520px;
-  min-width: 480px;
-  min-height: 320px;
-  max-width: 96vw;
-  max-height: 92vh;
-  resize: both;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  z-index: 120;
-  background: var(--chrome-bg);
-  border: 1px solid var(--chrome-border);
-  border-radius: 6px;
-  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.5);
-}
 .ze-drag-handle {
   cursor: move;
   user-select: none;
-}
-/* gbSizerOptions: the config-menu button, right-aligned above the notebook. */
-.ze-erc-options {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  height: 22px;
-  padding: 0 6px;
-}
-.ze-erc-menu-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 3px;
-  color: var(--chrome-fg);
-  cursor: default;
-}
-.ze-erc-menu-btn:hover {
-  background: var(--chrome-hover);
-  border-color: var(--chrome-border);
-}
-.ze-erc-menu-btn img {
-  width: 16px;
-  height: 16px;
 }
 /* RC_TREE_MODEL rows: a bold marker heading with its item children under it.
 
@@ -7912,56 +7859,10 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
 .ze-erc-subrow.excluded {
   font-style: italic;
 }
-/* The "Tests Running..." page: phase messages over the progress gauge
-   (m_messages + m_gauge). */
-.ze-erc-progress-line {
-  padding: 2px 12px;
-  color: #b6b8bb;
-}
-.ze-erc-gauge {
-  margin: 10px 12px;
-  height: 10px;
-  border: 1px solid var(--chrome-border);
-  border-radius: 5px;
-  overflow: hidden;
-  background: var(--chrome-bg2);
-}
-.ze-erc-gauge .bar {
-  height: 100%;
-  background: var(--chrome-active);
-  transition: width 80ms linear;
-}
 .ze-erc-row .msg {
   /* `aAttr.SetBold( true )` is wxFONTWEIGHT_BOLD; `rowStyle` sets the weight
      from GetAttr, and this is the fallback for the rows it does not style. */
   font-weight: 700;
-}
-/* No weight of its own: `GetAttr` sets bold on every MARKER row and then ADDS
-   the italic and the colour for an excluded one - it never takes the bold
-   away, so an excluded heading is bold italic. */
-/* bSeveritySizer's fixed spacers: 35 px after All, 25 px after each badge. */
-.ze-erc-footer .gap-35 {
-  width: 35px;
-  flex: 0 0 auto;
-}
-.ze-erc-footer .gap-25 {
-  width: 25px;
-  flex: 0 0 auto;
-}
-.ze-erc-footer .show-label {
-  /* m_showLabel is a plain wxStaticText: it takes the dialog's own foreground,
-     and there is no dimmed variant anywhere in dialog_erc_base.cpp:141-143. */
-  color: var(--chrome-fg);
-}
-.ze-erc-buttons {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-top: 1px solid var(--chrome-border);
-}
-.ze-erc-buttons .grow {
-  flex: 1;
 }
 .ze-erc-list {
   flex: 1;
@@ -7973,10 +7874,6 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
   /* [data] the same call — the WIDTH half, which we did not have, and which is
      what should set the dialog's width rather than a number on the panel. */
   min-width: 640px;
-}
-.ze-erc-empty {
-  padding: 14px;
-  color: #9a9ca0;
 }
 .ze-erc-row {
   display: flex;
@@ -8007,28 +7904,6 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
      shrink-to-fit of a sized widget. */
   min-width: 0;
   overflow: hidden;
-}
-.ze-erc-footer {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  padding: 8px 12px;
-  border-top: 1px solid var(--chrome-border);
-}
-.ze-erc-footer .tally.err {
-  color: #e6090d;
-}
-.ze-erc-footer .tally.warn {
-  color: #d19200;
-}
-.ze-erc-footer .grow {
-  flex: 1;
-}
-.ze-erc-footer .chk {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  cursor: default;
 }
 /* Violations / Ignored Tests notebook tabs (DIALOG_ERC m_notebook) */
 .ze-erc-tabs {
@@ -8110,36 +7985,12 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
 .ze-erc-row.excluded .msg {
   font-style: italic;
 }
-.ze-erc-row .ze-erc-exclude {
-  flex: 0 0 auto;
-  padding: 1px 6px;
-  border: 1px solid var(--chrome-border);
-  border-radius: 3px;
-  background: transparent;
-  color: inherit;
-  cursor: default;
-  opacity: 0;
-}
-.ze-erc-row:hover .ze-erc-exclude {
-  opacity: 0.8;
-}
-.ze-erc-row .ze-erc-exclude:hover {
-  opacity: 1;
-  background: var(--chrome-hover);
-}
 .ze-erc-row .pos {
   margin-left: 8px;
   color: #9a9ca0;
 }
 .ze-erc-row.selected .pos {
   color: #d9dbde;
-}
-.ze-erc-link {
-  display: block;
-  padding: 6px 12px;
-  color: #6ea8fe;
-  cursor: default;
-  text-decoration: underline;
 }
 /* WX_INFOBAR-style warning strip (annotation incomplete) */
 /* WX_INFOBAR (common/widgets/wx_infobar.cpp). TWO rules used to define this,
