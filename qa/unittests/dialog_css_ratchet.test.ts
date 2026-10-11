@@ -66,7 +66,8 @@ const BASELINE: Record<string, number> = {
   // 257 -> 236 (10-12): Global Edit Teardrops pair.
   // 236 -> 188 (10-12): Barcode, Layer Selection, GenCAD, Print, Text, Text Box, Dimension.
   // 188 -> 182 (10-12): Shape, Import Graphics, Convert Settings, Complex Shape.
-  pcbnew: 182,
+  // 182 -> 143 (10-12): Create Array, 3D Models panel, footprint editor properties, Zone Manager.
+  pcbnew: 143,
 };
 
 const git = (...aSpecs: string[]): string[] =>

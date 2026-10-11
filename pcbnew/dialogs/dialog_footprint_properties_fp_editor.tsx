@@ -16,6 +16,40 @@
  * footprint's embedded files are still released when they go, as OK does.
  */
 
+import { type JSX, type ReactNode, useRef, useState } from 'react';
+import { DisplayErrorMessage } from '@ziroeda/common/confirm.js';
+import { GRID_TRICKS } from '@ziroeda/common/grid_tricks.js';
+import { LSET_NameToLayer } from '@ziroeda/common/layer_ids.js';
+import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
+import { WX_GRID, WX_GRID_TABLE_BASE } from '@ziroeda/common/widgets/wx_grid.js';
+import {
+  wxGRID_VALUE_NUMBER,
+  wxGRID_VALUE_STRING,
+  wxGridCellAttr,
+  wxGridSelectionModes,
+  wxGridTableRequest,
+} from '@ziroeda/wx/grid.js';
+import { WxGridView } from '@ziroeda/wx/grid_ui.js';
+import {
+  GRID_CELL_LAYER_RENDERER,
+  GRID_CELL_LAYER_SELECTOR,
+  allLayerChoices,
+  choiceOf,
+} from '../grid_layer_box_helpers.js';
+import { PCB_FIELDS_GRID_TABLE } from '../pcb_fields_grid_table.js';
+import type { PANEL_3D_MODEL_HOST, SELECTED_3D_MODEL } from './panel_fp_properties_3d_model.js';
+import {
+  PanelFpProperties3dModel,
+  type PANEL_3D_MODEL_API,
+} from './panel_fp_properties_3d_model.js';
+
+import { unitLabel } from '@ziroeda/common/eda_units.js';
+import { MARGIN_OFFSET_BINDER } from '@ziroeda/common/widgets/margin_offset_binder.js';
+import { UNIT_BINDER } from '@ziroeda/common/widgets/unit_binder.js';
+import {
+  DIALOG_FOOTPRINT_PROPERTIES_FP_EDITOR_BASE,
+  type GRID_BUTTONS,
+} from './dialog_footprint_properties_fp_editor_base.js';
 import { pcbIUScale } from '@ziroeda/common/eda_units.js';
 import { TEXT_MAX_SIZE_MM, TEXT_MIN_SIZE_MM } from '@ziroeda/common/eda_text.js';
 import { KiCadUriPrefix } from '@ziroeda/common/embedded_files.js';
@@ -118,6 +152,9 @@ export class DIALOG_FOOTPRINT_PROPERTIES_FP_EDITOR {
   GetFootprint(): FOOTPRINT {
     return this.m_footprint;
   }
+
+  /** `static NOTEBOOK_PAGES m_page`: the page the dialog was last left on. */
+  static m_page = 0;
 
   GetFrame(): FOOTPRINT_EDIT_FRAME {
     return this.m_frame;
@@ -508,4 +545,406 @@ export class DIALOG_FOOTPRINT_PROPERTIES_FP_EDITOR {
 
     return { ok: true };
   }
+}
+
+type Page = 'general' | 'layers' | 'clearances' | 'padConnections' | 'models3d';
+
+/** One text column, as `m_nettieGroupsGrid` / `m_jumperGroupsGrid` are. */
+class STRING_LIST_TABLE extends WX_GRID_TABLE_BASE {
+  constructor(public m_rows: string[]) {
+    super();
+  }
+  GetNumberRows(): number {
+    return this.m_rows.length;
+  }
+  GetNumberCols(): number {
+    return 1;
+  }
+  override CanGetValueAs(_r: number, _c: number, aType: string): boolean {
+    return aType === wxGRID_VALUE_STRING;
+  }
+  GetValue(aRow: number): string {
+    return this.m_rows[aRow] ?? '';
+  }
+  SetValue(aRow: number, _aCol: number, aValue: string): void {
+    this.m_rows[aRow] = aValue;
+  }
+  override AppendRows(aNum = 1): boolean {
+    for (let i = 0; i < aNum; ++i) this.m_rows.push('');
+    return super.AppendRows(aNum);
+  }
+  override DeleteRows(aPos = 0, aNum = 1): boolean {
+    this.m_rows.splice(aPos, aNum);
+    return super.DeleteRows(aPos, aNum);
+  }
+}
+
+/** `LAYERS_GRID_TABLE`: one layer column, a layer selector to edit it. */
+class LAYERS_GRID_TABLE extends WX_GRID_TABLE_BASE {
+  constructor(public m_layers: PCB_LAYER_ID[]) {
+    super();
+  }
+  GetNumberRows(): number {
+    return this.m_layers.length;
+  }
+  GetNumberCols(): number {
+    return 1;
+  }
+  override CanGetValueAs(_r: number, _c: number, aType: string): boolean {
+    return aType === wxGRID_VALUE_NUMBER;
+  }
+  override CanSetValueAs(_r: number, _c: number, aType: string): boolean {
+    return aType === wxGRID_VALUE_NUMBER;
+  }
+  GetValue(aRow: number): string {
+    return String(this.m_layers[aRow] ?? '');
+  }
+  SetValue(): void {}
+  override GetValueAsLong(aRow: number): number {
+    return this.m_layers[aRow] ?? -1;
+  }
+  override SetValueAsLong(aRow: number, _aCol: number, aValue: number): void {
+    this.m_layers[aRow] = aValue as PCB_LAYER_ID;
+  }
+  override DeleteRows(aPos = 0, aNum = 1): boolean {
+    this.m_layers.splice(aPos, aNum);
+    return super.DeleteRows(aPos, aNum);
+  }
+}
+
+function makeGrid<T extends WX_GRID_TABLE_BASE>(
+  aTable: T,
+  aLayerCol = false,
+): { grid: WX_GRID; table: T; tricks: GRID_TRICKS } {
+  const grid = new WX_GRID();
+  grid.SetTable(aTable, true, wxGridSelectionModes.wxGridSelectRows);
+
+  if (aLayerCol) {
+    const attr = new wxGridCellAttr();
+    attr.SetRenderer(new GRID_CELL_LAYER_RENDERER(choiceOf));
+    attr.SetEditor(
+      new GRID_CELL_LAYER_SELECTOR(() =>
+        allLayerChoices().map((c) => ({
+          layer: LSET_NameToLayer(c.value),
+          label: c.label,
+          swatch: c.swatch,
+        })),
+      ),
+    );
+    grid.SetColAttr(0, attr);
+  }
+
+  return { grid, table: aTable, tricks: new GRID_TRICKS(grid) };
+}
+
+export interface DialogFootprintPropertiesFpEditorProps {
+  dialog: DIALOG_FOOTPRINT_PROPERTIES_FP_EDITOR;
+  units: StatusUnits;
+  /** `EndModal`: true for wxID_OK, false for Cancel. */
+  onClose: (aOk: boolean) => void;
+  /** The 3D Models page and what it asks of the frame. */
+  model3d?: {
+    footprint: FOOTPRINT;
+    host: PANEL_3D_MODEL_HOST;
+    renderPreview: (
+      aModels: readonly FP_3DMODEL[],
+      aSelected: number,
+      aVersion: number,
+    ) => ReactNode;
+    pickModel: () => Promise<SELECTED_3D_MODEL | null>;
+  };
+}
+
+export function DialogFootprintPropertiesFpEditor({
+  dialog,
+  units,
+  onClose,
+  model3d,
+}: DialogFootprintPropertiesFpEditorProps): JSX.Element {
+  const [initial] = useState(() => dialog.TransferDataToWindow());
+  const [v, setV] = useState<FootprintFpEditorValues>(initial);
+  // `m_page`: the page it was last left on.
+  const [page, setPage] = useState<Page>(
+    (['general', 'layers', 'clearances', 'padConnections', 'models3d'] as const)[
+      DIALOG_FOOTPRINT_PROPERTIES_FP_EDITOR.m_page
+    ] ?? 'general',
+  );
+  const modelsApi = useRef<PANEL_3D_MODEL_API | null>(null);
+
+  const [fields] = useState(() =>
+    makeGrid(
+      new PCB_FIELDS_GRID_TABLE(
+        dialog.GetFrame().GetUnitsProvider(),
+        initial.fields,
+        dialog.GetFrame(),
+      ),
+    ),
+  );
+  const [netTies] = useState(() => makeGrid(new STRING_LIST_TABLE([...initial.netTieGroups])));
+  const [jumpers] = useState(() => makeGrid(new STRING_LIST_TABLE([...initial.jumperGroups])));
+  const [privateLayers] = useState(() =>
+    makeGrid(new LAYERS_GRID_TABLE([...initial.privateLayers]), true),
+  );
+  const [customLayers] = useState(() =>
+    makeGrid(new LAYERS_GRID_TABLE([...initial.customUserLayers]), true),
+  );
+
+  const set = (patch: Partial<FootprintFpEditorValues>): void => setV((p) => ({ ...p, ...patch }));
+
+  const commitGrids = (): boolean =>
+    [fields, netTies, jumpers, privateLayers, customLayers].every((g) =>
+      g.grid.CommitPendingChanges(),
+    );
+
+  const collect = (): FootprintFpEditorValues => ({
+    ...v,
+    fields: [...fields.table.GetFields()],
+    netTieGroups: [...netTies.table.m_rows],
+    jumperGroups: [...jumpers.table.m_rows],
+    privateLayers: [...privateLayers.table.m_layers],
+    customUserLayers: [...customLayers.table.m_layers],
+    // `m_netClearance.IsNull()`: a blank box.
+    localClearance:
+      binders.netClearance.GetText().trim() === '' ? null : binders.netClearance.GetValue(),
+    localSolderMaskMargin:
+      binders.solderMask.GetText().trim() === '' ? null : binders.solderMask.GetValue(),
+    localSolderPasteMargin: binders.solderPaste.GetOffsetValue() ?? null,
+    localSolderPasteMarginRatio: binders.solderPaste.GetRatioValue() ?? null,
+    models: modelsApi.current ? modelsApi.current.GetModelList() : v.models,
+  });
+
+  const onOk = async (): Promise<void> => {
+    if (!commitGrids()) return;
+    if (modelsApi.current && !modelsApi.current.CommitPendingChanges()) return;
+
+    const values = collect();
+    const check = await dialog.Validate(values);
+
+    if (!check.ok) {
+      if (check.page) setPage(check.page);
+      if (check.message) DisplayErrorMessage(check.message);
+      return;
+    }
+
+    const r = dialog.TransferDataFromWindow(values);
+
+    if (!r.ok) {
+      if (r.message) DisplayErrorMessage(r.message);
+      return;
+    }
+
+    onClose(true);
+  };
+
+  const frame = dialog.GetFrame();
+  // m_netClearance, m_solderMask, m_solderPaste: the clearance page's three binders.
+  const [binders] = useState(() => {
+    const netClearance = new UNIT_BINDER(frame, 'Pad clearance:');
+    const solderMask = new UNIT_BINDER(frame, 'Solder mask expansion:');
+    const solderPaste = new MARGIN_OFFSET_BINDER(frame.GetIuScale(), frame.GetUserUnits());
+
+    if (initial.localClearance !== null) netClearance.SetValue(initial.localClearance);
+    if (initial.localSolderMaskMargin !== null) solderMask.SetValue(initial.localSolderMaskMargin);
+    solderPaste.SetOffsetValue(initial.localSolderPasteMargin ?? undefined);
+    solderPaste.SetRatioValue(initial.localSolderPasteMarginRatio ?? undefined);
+
+    return { netClearance, solderMask, solderPaste };
+  });
+  const [, bumpBinders] = useState(0);
+  const userUnits = unitLabel(frame.GetUserUnits());
+
+  const binderEntry = (aBinder: UNIT_BINDER) => ({
+    value: aBinder.GetText(),
+    units: userUnits,
+    onChange: (aText: string) => {
+      aBinder.SetText(aText);
+      bumpBinders((n) => n + 1);
+    },
+  });
+
+  const PAGES: readonly Page[] = ['general', 'layers', 'clearances', 'padConnections', 'models3d'];
+  const pageIndex = Math.max(0, PAGES.indexOf(page));
+
+  const changePage = (aPage: number): void => {
+    // `m_page`, remembered for the next opening.
+    DIALOG_FOOTPRINT_PROPERTIES_FP_EDITOR.m_page = aPage;
+    setPage(PAGES[aPage]!);
+  };
+
+  const check = (aKey: keyof FootprintFpEditorValues & string, aEnabled = true) => ({
+    value: v[aKey] as boolean,
+    enabled: aEnabled,
+    onChange: (aOn: boolean) => set({ [aKey]: aOn } as Partial<FootprintFpEditorValues>),
+  });
+
+  /** `bButtonSize`'s pair over a grid: add a row, delete the selected one. */
+  const gridButtons = (
+    aGrid: { grid: WX_GRID; table: WX_GRID_TABLE_BASE },
+    aAddTitle: string,
+    aDeleteTitle: string,
+    aOnAdd: () => void,
+    aEnabled = true,
+    aCanDelete: (aRow: number) => boolean = () => true,
+  ): GRID_BUTTONS => ({
+    addTitle: aAddTitle,
+    deleteTitle: aDeleteTitle,
+    enabled: aEnabled,
+    onAdd: aOnAdd,
+    onDelete: () =>
+      aGrid.grid.OnDeleteRows(() => {
+        const rows = aGrid.grid.GetSelectedRows();
+        const row = rows.length > 0 ? rows[0]! : aGrid.grid.GetGridCursorRow();
+        if (row >= 0 && aCanDelete(row)) aGrid.table.DeleteRows(row, 1);
+      }),
+  });
+
+  const listGrid = (
+    aGrid: { grid: WX_GRID; tricks: GRID_TRICKS },
+    aWidth: number,
+    aLabel: string,
+  ) => (
+    <WxGridView
+      grid={aGrid.grid}
+      tricks={aGrid.tricks}
+      colLabels={false}
+      columns={[{ width: aWidth }]}
+      ariaLabel={aLabel}
+    />
+  );
+
+  return (
+    <DIALOG_FOOTPRINT_PROPERTIES_FP_EDITOR_BASE
+      page={pageIndex}
+      // OnPageChanging: a pending grid edit that will not commit vetoes the change.
+      onPageChanging={() => commitGrids()}
+      onPageChanged={changePage}
+      extraPages={
+        model3d
+          ? [
+              {
+                text: '3D Models',
+                content: (
+                  <PanelFpProperties3dModel
+                    footprint={model3d.footprint}
+                    host={model3d.host}
+                    renderPreview={model3d.renderPreview}
+                    pickModel={model3d.pickModel}
+                    apiRef={modelsApi}
+                  />
+                ),
+              },
+            ]
+          : []
+      }
+      m_itemsGrid={
+        <WxGridView grid={fields.grid} tricks={fields.tricks} flexCol={1} ariaLabel="Fields" />
+      }
+      fieldButtons={gridButtons(
+        fields,
+        'Add field',
+        'Delete field',
+        () =>
+          fields.grid.OnAddRow(() => {
+            fields.table.push_back(dialog.MakeNewField(fields.table.GetFields()));
+            // notify the grid
+            fields.grid.ProcessTableMessage(
+              wxGridTableRequest.wxGRIDTABLE_NOTIFY_ROWS_APPENDED,
+              1,
+              0,
+            );
+            return [fields.table.GetNumberRows() - 1, 0];
+          }),
+        true,
+        (aRow) => {
+          const refusal = dialog.CanDeleteField(aRow, fields.table.GetFields());
+          if (refusal) DisplayErrorMessage(refusal);
+          return refusal === null;
+        },
+      )}
+      m_FootprintNameCtrl={{
+        value: v.footprintName,
+        onChange: (aText) => set({ footprintName: aText }),
+      }}
+      m_DocCtrl={{ value: v.description, onChange: (aText) => set({ description: aText }) }}
+      m_KeywordCtrl={{ value: v.keywords, onChange: (aText) => set({ keywords: aText }) }}
+      m_componentType={{
+        value: v.componentType,
+        onChange: (aIndex) =>
+          set({ componentType: aIndex as FootprintFpEditorValues['componentType'] }),
+      }}
+      m_boardOnly={check('boardOnly')}
+      m_excludeFromPosFiles={check('excludeFromPosFiles')}
+      m_excludeFromBOM={check('excludeFromBOM')}
+      m_cbDNP={check('dnp')}
+      m_cbCustomLayers={check('customLayers')}
+      m_copperLayerCount={{
+        value: v.copperLayerCountSel,
+        enabled: v.customLayers,
+        onChange: (aIndex) => set({ copperLayerCountSel: aIndex }),
+      }}
+      m_customUserLayersGrid={listGrid(customLayers, 180, 'User layers')}
+      customLayerButtons={gridButtons(
+        customLayers,
+        'Add user layer',
+        'Delete user layer',
+        () =>
+          customLayers.grid.OnAddRow(() => {
+            customLayers.table.m_layers.push(
+              DIALOG_FOOTPRINT_PROPERTIES_FP_EDITOR.NextUserLayer(customLayers.table.m_layers),
+            );
+            customLayers.table.AppendRows(1);
+            return [customLayers.table.GetNumberRows() - 1, 0];
+          }),
+        v.customLayers,
+      )}
+      m_privateLayersGrid={listGrid(privateLayers, 180, 'Private layers')}
+      privateLayerButtons={gridButtons(
+        privateLayers,
+        'Add private layer',
+        'Delete private layer',
+        () =>
+          privateLayers.grid.OnAddRow(() => {
+            privateLayers.table.m_layers.push(
+              DIALOG_FOOTPRINT_PROPERTIES_FP_EDITOR.NextUserLayer(privateLayers.table.m_layers),
+            );
+            privateLayers.table.AppendRows(1);
+            return [privateLayers.table.GetNumberRows() - 1, 0];
+          }),
+      )}
+      m_NetClearanceCtrl={binderEntry(binders.netClearance)}
+      m_SolderMaskMarginCtrl={binderEntry(binders.solderMask)}
+      m_allowBridges={check('allowSolderMaskBridges')}
+      m_SolderPasteMarginCtrl={{
+        value: binders.solderPaste.GetText(),
+        units: userUnits,
+        onChange: (aText) => {
+          binders.solderPaste.onTextChanged(aText);
+          bumpBinders((n) => n + 1);
+        },
+      }}
+      m_noCourtyards={check('allowMissingCourtyard')}
+      m_ZoneConnectionChoice={{
+        value: v.zoneConnection,
+        onChange: (aIndex) =>
+          set({ zoneConnection: aIndex as FootprintFpEditorValues['zoneConnection'] }),
+      }}
+      m_nettieGroupsGrid={listGrid(netTies, 320, 'Net tie pad groups')}
+      nettieButtons={gridButtons(netTies, 'Add net-tie group', 'Remove net-tie group', () =>
+        netTies.grid.OnAddRow(() => {
+          netTies.table.AppendRows(1);
+          return [netTies.table.GetNumberRows() - 1, 0];
+        }),
+      )}
+      m_cbDuplicatePadsAreJumpers={check('duplicatePadsAreJumpers')}
+      m_jumperGroupsGrid={listGrid(jumpers, 320, 'Jumper pad groups')}
+      jumperButtons={gridButtons(jumpers, 'Add jumper group', 'Remove jumper group', () =>
+        jumpers.grid.OnAddRow(() => {
+          jumpers.table.AppendRows(1);
+          return [jumpers.table.GetNumberRows() - 1, 0];
+        }),
+      )}
+      onOK={() => void onOk()}
+      onCancel={() => onClose(false)}
+    />
+  );
 }

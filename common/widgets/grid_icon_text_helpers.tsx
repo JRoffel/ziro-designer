@@ -6,7 +6,9 @@
  * `GRID_CELL_ICON_TEXT_RENDERER`, a cell that draws the icon matching its text before the text.
  * The view (`wx/grid_ui.tsx`) draws it from DrawValue's `icon`.
  */
+import type { JSX } from 'react';
 import { bitmapUrl } from '../bitmap_store.js';
+import { DialogIcon } from '../dialogs/dialog_message.js';
 import { type wxGrid, wxGridCellRenderer, type wxGridCellDrawn } from '@ziroeda/wx/grid.js';
 
 export class GRID_CELL_ICON_TEXT_RENDERER extends wxGridCellRenderer implements wxGridCellDrawn {
@@ -35,4 +37,25 @@ export class GRID_CELL_ICON_TEXT_RENDERER extends wxGridCellRenderer implements 
 
     return icon === undefined ? { label: aValue } : { label: aValue, icon };
   }
+}
+
+/**
+ * `GRID_CELL_STATUS_ICON_RENDERER( aStatus )`: wxArtProvider's message-box icon for the status at
+ * wxART_BUTTON size, centred in the cell; nothing for status 0.
+ */
+export function GridCellStatusIcon({
+  status,
+  tooltip,
+}: {
+  status: 0 | 'warning' | 'error';
+  /** The cell's text, which GRID_TRICKS shows as the tooltip. */
+  tooltip: string;
+}): JSX.Element | null {
+  if (status === 0) return null;
+
+  return (
+    <span className="ze-grid-status-cell" title={tooltip}>
+      <DialogIcon icon={status} className="ze-grid-status-icon" />
+    </span>
+  );
 }

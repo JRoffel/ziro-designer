@@ -12,6 +12,8 @@ import type { JSX, ReactNode } from 'react';
 export interface NotebookPage {
   /** The tab's text (`AddPage( page, text )`). */
   text: string;
+  /** `AddPage( page, text, select, imageId )`: the image list's picture before the text. */
+  image?: ReactNode;
   content: ReactNode;
 }
 
@@ -47,6 +49,7 @@ export function Notebook({
               onPageChanged(i);
             }}
           >
+            {p.image !== undefined && <span className="ze-nb-tab-image">{p.image}</span>}
             {p.text}
           </button>
         ))}

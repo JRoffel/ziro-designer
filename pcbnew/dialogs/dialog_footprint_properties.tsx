@@ -53,7 +53,7 @@ import type { PANEL_3D_MODEL_HOST, SELECTED_3D_MODEL } from './panel_fp_properti
 import {
   type PANEL_3D_MODEL_API,
   PanelFpProperties3dModel,
-} from './panel_fp_properties_3d_model_ui.js';
+} from './panel_fp_properties_3d_model.js';
 
 /** `FP_PROPS_RETVALUE`: the option that closed the dialog. */
 export enum FP_PROPS_RETVALUE {

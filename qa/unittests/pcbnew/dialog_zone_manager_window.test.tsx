@@ -9,7 +9,7 @@
  * canvases are WebGL and are the window's to make, so a fake factory stands in
  * and records what was asked of it.
  */
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import { COLOR_SETTINGS } from '@ziroeda/common/settings/color_settings.js';
@@ -21,7 +21,7 @@ import {
   DialogZoneManager,
   type ZONE_MANAGER_FRAME,
   type ZonePreviewCanvasFactory,
-} from '@ziroeda/pcbnew/zone_manager/dialog_zone_manager_ui.js';
+} from '@ziroeda/pcbnew/zone_manager/dialog_zone_manager.js';
 
 afterEach(cleanup);
 
@@ -87,11 +87,11 @@ function setup(specs: [string, number, PCB_LAYER_ID[]][]) {
 }
 
 const rowsText = (): string[][] =>
-  Array.from(document.querySelectorAll('.ze-zm-grid tbody tr')).map((tr) =>
+  Array.from(screen.getByLabelText('Zones').querySelectorAll('tbody tr')).map((tr) =>
     Array.from(tr.querySelectorAll('td')).map((td) => td.textContent ?? ''),
   );
 const selectedRow = (): number =>
-  Array.from(document.querySelectorAll('.ze-zm-grid tbody tr')).findIndex((tr) =>
+  Array.from(screen.getByLabelText('Zones').querySelectorAll('tbody tr')).findIndex((tr) =>
     tr.classList.contains('selected'),
   );
 const nameInput = (): HTMLInputElement =>
@@ -107,7 +107,7 @@ describe('Zone Manager window', () => {
     // Wait out the mount effect that builds the session.
     await act(async () => {});
     expect(
-      Array.from(document.querySelectorAll('.ze-zm-grid th')).map((t) => t.textContent),
+      Array.from(screen.getByLabelText('Zones').querySelectorAll('th')).map((t) => t.textContent),
     ).toEqual(['Name', 'Net', 'Layers']);
     // Row 0 is the higher priority: "Top zone has the highest priority".
     expect(rowsText()).toEqual([
@@ -127,9 +127,9 @@ describe('Zone Manager window', () => {
     );
     // One tab per page, named by the layer.
     expect(
-      Array.from(document.querySelectorAll('.ze-zm-nb .ze-nb-tabs button')).map(
-        (b) => b.textContent,
-      ),
+      within(screen.getByRole('tablist', { name: 'Zone previews' }))
+        .getAllByRole('tab')
+        .map((b) => b.textContent),
     ).toEqual(['F.Cu', 'B.Cu']);
   });
 
@@ -141,7 +141,7 @@ describe('Zone Manager window', () => {
     await act(async () => {});
     expect(t.asked).toEqual([{ layer: PCB_LAYER_ID.F_Cu, zone: 'a' }]);
 
-    fireEvent.click(document.querySelectorAll('.ze-zm-grid tbody tr')[1]!);
+    fireEvent.click(screen.getByLabelText('Zones').querySelectorAll('tbody tr')[1]!);
     expect(nameInput().value).toBe('b');
     expect(selectedRow()).toBe(1);
     expect(t.asked.at(-1)).toEqual({ layer: PCB_LAYER_ID.B_Cu, zone: 'b' });
@@ -163,16 +163,15 @@ describe('Zone Manager window', () => {
     await act(async () => {});
     fireEvent.change(screen.getByLabelText('Filter'), { target: { value: 'vcc' } });
     expect(rowsText().map((r) => r[0])).toEqual(['vcc']);
-    fireEvent.click(btn('Clear filter'));
+    fireEvent.click(btn('Clear'));
     expect(rowsText().map((r) => r[0])).toEqual(['gnd_top', 'vcc']);
   });
 
   it('the Name and Net boxes are both ticked, and un-ticking Name stops matching names', async () => {
     setup([['gnd_top', 1, [PCB_LAYER_ID.F_Cu]]]);
     await act(async () => {});
-    const [name, net] = Array.from(
-      document.querySelectorAll('.ze-zm-search input[type="checkbox"]'),
-    ) as HTMLInputElement[];
+    const name = screen.getByLabelText('Name') as HTMLInputElement;
+    const net = screen.getByLabelText('Net') as HTMLInputElement;
     expect([name!.checked, net!.checked]).toEqual([true, true]);
     fireEvent.change(screen.getByLabelText('Filter'), { target: { value: 'gnd' } });
     expect(rowsText()).toHaveLength(1);
@@ -187,7 +186,7 @@ describe('Zone Manager window', () => {
       ['bottom', 1, [PCB_LAYER_ID.F_Cu]],
     ]);
     await act(async () => {});
-    fireEvent.click(btn('down'));
+    fireEvent.click(btn('Move down'));
     expect(rowsText().map((r) => r[0])).toEqual(['bottom', 'top']);
     expect(t.zones.map((z) => z.GetAssignedPriority())).toEqual([2, 1]);
 
@@ -249,7 +248,7 @@ describe('Zone Manager window', () => {
   it('with one zone the move and auto-assign buttons are disabled', async () => {
     setup([['a', 1, [PCB_LAYER_ID.F_Cu]]]);
     await act(async () => {});
-    for (const name of ['down', 'Auto-assign'])
+    for (const name of ['Move down', 'Auto-assign priorities'])
       expect((btn(name) as HTMLButtonElement).disabled).toBe(true);
   });
 

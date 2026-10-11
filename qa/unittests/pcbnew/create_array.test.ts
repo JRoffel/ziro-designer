@@ -11,7 +11,6 @@
  * and moves when position 0's transform is not the identity.
  */
 import { describe, expect, it } from 'vitest';
-import { arraySize } from '@ziroeda/pcbnew/dialogs/dialog_create_array.js';
 import { ARRAY_CIRCULAR_OPTIONS, ARRAY_GRID_OPTIONS } from '@ziroeda/common/array_options.js';
 import { EDA_ANGLE } from '@ziroeda/kimath/src/geometry/eda_angle.js';
 import type { VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
@@ -56,10 +55,10 @@ const circOpts = (o: {
 
 describe('array size', () => {
   it('is nx times ny for a grid', () => {
-    expect(arraySize(gridOpts({ nx: 3, ny: 4, delta: { x: 1, y: 1 } }))).toBe(12);
+    expect(gridOpts({ nx: 3, ny: 4, delta: { x: 1, y: 1 } }).GetArraySize()).toBe(12);
   });
 
   it('is the point count for a circle', () => {
-    expect(arraySize(circOpts({ nPts: 6, centre: { x: 0, y: 0 } }))).toBe(6);
+    expect(circOpts({ nPts: 6, centre: { x: 0, y: 0 } }).GetArraySize()).toBe(6);
   });
 });

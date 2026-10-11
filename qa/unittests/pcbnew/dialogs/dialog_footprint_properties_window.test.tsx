@@ -119,7 +119,7 @@ describe('DIALOG_FOOTPRINT_PROPERTIES window', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add 3D model' }));
     fireEvent.click(tab('General'));
     fireEvent.click(tab('3D Models'));
-    expect(document.querySelectorAll('.ze-fp3d-grid tbody tr')).toHaveLength(2);
+    expect(screen.getByLabelText('3D models').querySelectorAll('tbody tr')).toHaveLength(2);
   });
 
   it('the position reads in the frame units, and OK writes what was typed', () => {

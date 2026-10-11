@@ -77,6 +77,12 @@ export interface WxSearchCtrlProps {
   onKeyDown?: (e: KeyboardEvent<HTMLInputElement>) => void;
   autoFocus?: boolean;
   testId?: string;
+  /**
+   * `ShowCancelButton( true )` and its wxEVT_SEARCH_CANCEL: GtkSearchEntry shows the clear icon
+   * in the secondary slot while there is text to cancel.
+   */
+  onCancel?: () => void;
+  ariaLabel?: string;
 }
 
 /** One `wxSearchCtrl`: the magnifier in the primary slot, the entry after it. */
@@ -90,6 +96,8 @@ export function WxSearchCtrl({
   onKeyDown,
   autoFocus,
   testId,
+  onCancel,
+  ariaLabel,
 }: WxSearchCtrlProps): JSX.Element {
   return (
     <div className="ze-libtree-entry" title={toolTip}>
@@ -108,7 +116,13 @@ export function WxSearchCtrl({
         onChange={(e) => onChange(e.target.value)}
         onFocus={onFocus}
         onKeyDown={onKeyDown}
+        aria-label={ariaLabel}
       />
+      {onCancel && value !== '' && (
+        <button type="button" className="ze-entry-icon right" title="Clear" onClick={onCancel}>
+          <EditClearSymbolic />
+        </button>
+      )}
     </div>
   );
 }

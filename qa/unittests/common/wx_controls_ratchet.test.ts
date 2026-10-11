@@ -103,7 +103,8 @@ const BASELINE: Record<(typeof AREAS)[number], Record<Kind, number>> = {
   // then Global Edit Teardrops - button 45, checkbox 18.
   // then Barcode, Layer Selection, GenCAD, Print, Text, Text Box, Dimension.
   // then Shape, Import Graphics, Convert Settings, Complex Shape: no raw select or radio left.
-  pcbnew: { button: 34, checkbox: 13, select: 0, frame: 1, radio: 0, entry: 9, sbox: 16 },
+  // then Create Array, 3D Models panel, footprint editor properties, Zone Manager.
+  pcbnew: { button: 26, checkbox: 10, select: 0, frame: 1, radio: 0, entry: 7, sbox: 4 },
 };
 
 function tsxFiles(aDir: string, aOut: string[] = []): string[] {

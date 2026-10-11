@@ -31,7 +31,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PGM_BASE, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
-import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { FootprintEditor } from '@ziroeda/designer/src/editors/footprint/footprint_edit_frame_app.js';
 import { mergeFpEdit, settings, SETTINGS_SLICES } from '@ziroeda/designer/src/prefs/settings.js';
 
@@ -459,16 +459,11 @@ describe('the row faces reach the DOM', () => {
         i.textContent?.startsWith('Footprint Properties'),
       )!,
     );
-    const inputs = Array.from(document.querySelectorAll('.ze-fpfe-dialog input[type="text"]'));
-    const description = inputs.find(
-      (i) => (i as HTMLInputElement).value === 'Resistor SMD 0805',
-    ) as HTMLInputElement;
+    const props = screen.getByRole('dialog', { name: 'Footprint Properties' });
+    const description = within(props).getByRole('textbox', { name: 'Description' });
+    expect((description as HTMLInputElement).value).toBe('Resistor SMD 0805');
     fireEvent.change(description, { target: { value: 'Edited' } });
-    fireEvent.click(
-      Array.from(document.querySelectorAll('.ze-fpfe-dialog button')).find(
-        (b) => b.textContent === 'OK',
-      )!,
-    );
+    fireEvent.click(within(props).getByRole('button', { name: 'OK' }));
     await waitFor(() => expect(rowNamed(container, 'R_0805 *')).toBeDefined());
     const fpRow = rowNamed(container, 'R_0805 *')!;
     const cell = fpRow.querySelector('.col-item') as HTMLElement;

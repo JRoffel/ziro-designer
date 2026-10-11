@@ -80,7 +80,7 @@ import type { CrosshairMode, GridStyle } from '@ziroeda/common/draw_panel_gal_gr
 import '@ziroeda/common/widgets/shell.css';
 import type { PCBNEW_APP } from './browser/pcbnew_app.js';
 import { DIALOG_FOOTPRINT_PROPERTIES_FP_EDITOR } from './dialogs/dialog_footprint_properties_fp_editor.js';
-import { DialogFootprintPropertiesFpEditor } from './dialogs/dialog_footprint_properties_fp_editor_ui.js';
+import { DialogFootprintPropertiesFpEditor } from './dialogs/dialog_footprint_properties_fp_editor.js';
 import type { SELECTED_3D_MODEL } from './dialogs/panel_fp_properties_3d_model.js';
 import { FOOTPRINT } from './footprint.js';
 import {

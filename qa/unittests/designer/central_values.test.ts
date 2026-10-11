@@ -334,7 +334,9 @@ const BASELINE: Record<string, { colours: number; metrics: number }> = {
   // (`pcb_draw_panel_gal_ui.tsx`) went; they draw on PCB_DRAW_PANEL_GAL.
   // 10-10: colours 20 -> 19, metrics 114 -> 88 - DIALOG_PLOT's inline box/legend/row styles, gone
   // with the dialog transcribed onto the sizers (dialog_plot_base.tsx).
-  'editors/pcb': { colours: 14, metrics: 36 }, // -9 metrics (10-11): the batch-5 pcbnew pairs' old forms; // -4 colours, -30 metrics (10-11): the old Move Exact and Outset Items forms' inline styles, gone with their _base pairs
+  // colours 14 -> 12, metrics 36 -> 15 (10-12): Create Array's, the footprint editor's and the
+  // Zone Manager's inline styles, gone with their _ui files.
+  'editors/pcb': { colours: 12, metrics: 15 }, // -9 metrics (10-11): the batch-5 pcbnew pairs' old forms; // -4 colours, -30 metrics (10-11): the old Move Exact and Outset Items forms' inline styles, gone with their _base pairs
   // At zero, and listed rather than absent: `prefs/` is the settings store, and
   // the one literal it had - the 3D viewer's `rgb(0,255,0)` selection colour -
   // is `PARAM<COLOR4D>( "render.opengl_selection_color", …, COLOR4D( 0, 1, 0, 1 ) )`
@@ -1470,7 +1472,8 @@ describe('the scan totals, so the numbers in the PR stay true', () => {
     // 264 -> 263: the Symbol Fields Table.
     // 263 -> 257: ERC.
     // 257 -> 254 (10-12): the common/widgets row above.
-    expect(SITES.filter((s) => s.kind === 'colours').length).toBe(254);
+    // 254 -> 252 (10-12): the editors/pcb row above.
+    expect(SITES.filter((s) => s.kind === 'colours').length).toBe(252);
     // 1657 -> 1649: the same sweep. A native colour input has no useful
     // default size, so eight of the sixteen sites gave theirs an inline
     // width and height; the shared swatch takes --swatch-*-w/h. Rescanned.
@@ -1710,7 +1713,8 @@ describe('the scan totals, so the numbers in the PR stay true', () => {
     // 830 -> 789: the Symbol Fields Table.
     // 789 -> 763: ERC.
     // 763 -> 751 (10-12): the common/widgets row above.
-    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(751);
+    // 751 -> 730 (10-12): the editors/pcb row above.
+    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(730);
   });
 
   it('and the two agree with the per-area table, which is where they come from', () => {

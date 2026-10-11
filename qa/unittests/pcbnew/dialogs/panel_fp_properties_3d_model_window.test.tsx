@@ -12,7 +12,7 @@ import type { PANEL_3D_MODEL_HOST } from '@ziroeda/pcbnew/dialogs/panel_fp_prope
 import {
   PanelFpProperties3dModel,
   type PANEL_3D_MODEL_API,
-} from '@ziroeda/pcbnew/dialogs/panel_fp_properties_3d_model_ui.js';
+} from '@ziroeda/pcbnew/dialogs/panel_fp_properties_3d_model.js';
 
 afterEach(cleanup);
 
@@ -44,7 +44,7 @@ beforeEach(() => {
 });
 
 const rowsOf = (): string[] =>
-  Array.from(document.querySelectorAll('.ze-fp3d-grid tbody tr')).map(
+  Array.from(screen.getByLabelText('3D models').querySelectorAll('tbody tr')).map(
     (r) => r.querySelector('td[data-col="1"]')?.textContent ?? '',
   );
 
@@ -77,8 +77,10 @@ describe('PanelFpProperties3dModel', () => {
 
   it('a model that does not resolve shows the error icon with its reason as the tooltip', () => {
     mount();
-    expect(document.querySelectorAll('.ze-fp3d-status')).toHaveLength(1);
-    expect(document.querySelector('.ze-fp3d-status')?.getAttribute('title')).toBe('File not found');
+    expect(document.querySelectorAll('.ze-grid-status-cell')).toHaveLength(1);
+    expect(document.querySelector('.ze-grid-status-cell')?.getAttribute('title')).toBe(
+      'File not found',
+    );
   });
 
   it('hands the preview the models and the selected one', () => {

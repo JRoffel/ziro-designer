@@ -251,12 +251,8 @@ import { WXK } from '@ziroeda/wx/wx_keycodes.js';
 import { type DIALOG_MOVE_EXACT, DialogMoveExact } from './dialogs/dialog_move_exact.js';
 import { WX_UNIT_ENTRY_DIALOG } from '@ziroeda/common/dialogs/dialog_unit_entry.js';
 import { WX_MULTI_ENTRY_DIALOG } from '@ziroeda/common/dialogs/dialog_multi_unit_entry.js';
-import { DialogCreateArray } from './dialogs/dialog_create_array_ui.js';
-import {
-  DEFAULT_ARRAY_SETTINGS,
-  arraySpecFrom,
-  type ArraySettings,
-} from './dialogs/dialog_create_array.js';
+import { DIALOG_CREATE_ARRAY, DialogCreateArray } from './dialogs/dialog_create_array.js';
+import type { ARRAY_OPTIONS } from '@ziroeda/common/array_options.js';
 import { type DIALOG_OUTSET_ITEMS, DialogOutsetItems } from './dialogs/dialog_outset_items.js';
 import {
   type DIALOG_GET_FOOTPRINT_BY_NAME,
@@ -384,7 +380,7 @@ import { MwavePolygonalShapeDlg } from './microwave/microwave_polygon.js';
 import {
   DialogZoneManager,
   type ZonePreviewCanvasFactory,
-} from './zone_manager/dialog_zone_manager_ui.js';
+} from './zone_manager/dialog_zone_manager.js';
 import { ZONE_PREVIEW_CANVAS } from './zone_manager/zone_preview_canvas.js';
 import { drawPanelWindow } from '@ziroeda/common/gal/gal_window.js';
 import { GAL_TYPE } from '@ziroeda/common/draw_panel_gal.js';
@@ -1688,7 +1684,6 @@ export function PcbEditor({
   } | null>(null);
   const [arrayOpen, setArrayOpen] = useState(false);
   // Kept across openings, as upstream persists its ARRAY_OPTIONS.
-  const [arraySettings, setArraySettings] = useState<ArraySettings>(DEFAULT_ARRAY_SETTINGS);
   // Kept across openings, as upstream keeps its PARAMETERS on the tool.
   // Live (world) cursor position read by draw()'s crosshair pass without
   // re-creating the callback; null when the pointer is off the canvas.
@@ -4179,18 +4174,14 @@ export function PcbEditor({
   } | null>(null);
 
   /** ARRAY_TOOL::CreateArray. */
-  const applyArray = useCallback((settings: ArraySettings) => {
-    setArraySettings(settings);
+  const applyArray = useCallback((aSettings: ARRAY_OPTIONS) => {
     setArrayOpen(false);
 
     const frame = frameRef.current;
     if (!frame || frame.GetSelectionTool().GetSelection().Empty()) return;
 
     // ARRAY_TOOL::onDialogClosed on the live selection: one BOARD_COMMIT.
-    new ARRAY_TOOL(frame).onDialogClosed(
-      frame.GetSelectionTool().GetSelection(),
-      arraySpecFrom(settings),
-    );
+    new ARRAY_TOOL(frame).onDialogClosed(frame.GetSelectionTool().GetSelection(), aSettings);
   }, []);
 
   /**
@@ -7853,7 +7844,30 @@ export function PcbEditor({
       {kiDialogNode}
       {arrayOpen && board && (
         <DialogCreateArray
-          initial={arraySettings}
+          // ARRAY_TOOL::CreateArray: the board editor's, so no pad numbering.
+          dialog={new DIALOG_CREATE_ARRAY(false, { x: 0, y: 0 })}
+          units={unitLabel}
+          picker={{
+            // PCB_PICKER_TOOL's two actions, with this window as their receiver.
+            pickPoint: (aPrompt) =>
+              new Promise((resolve) => {
+                frameRef.current
+                  ?.GetToolManager()
+                  ?.RunAction(PCB_ACTIONS.selectPointInteractively, {
+                    m_Receiver: { UpdatePickedPoint: resolve },
+                    m_Prompt: aPrompt,
+                    m_ItemFilter: null,
+                  });
+              }),
+            pickItem: (aPrompt) =>
+              new Promise((resolve) => {
+                frameRef.current?.GetToolManager()?.RunAction(PCB_ACTIONS.selectItemInteractively, {
+                  m_Receiver: { UpdatePickedItem: resolve },
+                  m_Prompt: aPrompt,
+                  m_ItemFilter: null,
+                });
+              }),
+          }}
           onApply={applyArray}
           onClose={() => setArrayOpen(false)}
         />

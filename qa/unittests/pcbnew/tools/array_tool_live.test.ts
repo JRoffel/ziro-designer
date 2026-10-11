@@ -11,8 +11,8 @@ import { pcbIUScale } from '@ziroeda/common/eda_units.js';
 import { EDA_ANGLE } from '@ziroeda/kimath/src/geometry/eda_angle.js';
 import type { BOARD } from '@ziroeda/pcbnew/board.js';
 import {
-  arraySpecFrom,
-  DEFAULT_ARRAY_SETTINGS,
+  DIALOG_CREATE_ARRAY,
+  ResetCreateArrayOptions,
 } from '@ziroeda/pcbnew/dialogs/dialog_create_array.js';
 import type { FOOTPRINT } from '@ziroeda/pcbnew/footprint.js';
 import { ParseBoard } from '@ziroeda/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.js';
@@ -156,16 +156,21 @@ describe('ARRAY_TOOL::onDialogClosed', () => {
   });
 
   it('the dialog settings default to reannotating and copying', () => {
-    const spec = arraySpecFrom(DEFAULT_ARRAY_SETTINGS);
-    expect(spec.ShouldReannotateFootprints()).toBe(true);
-    expect(spec.ShouldArrangeSelection()).toBe(false);
-    const flipped = arraySpecFrom({
-      ...DEFAULT_ARRAY_SETTINGS,
+    ResetCreateArrayOptions();
+    const dlg = new DIALOG_CREATE_ARRAY(false, { x: 0, y: 0 });
+    const ctrls = dlg.RestoreConfigToControls();
+    const spec = dlg.TransferDataFromWindow(ctrls);
+    if (!spec.ok) throw new Error(spec.error);
+    expect(spec.settings.ShouldReannotateFootprints()).toBe(true);
+    expect(spec.settings.ShouldArrangeSelection()).toBe(false);
+    const flipped = dlg.TransferDataFromWindow({
+      ...ctrls,
       arrangeSelection: true,
-      reannotateFootprints: false,
+      uniqueRefs: false,
     });
-    expect(flipped.ShouldReannotateFootprints()).toBe(false);
-    expect(flipped.ShouldArrangeSelection()).toBe(true);
+    if (!flipped.ok) throw new Error(flipped.error);
+    expect(flipped.settings.ShouldReannotateFootprints()).toBe(false);
+    expect(flipped.settings.ShouldArrangeSelection()).toBe(true);
   });
 });
 
