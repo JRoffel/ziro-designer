@@ -847,8 +847,9 @@ const BASELINE: Record<string, { colours: number; metrics: number }> = {
   // metrics 591 -> 590: Change Symbols' .ze-chsym-* rules.
   // metrics 590 -> 588: the shared Page Settings pair's .ze-pgs-* rules.
   // metrics 588 -> 586 (10-11): the batch-5 pcbnew pairs' shell.css rules.
-  // metrics 586 -> 583 (10-11): the .ze-cz-* rules, gone with the Copper Zones pairs.
-  'common/widgets': { colours: 126, metrics: 583 },
+  // metrics 586 -> 583 (10-11): the .ze-cz-* rules, gone with the Copper Zones pairs;
+  // colours 126 -> 125, metrics 583 -> 542: Symbol Fields Table's .ze-sft-* rules.
+  'common/widgets': { colours: 125, metrics: 542 },
   // 10-10: metrics 1 -> 0, the menu drawing's one literal went to external/wx with it.
   'common/tool': { colours: 0, metrics: 0 },
   // metrics 0 -> 15 on 09-26: the stage-1 moves, 8 from `dialogs` and 7 from
@@ -1463,7 +1464,8 @@ describe('the scan totals, so the numbers in the PR stay true', () => {
     // 272 -> 268 (10-11): the old Move Exact and Outset Items forms, gone with their _base pairs.
     // 268 -> 267: Export Netlist's inline #c33.
     // 267 -> 264: the Schematic Setup panels.
-    expect(SITES.filter((s) => s.kind === 'colours').length).toBe(264);
+    // 264 -> 263: the Symbol Fields Table.
+    expect(SITES.filter((s) => s.kind === 'colours').length).toBe(263);
     // 1657 -> 1649: the same sweep. A native colour input has no useful
     // default size, so eight of the sixteen sites gave theirs an inline
     // width and height; the shared swatch takes --swatch-*-w/h. Rescanned.
@@ -1699,8 +1701,9 @@ describe('the scan totals, so the numbers in the PR stay true', () => {
     // 899 -> 888 (10-11): the batch-5 pcbnew pairs' old forms and their shell.css rules;
     // 888 -> 873: Export Netlist's and Library Links' inline layout.
     // 873 -> 833: the Schematic Setup panels.
-    // 833 -> 830 (10-11): the .ze-cz-* rules, gone with the Copper Zones pairs.
-    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(830);
+    // 833 -> 830 (10-11): the .ze-cz-* rules, gone with the Copper Zones pairs;
+    // 830 -> 789: the Symbol Fields Table.
+    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(789);
   });
 
   it('and the two agree with the per-area table, which is where they come from', () => {

@@ -5587,56 +5587,43 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
   display: flex;
   min-height: 0;
 }
-/* ---------------------------------------------------------------------------
-   Symbol Fields Table (dialog_symbol_fields_table_base.cpp).
-
-   The dialog is 600 x 300 dialog units with a vertical splitter: the view
-   controls left (sash at field_editor.sash_pos = 400, minimum pane 120), the
-   Edit/Export notebook right. Every number below is one of upstream's: the
-   view-controls grid is 250 px tall with 24 px column labels, no grid lines and
-   rows 4 px shorter than default; the Include / Group By columns are 46 / 56 px
-   and the rest splits between Field and BOM Name; the filter is 240 px wide;
-   the table grid is at least 400 x 200; delimiter fields are 60 px. */
-/* No width or height. `dialog_symbol_fields_table_base.cpp` opens
-   `SetSizeHints( wxSize( -1,-1 ), wxDefaultSize )` — a minimum of "no
-   minimum" — and the sizes inside it are the ones that count: the grid's
-   `SetMinSize( wxSize( -1, 250 ) )` and the filter's `wxSize( 240, -1 )`. */
-.ze-modal.ze-fields-table {
-  max-width: 96vw;
-  max-height: 92vh;
+/* wxSP_3DSASH | wxSP_LIVE_UPDATE. */
+/* wxFONTFAMILY_TELETYPE: a wxTextCtrl given the system monospace (m_textOutput's preview). */
+.ze-mono {
+  font-family: monospace;
 }
-.ze-sft-body {
-  flex: 1;
-  min-height: 0;
+/* wxSplitterWindow (external/wx/splitter.tsx): two panes and the sash between them. */
+.ze-splitter {
   display: flex;
+  min-height: 0;
+  flex: 1;
 }
-.ze-sft-left {
-  flex: 0 0 auto;
-  min-width: 120px;
+.ze-splitter.horizontal {
+  flex-direction: column;
+}
+.ze-splitter-pane {
   display: flex;
   flex-direction: column;
-  padding: 10px 0 10px 10px;
-}
-/* wxSP_3DSASH | wxSP_LIVE_UPDATE. */
-.ze-sft-sash {
   flex: 0 0 auto;
-  width: 5px;
-  cursor: col-resize;
+  min-width: 0;
+  min-height: 0;
+}
+.ze-splitter-pane.grow {
+  flex: 1;
+}
+/* [data] wxSplitterWindow's GTK sash: wxRendererGTK::GetSplitterParams' 5 px. */
+.ze-splitter-sash {
+  flex: 0 0 5px;
   background: transparent;
 }
-.ze-sft-sash:hover {
+.ze-splitter.vertical > .ze-splitter-sash {
+  cursor: col-resize;
+}
+.ze-splitter.horizontal > .ze-splitter-sash {
+  cursor: row-resize;
+}
+.ze-splitter-sash:hover {
   background: var(--chrome-active);
-}
-.ze-sft-right {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  padding: 10px 10px 0;
-}
-.ze-sft-fields-pane {
-  flex: 1;
-  min-height: 100px;
 }
 /* EnableGridLines( false ): only the header rule shows. */
 .ze-sft-fields {
@@ -5675,97 +5662,6 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
 .ze-sft-fields tr.selected td input[type="text"] {
   color: #1b1d1f;
 }
-.ze-modal.ze-fields-table input[type="checkbox"] {
-  /* Colour and size come from the shared rule; only the margin is local. */
-  margin: 0;
-}
-/* bPresets: a horizontal rule, the label, a 2 px gap, then the choice. */
-.ze-sft-presets {
-  flex: 0 0 auto;
-  padding-top: 5px;
-}
-.ze-sft-presets hr {
-  border: none;
-  border-top: 1px solid var(--chrome-border);
-  margin: 0 0 5px;
-}
-.ze-sft-presets label {
-  display: block;
-  font-size: 12.5px;
-  padding-left: 5px;
-  margin-bottom: 2px;
-}
-.ze-sft-presets select {
-  display: block;
-  width: calc(100% - 10px);
-  margin: 0 5px 5px;
-  padding: 5px 8px;
-  font: inherit;
-  background: var(--chrome-bg2);
-  color: var(--chrome-fg);
-  border: 1px solid var(--chrome-border);
-  border-radius: 4px;
-}
-/* The Edit / Export notebook (wxNotebook) tabs. */
-.ze-sft-tabs {
-  display: flex;
-  gap: 2px;
-  border-bottom: 1px solid var(--chrome-border);
-}
-.ze-sft-tabs .ze-sft-tab {
-  padding: 5px 14px;
-  font-size: 12.5px;
-  color: var(--chrome-fg);
-  background: var(--chrome-bg2);
-  border: 1px solid var(--chrome-border);
-  border-bottom: none;
-  border-radius: 4px 4px 0 0;
-  cursor: default;
-  margin-bottom: -1px;
-}
-.ze-sft-tabs .ze-sft-tab.active {
-  background: var(--chrome-bg);
-  border-bottom: 1px solid var(--chrome-bg);
-  font-weight: 600;
-}
-/* A notebook page: controls above, grid filling the rest. */
-.ze-sft-page {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  padding-top: 5px;
-}
-.ze-sft-controls {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  margin-bottom: 5px;
-  position: relative;
-}
-.ze-sft-filter {
-  flex: 1;
-  min-width: 240px;
-}
-.ze-sft-scope {
-  flex: 0 0 auto;
-}
-/* The wxStaticLine separators between the control groups. */
-.ze-sft-vsep {
-  flex: 0 0 auto;
-  align-self: stretch;
-  width: 1px;
-  margin: 3px 0;
-  background: rgba(255, 255, 255, 0.16);
-}
-.ze-sft-check {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 12.5px;
-  white-space: nowrap;
-  margin: 0 3px;
-}
 .ze-sft-menu {
   position: absolute;
   right: 0;
@@ -5795,10 +5691,6 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
   border: none;
   border-top: 1px solid var(--chrome-border);
   margin: 4px 0;
-}
-.ze-sft-table-pane {
-  flex: 1;
-  min-height: 200px;
 }
 .ze-sft-table {
   table-layout: fixed;
@@ -5852,89 +5744,6 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
   padding: 6px 8px;
   font-size: 12px;
   color: var(--ze-muted, #9a9ca0);
-}
-/* Export page: the format options (a wxGridBagSizer of label + 60 px field)
-   left, the output file / preview column right (the growable one). */
-.ze-sft-export {
-  flex-direction: row;
-  gap: 5px;
-  padding: 10px 0 5px;
-}
-.ze-sft-fmt {
-  flex: 0 0 auto;
-  display: grid;
-  grid-template-columns: auto 60px;
-  gap: 4px 5px;
-  align-content: start;
-  align-items: center;
-  padding: 0 5px;
-}
-.ze-sft-fmt > label {
-  font-size: 12.5px;
-  white-space: nowrap;
-}
-.ze-sft-fmt > .span {
-  grid-column: 1 / span 2;
-}
-.ze-sft-fmt > input {
-  width: 60px;
-  text-align: center;
-}
-.ze-sft-fmt > hr {
-  border: none;
-  border-top: 1px solid var(--chrome-border);
-  width: 100%;
-  margin: 5px 0;
-}
-.ze-sft-fmt > select {
-  width: 100%;
-}
-.ze-sft-output {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-.ze-sft-outfile {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  margin-bottom: 10px;
-}
-.ze-sft-outfile label,
-.ze-sft-previewrow label {
-  font-size: 12.5px;
-  white-space: nowrap;
-}
-.ze-sft-outfile input {
-  flex: 1;
-  min-width: 0;
-}
-.ze-sft-previewrow {
-  display: flex;
-  align-items: flex-end;
-  gap: 5px;
-  margin-bottom: 3px;
-}
-.ze-sft-preview {
-  flex: 1;
-  min-height: 0;
-  resize: none;
-  white-space: pre;
-  overflow: auto;
-  padding: 6px;
-  font-family: ui-monospace, Menlo, Consolas, monospace;
-  font-size: 12px;
-  background: var(--chrome-bg2);
-  color: var(--chrome-fg);
-  border: 1px solid var(--chrome-border);
-  border-radius: 3px;
-}
-.ze-sft-footer {
-  gap: 10px;
-}
-.ze-sft-status {
-  font-size: 12px;
 }
 
 /* Symbol Library Browser (symbol_viewer_frame.cpp): the frame's AUI panes,

@@ -165,9 +165,13 @@ describe('what the registered cancel means', () => {
     expect(registered('../../cvpcb/cvpcb_mainframe_ui.tsx')).toEqual(['closeWindow']);
     // Same shape in the Symbol Fields Table: `onCancel` confirms, `onClose`
     // does not.
-    expect(registered('../../eeschema/dialogs/dialog_symbol_fields_table.tsx')).toEqual([
-      'onCancel',
+    // The shim is in the _base now; the window hands it the confirming onCancel.
+    expect(registered('../../eeschema/dialogs/dialog_symbol_fields_table_base.tsx')).toEqual([
+      'p.onCancel',
     ]);
+    expect(
+      FILES.find((f) => f.rel === '../../eeschema/dialogs/dialog_symbol_fields_table.tsx')?.src,
+    ).toMatch(/onCancel=\{onCancel\}/);
     // DIALOG_PRINT's Close stores the print options on the way out.
     expect(registered('../../eeschema/printing/dialog_print.tsx')).toEqual(['saveAndClose']);
     // The board's is DIALOG_PRINT_PCBNEW on the common DIALOG_PRINT_GENERIC:

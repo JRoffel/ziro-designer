@@ -37,7 +37,10 @@ const BASELINE: Record<string, number> = {
   // 85 -> 69 (10-11): Change Symbols' pair; the .ze-chsym-* block.
   // 69 -> 55 (10-11): the six Schematic Setup panel pairs; the .ze-bompresets-*, .ze-busdefs-*
   // and .ze-fieldnames-* rules.
-  eeschema: 55,
+  // 55 -> 31 (10-11): Symbol Fields Table's pair; the whole .ze-sft-* block.
+  // 31 -> 32 (10-11): not new CSS; appeared on rebasing onto the Copper Zones pairs, a class
+  // that batch left to eeschema alone.
+  eeschema: 32,
   gerbview: 31,
   pagelayout_editor: 14,
   // 477 -> 465 (10-10): the drill and position-file dialogs on the sizers.
