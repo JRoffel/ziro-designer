@@ -59,7 +59,8 @@ const BASELINE: Record<string, number> = {
   // 402 -> 389 (10-11): PNS Settings, Import Netlist, Update PCB and Import Settings pairs.
   // 389 -> 367 (10-11): Copper Zones and PANEL_ZONE_PROPERTIES on their _base pairs.
   // 367 -> 334 (10-11): Non-Copper Zones, Rule Area (and its two panels) and Position Relative pairs.
-  pcbnew: 334,
+  // 334 -> 276 (10-12): Find, Exchange Footprints, Tuning Pattern and Pad Table pairs.
+  pcbnew: 276,
 };
 
 const git = (...aSpecs: string[]): string[] =>

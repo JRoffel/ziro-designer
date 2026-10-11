@@ -13,6 +13,11 @@
  * `LoadFootprint` reads a library, which is asynchronous here, so OnOKClicked
  * returns a Promise; KiCad's runs to completion under a busy cursor.
  */
+import { type JSX, useReducer, useState } from 'react';
+import type { ReportLine } from '@ziroeda/common/reporter.js';
+import { RPT_SEVERITY_ALL } from '@ziroeda/common/widgets/wx_html_report_panel.js';
+import type { CHECK } from '@ziroeda/wx/controls.js';
+import { DIALOG_EXCHANGE_FOOTPRINTS_BASE } from './dialog_exchange_footprints_base.js';
 import { LIB_ID } from '@ziroeda/common/lib_id.js';
 import {
   RPT_SEVERITY_ACTION,
@@ -319,4 +324,134 @@ export class DIALOG_EXCHANGE_FOOTPRINTS {
       filters: this.m_currentFootprint.GetFilters(),
     };
   }
+}
+
+type OPTION =
+  | 'm_removeExtraBox'
+  | 'm_resetTextItemLayers'
+  | 'm_resetTextItemEffects'
+  | 'm_resetTextItemPositions'
+  | 'm_resetTextItemContent'
+  | 'm_resetFabricationAttrs'
+  | 'm_resetClearanceOverrides'
+  | 'm_reset3DModels';
+
+/** DIALOG_EXCHANGE_FOOTPRINTS's ShowQuasiModal, DIALOG_EXCHANGE_FOOTPRINTS_BASE over the class. */
+export function DialogExchangeFootprints({
+  dialog,
+  onBrowse,
+  onClose,
+}: {
+  dialog: DIALOG_EXCHANGE_FOOTPRINTS;
+  /** ViewAndSelectFootprint's footprint chooser, preselecting m_newID: the LIB_ID, or null. */
+  onBrowse: (aPreselect: string) => Promise<string | null>;
+  onClose: () => void;
+}): JSX.Element {
+  const [, redraw] = useReducer((n: number) => n + 1, 0);
+  const [busy, setBusy] = useState(false);
+  const [lines, setLines] = useState<readonly ReportLine[]>([]);
+  const [severities, setSeverities] = useState(RPT_SEVERITY_ALL);
+
+  // OnInitDialog -> TransferDataToWindow
+  useState(() => dialog.TransferDataToWindow());
+
+  const L = dialog.Labels();
+
+  const radio = (aMode: number, aLabel: string, aShown = true) => ({
+    label: aLabel,
+    value: dialog.m_matchMode === aMode,
+    shown: aShown,
+    onSelect: () => {
+      dialog.m_matchMode = aMode;
+      redraw();
+    },
+  });
+  // Typing in a match field selects its radio (OnMatchRefClicked and the like).
+  const text = (
+    aKey: 'm_specifiedRef' | 'm_specifiedValue' | 'm_specifiedID' | 'm_newID',
+    aMode: number | null,
+  ) => ({
+    value: dialog[aKey],
+    onChange: (aText: string) => {
+      dialog[aKey] = aText;
+      if (aMode !== null) dialog.m_matchMode = aMode;
+      redraw();
+    },
+  });
+  const box = (aKey: OPTION): CHECK => ({
+    value: dialog[aKey],
+    onChange: (aOn) => {
+      dialog[aKey] = aOn;
+      redraw();
+    },
+  });
+
+  return (
+    <DIALOG_EXCHANGE_FOOTPRINTS_BASE
+      title={dialog.GetTitle()}
+      m_matchAll={radio(ID_MATCH_FP_ALL, L.matchAll, dialog.ShowMatchAll())}
+      m_matchSelected={radio(ID_MATCH_FP_SELECTED, L.matchSelected, dialog.ShowMatchSelected())}
+      m_matchSpecifiedRef={radio(ID_MATCH_FP_REF, L.matchRef)}
+      m_specifiedRef={text('m_specifiedRef', ID_MATCH_FP_REF)}
+      m_matchSpecifiedValue={radio(ID_MATCH_FP_VAL, L.matchValue)}
+      m_specifiedValue={text('m_specifiedValue', ID_MATCH_FP_VAL)}
+      m_matchSpecifiedID={radio(ID_MATCH_FP_ID, L.matchID)}
+      m_specifiedID={text('m_specifiedID', ID_MATCH_FP_ID)}
+      changeShown={dialog.ShowChangeSizer()}
+      m_newID={text('m_newID', null)}
+      ViewAndSelectFootprint={(aNewId) => {
+        void onBrowse(dialog.m_newID).then((aName) => {
+          if (aName === null) return;
+          if (aNewId) dialog.m_newID = aName;
+          else {
+            dialog.m_specifiedID = aName;
+            dialog.m_matchMode = ID_MATCH_FP_ID;
+          }
+          redraw();
+        });
+      }}
+      m_removeExtraBox={box('m_removeExtraBox')}
+      m_resetTextItemLayers={{ label: L.resetTextItemLayers, check: box('m_resetTextItemLayers') }}
+      m_resetTextItemEffects={{
+        label: L.resetTextItemEffects,
+        check: box('m_resetTextItemEffects'),
+      }}
+      m_resetTextItemPositions={{
+        label: L.resetTextItemPositions,
+        check: box('m_resetTextItemPositions'),
+      }}
+      m_resetTextItemContent={{
+        label: L.resetTextItemContent,
+        check: box('m_resetTextItemContent'),
+      }}
+      m_resetFabricationAttrs={{
+        label: L.resetFabricationAttrs,
+        check: box('m_resetFabricationAttrs'),
+      }}
+      m_resetClearanceOverrides={{
+        label: L.resetClearanceOverrides,
+        check: box('m_resetClearanceOverrides'),
+      }}
+      m_reset3DModels={{ label: L.reset3DModels, check: box('m_reset3DModels') }}
+      onCheckAll={() => {
+        dialog.CheckAll(true);
+        redraw();
+      }}
+      onUncheckAll={() => {
+        dialog.CheckAll(false);
+        redraw();
+      }}
+      m_MessageWindow={{ lines, severities, onSeveritiesChange: setSeverities }}
+      okLabel={dialog.OkLabel()}
+      okEnabled={!busy}
+      OnOKClicked={() => {
+        setBusy(true);
+        void dialog.OnOKClicked().finally(() => {
+          setLines([...dialog.m_MessageWindow.lines]);
+          setBusy(false);
+        });
+      }}
+      onCancel={onClose}
+    />
+  );
 }

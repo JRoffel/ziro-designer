@@ -334,6 +334,7 @@ export function StaticText({
   title,
   font,
   italic,
+  ellipsize,
 }: {
   label: string;
   disabled?: boolean;
@@ -344,10 +345,12 @@ export function StaticText({
   font?: 'info' | 'smallInfo';
   /** `.Italic()` on the font. */
   italic?: boolean;
+  /** `wxST_ELLIPSIZE_END`: a label too long for its cell ends in "…". */
+  ellipsize?: boolean;
 }): JSX.Element {
   return (
     <span
-      className={`ze-statictext${disabled ? ' disabled' : ''}${wrap && wrap > 0 ? ' wrapped' : ''}${font === 'info' ? ' info' : font === 'smallInfo' ? ' small-info' : ''}${italic ? ' italic' : ''}`}
+      className={`ze-statictext${disabled ? ' disabled' : ''}${wrap && wrap > 0 ? ' wrapped' : ''}${font === 'info' ? ' info' : font === 'smallInfo' ? ' small-info' : ''}${italic ? ' italic' : ''}${ellipsize ? ' ellipsize' : ''}`}
       style={wrap && wrap > 0 ? { maxWidth: wrap } : undefined}
       title={title}
     >

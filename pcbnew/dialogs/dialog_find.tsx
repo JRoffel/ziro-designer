@@ -8,6 +8,10 @@
  * manager and handed to the frame's callback (`PCB_SELECTION_TOOL::FindItem`).
  * The window that draws it is `DialogPcbFind` in dialog_find.tsx.
  */
+import { type JSX, useReducer } from 'react';
+import { KeyNameFromKeyCode } from '@ziroeda/common/hotkeys_basic.js';
+import type { CHECK } from '@ziroeda/wx/controls.js';
+import { DIALOG_FIND_BASE } from './dialog_find_base.js';
 import { ACTIONS } from '@ziroeda/common/tool/actions.js';
 import { EDA_SEARCH_MATCH_MODE } from '@ziroeda/common/eda_search_data.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
@@ -342,4 +346,73 @@ export class DIALOG_FIND {
 
     this.m_highlightCallback?.(this.GetItem());
   }
+}
+
+/** DIALOG_FIND's modeless window, DIALOG_FIND_BASE over the class. */
+export function DialogPcbFind({
+  dialog,
+  onClose,
+}: {
+  dialog: DIALOG_FIND;
+  onClose: () => void;
+}): JSX.Element {
+  const [, redraw] = useReducer((n: number) => n + 1, 0);
+  const options = dialog.m_options;
+
+  const opt = (aKey: keyof FIND_OPTIONS): CHECK => ({
+    value: options[aKey],
+    // onOptionChanged
+    onChange: (aOn) => {
+      dialog.SetOptions({ ...options, [aKey]: aOn });
+      redraw();
+    },
+  });
+  const run = (aFind: () => void) => () => {
+    aFind();
+    redraw();
+  };
+
+  const hotkey = ACTIONS.showSearch.GetHotKey();
+
+  return (
+    <DIALOG_FIND_BASE
+      m_searchCombo={{
+        value: dialog.m_searchString,
+        history: dialog.GetHistory(),
+        onChange: (aText) => {
+          dialog.SetSearchString(aText);
+          redraw();
+        },
+      }}
+      onTextEnter={run(() => dialog.OnFindNext())}
+      m_matchCase={opt('matchCase')}
+      m_matchWords={opt('matchWords')}
+      m_wildcards={opt('wildcards')}
+      m_wrap={opt('wrap')}
+      m_includeReferences={opt('includeReferences')}
+      m_includeMarkers={opt('includeMarkers')}
+      m_includeValues={opt('includeValues')}
+      m_includeNets={opt('includeNets')}
+      m_checkAllFields={opt('checkAllFields')}
+      m_includeTexts={opt('includeTexts')}
+      onFindNextClick={run(() => dialog.OnFindNext())}
+      onFindPreviousClick={run(() => dialog.OnFindPrevious())}
+      onSearchAgainClick={run(() => dialog.OnSearchAgain())}
+      OnCloseButtonClick={onClose}
+      m_status={dialog.m_status}
+      searchPanelLinkLabel={`Show search panel${hotkey ? ` (${KeyNameFromKeyCode(hotkey)})` : ''}`}
+      onShowSearchPanel={() => {
+        dialog.OnShowSearchPanel();
+        onClose();
+      }}
+      onCharHook={(e) => {
+        // F3 finds again, Shift+F3 backwards.
+        if (e.key !== 'F3') return;
+        e.preventDefault();
+        e.stopPropagation();
+        dialog.FindNext(e.shiftKey);
+        redraw();
+      }}
+    />
+  );
 }

@@ -22,6 +22,8 @@
  * `contains( pad )` on a map whose keys have moved is unspecified; a pad is
  * looked up by identity here, which is what the map is for.
  */
+import { type JSX, useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react';
+import { DIALOG_FP_EDIT_PAD_TABLE_BASE } from './dialog_fp_edit_pad_table_base.js';
 import { RENDER_TARGET } from '@ziroeda/common/gal/definitions.js';
 import { type EdaUnits, pcbIUScale } from '@ziroeda/common/eda_units.js';
 import { strNumCmp } from '@ziroeda/common/string_utils.js';
@@ -859,4 +861,81 @@ export class DIALOG_FP_EDIT_PAD_TABLE {
   IsCancelled(): boolean {
     return this.m_cancelled;
   }
+}
+
+/** The shape column's slack beyond its widest name: wxGrid's cell margins and the choice arrow. */
+const SHAPE_COLUMN_PADDING = 30;
+
+/** DIALOG_FP_EDIT_PAD_TABLE's ShowQuasiModal, DIALOG_FP_EDIT_PAD_TABLE_BASE over the class. */
+export function DialogFpEditPadTable({
+  dialog,
+  onClose,
+}: {
+  dialog: DIALOG_FP_EDIT_PAD_TABLE;
+  onClose: () => void;
+}): JSX.Element {
+  useSyncExternalStore(
+    (listener) => dialog.Subscribe(listener),
+    () => dialog.GetVersion(),
+  );
+
+  const paneRef = useRef<HTMLDivElement>(null);
+
+  // TransferDataToWindow, then the constructor's column sizing: the shape column is as wide as
+  // its widest shape name.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs once, as the constructor does
+  useLayoutEffect(() => {
+    dialog.TransferDataToWindow();
+
+    const sizes = [...PAD_TABLE_COLUMN_WIDTHS];
+    const ctx = document.createElement('canvas').getContext?.('2d') ?? null;
+
+    if (ctx && paneRef.current) {
+      ctx.font = getComputedStyle(paneRef.current).font;
+      let maxWidth = 0;
+
+      for (const name of DIALOG_FP_EDIT_PAD_TABLE.shapeNames())
+        maxWidth = Math.max(maxWidth, ctx.measureText(name).width);
+
+      sizes[COL_SHAPE] = Math.round(maxWidth) + SHAPE_COLUMN_PADDING;
+    }
+
+    dialog.SetColumnSizes(sizes);
+  }, []);
+
+  // OnSize
+  useEffect(() => {
+    const pane = paneRef.current;
+    if (!pane || typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(() => dialog.OnSize(pane.clientWidth));
+    observer.observe(pane);
+    return () => observer.disconnect();
+  }, [dialog]);
+
+  return (
+    <DIALOG_FP_EDIT_PAD_TABLE_BASE
+      title={DIALOG_FP_EDIT_PAD_TABLE_TITLE}
+      m_pin_numbers_summary={{
+        label: dialog.m_pin_numbers_summary,
+        tooltip: dialog.m_pin_numbers_summaryToolTip,
+      }}
+      m_pin_count={String(dialog.m_pin_count)}
+      m_duplicate_pins={{ label: dialog.m_duplicate_pins, tooltip: dialog.m_duplicate_pinsToolTip }}
+      m_grid={dialog.m_grid}
+      tricks={dialog.m_tricks}
+      columnWidths={dialog.GetColumnWidths()}
+      gridPaneRef={paneRef}
+      OnUpdateUI={() => dialog.OnUpdateUI()}
+      onOK={() => {
+        if (!dialog.TransferDataFromWindow()) return;
+        dialog.Destroy();
+        onClose();
+      }}
+      OnCancel={() => {
+        dialog.OnCancel();
+        dialog.Destroy();
+        onClose();
+      }}
+    />
+  );
 }

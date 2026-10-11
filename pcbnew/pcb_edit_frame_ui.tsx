@@ -187,7 +187,7 @@ import {
   zoomFactorForScale,
   zoomMsg,
 } from '@ziroeda/common/widgets/kistatusbar_format.js';
-import { DialogPcbFind } from './dialogs/dialog_find_ui.js';
+import { DialogPcbFind } from './dialogs/dialog_find.js';
 import type { DIALOG_FIND } from './dialogs/dialog_find.js';
 import { DialogPageSettings } from '@ziroeda/common/dialogs/dialog_page_settings.js';
 import { pageSettingsValue, toPaperToken } from '@ziroeda/common/dialogs/dialog_page_settings.js';
@@ -288,7 +288,7 @@ import {
 import { DialogUnusedPadLayers } from './dialogs/dialog_unused_pad_layers.js';
 import { DialogGlobalDeletion } from './dialogs/dialog_global_deletion.js';
 import { DialogGlobalEditTracksAndVias } from './dialogs/dialog_global_edit_tracks_and_vias_ui.js';
-import { DialogExchangeFootprints } from './dialogs/dialog_exchange_footprints_ui.js';
+import { DialogExchangeFootprints } from './dialogs/dialog_exchange_footprints.js';
 import { DialogNonCopperZonesProperties } from './dialogs/dialog_non_copper_zones_properties.js';
 import { DIALOG_NON_COPPER_ZONES_EDITOR } from './dialogs/dialog_non_copper_zones_properties.js';
 import type { DIALOG_EXCHANGE_FOOTPRINTS } from './dialogs/dialog_exchange_footprints.js';
@@ -309,7 +309,7 @@ import {
   type DIALOG_TARGET_PROPERTIES,
   DialogTargetProperties,
 } from './dialogs/dialog_target_properties.js';
-import { DialogFpEditPadTable } from './dialogs/dialog_fp_edit_pad_table_ui.js';
+import { DialogFpEditPadTable } from './dialogs/dialog_fp_edit_pad_table.js';
 import type { DIALOG_PUSH_PAD_PROPERTIES } from './dialogs/dialog_push_pad_properties.js';
 import type { DIALOG_ENUM_PADS } from './dialogs/dialog_enum_pads.js';
 import type { DIALOG_FP_EDIT_PAD_TABLE } from './dialogs/dialog_fp_edit_pad_table.js';

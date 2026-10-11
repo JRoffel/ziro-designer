@@ -4974,80 +4974,6 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
 .ze-erc-subrow.comment {
   font-style: italic;
 }
-/* ---------------------------------------------------------------------------
-   DIALOG_FIND (pcbnew/dialogs/dialog_find_base.cpp), the sizer tree in
-   pcbnew/dialogs/dialog_find_ui.tsx. The chrome is DIALOG_SHIM's; every margin
-   here is one Add()'s own border.
-
-   bSizer10 (V)
-     topSizer (H)                       0, wxALL|wxEXPAND 5
-       leftSizer (V)                    1, wxEXPAND
-         bSizer8 (H)                    label wxALL 5, combo 1, wxALL|wxEXPAND 5
-         sizerOptions (H)               boxes wxALL 5, stretch spacers between
-         spacer 0 x 5
-         sizerInclude (0, 2, 6, 20)     wxEXPAND|wxALL 5
-       buttonSizer (V)                  each button wxALL|wxEXPAND 5
-     staticline                         wxEXPAND|wxALL 5
-     sizerStatus (H)                    wxEXPAND|wxBOTTOM|wxRIGHT|wxLEFT 5 */
-.ze-pcbfind-main {
-  display: flex;
-  flex-direction: column;
-}
-.ze-pcbfind-top {
-  display: flex;
-  margin: 5px; /* [data] topSizer: wxALL 5 */
-}
-.ze-pcbfind-left {
-  flex: 1 0 auto;
-  display: flex;
-  flex-direction: column;
-}
-.ze-pcbfind-search {
-  display: flex;
-  align-items: center;
-}
-.ze-pcbfind-label {
-  margin: 5px; /* [data] searchStringLabel: wxALL 5 */
-}
-.ze-pcbfind-combo {
-  flex: 1;
-  margin: 5px; /* [data] m_searchCombo: wxALL 5 */
-}
-.ze-pcbfind-options {
-  display: flex;
-  align-items: center;
-}
-.ze-pcbfind-options .ze-check {
-  margin: 5px; /* [data] each option: wxALL 5 */
-}
-.ze-pcbfind-stretch {
-  flex: 1; /* [data] the stretch spacer, Add( 0, 0, 1, wxEXPAND ) */
-}
-.ze-pcbfind-include {
-  display: grid;
-  grid-template-columns: repeat(2, max-content);
-  gap: 6px 20px; /* [data] wxFlexGridSizer( 0, 2, 6, 20 ) */
-  margin: 10px 5px 5px; /* [data] the 5px spacer above, then wxALL 5 */
-}
-.ze-pcbfind-buttons {
-  display: flex;
-  flex-direction: column;
-}
-.ze-pcbfind-buttons .ze-btn {
-  margin: 5px; /* [data] each button: wxALL|wxEXPAND 5 */
-}
-.ze-pcbfind-line {
-  margin: 5px; /* [data] staticline: wxEXPAND|wxALL 5 */
-}
-.ze-pcbfind-status {
-  display: flex;
-  align-items: center;
-  margin: 0 5px 5px; /* [data] sizerStatus: wxBOTTOM|wxRIGHT|wxLEFT 5 */
-}
-.ze-pcbfind-statustext,
-.ze-pcbfind-link {
-  margin: 0 5px 5px; /* [data] m_status, m_searchPanelLink: wxBOTTOM|wxRIGHT|wxLEFT 5 */
-}
 
 /* WX_HTML_REPORT_PANEL: the message list, the "Show:" severity filters with
    their NUMBER_BADGEs, and Save... */
@@ -11580,6 +11506,13 @@ fieldset.ze-sbox-sizer > .ze-sizer {
 .ze-statictext.wrapped {
   white-space: normal;
 }
+/* wxST_ELLIPSIZE_END: GtkLabel's minimum width is then the ellipsis alone, so the sizer may shrink
+   it and the text ends in "…". */
+.ze-statictext.ellipsize {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 /* SetFont( KIUI::GetInfoFont / GetSmallInfoFont ), and .Italic(). */
 .ze-statictext.info {
   font-size: var(--ui-font-size-info);
@@ -15364,167 +15297,6 @@ td.ze-grid-bool {
 }
 
 /* ---------------------------------------------------------------------------
-   Length Tuning Settings (dialog_tuning_pattern_properties_base.cpp).
-
-   `singleTrackSizer` (horizontal): the legend bitmap, then `gbSizer1`, a
-   `wxGridBagSizer(4, 4)` — 7 columns (0-6), 10 rows (0-9). Columns/rows with
-   nothing placed in them (column 3; rows 3, 4, 7) would collapse to zero
-   without `SetEmptyCellSize(10, 8)`, which is why they are explicit 10px/8px
-   tracks below rather than folded into a bigger gap on their neighbours.
-   `AddGrowableCol(1)` and `AddGrowableCol(5)` are the two `1fr` tracks — the
-   value columns, not the label or unit ones.
-
-   Every per-cell border below reads the same file's per-`Add()` call; where
-   the exact wx-vs-CSS-grid gap composition (vgap/hgap stacked on a control's
-   own border) was not independently re-derived it is marked [px], not [data],
-   per this dialog having no interactive caller yet
-   (`generators/pcb_tuning_pattern.ts`'s own header: pending #636 stage 3). */
-.ze-tuning-pattern-body {
-  display: flex;
-  align-items: flex-start;
-  /* [data] `bMainSizer->Add( singleTrackSizer, 1, wxEXPAND|wxTOP|wxRIGHT|wxLEFT, 10 )`. */
-  padding: 10px 10px 0;
-}
-.ze-tuning-pattern-legend {
-  /* [px] the mode bitmap's own intrinsic size; no bundled per-mode asset here. */
-  width: 120px;
-  height: 90px; /* [px] same bitmap, 120 x 90 */
-  flex: 0 0 auto;
-  background: var(--field-bg);
-  border: 1px solid var(--ctl-border);
-  /* [data] `Add( m_legend, 0, wxEXPAND|wxRIGHT|wxLEFT, 15 )`. */
-  margin: 0 15px;
-}
-.ze-tuning-pattern-grid {
-  flex: 1;
-  display: grid;
-  grid-template-columns: auto 1fr auto 10px auto 1fr auto;
-  /* [px] rows 3, 4, 7 hold nothing; `SetEmptyCellSize( 10, 8 )` is their height. */
-  grid-template-rows: auto auto auto 8px 8px auto auto 8px auto auto;
-  /* [data] `new wxGridBagSizer( 4, 4 )` — the vgap and hgap. */
-  gap: 4px;
-  align-items: center;
-}
-.ze-tp-cell {
-  min-width: 0;
-}
-.ze-tp-r0c0 {
-  grid-column: 1;
-  grid-row: 1;
-}
-.ze-tp-r0c1 {
-  grid-column: 2;
-  grid-row: 1;
-  width: 100%;
-}
-.ze-tp-r0c2 {
-  grid-column: 3;
-  grid-row: 1;
-}
-.ze-tp-r1c0 {
-  grid-column: 1;
-  grid-row: 2;
-}
-.ze-tp-r1c1 {
-  grid-column: 2;
-  grid-row: 2;
-  width: 100%;
-}
-.ze-tp-r1c2 {
-  grid-column: 3;
-  grid-row: 2;
-}
-.ze-tp-r0c4 {
-  /* [data] `wxGBPosition( 0, 4 )`, `wxGBSpan( 1, 3 )` — columns 5-7. */
-  grid-column: 5 / span 3;
-  grid-row: 1;
-}
-.ze-tp-r2c1 {
-  /* [data] `wxGBPosition( 2, 1 )`, `wxGBSpan( 1, 6 )`. */
-  grid-column: 2 / span 6;
-  grid-row: 3;
-}
-.ze-tp-r5c0 {
-  grid-column: 1;
-  grid-row: 5;
-  /* [data] `wxALIGN_CENTER_VERTICAL|wxLEFT, 1` — not the usual 5. */
-  padding-left: 1px;
-}
-.ze-tp-r5c1 {
-  grid-column: 2;
-  grid-row: 5;
-  width: 100%;
-}
-.ze-tp-r5c2 {
-  grid-column: 3;
-  grid-row: 5;
-}
-.ze-tp-r5c4 {
-  grid-column: 5;
-  grid-row: 5;
-}
-.ze-tp-r5c5 {
-  grid-column: 6;
-  grid-row: 5;
-  width: 100%;
-}
-.ze-tp-r5c6 {
-  grid-column: 7;
-  grid-row: 5;
-}
-.ze-tp-r6c0 {
-  grid-column: 1;
-  grid-row: 6;
-  padding-left: 1px;
-}
-.ze-tp-r6c1 {
-  grid-column: 2;
-  grid-row: 6;
-  width: 100%;
-}
-.ze-tp-r6c2 {
-  grid-column: 3;
-  grid-row: 6;
-}
-.ze-tp-r8c0 {
-  grid-column: 1;
-  grid-row: 9;
-  padding-left: 1px;
-}
-.ze-tp-r8c1 {
-  /* [data] `wxGBSpan( 1, 2 )` — the corner-style combo spans columns 2-3. */
-  grid-column: 2 / span 2;
-  grid-row: 9;
-}
-.ze-tp-r8c4 {
-  grid-column: 5;
-  grid-row: 9;
-}
-.ze-tp-r8c5 {
-  grid-column: 6;
-  grid-row: 9;
-  width: 100%;
-}
-.ze-tp-r8c6 {
-  grid-column: 7;
-  grid-row: 9;
-}
-.ze-tp-r9c1 {
-  /* [data] `wxGBSpan( 1, 2 )`. */
-  grid-column: 2 / span 2;
-  grid-row: 10;
-}
-.ze-tp-cell.ze-tp-r0c0,
-.ze-tp-cell.ze-tp-r1c0,
-.ze-tp-cell.ze-tp-r0c4,
-.ze-tp-cell.ze-tp-r9c1 {
-  display: flex;
-  align-items: center;
-  /* [data] wxRadioButton / wxCheckBox label spacing. */
-  gap: 6px;
-}
-
-/* ---------------------------------------------------------------------------
    DIALOG_ITEMS_LIST (dialog_items_list.cpp), built by hand: message
    `wxALL|wxEXPAND, 10`, the collapsible pane `wxALL|wxEXPAND, 10` at proportion
    1, then the separated OK/Cancel sizer `wxEXPAND|wxALL, 10`. */
@@ -15968,47 +15740,6 @@ fieldset.ze-maplayers-box {
   margin: 5px; /* [data] `m_mainSizer->Add( m_optsSizer, 1, wxEXPAND | wxALL, 5 )` */
 }
 
-/* DIALOG_FP_EDIT_PAD_TABLE (dialog_fp_edit_pad_table_base.cpp). */
-.ze-modal.ze-padtable .ze-modal-body.ze-padtable-body {
-  flex-direction: column;
-  padding: 0;
-}
-.ze-padtable-summary {
-  display: flex;
-  align-items: center;
-  margin: 5px 0; /* [data] `topSizer->Add( bSummarySizer, 0, wxEXPAND|wxTOP|wxBOTTOM, 5 )`. */
-}
-.ze-padtable-summary .stretch {
-  flex: 1; /* [data] `bSummarySizer->Add( 0, 0, 1, wxEXPAND, 5 )`. */
-}
-.ze-padtable-summary .l5 {
-  margin-left: 5px; /* [data] the "Pad numbers:" label: `wxLEFT, 5`. */
-}
-.ze-padtable-summary .l10 {
-  margin-left: 10px; /* [data] "Pad count:" and "Duplicate pads:": `wxLEFT, 10`. */
-}
-.ze-padtable-summary .r5 {
-  margin: 0 5px; /* [data] each value: `wxRIGHT|wxLEFT, 5`. */
-}
-.ze-padtable-ellipsis {
-  /* [data] `SetMinSize / SetMaxSize( GetCharWidth() * 30 )` and `wxST_ELLIPSIZE_END`. */
-  width: 30ch;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ze-padtable-grid {
-  flex: 1;
-  margin: 5px; /* [data] `topSizer->Add( m_grid, 1, wxEXPAND|wxALL, 5 )`. */
-  min-width: 800px; /* [data] `new WX_GRID( this, wxID_ANY, wxDefaultPosition, wxSize( 800,400 ) )`. */
-  min-height: 400px; /* [data] the same size's height. */
-}
-.ze-padtable .ze-modal-footer {
-  padding: 0;
-  margin: 5px; /* [data] `topSizer->Add( m_sdbSizer, 0, wxALIGN_RIGHT|wxALL, 5 )`. */
-  align-self: flex-end;
-}
-
 /* DIALOG_GLOBAL_EDIT_TRACKS_AND_VIAS (dialog_global_edit_tracks_and_vias_base.cpp). */
 .ze-gettv-top {
   display: flex;
@@ -16130,83 +15861,6 @@ fieldset.ze-maplayers-box {
 }
 .ze-getg-defaults td.c {
   text-align: center;
-}
-
-/* DIALOG_EXCHANGE_FOOTPRINTS (dialog_exchange_footprints_base.cpp). */
-.ze-xfp-upper {
-  display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
-  align-items: center;
-  margin: 10px 10px 0; /* [data] `m_mainSizer->Add( m_upperSizer, 0, wxEXPAND|wxTOP|wxRIGHT|wxLEFT, 10 )`. */
-}
-.ze-xfp-upper > .ze-radio {
-  margin: 5px 5px 5px 0; /* [data] the radios' `wxTOP|wxBOTTOM|wxRIGHT, 5`. */
-}
-.ze-xfp-upper > .ze-radio.span2 {
-  grid-column: span 2; /* [data] `wxGBSpan( 1, 2 )`. */
-}
-.ze-xfp-upper > input {
-  margin: 2px 0; /* [data] the fields' `wxTOP|wxBOTTOM, 2`. */
-}
-.ze-xfp-idrow,
-.ze-xfp-newid {
-  display: flex;
-  align-items: center;
-}
-.ze-xfp-idrow > input,
-.ze-xfp-newid > input {
-  flex: 1; /* [data] `bSizer7->Add( m_specifiedID, 1, ... )`. */
-}
-.ze-xfp-change {
-  margin: 15px 15px 0; /* [data] bSizer4's `wxBOTTOM, 10` above, then `m_changeSizer`'s `wxTOP|wxRIGHT|wxLEFT, 5`. */
-}
-.ze-xfp-sep {
-  height: 1px;
-  background: var(--gtk-separator);
-  margin: 3px 0; /* [data] `staticline1`, `wxEXPAND|wxTOP|wxBOTTOM, 3`. */
-}
-.ze-xfp-newid {
-  margin: 5px 0 8px; /* [data] bSizer3's `wxTOP|wxBOTTOM, 5`, then the 3px spacer. */
-}
-.ze-xfp-newid > .lbl {
-  margin: 0 5px; /* [data] `newIdLabel`'s `wxRIGHT|wxLEFT, 5`. */
-}
-.ze-xfp-newid > .ze-gridbtn {
-  margin-right: 5px; /* [data] `m_newIDBrowseButton`'s `wxRIGHT, 5`. */
-}
-.ze-xfp-options {
-  display: flex;
-  margin: 10px; /* [data] `m_updateOptionsSizer`, `wxEXPAND|wxALL, 10`. */
-}
-.ze-xfp-col {
-  display: flex;
-  flex: 1; /* [data] bSizer5 and bSizer6 both proportion 1. */
-  flex-direction: column;
-}
-.ze-xfp-col.left {
-  margin-right: 10px; /* [data] `m_updateOptionsSizer->Add( bSizer5, 1, wxEXPAND|wxRIGHT, 10 )`. */
-}
-.ze-xfp-col > .ze-check {
-  margin: 0 5px 5px 0; /* [data] `wxBOTTOM|wxRIGHT, 5`. */
-}
-.ze-xfp-col > .ze-check.top {
-  margin-top: 5px; /* [data] the first box's extra `wxTOP`. */
-}
-.ze-xfp-stretch {
-  flex: 1;
-  min-height: 10px; /* [data] `Add( 0, 10, 1, 0, 5 )`. */
-}
-.ze-xfp-all {
-  margin: 0 0 5px 5px; /* [data] `m_checkAll`, `wxBOTTOM|wxEXPAND|wxLEFT, 5`. */
-}
-.ze-xfp-none {
-  margin: 0 5px 5px 0; /* [data] `m_uncheckAll`, `wxBOTTOM|wxEXPAND|wxRIGHT, 5`. */
-}
-.ze-xfp-messages {
-  display: flex;
-  flex: 5; /* [data] `m_MessageWindow`, proportion 5. */
-  flex-direction: column;
-  margin: 0 10px; /* [data] `wxEXPAND|wxRIGHT|wxLEFT, 10`. */
 }
 
 /* DIALOG_GLOBAL_EDIT_TEARDROPS (dialog_global_edit_teardrops_base.cpp). */

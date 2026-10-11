@@ -21,6 +21,15 @@
  * cousins were before their tools landed.
  */
 
+import { type JSX, useState } from 'react';
+import { KiBitmapBundle } from '@ziroeda/common/bitmap.js';
+import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
+import { BITMAPS } from '@ziroeda/include/bitmaps/bitmaps_list.js';
+import { pcbUnitText, pcbUnitValue, unitLabel } from '../pcb_unit_binder.js';
+import {
+  DIALOG_TUNING_PATTERN_PROPERTIES_BASE,
+  type FIELD,
+} from './dialog_tuning_pattern_properties_base.js';
 import {
   IU_PER_PS,
   MEANDER_DELAY_UNCONSTRAINED,
@@ -39,8 +48,6 @@ import {
 } from '../router/pns_meander.js';
 import { PnsRouterMode } from '../router/pns_router.js';
 import type { MinOptMax } from '../drc/drc_rule_view.js';
-import { pcbUnitText, pcbUnitValue } from '../pcb_unit_binder.js';
-import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
 
 /** The three tuning modes `DIALOG_TUNING_PATTERN_PROPERTIES` is built for. */
 export type TuningPatternMode =
@@ -303,4 +310,120 @@ export function tuningPatternTransferFromWindow(
   next.singleSided = values.singleSided;
 
   return next;
+}
+
+/** `m_cornerCtrlChoices`: MEANDER_STYLE_CHAMFER, MEANDER_STYLE_ROUND. */
+const CORNER_STYLES = [MeanderStyle.MEANDER_STYLE_CHAMFER, MeanderStyle.MEANDER_STYLE_ROUND];
+
+/**
+ * DIALOG_TUNING_PATTERN_PROPERTIES's ShowModal: its base over the form values. The constructor
+ * picks the legend and, for skew, the target labels.
+ */
+export function DialogTuningPatternProperties({
+  units,
+  settings,
+  mode,
+  constraint = NULL_TUNING_CONSTRAINT,
+  onOk,
+  onClose,
+}: {
+  units: StatusUnits;
+  settings: MeanderSettings;
+  mode: TuningPatternMode;
+  constraint?: TuningConstraintInput;
+  onOk: (next: MeanderSettings) => void;
+  onClose: () => void;
+}): JSX.Element {
+  const [v, setV] = useState<TuningPatternFormValues>(() =>
+    initialTuningPatternValues(settings, mode, units),
+  );
+  // m_minA, m_maxA and m_spacing are UNIT_BINDERs: text held while typed, read in the units.
+  const [texts, setTexts] = useState<Partial<Record<string, string>>>({});
+  const enable = tuningPatternEnableState(v, constraint);
+  const set = (patch: Partial<TuningPatternFormValues>): void =>
+    setV((prev) => ({ ...prev, ...patch }));
+
+  const skew = mode === PnsRouterMode.PNS_MODE_TUNE_DIFF_PAIR_SKEW;
+  const legend =
+    mode === PnsRouterMode.PNS_MODE_TUNE_SINGLE
+      ? BITMAPS.tune_single_track_length_legend
+      : skew
+        ? BITMAPS.tune_diff_pair_skew_legend
+        : BITMAPS.tune_diff_pair_length_legend;
+
+  const length = (aKey: 'minAmplitude' | 'maxAmplitude' | 'spacing'): FIELD => ({
+    value: texts[aKey] ?? pcbUnitText(v[aKey], units),
+    units: unitLabel(units),
+    onChange: (aText) => {
+      setTexts((t) => ({ ...t, [aKey]: aText }));
+      const iu = pcbUnitValue(aText, units);
+      if (Number.isFinite(iu)) set({ [aKey]: iu } as Partial<TuningPatternFormValues>);
+    },
+  });
+
+  return (
+    <DIALOG_TUNING_PATTERN_PROPERTIES_BASE
+      title="Tuning Pattern Properties"
+      m_legend={KiBitmapBundle(legend)}
+      m_radioBtnLength={{
+        value: v.lengthSelected,
+        enabled: enable.radioLengthEnabled,
+        onSelect: () => set(tuningPatternRadioLengthSelected(v)),
+      }}
+      targetLengthLabel={skew ? 'Target Skew:' : 'Target Length:'}
+      m_targetLength={{
+        value: v.targetLengthText,
+        units: unitLabel(units),
+        enabled: enable.targetLengthEnabled,
+        onChange: (aText) => set({ targetLengthText: aText }),
+      }}
+      m_radioBtnDelay={{
+        value: !v.lengthSelected,
+        enabled: enable.radioDelayEnabled,
+        onSelect: () => set(tuningPatternRadioDelaySelected(v)),
+      }}
+      targetDelayLabel={skew ? 'Target Skew Delay:' : 'Target Delay:'}
+      m_targetDelay={{
+        value: v.targetDelayText,
+        units: 'ps',
+        enabled: enable.targetDelayEnabled,
+        onChange: (aText) => set({ targetDelayText: aText }),
+      }}
+      m_overrideCustomRules={{
+        value: v.overrideCustomRules,
+        onChange: (aOn) => set(tuningPatternOverrideToggled(v, aOn, constraint, units)),
+      }}
+      m_sourceInfo={enable.sourceInfoVisible ? tuningPatternSourceInfoText(constraint) : null}
+      m_minA={length('minAmplitude')}
+      m_maxA={length('maxAmplitude')}
+      m_spacing={length('spacing')}
+      m_cornerCtrl={{
+        value: CORNER_STYLES.indexOf(v.cornerStyle),
+        onChange: (aIndex) => set({ cornerStyle: CORNER_STYLES[aIndex]! }),
+      }}
+      m_r={{
+        value: texts.r ?? String(v.cornerRadiusPercentage),
+        units: '%',
+        onChange: (aText) => {
+          setTexts((t) => ({ ...t, r: aText }));
+          const n = Number(aText);
+          if (aText.trim() !== '' && Number.isFinite(n)) set({ cornerRadiusPercentage: n });
+        },
+      }}
+      m_singleSided={{ value: v.singleSided, onChange: (aOn) => set({ singleSided: aOn }) }}
+      onOK={() =>
+        onOk(
+          tuningPatternTransferFromWindow(
+            v,
+            mode,
+            enable.radioLengthEnabled,
+            settings,
+            constraint,
+            units,
+          ),
+        )
+      }
+      onCancel={onClose}
+    />
+  );
 }

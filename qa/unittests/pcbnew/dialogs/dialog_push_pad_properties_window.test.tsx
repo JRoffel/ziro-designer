@@ -16,7 +16,7 @@ import {
   COL_NUMBER,
   DIALOG_FP_EDIT_PAD_TABLE,
 } from '@ziroeda/pcbnew/dialogs/dialog_fp_edit_pad_table.js';
-import { DialogFpEditPadTable } from '@ziroeda/pcbnew/dialogs/dialog_fp_edit_pad_table_ui.js';
+import { DialogFpEditPadTable } from '@ziroeda/pcbnew/dialogs/dialog_fp_edit_pad_table.js';
 import {
   DIALOG_PUSH_PAD_PROPERTIES,
   wxID_CANCEL,
