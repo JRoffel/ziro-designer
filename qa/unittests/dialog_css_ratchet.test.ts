@@ -48,7 +48,8 @@ const BASELINE: Record<string, number> = {
   // 448 -> 434 (10-11): Unused Pad Layers, Filter Selection, Offset Item, Track/Via Size and
   // Diff Pair Dimensions pairs.
   // 434 -> 427 (10-11): Move Exact, Footprint Associations, Global Deletion and Outset Items pairs.
-  pcbnew: 427,
+  // 427 -> 402 (10-11): Cleanup Graphics, Cleanup Tracks & Vias and Reference Image pairs.
+  pcbnew: 402,
 };
 
 const git = (...aSpecs: string[]): string[] =>

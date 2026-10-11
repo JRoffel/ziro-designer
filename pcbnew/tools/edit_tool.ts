@@ -107,6 +107,7 @@ import type { CLIENT_SELECTION_FILTER, PCB_SELECTION_TOOL } from './pcb_selectio
 import { PCB_TOOL_BASE } from './pcb_tool_base.js';
 import { EDIT_TOOL_MOVE_FCT } from './edit_tool_move_fct.js';
 import { applyMixins } from '@ziroeda/core/mixins.js';
+import { DIALOG_GET_FOOTPRINT_BY_NAME } from '../dialogs/dialog_get_footprint_by_name.js';
 
 /** `ID_END_LIST` (common/id.h), where `pcbnew_ids` starts. */
 const ID_END_LIST = 10557;
@@ -138,8 +139,8 @@ export interface EDIT_TOOL_FRAME {
   ShowTableCellPropertiesDialog(aCells: PCB_TABLECELL[]): Promise<boolean>;
   /** `DIALOG_TABLE_PROPERTIES( frame, table ).ShowQuasiModal() == wxID_OK`. */
   ShowTablePropertiesDialog(aTable: PCB_TABLE): Promise<boolean>;
-  /** `DIALOG_GET_FOOTPRINT_BY_NAME( frame, fplist ).ShowModal()`: the value, or null. */
-  ShowGetFootprintByNameDialog(aList: string[]): Promise<string | null>;
+  /** `dlg.ShowModal() == wxID_OK` for a DIALOG_GET_FOOTPRINT_BY_NAME. */
+  ShowGetFootprintByNameDialog(aDialog: DIALOG_GET_FOOTPRINT_BY_NAME): Promise<boolean>;
   /**
    * `PromptConnectedPadDecision`'s wxRichMessageDialog: "Ignore Unselected Pads"
    * (wxID_YES) answers 'ignore', "Swap All Connected Pads" (wxID_NO) 'all',
@@ -592,10 +593,12 @@ function GetFootprintFromBoardByReference(
 
   if (!aFrame.ShowGetFootprintByNameDialog) return Promise.resolve(null);
 
-  return aFrame.ShowGetFootprintByNameDialog(fplist).then((aValue) => {
-    if (aValue === null) return null; //Aborted by user
+  const dlg = new DIALOG_GET_FOOTPRINT_BY_NAME(aFrame, fplist);
 
-    const footprintName = aValue.trim();
+  return aFrame.ShowGetFootprintByNameDialog(dlg).then((aOk) => {
+    if (!aOk) return null; //Aborted by user
+
+    const footprintName = dlg.GetValue().trim();
 
     if (footprintName !== '') {
       for (const fp of footprints) {

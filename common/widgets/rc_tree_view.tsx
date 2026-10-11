@@ -20,6 +20,7 @@ export function RcTreeView({
   model,
   view,
   onDoubleClick,
+  onSelect,
   onContextMenu,
   testId,
 }: {
@@ -27,6 +28,8 @@ export function RcTreeView({
   view: RC_TREE_VIEW_STATE;
   /** The data view's wxEVT_DATAVIEW_ITEM_ACTIVATED / left double click. */
   onDoubleClick?: (node: RC_TREE_NODE) => void;
+  /** wxEVT_DATAVIEW_SELECTION_CHANGED: a row clicked, or picked by its context menu. */
+  onSelect?: (node: RC_TREE_NODE) => void;
   onContextMenu?: (e: React.MouseEvent, node: RC_TREE_NODE) => void;
   testId?: string;
 }): JSX.Element {
@@ -52,11 +55,15 @@ export function RcTreeView({
             ref={selection === node ? selectedRowRef : undefined}
             className={`ze-erc-row${selection === node ? ' selected' : ''}`}
             style={rowStyle(node)}
-            onClick={() => view.Select(node)}
+            onClick={() => {
+              view.Select(node);
+              onSelect?.(node);
+            }}
             onDoubleClick={() => onDoubleClick?.(node)}
             onContextMenu={(e) => {
               e.preventDefault();
               view.Select(node);
+              onSelect?.(node);
               onContextMenu?.(e, node);
             }}
           >
@@ -71,11 +78,15 @@ export function RcTreeView({
                 child.m_Type === RC_TREE_NODE_TYPE.COMMENT ? ' comment' : ''
               }`}
               style={rowStyle(child)}
-              onClick={() => view.Select(child)}
+              onClick={() => {
+                view.Select(child);
+                onSelect?.(child);
+              }}
               onDoubleClick={() => onDoubleClick?.(child)}
               onContextMenu={(e) => {
                 e.preventDefault();
                 view.Select(child);
+                onSelect?.(child);
                 onContextMenu?.(e, child);
               }}
             >

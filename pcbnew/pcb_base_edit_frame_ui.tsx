@@ -52,11 +52,10 @@ import {
   type DIALOG_PAD_PROPERTIES,
   DialogPadProperties,
 } from './dialogs/dialog_pad_properties.js';
-import type {
-  DIALOG_REFERENCE_IMAGE_PROPERTIES,
-  ImageValues,
+import {
+  type DIALOG_REFERENCE_IMAGE_PROPERTIES,
+  DialogReferenceImageProperties,
 } from './dialogs/dialog_reference_image_properties.js';
-import { DialogReferenceImageProperties } from './dialogs/dialog_reference_image_properties_ui.js';
 import {
   collectPlacementSources,
   DIALOG_RULE_AREA_PROPERTIES,
@@ -282,28 +281,6 @@ export function usePcbItemDialogs(aEnv: PCB_ITEM_DIALOGS_ENV): {
       }),
   };
 
-  /** DIALOG_REFERENCE_IMAGE_PROPERTIES::TransferDataFromWindow, its one IsOK in between. */
-  const applyImage = useCallback(
-    (values: ImageValues) => {
-      const req = image;
-      setImage(null);
-      if (!req) return;
-
-      let question: string | null = null;
-      const r = req.dialog.TransferDataFromWindow(values, (m) => {
-        question = m;
-        return false;
-      });
-      if (r.ok) req.resolve(true);
-      else if (question !== null)
-        void IsOK(question).then((yes) => {
-          req.resolve(yes && req.dialog.TransferDataFromWindow(values).ok);
-        });
-      else req.resolve(false);
-    },
-    [image],
-  );
-
   const theBoard = board();
   const layers = enabledLayerNames(theBoard);
   const coloured = layers.map((name) => ({ name, color: layerColor(name) }));
@@ -420,15 +397,10 @@ export function usePcbItemDialogs(aEnv: PCB_ITEM_DIALOGS_ENV): {
       )}
       {image && (
         <DialogReferenceImageProperties
-          image={{ data: image.dialog.ImageData() }}
-          initial={image.dialog.TransferDataToWindow()}
-          units={units}
-          layers={layers}
-          layerColor={layerColor}
-          onApply={applyImage}
-          onClose={() => {
-            image.resolve(false);
+          dialog={image.dialog}
+          onClose={(aOk) => {
             setImage(null);
+            image.resolve(aOk);
           }}
         />
       )}

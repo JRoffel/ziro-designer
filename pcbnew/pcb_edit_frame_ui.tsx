@@ -257,7 +257,11 @@ import {
   arraySpecFrom,
   type ArraySettings,
 } from './dialogs/dialog_create_array.js';
-import { DIALOG_OUTSET_ITEMS, DialogOutsetItems } from './dialogs/dialog_outset_items.js';
+import { type DIALOG_OUTSET_ITEMS, DialogOutsetItems } from './dialogs/dialog_outset_items.js';
+import {
+  type DIALOG_GET_FOOTPRINT_BY_NAME,
+  DialogGetFootprintByName,
+} from './dialogs/dialog_get_footprint_by_name.js';
 import { CONVERT_SETTINGS_DIALOG } from './tools/convert_settings_dialog.js';
 import { ConvertSettingsDialog } from './tools/convert_settings_dialog_ui.js';
 import type { OUTSET_PARAMETERS } from './tools/item_modification_routine.js';
@@ -275,8 +279,11 @@ import type { DIALOG_POSITION_RELATIVE } from './dialogs/dialog_position_relativ
 import { DialogOffsetItem } from './dialogs/dialog_offset_item.js';
 import { DialogSwapLayers } from './dialogs/dialog_swap_layers.js';
 import { choiceOf } from './grid_layer_box_helpers.js';
-import { DialogCleanupTracksAndVias } from './dialogs/dialog_cleanup_tracks_and_vias_ui.js';
-import { DialogCleanupGraphics } from './dialogs/dialog_cleanup_graphics_ui.js';
+import { DialogCleanupTracksAndVias } from './dialogs/dialog_cleanup_tracks_and_vias.js';
+import {
+  type DIALOG_CLEANUP_GRAPHICS,
+  DialogCleanupGraphics,
+} from './dialogs/dialog_cleanup_graphics.js';
 import { DialogUnusedPadLayers } from './dialogs/dialog_unused_pad_layers.js';
 import { DialogGlobalDeletion } from './dialogs/dialog_global_deletion.js';
 import { DialogGlobalEditTracksAndVias } from './dialogs/dialog_global_edit_tracks_and_vias_ui.js';
@@ -293,7 +300,6 @@ import { LAYER_CLASS } from './board_design_settings.js';
 import type { DIALOG_GLOBAL_EDIT_TRACKS_AND_VIAS } from './dialogs/dialog_global_edit_tracks_and_vias.js';
 import type { DIALOG_GLOBAL_DELETION } from './dialogs/dialog_global_deletion.js';
 import type { DIALOG_UNUSED_PAD_LAYERS } from './dialogs/dialog_unused_pad_layers.js';
-import type { DIALOG_CLEANUP_GRAPHICS } from './dialogs/dialog_cleanup_graphics.js';
 import type { DIALOG_CLEANUP_TRACKS_AND_VIAS } from './dialogs/dialog_cleanup_tracks_and_vias.js';
 import type { DIALOG_SWAP_LAYERS } from './dialogs/dialog_swap_layers.js';
 import { DialogPushPadProperties } from './dialogs/dialog_push_pad_properties.js';
@@ -1639,6 +1645,10 @@ export function PcbEditor({
   const [padTableDlg, setPadTableDlg] = useState<DIALOG_FP_EDIT_PAD_TABLE | null>(null);
   const [targetDlg, setTargetDlg] = useState<DIALOG_TARGET_PROPERTIES | null>(null);
   /** CONVERT_TOOL's modal dialogs, each with the promise the tool waits on. */
+  const [getFpDlg, setGetFpDlg] = useState<{
+    dialog: DIALOG_GET_FOOTPRINT_BY_NAME;
+    resolve: (aOk: boolean) => void;
+  } | null>(null);
   const [outsetDlg, setOutsetDlg] = useState<{
     dialog: DIALOG_OUTSET_ITEMS;
     resolve: (aOk: boolean) => void;
@@ -2235,7 +2245,7 @@ export function PcbEditor({
     showDogboneDialog: (aParams: DOGBONE_PARAMETERS) => Promise<DOGBONE_PARAMETERS | null>;
     showMoveExactDialog: (aDialog: DIALOG_MOVE_EXACT) => Promise<boolean>;
     showTrackViaPropertiesDialog: (aSelection: PCB_SELECTION) => Promise<void>;
-    showGetFootprintByNameDialog: (aList: string[]) => Promise<string | null>;
+    showGetFootprintByNameDialog: (aDialog: DIALOG_GET_FOOTPRINT_BY_NAME) => Promise<boolean>;
     showConnectedPadDialog: (
       aTitle: string,
       aMessage: string,
@@ -2385,8 +2395,8 @@ export function PcbEditor({
         editWindowRef.current?.showMoveExactDialog(aDialog) ?? Promise.resolve(false),
       showTrackViaPropertiesDialog: (aSelection) =>
         editWindowRef.current?.showTrackViaPropertiesDialog(aSelection) ?? Promise.resolve(),
-      showGetFootprintByNameDialog: (aList) =>
-        editWindowRef.current?.showGetFootprintByNameDialog(aList) ?? Promise.resolve(null),
+      showGetFootprintByNameDialog: (aDialog) =>
+        editWindowRef.current?.showGetFootprintByNameDialog(aDialog) ?? Promise.resolve(false),
       showConnectedPadDialog: (aTitle, aMessage, aDetails) =>
         editWindowRef.current?.showConnectedPadDialog(aTitle, aMessage, aDetails) ??
         Promise.resolve(null),
@@ -4418,11 +4428,8 @@ export function PcbEditor({
       setTrackViaItems([...aSelection.GetItems()]);
       return Promise.resolve();
     },
-    // TRANSITIONAL (#636 stage 3): DIALOG_GET_FOOTPRINT_BY_NAME is not built;
-    // its "Reference designator:" field, without the "Available footprints:"
-    // list, through the text-entry dialog.
-    showGetFootprintByNameDialog: (_aList) =>
-      mwWindowRef.current!.textEntry('Reference designator:', 'Get and Move Footprint', ''),
+    showGetFootprintByNameDialog: (aDialog) =>
+      new Promise<boolean>((resolve) => setGetFpDlg({ dialog: aDialog, resolve })),
     // TRANSITIONAL (#636 stage 3): KIDIALOG has OK and Cancel, so the
     // "Swap All Connected Pads" answer (wxID_NO) is not offered yet.
     showConnectedPadDialog: (aTitle, aMessage, aDetails) =>
@@ -7878,6 +7885,15 @@ export function PcbEditor({
       )}
       {/* CONVERT_TOOL::OutsetItems' DIALOG_OUTSET_ITEMS, on the tool's
           persistent OUTSET_ROUTINE::PARAMETERS. */}
+      {getFpDlg && (
+        <DialogGetFootprintByName
+          dialog={getFpDlg.dialog}
+          onClose={(aOk) => {
+            setGetFpDlg(null);
+            getFpDlg.resolve(aOk);
+          }}
+        />
+      )}
       {outsetDlg && board && (
         <DialogOutsetItems
           dialog={outsetDlg.dialog}
@@ -8442,23 +8458,7 @@ export function PcbEditor({
         <DialogCleanupGraphics dialog={cleanupGfxDlg} onClose={() => setCleanupGfxDlg(null)} />
       )}
       {cleanupDlg && (
-        <DialogCleanupTracksAndVias
-          dialog={cleanupDlg}
-          nets={
-            new Map(
-              [...(frameRef.current?.GetBoard()?.GetNetInfo().NetsByNetcode() ?? new Map())].map(
-                ([code, net]) => [code, net.GetNetname()] as const,
-              ),
-            )
-          }
-          layers={LSET.AllCuMask(frameRef.current?.GetBoard()?.GetCopperLayerCount() ?? 2)
-            .UIOrder()
-            .map((l) => {
-              const c = choiceOf(l);
-              return { layer: l, label: c.label, swatch: c.swatch };
-            })}
-          onClose={() => setCleanupDlg(null)}
-        />
+        <DialogCleanupTracksAndVias dialog={cleanupDlg} onClose={() => setCleanupDlg(null)} />
       )}
       {swapLayersDlg && board && (
         <DialogSwapLayers

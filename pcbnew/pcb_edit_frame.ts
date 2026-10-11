@@ -233,6 +233,7 @@ import {
 } from './layer_pairs.js';
 import { loadKicadNetlist } from './netlist_reader/kicad_netlist_reader.js';
 import { fetchNetlistFromSchematic } from './browser/headless_netlist.js';
+import type { DIALOG_GET_FOOTPRINT_BY_NAME } from './dialogs/dialog_get_footprint_by_name.js';
 
 /** `INSPECT_DRC_ERROR_DIALOG_NAME` (pcb_edit_frame.cpp:160). */
 const INSPECT_DRC_ERROR_DIALOG_NAME = 'InspectDrcErrorDialog';
@@ -876,8 +877,8 @@ export interface PCB_EDIT_FRAME_HOOKS extends PCB_BASE_EDIT_FRAME_DIALOG_HOOKS {
   showMoveExactDialog?(aDialog: DIALOG_MOVE_EXACT): Promise<boolean>;
   /** `DIALOG_TRACK_VIA_PROPERTIES( frame, selection ).ShowQuasiModal()`. */
   showTrackViaPropertiesDialog?(aSelection: PCB_SELECTION): Promise<void>;
-  /** `DIALOG_GET_FOOTPRINT_BY_NAME( frame, fplist ).ShowModal()`: the value, null on cancel. */
-  showGetFootprintByNameDialog?(aList: string[]): Promise<string | null>;
+  /** `DIALOG_GET_FOOTPRINT_BY_NAME::ShowModal() == wxID_OK`. */
+  showGetFootprintByNameDialog?(aDialog: DIALOG_GET_FOOTPRINT_BY_NAME): Promise<boolean>;
   /** CONVERT_TOOL's `CONVERT_SETTINGS_DIALOG(...).ShowModal() == wxID_OK`. */
   showConvertSettingsDialog?(
     aSettings: CONVERT_SETTINGS,
@@ -1642,8 +1643,8 @@ export class PCB_EDIT_FRAME extends PCB_BASE_EDIT_FRAME {
     this.hooks.dismissInfoBar?.();
   }
 
-  ShowGetFootprintByNameDialog(aList: string[]): Promise<string | null> {
-    return this.hooks.showGetFootprintByNameDialog?.(aList) ?? Promise.resolve(null);
+  ShowGetFootprintByNameDialog(aDialog: DIALOG_GET_FOOTPRINT_BY_NAME): Promise<boolean> {
+    return this.hooks.showGetFootprintByNameDialog?.(aDialog) ?? Promise.resolve(false);
   }
 
   ShowConnectedPadDialog(

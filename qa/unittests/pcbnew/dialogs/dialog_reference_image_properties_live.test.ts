@@ -3,7 +3,8 @@
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
 /**
  * DIALOG_REFERENCE_IMAGE_PROPERTIES on a live PCB_REFERENCE_IMAGE
- * (dialog_reference_image_properties.cpp, panel_image_editor.cpp).
+ * (dialog_reference_image_properties.cpp, panel_image_editor.cpp): the transfers, PANEL_IMAGE_EDITOR's
+ * CheckValues, and the three-way binding where width, height and scale are one stored number.
  */
 import { beforeEach, describe, expect, it } from 'vitest';
 import { pcbIUScale } from '@ziroeda/common/eda_units.js';
@@ -34,30 +35,41 @@ beforeEach(() => {
   frame = new TEST_PCB_FRAME(board);
 });
 
+/** The dialog after OnInitDialog, as the window shows it. */
+const shown = () => {
+  const d = dlg();
+  d.TransferDataToWindow();
+  return d;
+};
+
+/** OK after CheckValues passed: what the window does. */
+const ok = (d: DIALOG_REFERENCE_IMAGE_PROPERTIES) => {
+  expect(d.CheckValues()).toBeNull();
+  return d.TransferDataFromWindow();
+};
+
 describe('DIALOG_REFERENCE_IMAGE_PROPERTIES', () => {
   it('reads the image; width and height are the scaled pixel size', () => {
-    const v = dlg().TransferDataToWindow();
-    expect(v).toMatchObject({ x: MM(10), y: MM(20), layer: 'F.SilkS', locked: false, scale: 2 });
+    const d = shown();
+    expect(d.m_posX.GetIntValue()).toBe(MM(10));
+    expect(d.m_posY.GetIntValue()).toBe(MM(20));
+    expect(d.m_LayerSelectionCtrl.GetLayerSelection()).toBe(PCB_LAYER_ID.F_SilkS);
+    expect(d.m_cbLocked).toBe(false);
+    expect(d.GetScale()).toBe(2);
     // 100 x 50 px at 300 ppi, doubled: 200/300 in by 100/300 in.
-    expect(v.width).toBeCloseTo((200 / 300) * MM(25.4), -1);
-    expect(v.height).toBeCloseTo((100 / 300) * MM(25.4), -1);
-  });
-
-  it('reads back what it wrote', () => {
-    dlg().TransferDataFromWindow({ ...dlg().TransferDataToWindow(), layer: 'B.SilkS', scale: 3 });
-    expect(dlg().TransferDataToWindow()).toMatchObject({ layer: 'B.SilkS', scale: 3 });
+    expect(d.m_width.GetIntValue()).toBeCloseTo((200 / 300) * MM(25.4), -1);
+    expect(d.m_height.GetIntValue()).toBeCloseTo((100 / 300) * MM(25.4), -1);
   });
 
   it('writes position, layer, lock and scale as one undo entry', () => {
-    const r = dlg().TransferDataFromWindow({
-      ...dlg().TransferDataToWindow(),
-      x: MM(30),
-      y: MM(40),
-      layer: 'B.SilkS',
-      locked: true,
-      scale: 3,
-    });
-    expect(r.ok).toBe(true);
+    const d = shown();
+    d.m_posX.SetValue(MM(30));
+    d.m_posY.SetValue(MM(40));
+    d.m_LayerSelectionCtrl.SetLayerSelection(PCB_LAYER_ID.B_SilkS);
+    d.m_cbLocked = true;
+    d.m_scaleText = '3';
+    expect(ok(d)).toBe(true);
+
     const b = image();
     expect(b.GetPosition()).toEqual({ x: MM(30), y: MM(40) });
     expect(b.GetLayer()).toBe(PCB_LAYER_ID.B_SilkS);
@@ -69,69 +81,113 @@ describe('DIALOG_REFERENCE_IMAGE_PROPERTIES', () => {
     expect(image().GetReferenceImage().GetImageScale()).toBe(2);
   });
 
+  it('Cancel leaves the bitmap alone: the editor works on a copy', () => {
+    const d = shown();
+    d.m_scaleText = '5';
+    d.onScaleChanged();
+    expect(image().GetReferenceImage().GetImageScale()).toBe(2);
+    expect(frame.GetUndoCommandCount()).toBe(0);
+  });
+
   it('scales about the centre: the position does not move', () => {
     // Even with a transform origin off-centre, which SetImageScale would scale about.
     image()
       .GetReferenceImage()
       .SetTransformOriginOffset({ x: MM(1), y: MM(1) });
-    dlg().TransferDataFromWindow({ ...dlg().TransferDataToWindow(), scale: 5 });
+    const d = shown();
+    d.m_scaleText = '5';
+    expect(ok(d)).toBe(true);
     expect(image().GetPosition()).toEqual({ x: MM(10), y: MM(20) });
     expect(image().GetReferenceImage().GetTransformOriginOffset()).toEqual({ x: MM(1), y: MM(1) });
   });
 
-  it('refuses a negative scale', () => {
-    expect(dlg().TransferDataFromWindow({ ...dlg().TransferDataToWindow(), scale: -1 })).toEqual({
-      ok: false,
-      message: 'Scale must be a positive number.',
-    });
-    expect(frame.GetUndoCommandCount()).toBe(0);
+  it('CheckValues refuses a negative scale', () => {
+    const d = shown();
+    d.m_scaleText = '-1';
+    expect(d.CheckValues()).toEqual({ error: 'Scale must be a positive number.' });
   });
 
-  it('refuses an image under 15 scaled pixels on its short side', () => {
+  it('CheckValues refuses an image under 15 scaled pixels on its short side', () => {
+    const d = shown();
     // 50 px * 0.28 = 14 px.
-    const r = dlg().TransferDataFromWindow({ ...dlg().TransferDataToWindow(), scale: 0.28 });
-    expect(r).toEqual({
-      ok: false,
-      message: 'This scale results in an image which is too small (1.19 mm or 46.7 mil).',
+    d.m_scaleText = '0.28';
+    expect(d.CheckValues()).toEqual({
+      error: 'This scale results in an image which is too small (1.19 mm or 46.7 mil).',
     });
     // 50 px * 0.3 = 15 px is enough.
-    expect(dlg().TransferDataFromWindow({ ...dlg().TransferDataToWindow(), scale: 0.3 }).ok).toBe(
-      true,
-    );
+    d.m_scaleText = '0.3';
+    expect(d.CheckValues()).toBeNull();
   });
 
-  it('asks before an image over 6000 scaled pixels, and No refuses', () => {
-    const asked: string[] = [];
-    const no = (m: string) => {
-      asked.push(m);
-      return false;
-    };
+  it('CheckValues asks before an image over 6000 scaled pixels', () => {
+    const d = shown();
     // 100 px * 61 = 6100 px.
-    expect(
-      dlg().TransferDataFromWindow({ ...dlg().TransferDataToWindow(), scale: 61 }, no).ok,
-    ).toBe(false);
-    expect(asked).toEqual([
-      'This scale results in an image which is very large (516.5 mm or 20.33 in). Are you sure?',
-    ]);
-    expect(image().GetReferenceImage().GetImageScale()).toBe(2);
+    d.m_scaleText = '61';
+    expect(d.CheckValues()).toEqual({
+      confirm:
+        'This scale results in an image which is very large (516.5 mm or 20.33 in). Are you sure?',
+    });
     // 100 px * 60 = 6000 px is not asked about.
-    expect(
-      dlg().TransferDataFromWindow({ ...dlg().TransferDataToWindow(), scale: 60 }, no).ok,
-    ).toBe(true);
-    expect(asked).toHaveLength(1);
+    d.m_scaleText = '60';
+    expect(d.CheckValues()).toBeNull();
   });
 
-  it('takes the converted image the window hands back', () => {
+  it('a typed width becomes a scale, and the height follows (onWidthChanged)', () => {
+    const d = shown();
+    const w = d.m_width.GetIntValue();
+    const h = d.m_height.GetIntValue();
+    d.m_width.SetValue(w * 3);
+    d.onWidthChanged();
+    expect(d.GetScale()).toBeCloseTo(6, 6);
+    expect(d.m_height.GetIntValue()).toBeCloseTo(h * 3, -1);
+  });
+
+  it('a typed height becomes a scale the same way (onHeightChanged)', () => {
+    const d = shown();
+    const w = d.m_width.GetIntValue();
+    d.m_height.SetValue(d.m_height.GetIntValue() * 3);
+    d.onHeightChanged();
+    expect(d.GetScale()).toBeCloseTo(6, 6);
+    expect(d.m_width.GetIntValue()).toBeCloseTo(w * 3, -1);
+  });
+
+  it('a typed scale moves both sizes but leaves its own text alone (onScaleChanged)', () => {
+    const d = shown();
+    const w = d.m_width.GetIntValue();
+    d.m_scaleText = '4.';
+    d.onScaleChanged();
+    expect(d.m_scaleText).toBe('4.');
+    expect(d.m_width.GetIntValue()).toBeCloseTo(w * 2, -1);
+  });
+
+  it('a width, height or scale of zero or less is ignored', () => {
+    const d = shown();
+    d.m_width.SetValue(0);
+    d.onWidthChanged();
+    d.m_height.SetValue(-5);
+    d.onHeightChanged();
+    expect(d.GetScale()).toBe(2);
+    d.m_scaleText = '0';
+    d.onScaleChanged();
+    expect(d.GetImageSize().x).toBeGreaterThan(0);
+  });
+
+  it('takes the converted image the panel hands back', () => {
     const OTHER =
       'iVBORw0KGgoAAAANSUhEUgAAAMgAAAAyCAAAAAA8Oss9AAAAoklEQVR4nN3OAQkAAAzDsEqbf1U3USg8CsKeoA5YqAMW6oCFOmChDlioAxbqgIU6YKEOWKgDFuqAhTpgoQ5YqAMW6oCFOmChDlioAxbqgIU6YKEOWKgDFuqAhTpgoQ5YqAMW6oCFOmChDlioAxbqgIU6YKEOWKgDFuqAhTpgoQ5YqAMW6oCFOmChDlioAxbqgIU6YKEOWKgDFuqAhTpgoQ5YDqc3xIghBGcQAAAAAElFTkSuQmCC';
-    dlg().TransferDataFromWindow({ ...dlg().TransferDataToWindow(), data: OTHER });
+    const d = shown();
+    d.OnGreyScaleConvert(OTHER);
+    expect(ok(d)).toBe(true);
     expect(image().GetReferenceImage().GetImage().GetSizePixels()).toEqual({ x: 200, y: 50 });
     expect(image().GetReferenceImage().GetImageScale()).toBe(2);
   });
 
-  it('keeps the lock in a footprint holder', () => {
+  it('hides and keeps the lock in a footprint holder', () => {
     board.SetBoardUse(BOARD_USE.FPHOLDER);
-    dlg().TransferDataFromWindow({ ...dlg().TransferDataToWindow(), locked: true });
+    const d = shown();
+    expect(d.m_lockedShown).toBe(false);
+    d.m_cbLocked = true;
+    expect(ok(d)).toBe(true);
     // IsLocked() is always false in a footprint holder; look from a board.
     board.SetBoardUse(BOARD_USE.NORMAL);
     expect(image().IsLocked()).toBe(false);

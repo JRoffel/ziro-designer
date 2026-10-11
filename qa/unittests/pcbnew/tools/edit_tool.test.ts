@@ -38,6 +38,7 @@ import {
   U,
 } from '../support/pcb_tool_harness.js';
 import { TEST_PCB_FRAME } from '../support/test_pcb_frame.js';
+import type { DIALOG_GET_FOOTPRINT_BY_NAME } from '@ziroeda/pcbnew/dialogs/dialog_get_footprint_by_name.js';
 
 const BOARD_TEXT = `(kicad_pcb (version 20241229) (generator "pcbnew") (generator_version "9.0")
   (general (thickness 1.6) (legacy_teardrops no))
@@ -116,8 +117,11 @@ class EDIT_FRAME extends TEST_PCB_FRAME implements EDIT_TOOL_FRAME {
   override ShowTablePropertiesDialog(): Promise<boolean> {
     return Promise.resolve(false);
   }
-  ShowGetFootprintByNameDialog(): Promise<string | null> {
-    return Promise.resolve('c1');
+  /** Types "c1" into the reference designator, as a user would, and presses OK. */
+  ShowGetFootprintByNameDialog(aDialog: DIALOG_GET_FOOTPRINT_BY_NAME): Promise<boolean> {
+    aDialog.m_SearchTextCtrl = 'c1';
+    aDialog.OnSearchInputChanged();
+    return Promise.resolve(true);
   }
   ShowConnectedPadDialog(): Promise<'ignore' | 'all' | null> {
     return Promise.resolve(this.connectedPadAnswer);

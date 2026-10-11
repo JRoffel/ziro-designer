@@ -20,13 +20,17 @@ import { fileURLToPath } from 'node:url';
 const read = (rel: string): string =>
   readFileSync(fileURLToPath(new URL(`../../../designer/src/${rel}`, import.meta.url)), 'utf8');
 
-const DIALOG = read('../../pcbnew/dialogs/dialog_reference_image_properties_ui.tsx');
+const BASE = read('../../pcbnew/dialogs/dialog_reference_image_properties_base.tsx');
+const DIALOG = read('../../pcbnew/dialogs/dialog_reference_image_properties.tsx');
 const CSS = read('../../common/widgets/shell.css');
-/** Comments are prose, and this file's name the controls it does NOT have. */
-const code = DIALOG.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+/** Comments are prose, and these files' name the controls they do NOT have. */
+const strip = (t: string): string =>
+  t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+const base = strip(BASE);
+const code = strip(DIALOG);
 // PANEL_IMAGE_EDITOR is common/dialogs' since 09-26, shared with the schematic.
 const PANEL = read('../../common/dialogs/panel_image_editor.tsx');
-const panelCode = PANEL.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+const panelCode = strip(PANEL);
 
 /** Everything CSS says about one selector — see text_properties_dialog.test.ts. */
 const rule = (selector: string): string => {
@@ -40,60 +44,64 @@ describe('the fields the base file declares, in its order', () => {
     // `_("Associated layer:")` (`:74`), not "Layer:". The manual uses the same
     // words: "Associated layer controls the layer that the reference image is
     // considered to be on".
-    expect(code).toContain('Associated layer:');
+    expect(base).toContain('label="Associated layer:"');
   });
 
   it('puts Height above Width, as rows 3 and 4', () => {
     // `m_HeightLabel` is at `wxGBPosition( 3, 0 )` and `m_WidthLabel` at
-    // `( 4, 0 )` (`:54-72`), and the manual lists them "Height, Width, and
-    // Scale". This file had Width first.
-    expect(rule('.ze-refimg-h-lbl')).toMatch(/grid-row:\s*4;/);
-    expect(rule('.ze-refimg-w-lbl')).toMatch(/grid-row:\s*5;/);
+    // `( 4, 0 )` (`:54-72`), and the manual lists them "Height, Width, and Scale".
+    expect(base).toContain("field(3, p.m_height, 'Height')");
+    expect(base).toContain("field(4, p.m_width, 'Width')");
   });
 
   it('leaves Width’s unit stranded on the layer row, where the file puts it', () => {
     // `m_WidthUnit` is added at `wxGBPosition( 2, 2 )` while its label and
     // control are at row 4 (`:61`). It is a wxFormBuilder oddity and it is what
-    // KiCad draws, so it is mirrored rather than tidied: `m_width( aParent,
-    // m_WidthLabel, m_ModWidth, m_WidthUnit )` binds that control, it does not
-    // move it. Tidying it would be a visible divergence.
-    expect(rule('.ze-refimg-w-u')).toMatch(/grid-row:\s*3;/);
-    expect(rule('.ze-refimg-w-u')).toMatch(/grid-column:\s*3;/);
+    // KiCad draws, so it is mirrored rather than tidied.
+    expect(base).toContain('unit(2, p.m_width)');
+    expect(base).toContain('pos={[2, 1]}');
   });
 
-  it('has the empty row the file sizes, not a collapsed one', () => {
-    // Rows 0-4 and 6 are used; row 5 is empty and
-    // `SetEmptyCellSize( wxSize( -1,5 ) )` (`:28`) makes it 5 px. A CSS grid
-    // gives an empty row no height at all unless the row is stated.
-    expect(rule('.ze-refimg-grid')).toMatch(/grid-template-rows:\s*repeat\(5, auto\) 5px auto/);
-    expect(rule('.ze-refimg-locked')).toMatch(/grid-row:\s*7;/);
+  it('has the empty row the file sizes, and its gaps', () => {
+    // `wxGridBagSizer( 3, 5 )` and `SetEmptyCellSize( wxSize( -1,5 ) )` (`:28`):
+    // row 5 is empty and 5 px; Locked is on row 6.
+    expect(base).toMatch(/vgap=\{3\}\s+hgap=\{5\}/);
+    expect(base).toContain('emptyCellSize={[-1, 5]}');
+    expect(base).toContain('pos={[6, 0]} span={[1, 3]}');
   });
 
-  it('states the 3 and 5 of its gridbag and no border on any cell', () => {
-    // `wxGridBagSizer( 3, 5 )`, and not one of its fifteen Add() calls names a
-    // border flag — every one is wxALIGN_CENTER_VERTICAL, optionally wxEXPAND —
-    // so the 5 they all pass is inert and no cell carries a margin.
-    expect(rule('.ze-refimg-grid')).toMatch(/gap:\s*3px 5px/);
-    for (const cls of ['.ze-refimg-px-lbl', '.ze-refimg-px-ctl', '.ze-refimg-px-u']) {
-      expect(rule(cls), cls).not.toMatch(/margin/);
+  it('states no border on any cell of the gridbag', () => {
+    // Not one of its fifteen Add() calls names a border flag: every one is
+    // wxALIGN_CENTER_VERTICAL, optionally wxEXPAND, so the 5 they pass is inert.
+    const grid = base.slice(base.indexOf('<GridBagSizer'), base.indexOf('</GridBagSizer>'));
+    const fn = base.slice(base.indexOf('const field'), base.indexOf('return ('));
+    for (const part of [grid, fn]) {
+      for (const flag of part.matchAll(/flag=\{([^}]*)\}/g))
+        expect(flag[1]!.replace(/CV|wxALIGN_CENTER_VERTICAL|wxEXPAND|\|/g, '').trim()).toBe('');
     }
   });
 });
 
 describe('what the dialog must NOT have', () => {
   it('drops the two group boxes it had invented', () => {
-    expect(code).not.toContain('<fieldset');
-    expect(code).not.toContain('<legend');
+    expect(base).not.toContain('StaticBox');
+    expect(base).not.toContain('<fieldset');
   });
 
-  it('uses no native select — the layer combo carries a colour swatch', () => {
-    expect(code).not.toContain('<select');
-    expect(code).toContain('swatch: layerColor(l)');
+  it('uses no native select: the layer box is the PCB_LAYER_BOX_SELECTOR, with swatches', () => {
+    expect(base).not.toContain('<select');
+    expect(code).toContain('new PCB_LAYER_BOX_SELECTOR()');
+    expect(code).toContain('swatch: r.swatch ? toCssColor(r.swatch) : undefined');
   });
 
   it('takes the shared button row rather than two of its own', () => {
-    expect(code).toContain('<StdDialogButtons');
-    expect(code).not.toContain('ze-modal-footer');
+    expect(base).toContain('<StdDialogButtonSizer');
+    expect(base).not.toContain('ze-modal-footer');
+  });
+
+  it('carries no CSS of its own', () => {
+    expect(BASE + DIALOG).not.toContain('className=');
+    expect(CSS).not.toContain('.ze-refimg');
   });
 });
 
@@ -116,9 +124,8 @@ describe('PANEL_IMAGE_EDITOR, which is half the dialog and was absent', () => {
     // move when the scale does.
     expect(panelCode).toContain('PPI:');
     expect(panelCode).toContain('<span className="ze-imgedit-ppi">{ppi}</span>');
-    expect(code).toContain('ppi={pngPPI(v.data ?? image.data)}');
-    // Through the shared PNG reader, which is where the pHYs chunk is parsed.
-    expect(DIALOG).toContain("from '@ziroeda/wx/png_meta.js'");
+    // m_workingImage->GetPPI(), the working copy's.
+    expect(code).toContain('ppi={dialog.m_workingImage.GetPPI()}');
   });
 
   it('gives Scale no unit label, because its binder is given none', () => {
@@ -135,10 +142,8 @@ describe('the four distances follow the frame, as UNIT_BINDERs', () => {
     // `m_posX`, `m_posY`, `m_width`, `m_height`
     // (`dialog_reference_image_properties.cpp:40-43`), each with its label, its
     // control and its unit static text.
-    expect(DIALOG).toMatch(/units:\s*StatusUnits/);
-    expect(code).toContain('unitLabel(units)');
-    expect(code).toContain('stringFromValue(');
-    expect(code).toContain('parseUnitValue(');
-    expect(code).not.toMatch(/Number\(e\.target\.value\)\s*;[\s\S]{0,80}pcbMmToIU/);
+    for (const m of ['m_posX', 'm_posY', 'm_width', 'm_height'])
+      expect(code).toMatch(new RegExp(`this\\.${m} = new UNIT_BINDER\\(`));
+    expect(code).toContain('units: unitLabel(aBinder.GetUnits())');
   });
 });

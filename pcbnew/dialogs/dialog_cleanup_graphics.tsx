@@ -5,10 +5,11 @@
  * `DIALOG_CLEANUP_GRAPHICS` (pcbnew/dialogs/dialog_cleanup_graphics.cpp): the
  * GRAPHICS_CLEANER options, a dry run on every change listing what would go
  * (no "Build Changes" step, unlike the tracks cleanup), and the real run on OK
- * ("Update PCB", or "Update Footprint" in the footprint editor). The window is
- * dialog_cleanup_graphics_ui.tsx.
+ * ("Update PCB", or "Update Footprint" in the footprint editor). `DialogCleanupGraphics` below
+ * is the window, DIALOG_CLEANUP_GRAPHICS_BASE over the class.
  */
-import { pcbIUScale } from '@ziroeda/common/eda_units.js';
+import { type JSX, useEffect, useReducer } from 'react';
+import { pcbIUScale, unitLabel } from '@ziroeda/common/eda_units.js';
 import { RC_TREE_MODEL, RC_TREE_VIEW_STATE, type RC_TREE_NODE } from '@ziroeda/common/rc_item.js';
 import { RPT_SEVERITY_ACTION } from '@ziroeda/common/reporter.js';
 import { ACTIONS } from '@ziroeda/common/tool/actions.js';
@@ -17,6 +18,7 @@ import { BOARD_COMMIT } from '../board_commit.js';
 import { type CLEANUP_ITEM, VECTOR_CLEANUP_ITEMS_PROVIDER } from '../cleanup_item.js';
 import { GRAPHICS_CLEANER } from '../graphics_cleaner.js';
 import type { PCB_BASE_EDIT_FRAME } from '../pcb_base_edit_frame.js';
+import { DIALOG_CLEANUP_GRAPHICS_BASE } from './dialog_cleanup_graphics_base.js';
 
 /** `static int s_defaultTolerance = pcbIUScale.mmToIU( 2 )`: kept across opens. */
 let s_defaultTolerance = pcbIUScale.mmToIU(2);
@@ -147,4 +149,62 @@ export class DIALOG_CLEANUP_GRAPHICS {
   private notify(): void {
     for (const l of this.m_listeners) l();
   }
+}
+
+type OPT =
+  | 'm_createRectanglesOpt'
+  | 'm_deleteRedundantOpt'
+  | 'm_mergePadsOpt'
+  | 'm_fixBoardOutlines';
+
+/** `ShowModal()` of DIALOG_CLEANUP_GRAPHICS. */
+export function DialogCleanupGraphics({
+  dialog,
+  onClose,
+}: {
+  dialog: DIALOG_CLEANUP_GRAPHICS;
+  onClose: () => void;
+}): JSX.Element {
+  const [, redraw] = useReducer((n: number) => n + 1, 0);
+
+  useEffect(() => dialog.Subscribe(redraw), [dialog]);
+
+  // OnInitDialog -> TransferDataToWindow
+  useEffect(() => {
+    dialog.TransferDataToWindow();
+  }, [dialog]);
+
+  const opt = (aKey: OPT) => ({
+    value: dialog[aKey],
+    onChange: (aOn: boolean) => {
+      dialog[aKey] = aOn;
+      dialog.OnCheckBox();
+    },
+  });
+
+  return (
+    <DIALOG_CLEANUP_GRAPHICS_BASE
+      m_createRectanglesOpt={opt('m_createRectanglesOpt')}
+      m_deleteRedundantOpt={opt('m_deleteRedundantOpt')}
+      m_mergePadsOpt={opt('m_mergePadsOpt')}
+      mergePadsShown={dialog.m_isFootprintEditor}
+      m_fixBoardOutlines={opt('m_fixBoardOutlines')}
+      boardOutlinesShown={!dialog.m_isFootprintEditor}
+      m_tolerance={{
+        label: dialog.m_tolerance.GetLabel(),
+        value: dialog.m_tolerance.GetText(),
+        units: unitLabel(dialog.m_tolerance.GetUnits()),
+        onChange: (aText) => dialog.SetToleranceText(aText),
+        onBlur: () => dialog.OnCheckBox(),
+      }}
+      m_changesTreeModel={dialog.m_changesTreeModel}
+      m_changesView={dialog.m_changesView}
+      OnSelectItem={(aNode) => dialog.OnSelectItem(aNode)}
+      okLabel={dialog.GetOKLabel()}
+      onOK={() => {
+        if (dialog.TransferDataFromWindow()) onClose();
+      }}
+      onCancel={onClose}
+    />
+  );
 }
