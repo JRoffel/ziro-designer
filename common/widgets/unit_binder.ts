@@ -32,6 +32,7 @@ import { KiROUND } from '@ziroeda/kimath/src/math/util.js';
 import {
   DoubleValueFromStringIn,
   FromUserUnit,
+  toUserUnit as iuToUserUnit,
   type EdaUnits as EDA_UNITS,
   stringFromValue as iuStringFromValue,
 } from '../eda_units.js';
@@ -269,6 +270,9 @@ export class UNIT_BINDER {
   /** The `wxTextCtrl`'s text. */
   private m_value = '';
   private m_shown = true;
+  private m_enabled = true;
+  /** `m_precision`, 0 to 6; 0 or 1 leaves values untruncated. */
+  private m_precision = 0;
   private m_errorMessage = '';
 
   constructor(
@@ -300,6 +304,26 @@ export class UNIT_BINDER {
     this.m_unitsOverride = aUnits;
   }
 
+  /** `SetPrecision( aLength )` (`:171`): the mantissa digits a value is truncated to. */
+  SetPrecision(aLength: number): void {
+    this.m_precision = Math.min(aLength, 6);
+  }
+
+  /**
+   * `setPrecision( aValue, false )` (`:583-600`): truncated - `int64_t tmp = …` cuts toward
+   * zero - to `m_precision` digits in user units, when that is more than one.
+   */
+  private setPrecision(aValue: number): number {
+    if (this.m_precision <= 1) return aValue;
+
+    const scale = 10 ** this.m_precision;
+    const iuScale = this.m_unitsProvider.GetIuScale();
+    const units = this.GetUnits();
+    const tmp = Math.trunc(iuToUserUnit(iuScale, units, aValue) * scale);
+
+    return FromUserUnit(iuScale, units, tmp / scale);
+  }
+
   /** `SetCoordType( aCoordType )`: how `m_originTransforms` treats the value. */
   SetCoordType(aCoordType: COORD_TYPES_T): void {
     this.m_coordType = aCoordType;
@@ -325,7 +349,7 @@ export class UNIT_BINDER {
     this.m_value = iuStringFromValue(
       this.m_unitsProvider.GetIuScale(),
       this.GetUnits(),
-      this.toDisplay(aValue),
+      this.setPrecision(this.toDisplay(aValue)),
       false,
     );
   }
@@ -338,6 +362,26 @@ export class UNIT_BINDER {
   /** `ChangeValue( int )`: as `SetValue`; there is no change event to withhold here. */
   ChangeValue(aValue: number): void {
     this.SetDoubleValue(aValue);
+  }
+
+  /** `ChangeDoubleValue( aValue )` (`:514`): as `SetDoubleValue`, with no change event. */
+  ChangeDoubleValue(aValue: number): void {
+    this.SetDoubleValue(aValue);
+  }
+
+  /** `ChangeAngleValue( aValue )` (`:520`): as `SetAngleValue`, with no change event. */
+  ChangeAngleValue(aValue: EDA_ANGLE): void {
+    this.SetAngleValue(aValue);
+  }
+
+  /** `IsNull()` (`:675`): the entry is empty. */
+  IsNull(): boolean {
+    return this.m_value === '';
+  }
+
+  /** `SetNull()` (`:684`): empty the entry. */
+  SetNull(): void {
+    this.m_value = '';
   }
 
   /**
@@ -364,7 +408,9 @@ export class UNIT_BINDER {
   /** `GetDoubleValue()`: the text in the parent's units, to IU, out of the display origin. */
   GetDoubleValue(): number {
     return this.fromDisplay(
-      DoubleValueFromStringIn(this.m_unitsProvider.GetIuScale(), this.GetUnits(), this.m_value),
+      this.setPrecision(
+        DoubleValueFromStringIn(this.m_unitsProvider.GetIuScale(), this.GetUnits(), this.m_value),
+      ),
     );
   }
 
@@ -436,5 +482,15 @@ export class UNIT_BINDER {
 
   IsShown(): boolean {
     return this.m_shown;
+  }
+
+  /** `Enable( aEnable )` (`:697`): the label, the control and the units together. */
+  Enable(aEnable: boolean): void {
+    this.m_enabled = aEnable;
+  }
+
+  /** `m_valueCtrl->IsEnabled()`. */
+  IsEnabled(): boolean {
+    return this.m_enabled;
   }
 }

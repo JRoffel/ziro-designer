@@ -282,6 +282,35 @@ export function StaticText({
   );
 }
 
+/**
+ * `wxStaticBitmap`: an image. `bitmap` is the bundle `SetBitmap()` was given - a URL here, which
+ * is what `KiBitmapBundle()` answers - or null for `wxNullBitmap`, which draws nothing but keeps
+ * the stated `size`. `Enable( false )` draws it as GTK's insensitive image.
+ */
+export function StaticBitmap({
+  bitmap,
+  size,
+  disabled,
+}: {
+  bitmap: string | null | undefined;
+  /** The constructor's `wxSize( w, h )` / `SetMinSize`; absent, the bitmap's own. */
+  size?: readonly [number, number];
+  disabled?: boolean;
+}): JSX.Element {
+  const style = size ? { width: size[0], height: size[1] } : undefined;
+
+  if (!bitmap) return <span className="ze-staticbitmap" style={style} />;
+
+  return (
+    <img
+      className={`ze-staticbitmap${disabled ? ' disabled' : ''}`}
+      src={bitmap}
+      alt=""
+      style={style}
+    />
+  );
+}
+
 /** `wxStaticLine`: a GtkSeparator, horizontal unless `vertical` (wxLI_VERTICAL). */
 export function StaticLine({
   vertical,

@@ -48,8 +48,10 @@ import { DialogDimensionProperties } from './dialogs/dialog_dimension_properties
 import { DialogShapeProperties } from './dialogs/dialog_graphic_properties.js';
 import type { DIALOG_NON_COPPER_ZONES_EDITOR } from './dialogs/dialog_non_copper_zones_properties.js';
 import { DialogNonCopperZonesProperties } from './dialogs/dialog_non_copper_zones_properties_ui.js';
-import type { DIALOG_PAD_PROPERTIES, PadValues } from './dialogs/dialog_pad_properties.js';
-import { DialogPadProperties } from './dialogs/dialog_pad_properties_ui.js';
+import {
+  type DIALOG_PAD_PROPERTIES,
+  DialogPadProperties,
+} from './dialogs/dialog_pad_properties.js';
 import type {
   DIALOG_REFERENCE_IMAGE_PROPERTIES,
   ImageValues,
@@ -446,19 +448,8 @@ export function usePcbItemDialogs(aEnv: PCB_ITEM_DIALOGS_ENV): {
         />
       )}
       {pad && (
-        <DialogPadProperties
-          units={units}
-          initial={pad.TransferDataToWindow()}
-          nets={netNamesByCode(theBoard)}
-          layers={layers}
-          onApply={(values: PadValues) => {
-            const d = pad;
-            setPad(null);
-            // DIALOG_PAD_PROPERTIES on the live PAD: one BOARD_COMMIT.
-            d.TransferDataFromWindow(values);
-          }}
-          onClose={() => setPad(null)}
-        />
+        // DIALOG_PAD_PROPERTIES on the live PAD: OK is one BOARD_COMMIT.
+        <DialogPadProperties dialog={pad} onClose={() => setPad(null)} />
       )}
       {barcode && (
         <DialogBarcodeProperties

@@ -42,6 +42,7 @@ import {
   wxEXPAND,
   wxHORIZONTAL,
   wxLEFT,
+  wxRESERVE_SPACE_EVEN_IF_HIDDEN,
   wxRIGHT,
   wxTOP,
   wxVERTICAL,
@@ -128,10 +129,14 @@ export function SizerItem({
   children,
 }: SizerItemProps): JSX.Element | null {
   const ctx = useContext(SizerContext);
+  // wxRESERVE_SPACE_EVEN_IF_HIDDEN: the hidden item is still laid out, just not drawn.
+  const reserved = (flag & wxRESERVE_SPACE_EVEN_IF_HIDDEN) !== 0;
 
-  if (!shown) return null;
+  if (!shown && !reserved) return null;
 
   const style: CSSProperties = { margin: borderMargin(flag, border) };
+
+  if (!shown) style.visibility = 'hidden';
 
   if (minSize && minSize[0] >= 0) style.minWidth = minSize[0];
   if (minSize && minSize[1] >= 0) style.minHeight = minSize[1];
@@ -221,8 +226,11 @@ function sizerItems(aChildren: ReactNode): ReactElement[] {
 }
 
 /** `IsShown()`: an item rendered with `shown={false}` is hidden. */
-const isShown = (aItem: ReactElement): boolean =>
-  (aItem.props as { shown?: boolean }).shown !== false;
+const isShown = (aItem: ReactElement): boolean => {
+  const props = aItem.props as { shown?: boolean; flag?: number };
+
+  return props.shown !== false || ((props.flag ?? 0) & wxRESERVE_SPACE_EVEN_IF_HIDDEN) !== 0;
+};
 
 /** `proportion` of an item (a spacer or a window), 0 when unstated. */
 const proportionOf = (aItem: ReactElement): number =>

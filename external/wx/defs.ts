@@ -59,6 +59,8 @@ export const wxALL = wxTOP | wxBOTTOM | wxRIGHT | wxLEFT;
 export const wxEXPAND = 0x2000;
 export const wxSHAPED = 0x4000;
 export const wxFIXED_MINSIZE = 0x8000;
+/** `wxRESERVE_SPACE_EVEN_IF_HIDDEN`: a hidden item keeps its room (wx/defs.h `wxSizerFlagBits`). */
+export const wxRESERVE_SPACE_EVEN_IF_HIDDEN = 0x0002;
 export const wxALIGN_LEFT = 0;
 export const wxALIGN_TOP = 0;
 export const wxALIGN_CENTER_HORIZONTAL = 0x0100;

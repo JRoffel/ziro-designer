@@ -8338,6 +8338,12 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
   visibility: hidden;
   pointer-events: none;
 }
+/* `SetMaxSize( size.y = page->GetBestSize().y )` after a SetSelection: the book is as tall as the
+   page it shows, still as wide as its widest. */
+.ze-simplebook.fit-selection > [data-hide] {
+  height: 0;
+  overflow: hidden;
+}
 .ze-nb-body {
   display: grid;
   min-height: 0;
@@ -12380,12 +12386,6 @@ textarea.ze-ds-textedit {
   padding: 8px 12px 0;
 }
 
-/* Pad Properties (dialog_pad_properties_base.cpp). */
-.ze-padprops-dialog {
-  height: auto;
-  max-height: 92vh;
-}
-
 /* Text / Shape properties (dialog_text_properties_base.cpp,
    dialog_shape_properties_base.cpp). */
 .ze-graphic-dialog {
@@ -13069,6 +13069,13 @@ fieldset.ze-sbox-sizer > .ze-sizer {
 }
 .ze-statictext.italic {
   font-style: italic;
+}
+/* wxStaticBitmap (external/wx/controls.tsx): Enable( false ) is GTK's insensitive image. */
+.ze-staticbitmap {
+  display: block;
+}
+.ze-staticbitmap.disabled {
+  filter: var(--bitmap-disabled-filter);
 }
 
 fieldset.ze-sbox {
@@ -16346,7 +16353,8 @@ td.ze-grid-bool {
 .ze-panel {
   display: flex;
 }
-.ze-panel.border-simple {
+.ze-panel.border-simple,
+.ze-simplebook.border-simple {
   border: 1px solid var(--chrome-border);
 }
 /* GRID_CELL_COLOR_RENDERER at wxDefaultSize (common/widgets/grid_color_swatch_helpers.tsx):

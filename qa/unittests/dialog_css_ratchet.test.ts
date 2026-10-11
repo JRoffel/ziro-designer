@@ -32,7 +32,10 @@ const BASELINE: Record<string, number> = {
   // 477 -> 465 (10-10): the drill and position-file dialogs on the sizers.
   // 465 -> 466 (10-11): not new CSS. `span2` was shared with eeschema's Find dialog; with Find a
   // _base pair, Exchange Footprints (.ze-xfp-upper > .ze-radio.span2) is its only user.
-  pcbnew: 466,
+  // 466 -> 467 (10-11), a reclassification: the old Pad Properties form shared .ze-fpprops-tabs
+  // (footprint editor properties) and .ze-tvp-note (graphic properties); with it gone each has
+  // one user, and goes when that dialog is converted. Its own .ze-padprops-dialog is deleted.
+  pcbnew: 467,
 };
 
 const git = (...aSpecs: string[]): string[] =>

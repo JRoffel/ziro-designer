@@ -121,3 +121,42 @@ describe('UNIT_BINDER display origin', () => {
     expect(b.GetText()).toBe('3');
   });
 });
+
+describe('UNIT_BINDER state DIALOG_PAD_PROPERTIES reads', () => {
+  it('IsNull is an empty entry, SetNull empties it (:675-688)', () => {
+    const b = new UNIT_BINDER(frame(false), 'Pad clearance:');
+
+    expect(b.IsNull()).toBe(true);
+    b.ChangeValue(MM);
+    expect(b.IsNull()).toBe(false);
+    b.SetNull();
+    expect(b.GetText()).toBe('');
+  });
+
+  it('Enable greys the three together; it starts enabled', () => {
+    const b = new UNIT_BINDER(frame(false), 'Y:');
+
+    expect(b.IsEnabled()).toBe(true);
+    b.Enable(false);
+    expect(b.IsEnabled()).toBe(false);
+  });
+
+  it('SetPrecision( 3 ) truncates toward zero on the way in and out (:583-600)', () => {
+    const b = new UNIT_BINDER(frame(false), 'Angle:');
+    b.SetUnits('degrees');
+    b.SetPrecision(3);
+
+    b.ChangeDoubleValue(-12.34567);
+    expect(b.GetText()).toBe('-12.345');
+    b.SetText('7.0009');
+    expect(b.GetDoubleValue()).toBe(7);
+  });
+
+  it('without a precision a value is not truncated', () => {
+    const b = new UNIT_BINDER(frame(false), 'Angle:');
+    b.SetUnits('degrees');
+
+    b.ChangeAngleValue(new EDA_ANGLE(12.34567));
+    expect(b.GetText()).toBe('12.3457');
+  });
+});

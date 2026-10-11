@@ -15,6 +15,7 @@ import {
   wxEXPAND,
   wxHORIZONTAL,
   wxLEFT,
+  wxRESERVE_SPACE_EVEN_IF_HIDDEN,
   wxRIGHT,
   wxTOP,
   wxVERTICAL,
@@ -165,6 +166,34 @@ describe('BoxSizer items', () => {
     );
     expect(container.querySelector('[data-testid="gone"]')).toBeNull();
     expect(container.querySelectorAll('.ze-szi')).toHaveLength(0);
+  });
+
+  it('wxRESERVE_SPACE_EVEN_IF_HIDDEN: a hidden item is laid out but not drawn', () => {
+    const { container } = render(
+      <BoxSizer orient={wxVERTICAL}>
+        <SizerItem shown={false} flag={wxALL | wxRESERVE_SPACE_EVEN_IF_HIDDEN} border={5}>
+          <span data-testid="kept" />
+        </SizerItem>
+      </BoxSizer>,
+    );
+    const kept = container.querySelector('[data-testid="kept"]')!.parentElement as HTMLElement;
+    expect(kept.style.visibility).toBe('hidden');
+    expect(margins(kept)).toEqual(['5px', '5px', '5px', '5px']);
+  });
+
+  it('a reserved hidden item keeps its proportional track', () => {
+    const { container } = render(
+      <BoxSizer orient={wxVERTICAL}>
+        <SizerItem proportion={2}>
+          <span />
+        </SizerItem>
+        <SizerItem shown={false} proportion={1} flag={wxRESERVE_SPACE_EVEN_IF_HIDDEN}>
+          <span />
+        </SizerItem>
+      </BoxSizer>,
+    );
+    const sizer = container.querySelector('.ze-sizer') as HTMLElement;
+    expect(sizer.style.gridTemplateRows).toBe('minmax(max-content, 2fr) minmax(max-content, 1fr)');
   });
 
   it('a spacer is its stated size, or a share of the slack', () => {

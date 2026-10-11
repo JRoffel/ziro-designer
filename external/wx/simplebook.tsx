@@ -12,14 +12,25 @@ import type { JSX, ReactNode } from 'react';
 export function Simplebook({
   pages,
   selection,
+  fitSelection,
+  border,
 }: {
   /** `AddPage( page, text )`: the pages' contents; the text is never shown. */
   pages: readonly ReactNode[];
   /** `SetSelection()`. */
   selection: number;
+  /**
+   * A caller that `SetMaxSize()`s the book to the selected page's best height after each
+   * selection (DIALOG_PAD_PROPERTIES' `m_shapePropsBook`): only that page's height counts.
+   */
+  fitSelection?: boolean;
+  /** `wxBORDER_SIMPLE`. */
+  border?: 'simple';
 }): JSX.Element {
   return (
-    <div className="ze-simplebook">
+    <div
+      className={`ze-simplebook${fitSelection ? ' fit-selection' : ''}${border === 'simple' ? ' border-simple' : ''}`}
+    >
       {pages.map((content, i) => (
         // The page order is fixed for the book's life; the index is its identity.
         // biome-ignore lint/suspicious/noArrayIndexKey: AddPage order is the page's identity
