@@ -7912,16 +7912,6 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
 .ze-lp-colorlabel {
   margin-left: 15px;
 }
-/* `gbSizer1->SetEmptyCellSize( wxSize( -1, 10 ) )`
-   (`dialog_field_properties_base.cpp:136`), and the grid-bag skips row 2: the
-   Text size row is row 1 and Position X is row **3**. That empty row is a real
-   10 px band between them, which ours ran together. */
-.ze-fieldprops-gap {
-  grid-column: 1 / -1;
-  /* [data] `SetEmptyCellSize( wxSize( -1, 10 ) )`, a number the base file
-     hardcodes rather than asking the theme for. */
-  height: 10px;
-}
 /* COLOR_SWATCH inside its wxBORDER_SIMPLE panel. */
 .ze-lp-swatch-frame {
   display: inline-flex;
@@ -7935,34 +7925,6 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
   padding: 0;
   border: none;
   background: none;
-}
-
-/* DIALOG_FIELD_PROPERTIES' bSizer9: m_visible, m_nameVisible and
-   m_cbAllowAutoPlace on ONE horizontal sizer with `Add( 0, 0, 1, wxEXPAND )`
-   stretch spacers between them (dialog_field_properties_base.cpp:110-134), not
-   three stacked rows. The spacers are equal, which is space-between. */
-.ze-fieldprops-checks {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.ze-fieldprops-checks label {
-  display: flex;
-  align-items: center;
-}
-
-/* DIALOG_FIELD_PROPERTIES' m_unitLabel in bTextValueBoxSizer. */
-.ze-fieldprops-unit {
-  /* [data] `wxALIGN_CENTER_VERTICAL|wxLEFT, 15` (dialog_field_properties_base.cpp:87). */
-  margin-left: 15px;
-}
-
-/* m_note: KIUI::GetInfoFont( this ).Italic() (dialog_field_properties.cpp:63). */
-.ze-fieldprops-note {
-  /* [data] `wxBOTTOM|wxRIGHT|wxLEFT, 20` (dialog_field_properties_base.cpp:99). */
-  margin: 0 20px 20px;
-  font-size: var(--ui-font-size-info);
-  font-style: italic;
 }
 
 /* PAGED_DIALOG — the shell Preferences, Schematic Setup and Board Setup all

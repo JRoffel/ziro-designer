@@ -28,7 +28,9 @@ const BASELINE: Record<string, number> = {
   // alone still used.
   // 114 -> 124 (10-11): not new CSS. The ERC window's .ze-erc-* classes were shared with the
   // old DRC window; with DRC a _base pair they are ERC's alone, and go when ERC is converted.
-  eeschema: 124,
+  // 124 -> 123 (10-11): Field Properties' pair; the .ze-fieldprops-* rules (the ze-lp-* ones
+  // it shared stay with Sheet Properties).
+  eeschema: 123,
   gerbview: 31,
   pagelayout_editor: 14,
   // 477 -> 465 (10-10): the drill and position-file dialogs on the sizers.

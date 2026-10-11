@@ -38,7 +38,10 @@ import {
 } from '@ziroeda/eeschema/dialogs/dialog_field_properties.js';
 import { SCH_COMMIT } from '@ziroeda/eeschema/sch_commit.js';
 import { SCH_FIELD } from '@ziroeda/eeschema/sch_field.js';
-import { schFrame } from '../eeschema/support/sch_tool_harness.js';
+import { resolve } from 'node:path';
+import { KICAD_T } from '@ziroeda/core/typeinfo.js';
+import type { SCH_SYMBOL } from '@ziroeda/eeschema/sch_symbol.js';
+import { openProject, schFrame } from '../eeschema/support/sch_tool_harness.js';
 
 beforeEach(() => SetPgm(new PGM_BASE(null, new SETTINGS_MANAGER())));
 afterEach(() => {
@@ -88,20 +91,29 @@ function open(aField: SCH_FIELD = fieldFor(), units: 'mm' | 'mils' | 'in' = 'mm'
   return { field: aField, applied: () => applied };
 }
 
-/** Every `<label class="row">`'s leading `<span>` — the dialog's row captions. */
+/** bTextValueBoxSizer's captions: the static texts in the value entry's own sizer row. */
 const rowLabels = (): string[] =>
-  Array.from(document.querySelectorAll('.ze-label-dialog-body label.row > span')).map(
-    (s) => s.textContent ?? '',
+  Array.from(
+    document
+      .querySelector('input[type="text"]')
+      ?.closest('.ze-sizer')
+      ?.querySelectorAll('.ze-statictext') ?? [],
+  ).map((s) => s.textContent ?? '');
+
+/** The three UNIT_BINDER entries, size first. */
+const binderFields = (): HTMLInputElement[] =>
+  ['Text size', 'Position X', 'Position Y'].map(
+    (l) => screen.getByLabelText(l) as HTMLInputElement,
   );
 
 /** The formatting bar's buttons, by their tooltip, in order. */
 const barButtons = (): string[] =>
-  Array.from(document.querySelectorAll('.ze-lp-iconbar button')).map(
+  Array.from(document.querySelectorAll('button.ze-lp-iconbtn')).map(
     (b) => b.getAttribute('title') ?? '',
   );
 
 const barChecked = (): string[] =>
-  Array.from(document.querySelectorAll('.ze-lp-iconbar button'))
+  Array.from(document.querySelectorAll('button.ze-lp-iconbtn'))
     .filter((b) => b.getAttribute('aria-pressed') === 'true')
     .map((b) => b.getAttribute('title') ?? '');
 
@@ -147,16 +159,14 @@ describe('DIALOG_FIELD_PROPERTIES: the checkbox row', () => {
   it('is Visible / Show field name / Allow automatic placement', () => {
     open();
     expect(
-      Array.from(document.querySelectorAll('.ze-fieldprops-checks label')).map(
-        (l) => l.textContent ?? '',
-      ),
+      Array.from(document.querySelectorAll('label.ze-check')).map((l) => l.textContent ?? ''),
     ).toStrictEqual(['Visible', 'Show field name', 'Allow automatic placement']);
   });
 
   /** The tooltips the base sets on the two hidden-by-default boxes. */
   it('carries the tooltips the base sets', () => {
     open();
-    const labels = Array.from(document.querySelectorAll('.ze-fieldprops-checks label'));
+    const labels = Array.from(document.querySelectorAll('label.ze-check'));
     expect(labels.map((l) => l.getAttribute('title'))).toStrictEqual([
       null,
       'Show the field name in addition to its value',
@@ -175,7 +185,7 @@ describe('DIALOG_FIELD_PROPERTIES: the checkbox row', () => {
     field.SetNameShown(true);
     field.SetCanAutoplace(false);
     open(field);
-    const boxes = Array.from(document.querySelectorAll('.ze-fieldprops-checks input'));
+    const boxes = Array.from(document.querySelectorAll('label.ze-check input'));
     expect(boxes.map((b) => (b as HTMLInputElement).checked)).toStrictEqual([false, true, false]);
   });
 });
@@ -242,7 +252,7 @@ describe('DIALOG_FIELD_PROPERTIES: the formatting bar', () => {
       'Horizontal text',
       'Vertical text',
     ]);
-    expect(document.querySelectorAll('.ze-lp-iconbar .ze-lp-sep').length).toBe(5);
+    expect(document.querySelectorAll('.ze-lp-sep').length).toBe(5);
   });
 
   /** They are BITMAP_BUTTONs, not a wxChoice: no dropdown in the bar. */
@@ -330,20 +340,21 @@ describe('DIALOG_FIELD_PROPERTIES: the three UNIT_BINDERs', () => {
   it('wears the frame units, not a hardcoded mm', () => {
     open(fieldFor(), 'mils');
     expect(
-      Array.from(document.querySelectorAll('.ze-lp-units')).map((u) => u.textContent),
+      // The static text after each binder's entry: m_textSizeUnits, m_xPosUnits, m_yPosUnits.
+      binderFields().map((f) => f.closest('.ze-szi')?.nextElementSibling?.textContent),
     ).toStrictEqual(['mils', 'mils', 'mils']);
   });
 
   it('shows the values converted to those units', () => {
     open(fieldFor(), 'mils');
-    const fields = Array.from(document.querySelectorAll('.ze-lp-size'));
+    const fields = binderFields();
     // 1.27 mm = 50 mils, 2.54 mm = 100 mils; the size field is first.
     expect(fields.map((f) => (f as HTMLInputElement).value)).toStrictEqual(['50', '100', '50']);
   });
 
   it('reads them back in those units', () => {
     const { field } = open(fieldFor(), 'mils');
-    const fields = Array.from(document.querySelectorAll('.ze-lp-size'));
+    const fields = binderFields();
     fireEvent.change(fields[1]!, { target: { value: '200' } });
     fireEvent.click(screen.getByText('OK'));
     expect(field.GetPosition().x).toBe(schIUScale.mmToIU(5.08));
@@ -353,7 +364,10 @@ describe('DIALOG_FIELD_PROPERTIES: the three UNIT_BINDERs', () => {
   it('labels the rows the way the base does', () => {
     open();
     expect(
-      Array.from(document.querySelectorAll('.ze-lp-fmt-label')).map((s) => s.textContent),
+      // gbSizer1's captions, column 0.
+      Array.from(document.querySelectorAll('.ze-gridsizer .ze-statictext'))
+        .map((s) => s.textContent)
+        .filter((t) => t?.endsWith(':') && t !== 'Color:'),
     ).toStrictEqual(['Font:', 'Text size:', 'Position X:', 'Position Y:']);
     expect(screen.getByText('Color:')).toBeTruthy();
   });
@@ -366,5 +380,76 @@ describe('DIALOG_FIELD_PROPERTIES: the button row', () => {
     expect(
       Array.from(document.querySelectorAll('.ze-modal-footer button')).map((b) => b.textContent),
     ).toStrictEqual(['Cancel', 'OK']);
+  });
+});
+
+describe('DIALOG_FIELD_PROPERTIES: what init() shows', () => {
+  const ORACLE = resolve(__dirname, '../../data/eeschema/netlist_oracle/complex_hierarchy');
+  const SHEETS = [
+    'complex_hierarchy.kicad_sch',
+    'ampli_ht.kicad_sch',
+    'complex_hierarchy.kicad_pro',
+  ];
+
+  function openOn(aField: SCH_FIELD, frame = schFrame({})) {
+    const dlg = new DIALOG_FIELD_PROPERTIES(frame, 'Edit Field', aField, HOST);
+    render(
+      <DialogFieldProperties
+        dlg={dlg}
+        initial={dlg.TransferDataToWindow()}
+        units="mm"
+        onOk={() => {}}
+        onCancel={() => {}}
+      />,
+    );
+  }
+
+  it('m_TextValueSelectButton only on the footprint field', () => {
+    openOn(new SCH_FIELD(null, FIELD_T.FOOTPRINT));
+    expect(screen.getByLabelText('Select footprint')).toBeTruthy();
+    cleanup();
+    openOn(fieldFor());
+    expect(screen.queryByLabelText('Select footprint')).toBeNull();
+  });
+
+  it('a sheet filename: the note, and the entry disabled', () => {
+    const field = new SCH_FIELD(null, FIELD_T.SHEET_FILENAME);
+    field.SetText('sub.kicad_sch');
+    openOn(field);
+    expect(
+      screen.getByText('Sheet filename can only be modified in Sheet Properties dialog.'),
+    ).toBeTruthy();
+    expect((document.querySelector('input[type="text"]') as HTMLInputElement).disabled).toBe(true);
+    cleanup();
+    openOn(fieldFor());
+    expect(screen.queryByText(/Sheet filename can only/)).toBeNull();
+    expect((screen.getByLabelText('Value') as HTMLInputElement).disabled).toBe(false);
+  });
+
+  it('Unit: only on the reference of a multi-unit symbol', () => {
+    const frame = schFrame({});
+    openProject(frame, ORACLE, 'complex_hierarchy', SHEETS);
+    let multi: SCH_SYMBOL | undefined;
+    for (const sheet of frame.Schematic().Hierarchy()) {
+      const symbols = [...sheet.LastScreen()!.Items().OfType(KICAD_T.SCH_SYMBOL_T)] as SCH_SYMBOL[];
+      multi = symbols.find((s) => s.IsMultiUnit());
+      if (multi) {
+        frame.SetCurrentSheet(sheet);
+        break;
+      }
+    }
+    if (!multi) throw new Error('fixture has no multi-unit symbol');
+    openOn(multi.GetField(FIELD_T.REFERENCE)!, frame);
+    expect(screen.getByText('Unit:')).toBeTruthy();
+    cleanup();
+    openOn(multi.GetField(FIELD_T.VALUE)!, frame);
+    expect(screen.queryByText('Unit:')).toBeNull();
+  });
+
+  it('reads Position Y back', () => {
+    const { field } = open(fieldFor(), 'mils');
+    fireEvent.change(binderFields()[2]!, { target: { value: '300' } });
+    fireEvent.click(screen.getByText('OK'));
+    expect(field.GetPosition().y).toBe(schIUScale.mmToIU(7.62));
   });
 });

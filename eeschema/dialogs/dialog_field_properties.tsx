@@ -23,11 +23,9 @@
  * Not here: the Scintilla value editor and its auto-complete (a plain entry), and
  * `KIUI::SelectReferenceNumber` on first focus.
  */
-import { Button, CheckBox } from '@ziroeda/wx/controls.js';
 import { type JSX, useState } from 'react';
 import { DisplayErrorMessage, DisplayInfoMessage } from '@ziroeda/common/confirm.js';
 import { ensureFileExtension } from '@ziroeda/common/common.js';
-import { DialogShim } from '@ziroeda/common/dialog_shim.js';
 import { EDA_TEXT } from '@ziroeda/common/eda_text.js';
 import { FONT } from '@ziroeda/common/font/font.js';
 import { GR_TEXT_H_ALIGN_T, GR_TEXT_V_ALIGN_T } from '@ziroeda/common/font/text_attributes.js';
@@ -41,18 +39,10 @@ import {
 import { FIELD_T } from '@ziroeda/common/template_fieldnames.js';
 import { GetFieldValidationErrorMessage } from '@ziroeda/common/validators.js';
 import { KiCadSchematicFileExtension } from '@ziroeda/common/wildcards_and_files_ext.js';
-import { ColorSwatch } from '@ziroeda/common/widgets/color_swatch.js';
-import { FontChoice } from '@ziroeda/common/widgets/font_choice.js';
 import type { GRID_TEXT_BUTTON_HOST } from '@ziroeda/common/widgets/grid_text_button_helpers.js';
 import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
-import { StdBitmapButton } from '@ziroeda/common/widgets/std_bitmap_button.js';
-import {
-  type HAlign,
-  TextFormatBar,
-  type VAlign,
-} from '@ziroeda/common/widgets/text_format_bar.js';
 import { UNIT_BINDER, unitLabel } from '@ziroeda/common/widgets/unit_binder.js';
-import { Combo } from '@ziroeda/wx/combobox.js';
+import { DIALOG_FIELD_PROPERTIES_BASE } from './dialog_field_properties_base.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { ANGLE_HORIZONTAL, ANGLE_VERTICAL } from '@ziroeda/kimath/src/geometry/eda_angle.js';
 import type { LIB_SYMBOL } from '../lib_symbol.js';
@@ -238,6 +228,11 @@ export class DIALOG_FIELD_PROPERTIES {
     this.m_showSelectButton = this.m_fieldId === FIELD_T.FOOTPRINT;
 
     this.m_textEnabled = !(this.m_isSheetFilename || aField.IsGeneratedField());
+  }
+
+  /** `m_textColorSwatch->SetSwatchBackground( schematicBackground )`. */
+  SwatchBackground(): Color4d {
+    return this.m_parent.GetDrawBgColor();
   }
 
   GetTitle(): string {
@@ -476,28 +471,19 @@ export class DIALOG_FIELD_PROPERTIES {
   }
 }
 
-const H_OF: Record<number, HAlign> = {
-  [GR_TEXT_H_ALIGN_T.GR_TEXT_H_ALIGN_LEFT]: 'left',
-  [GR_TEXT_H_ALIGN_T.GR_TEXT_H_ALIGN_CENTER]: 'center',
-  [GR_TEXT_H_ALIGN_T.GR_TEXT_H_ALIGN_RIGHT]: 'right',
-};
-const V_OF: Record<number, VAlign> = {
-  [GR_TEXT_V_ALIGN_T.GR_TEXT_V_ALIGN_TOP]: 'top',
-  [GR_TEXT_V_ALIGN_T.GR_TEXT_V_ALIGN_CENTER]: 'center',
-  [GR_TEXT_V_ALIGN_T.GR_TEXT_V_ALIGN_BOTTOM]: 'bottom',
-};
-const H_FROM: Record<HAlign, GR_TEXT_H_ALIGN_T> = {
-  left: GR_TEXT_H_ALIGN_T.GR_TEXT_H_ALIGN_LEFT,
-  center: GR_TEXT_H_ALIGN_T.GR_TEXT_H_ALIGN_CENTER,
-  right: GR_TEXT_H_ALIGN_T.GR_TEXT_H_ALIGN_RIGHT,
-};
-const V_FROM: Record<VAlign, GR_TEXT_V_ALIGN_T> = {
-  top: GR_TEXT_V_ALIGN_T.GR_TEXT_V_ALIGN_TOP,
-  center: GR_TEXT_V_ALIGN_T.GR_TEXT_V_ALIGN_CENTER,
-  bottom: GR_TEXT_V_ALIGN_T.GR_TEXT_V_ALIGN_BOTTOM,
-};
+/** formattingSizer's alignment buttons: value, bitmap, tooltip. */
+const H_BUTTONS = [
+  [GR_TEXT_H_ALIGN_T.GR_TEXT_H_ALIGN_LEFT, 'text_align_left', 'Align left'],
+  [GR_TEXT_H_ALIGN_T.GR_TEXT_H_ALIGN_CENTER, 'text_align_center', 'Align horizontal center'],
+  [GR_TEXT_H_ALIGN_T.GR_TEXT_H_ALIGN_RIGHT, 'text_align_right', 'Align right'],
+] as const;
+const V_BUTTONS = [
+  [GR_TEXT_V_ALIGN_T.GR_TEXT_V_ALIGN_TOP, 'text_valign_top', 'Align top'],
+  [GR_TEXT_V_ALIGN_T.GR_TEXT_V_ALIGN_CENTER, 'text_valign_center', 'Align vertical center'],
+  [GR_TEXT_V_ALIGN_T.GR_TEXT_V_ALIGN_BOTTOM, 'text_valign_bottom', 'Align bottom'],
+] as const;
 
-/** The form over DIALOG_FIELD_PROPERTIES. */
+/** DIALOG_FIELD_PROPERTIES' window over its base. */
 export function DialogFieldProperties({
   dlg,
   initial,
@@ -511,192 +497,64 @@ export function DialogFieldProperties({
   onOk: (aValues: FIELD_DIALOG_VALUES) => void;
   onCancel: () => void;
 }): JSX.Element {
-  const [text, setText] = useState(initial.text);
-  const [unit, setUnit] = useState(initial.unit);
-  const [face, setFace] = useState(initial.face);
-  const [posX, setPosX] = useState(initial.posX);
-  const [posY, setPosY] = useState(initial.posY);
-  const [size, setSize] = useState(initial.size);
-  const [vertical, setVertical] = useState(initial.vertical);
-  const [italic, setItalic] = useState(initial.italic);
-  const [bold, setBold] = useState(initial.bold);
-  const [color, setColor] = useState(initial.color);
-  const [hAlign, setHAlign] = useState<HAlign>(H_OF[initial.hAlign] ?? 'center');
-  const [vAlign, setVAlign] = useState<VAlign>(V_OF[initial.vAlign] ?? 'center');
-  const [visible, setVisible] = useState(initial.visible);
-  const [nameVisible, setNameVisible] = useState(initial.nameVisible);
-  const [allowAutoplace, setAllowAutoplace] = useState(initial.allowAutoplace);
-
-  const submit = (): void =>
-    onOk({
-      text,
-      unit,
-      face,
-      posX,
-      posY,
-      size,
-      vertical,
-      italic,
-      bold,
-      color,
-      hAlign: H_FROM[hAlign],
-      vAlign: V_FROM[vAlign],
-      visible,
-      nameVisible,
-      allowAutoplace,
-    });
-
-  const enter = (e: React.KeyboardEvent): void => {
-    e.stopPropagation();
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      submit();
-    }
-  };
+  const [v, setV] = useState(initial);
+  const set = (patch: Partial<FIELD_DIALOG_VALUES>): void => setV((p) => ({ ...p, ...patch }));
+  const icon = (bitmap: string, tooltip: string, checked: boolean, onClick: () => void) => ({
+    bitmap,
+    tooltip,
+    checked,
+    onClick,
+  });
 
   return (
-    <DialogShim title={dlg.GetTitle()} onClose={onCancel} className="ze-label-dialog">
-      <div className="ze-label-dialog-body">
-        {/* bTextValueBoxSizer: m_textLabel wears the field's own name. */}
-        <label className="row">
-          <span>{dlg.m_label}</span>
-          <input
-            className="ze-search"
-            // biome-ignore lint/a11y/noAutofocus: SetInitialFocus( m_TextCtrl )
-            autoFocus
-            value={text}
-            disabled={!dlg.m_textEnabled}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={enter}
-          />
-          {dlg.m_showSelectButton && (
-            <StdBitmapButton
-              bitmap="small_library"
-              title="Select footprint"
-              tooltip={null}
-              onClick={() => {
-                void dlg.OnTextValueSelectButtonClick(text).then((fpid) => {
-                  if (fpid !== null) setText(fpid);
-                });
-              }}
-            />
-          )}
-          {dlg.m_showUnitSelector && (
-            <>
-              <span className="ze-fieldprops-unit">Unit:</span>
-              <Combo
-                value={String(unit)}
-                options={dlg.m_unitChoices.map((c, i) => ({ value: String(i), label: c }))}
-                onChange={(v) => setUnit(Number(v))}
-              />
-            </>
-          )}
-        </label>
-        {dlg.ShowsNote() && (
-          <div className="ze-fieldprops-note">
-            Sheet filename can only be modified in Sheet Properties dialog.
-          </div>
-        )}
-
-        {/* bSizer9: the three checkboxes on ONE row, spaced apart. */}
-        <div className="ze-fieldprops-checks">
-          <CheckBox
-            label="Visible"
-            checked={visible}
-            className="chk"
-            onChange={(v) => setVisible(v)}
-          />
-          <CheckBox
-            label="Show field name"
-            checked={nameVisible}
-            title="Show the field name in addition to its value"
-            className="chk"
-            onChange={(v) => setNameVisible(v)}
-          />
-          <CheckBox
-            label="Allow automatic placement"
-            checked={allowAutoplace}
-            title="Allow automatic placement of this field in the schematic"
-            className="chk"
-            onChange={(v) => setAllowAutoplace(v)}
-          />
-        </div>
-
-        {/* gbSizer1 row 0: m_fontLabel at (0,0), m_fontCtrl at (0,1) and the
-          formatting bar at (0,3) — one row, not three. */}
-        <div className="ze-lp-fmt-grid">
-          <span className="ze-lp-fmt-label">Font:</span>
-          <div className="ze-lp-sizerow">
-            <FontChoice face={face} onChange={setFace} />
-            <TextFormatBar
-              bold={bold}
-              onBold={setBold}
-              italic={italic}
-              onItalic={setItalic}
-              hAlign={hAlign}
-              onHAlign={setHAlign}
-              vAlign={vAlign}
-              onVAlign={setVAlign}
-              angle={vertical ? 90 : 0}
-              onAngle={(a) => setVertical(a === 90)}
-            />
-          </div>
-
-          {/* gbSizer1 row 1: bSizer71 — size, its units, Color: and the swatch. */}
-          <span className="ze-lp-fmt-label">Text size:</span>
-          <div className="ze-lp-sizerow">
-            <input
-              className="ze-lp-size"
-              value={size}
-              onChange={(e) => setSize(e.target.value)}
-              onKeyDown={(e) => e.stopPropagation()}
-            />
-            <span className="ze-lp-units">{unitLabel(units)}</span>
-            <span className="ze-lp-colorlabel">Color:</span>
-            {/* m_panelBorderColor1, the wxBORDER_SIMPLE panel COLOR_SWATCH
-              sits in; the swatch itself draws with wxTRANSPARENT_PEN. */}
-            <span className="ze-lp-swatch-frame">
-              <ColorSwatch
-                className="ze-lp-swatch"
-                label="Color"
-                color={color}
-                onChange={setColor}
-              />
-            </span>
-          </div>
-
-          {/* gbSizer1 leaves row 2 empty at SetEmptyCellSize's 10 px: the
-            size row is row 1 and Position X is row 3. */}
-          <div className="ze-fieldprops-gap" />
-
-          <span className="ze-lp-fmt-label">Position X:</span>
-          <div className="ze-lp-sizerow">
-            <input
-              className="ze-lp-size"
-              value={posX}
-              onChange={(e) => setPosX(e.target.value)}
-              onKeyDown={(e) => e.stopPropagation()}
-            />
-            <span className="ze-lp-units">{unitLabel(units)}</span>
-          </div>
-
-          <span className="ze-lp-fmt-label">Position Y:</span>
-          <div className="ze-lp-sizerow">
-            <input
-              className="ze-lp-size"
-              value={posY}
-              onChange={(e) => setPosY(e.target.value)}
-              onKeyDown={enter}
-            />
-            <span className="ze-lp-units">{unitLabel(units)}</span>
-          </div>
-        </div>
-      </div>
-      {/* m_sdbSizerButtons: GTK orders the standard sizer Cancel then OK. */}
-      <div className="ze-modal-footer">
-        <Button label="Cancel" onClick={onCancel} />
-        <Button label="OK" isDefault onClick={submit} />
-      </div>
-    </DialogShim>
+    <DIALOG_FIELD_PROPERTIES_BASE
+      title={dlg.GetTitle()}
+      m_textLabel={dlg.m_label}
+      m_text={v.text}
+      onText={(t) => set({ text: t })}
+      textEnabled={dlg.m_textEnabled}
+      selectButtonShown={dlg.m_showSelectButton}
+      onTextValueSelectButtonClick={() => {
+        void dlg.OnTextValueSelectButtonClick(v.text).then((fpid) => {
+          if (fpid !== null) set({ text: fpid });
+        });
+      }}
+      unitShown={dlg.m_showUnitSelector}
+      unitChoices={dlg.m_unitChoices}
+      m_unitChoice={{ value: v.unit, onChange: (i) => set({ unit: i }) }}
+      noteShown={dlg.ShowsNote()}
+      m_visible={{ value: v.visible, onChange: (on) => set({ visible: on }) }}
+      m_nameVisible={{ value: v.nameVisible, onChange: (on) => set({ nameVisible: on }) }}
+      m_cbAllowAutoPlace={{
+        value: v.allowAutoplace,
+        onChange: (on) => set({ allowAutoplace: on }),
+      }}
+      font={v.face}
+      onFont={(f) => set({ face: f })}
+      m_bold={icon('text_bold', 'Bold', v.bold, () => set({ bold: !v.bold }))}
+      m_italic={icon('text_italic', 'Italic', v.italic, () => set({ italic: !v.italic }))}
+      hAlign={H_BUTTONS.map(([a, bitmap, tip]) =>
+        icon(bitmap, tip, v.hAlign === a, () => set({ hAlign: a })),
+      )}
+      vAlign={V_BUTTONS.map(([a, bitmap, tip]) =>
+        icon(bitmap, tip, v.vAlign === a, () => set({ vAlign: a })),
+      )}
+      orientation={[
+        icon('text_horizontal', 'Horizontal text', !v.vertical, () => set({ vertical: false })),
+        icon('text_vertical', 'Vertical text', v.vertical, () => set({ vertical: true })),
+      ]}
+      m_textSizeCtrl={v.size}
+      onTextSize={(t) => set({ size: t })}
+      m_xPosCtrl={v.posX}
+      onXPos={(t) => set({ posX: t })}
+      m_yPosCtrl={v.posY}
+      onYPos={(t) => set({ posY: t })}
+      units={unitLabel(units)}
+      m_textColorSwatch={v.color}
+      swatchBackground={dlg.SwatchBackground()}
+      onTextColor={(c) => set({ color: c })}
+      onOK={() => onOk(v)}
+      onCancel={onCancel}
+    />
   );
 }
