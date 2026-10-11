@@ -13,7 +13,7 @@ import type { RESET_REASON } from '@ziroeda/common/tool/tool_base.js';
 import { SYNC_HANDLER, TOOL_INTERACTIVE } from '@ziroeda/common/tool/tool_interactive.js';
 import type { Vec2 } from '@ziroeda/kimath/src/math/vector2.js';
 import { DIALOG_OFFSET_ITEM } from '@ziroeda/pcbnew/dialogs/dialog_offset_item.js';
-import { DialogOffsetItem } from '@ziroeda/pcbnew/dialogs/dialog_offset_item_ui.js';
+import { DialogOffsetItem } from '@ziroeda/pcbnew/dialogs/dialog_offset_item.js';
 import {
   ANCHOR_TYPE,
   DIALOG_POSITION_RELATIVE,
@@ -95,6 +95,9 @@ beforeEach(() => {
 afterEach(cleanup);
 
 const input = (id: string): HTMLInputElement => document.getElementById(id) as HTMLInputElement;
+/** DIALOG_OFFSET_ITEM's two entries, X (or Distance) then Y (or Angle): their labels follow polar. */
+const offsetEntry = (i: number): HTMLInputElement =>
+  screen.getAllByRole('textbox')[i] as HTMLInputElement;
 
 describe('DialogPositionRelativeModeless (dialog_position_relative_base.cpp)', () => {
   it('draws nothing until the dialog is shown (it is modeless and kept between calls)', () => {
@@ -275,11 +278,11 @@ describe('DialogOffsetItem (dialog_offset_item_base.cpp)', () => {
     expect(screen.getByText('Offset Item')).toBeTruthy();
     expect(screen.getByText('Distance:')).toBeTruthy();
     expect(screen.getByText('Angle:')).toBeTruthy();
-    expect(input('ze-offset-x').value).toBe('10');
-    expect(input('ze-offset-y').value).toBe('180');
+    expect(offsetEntry(0).value).toBe('10');
+    expect(offsetEntry(1).value).toBe('180');
     expect(screen.getAllByRole('button', { name: 'Reset' })).toHaveLength(2);
     expect((screen.getByLabelText('Use polar coordinates') as HTMLInputElement).checked).toBe(true);
-    expect(document.activeElement).toBe(input('ze-offset-x'));
+    expect(document.activeElement).toBe(offsetEntry(0));
   });
 
   it('OK writes the vector back and answers true', () => {
@@ -287,8 +290,8 @@ describe('DialogOffsetItem (dialog_offset_item_base.cpp)', () => {
     const onResult = vi.fn();
     render(<DialogOffsetItem dialog={dlg} onResult={onResult} />);
     fireEvent.click(screen.getByLabelText('Use polar coordinates'));
-    fireEvent.change(input('ze-offset-x'), { target: { value: '2.5' } });
-    fireEvent.change(input('ze-offset-y'), { target: { value: '-1' } });
+    fireEvent.change(offsetEntry(0), { target: { value: '2.5' } });
+    fireEvent.change(offsetEntry(1), { target: { value: '-1' } });
     fireEvent.click(screen.getByRole('button', { name: 'OK' }));
     expect(onResult).toHaveBeenCalledWith(true);
     expect(offset).toEqual({ x: 2.5 * MM, y: -1 * MM });
@@ -307,11 +310,11 @@ describe('DialogOffsetItem (dialog_offset_item_base.cpp)', () => {
   it('Reset on Y puts the original angle back, and leaves X', () => {
     const { dlg } = make();
     render(<DialogOffsetItem dialog={dlg} onResult={() => {}} />);
-    fireEvent.change(input('ze-offset-x'), { target: { value: '99' } });
-    fireEvent.change(input('ze-offset-y'), { target: { value: '12' } });
+    fireEvent.change(offsetEntry(0), { target: { value: '99' } });
+    fireEvent.change(offsetEntry(1), { target: { value: '12' } });
     fireEvent.click(screen.getAllByRole('button', { name: 'Reset' })[1]!);
-    expect(input('ze-offset-x').value).toBe('99');
-    expect(input('ze-offset-y').value).toBe('180');
+    expect(offsetEntry(0).value).toBe('99');
+    expect(offsetEntry(1).value).toBe('180');
   });
 
   it('a blank entry is 0 again on blur, and Enter is OK', () => {
@@ -319,10 +322,10 @@ describe('DialogOffsetItem (dialog_offset_item_base.cpp)', () => {
     const onResult = vi.fn();
     render(<DialogOffsetItem dialog={dlg} onResult={onResult} />);
     fireEvent.click(screen.getByLabelText('Use polar coordinates'));
-    fireEvent.change(input('ze-offset-x'), { target: { value: '' } });
-    fireEvent.blur(input('ze-offset-x'));
-    expect(input('ze-offset-x').value).toBe('0');
-    fireEvent.keyDown(input('ze-offset-x'), { key: 'Enter' });
+    fireEvent.change(offsetEntry(0), { target: { value: '' } });
+    fireEvent.blur(offsetEntry(0));
+    expect(offsetEntry(0).value).toBe('0');
+    fireEvent.keyDown(offsetEntry(0), { key: 'Enter' });
     expect(onResult).toHaveBeenCalledWith(true);
     expect(offset).toEqual({ x: 0, y: 0 });
   });
@@ -330,8 +333,8 @@ describe('DialogOffsetItem (dialog_offset_item_base.cpp)', () => {
   it('Reset puts the original back', () => {
     const { dlg } = make();
     render(<DialogOffsetItem dialog={dlg} onResult={() => {}} />);
-    fireEvent.change(input('ze-offset-x'), { target: { value: '99' } });
+    fireEvent.change(offsetEntry(0), { target: { value: '99' } });
     fireEvent.click(screen.getAllByRole('button', { name: 'Reset' })[0]!);
-    expect(input('ze-offset-x').value).toBe('10');
+    expect(offsetEntry(0).value).toBe('10');
   });
 });

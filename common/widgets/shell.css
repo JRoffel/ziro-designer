@@ -16420,62 +16420,6 @@ td.ze-grid-bool {
   margin: 5px; /* [data] the spin control's `wxALL, 5`. */
 }
 
-/* DIALOG_TRACK_VIA_SIZE and DIALOG_PNS_DIFF_PAIR_DIMENSIONS — the two dialogs
-   behind the router size menus' "Use Custom Values..." rows.
-
-   Both are `wxFlexGridSizer( 0, 3, …, 0 )` with `AddGrowableCol( 1 )`: label,
-   entry, unit, and the ENTRY column is the one that takes the slack. Their
-   vgaps differ, which is the only difference between the two grids
-   (`dialog_track_via_size_base.cpp:20` has 0, the diff-pair's `:20` has 5). */
-.ze-ctv-grid,
-.ze-dpd-grid {
-  display: grid;
-  grid-template-columns: max-content 1fr max-content;
-  align-items: center;
-}
-.ze-ctv-grid {
-  row-gap: 0; /* [data] `wxFlexGridSizer( 0, 3, 0, 0 )` — vgap 0. */
-}
-.ze-dpd-grid {
-  row-gap: 5px; /* [data] `wxFlexGridSizer( 0, 3, 5, 0 )` — vgap 5. */
-}
-.ze-ctv-body,
-.ze-dpd-body {
-  padding: 10px; /* [data] `Add( fgSizer1, 1, wxEXPAND|wxALL, 10 )`, and the diff-pair's own 10. */
-}
-.ze-ctv-grid > .lbl {
-  margin: 5px 5px 5px 0; /* [data] the label's `wxALIGN_CENTER_VERTICAL|wxTOP|wxBOTTOM|wxRIGHT, 5`. */
-  white-space: nowrap;
-}
-.ze-ctv-grid > .ze-search {
-  margin: 5px 0; /* [data] `Add( m_trackWidthText, 1, wxEXPAND|wxTOP|wxBOTTOM, 5 )`. */
-}
-.ze-ctv-grid > .unit {
-  margin: 5px; /* [data] the unit label's `wxALL|wxALIGN_CENTER_VERTICAL, 5`. */
-}
-/* The first and third rows' labels carry `wxRIGHT|wxLEFT, 1` and the middle
-   one `wxRIGHT, 5`; the widest wins the column, so the pitch is stated once. */
-.ze-dpd-grid > .lbl {
-  margin-right: 5px; /* [data] `Add( m_traceGapLabel, 0, …|wxRIGHT, 5 )`. */
-  white-space: nowrap;
-}
-.ze-dpd-grid > .ze-search {
-  margin: 0 5px; /* [data] the entries' `wxEXPAND|wxRIGHT|wxLEFT, 5`. */
-}
-.ze-dpd-grid > .unit {
-  margin-right: 5px; /* [data] the unit labels' `wxRIGHT, 5`. */
-}
-/* `updateCheckbox()` calls `Enable( false )` on the via-gap label and unit as
-   well as the field, and GTK dims by colour rather than by opacity — the same
-   answer `--ctl-fg-disabled` gives every other disabled label. */
-.ze-dpd-grid > .lbl.disabled,
-.ze-dpd-grid > .unit.disabled {
-  color: var(--ctl-fg-disabled);
-}
-.ze-dpd-same {
-  margin: 10px 0 0; /* [data] `Add( m_viaTraceGapEqual, 0, wxALL|wxEXPAND, 10 )`. */
-}
-
 /* PANEL_SETUP_TRACKS_AND_VIAS: three WX_GRIDs side by side, each with its own
    add / sort / remove buttons under it.
 
@@ -17634,8 +17578,7 @@ fieldset.ze-import-netlist-options {
 .ze-posrel-line {
   margin-top: 5px; /* [data] `bUpperSizer->Add( bSizer6, 0, wxEXPAND|wxTOP, 5 )`. */
 }
-.ze-posrel-grid,
-.ze-offset-grid {
+.ze-posrel-grid {
   display: grid;
   /* [data] `wxFlexGridSizer( 0, 5, 5, 0 )`, `AddGrowableCol( 1 )`: label, entry, unit,
      the 10 wide spacer, Reset. */
@@ -17644,12 +17587,10 @@ fieldset.ze-import-netlist-options {
   align-items: center;
   margin: 5px; /* [data] `bMainSizer->Add( fgSizer2, 1, wxEXPAND|wxALL, 5 )`. */
 }
-.ze-posrel-grid .lbl,
-.ze-offset-grid .lbl {
+.ze-posrel-grid .lbl {
   white-space: nowrap;
 }
-.ze-posrel-grid .spacer,
-.ze-offset-grid .spacer {
+.ze-posrel-grid .spacer {
   width: 10px; /* [data] `fgSizer2->Add( 10, 0, 1, wxEXPAND, 5 )`. */
 }
 /* Row 1: label `wxRIGHT|wxLEFT`, entry `wxEXPAND|wxLEFT|wxRIGHT`, unit `wxRIGHT`, spacer
@@ -17672,21 +17613,17 @@ fieldset.ze-import-netlist-options {
 }
 /* bSizerBottom: the check box `wxLEFT, 10`, a 40 wide stretch spacer, the standard buttons
    `wxBOTTOM|wxTOP, 5`; the whole row `wxEXPAND|wxTOP, 5`. */
-.ze-posrel .ze-modal-footer,
-.ze-offset .ze-modal-footer {
+.ze-posrel .ze-modal-footer {
   padding: 0;
   margin-top: 5px; /* [data] `bMainSizer->Add( bSizerBottom, 0, wxEXPAND|wxTOP, 5 )`. */
 }
-.ze-posrel .ze-modal-footer > label,
-.ze-offset .ze-modal-footer > label {
+.ze-posrel .ze-modal-footer > label {
   margin-left: 10px; /* [data] `bSizerBottom->Add( m_polarCoords, 0, …|wxLEFT, 10 )`. */
 }
-.ze-posrel .ze-sdb-spacer,
-.ze-offset .ze-sdb-spacer {
+.ze-posrel .ze-sdb-spacer {
   min-width: 40px; /* [data] `bSizerBottom->Add( 40, 0, 1, wxEXPAND, 5 )`. */
 }
-.ze-posrel .ze-modal-footer .ze-btn,
-.ze-offset .ze-modal-footer .ze-btn {
+.ze-posrel .ze-modal-footer .ze-btn {
   margin: 5px 0; /* [data] `bSizerBottom->Add( m_stdButtons, 0, wxBOTTOM|wxTOP, 5 )`. */
 }
 
@@ -17719,35 +17656,6 @@ fieldset.ze-import-netlist-options {
   gap: 3px; /* [data] `new wxGridSizer( 0, 1, 3, 3 )` */
   flex: 1;
   margin: 5px; /* [data] `m_mainSizer->Add( m_optsSizer, 1, wxEXPAND | wxALL, 5 )` */
-}
-
-/* DIALOG_OFFSET_ITEM (dialog_offset_item_base.cpp): the same grid and bottom row
-   under a bMainSizer with no upper sizer. Row 1 has `wxTOP` where the Position
-   Relative dialog's has none. */
-.ze-offset-body {
-  display: flex;
-  flex-direction: column;
-}
-.ze-offset-grid .r1 {
-  margin: 5px 5px 0; /* [data] row 1: `wxTOP|wxRIGHT|wxLEFT, 5` (label, entry, Reset). */
-}
-.ze-offset-grid .unit1 {
-  margin: 5px 5px 0 0; /* [data] `m_xUnit`: `wxTOP|wxRIGHT, 5`. */
-}
-.ze-offset-grid .s1 {
-  margin: 0 5px; /* [data] the row-1 spacer: `wxRIGHT|wxLEFT, 5`. */
-}
-.ze-offset-grid .r2l {
-  margin: 0 5px 5px; /* [data] `m_yLabel`: `wxBOTTOM|wxRIGHT|wxLEFT, 5`. */
-}
-.ze-offset-grid .r2 {
-  margin: 0 5px; /* [data] `m_yEntry` and `m_clearY`: `wxLEFT|wxRIGHT, 5`. */
-}
-.ze-offset-grid .unit2 {
-  margin: 0 5px 0 0; /* [data] `m_yUnit`: `wxRIGHT, 5`. */
-}
-.ze-offset-grid .r2s {
-  margin: 0; /* [data] the row-2 spacer states no border. */
 }
 
 /* DIALOG_FP_EDIT_PAD_TABLE (dialog_fp_edit_pad_table_base.cpp). */
@@ -17888,40 +17796,6 @@ fieldset.ze-import-netlist-options {
   flex-direction: column;
   margin: 5px 5px 0; /* [data] `bSizerMain->Add( bLowerSizer, 1, wxEXPAND|wxTOP|wxRIGHT|wxLEFT, 5 )`. */
   min-height: 0;
-}
-
-/* DIALOG_UNUSED_PAD_LAYERS (dialog_unused_pad_layers_base.cpp). */
-.ze-unusedpads-body {
-  display: flex;
-  margin: 0 5px 5px; /* [data] `m_MainSizer->Add( bMargins, 6, wxBOTTOM|wxEXPAND|wxLEFT|wxRIGHT, 5 )`. */
-}
-.ze-unusedpads-boxes {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  margin: 10px 0 0 10px; /* [data] `bMargins->Add( bSizer4, 1, wxEXPAND|wxTOP|wxLEFT, 10 )`. */
-}
-.ze-unusedpads .ze-check.all5 {
-  margin: 5px; /* [data] `m_cbVias`, `wxALL, 5`. */
-}
-.ze-unusedpads .ze-check.brl5 {
-  margin: 0 5px 5px; /* [data] `m_cbPads`, `wxBOTTOM|wxRIGHT|wxLEFT, 5`. */
-}
-.ze-unusedpads .ze-check.bl5 {
-  margin: 0 0 5px 5px; /* [data] `m_cbSelectedOnly`, `wxEXPAND|wxBOTTOM|wxLEFT, 5`. */
-}
-.ze-unusedpads .ze-check.l5 {
-  margin-left: 5px; /* [data] `m_cbPreserveExternalLayers`, `wxEXPAND|wxLEFT, 5`. */
-}
-.ze-unusedpads-gap {
-  height: 15px; /* [data] `bSizer4->Add( 0, 15, 0, wxEXPAND, 5 )`. */
-}
-.ze-unusedpads-preview {
-  flex: 1;
-  margin: 0 5px; /* [data] `bMargins->Add( bSizerPreview, 1, wxEXPAND|wxLEFT|wxRIGHT, 5 )`. */
-}
-.ze-unusedpads-preview img {
-  margin: 10px 10px 0; /* [data] `m_image`, `wxTOP|wxRIGHT|wxLEFT, 10`. */
 }
 
 /* DIALOG_GLOBAL_DELETION (dialog_global_deletion_base.cpp). */

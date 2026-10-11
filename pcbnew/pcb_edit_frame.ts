@@ -179,22 +179,8 @@ import { ZONE_FILLER_TOOL } from './tools/zone_filler_tool.js';
 import { ZONE_FILLER } from './zone_filler.js';
 import type { VIA_DIMENSION } from './board_design_settings.js';
 
-/**
- * `dialog_pns_diff_pair_dimensions.tsx`'s value, restated: qa typechecks this
- * module without JSX, so it cannot import a type from a `.tsx`.
- */
-interface DiffPairDimensionsValue {
-  width: number;
-  gap: number;
-  viaGap: number;
-  viaGapSameAsTraceGap: boolean;
-}
-
-/** `dialog_track_via_size.tsx`'s value, restated for the same reason. */
-interface CustomTrackViaSize {
-  trackWidth: number;
-  via: VIA_DIMENSION;
-}
+import type { DIALOG_PNS_DIFF_PAIR_DIMENSIONS } from './dialogs/dialog_pns_diff_pair_dimensions.js';
+import type { DIALOG_TRACK_VIA_SIZE } from './dialogs/dialog_track_via_size.js';
 import type { KiDialogRequest } from '@ziroeda/common/kidialog.js';
 import type { KiDialogResult } from '@ziroeda/common/kidialog_do_not_show.js';
 import type { DIALOG_SWAP_LAYERS } from './dialogs/dialog_swap_layers.js';
@@ -949,12 +935,10 @@ export interface PCB_EDIT_FRAME_HOOKS extends PCB_BASE_EDIT_FRAME_DIALOG_HOOKS {
   openVertexEditor?(aItem: BOARD_ITEM): void;
   /** `DIALOG_PNS_SETTINGS( frame(), aSettings ).ShowModal()`; resolves when it closes. */
   showPnsSettingsDialog?(aSettings: RoutingSettings): Promise<void>;
-  /** `DIALOG_PNS_DIFF_PAIR_DIMENSIONS( frame(), sizes ).ShowModal()`: the values, or null on cancel. */
-  showDiffPairDimensionsDialog?(
-    aValue: DiffPairDimensionsValue,
-  ): Promise<DiffPairDimensionsValue | null>;
-  /** `DIALOG_TRACK_VIA_SIZE( frame(), bds ).ShowModal()`: the values, or null on cancel. */
-  showTrackViaSizeDialog?(aValue: CustomTrackViaSize): Promise<CustomTrackViaSize | null>;
+  /** `DIALOG_PNS_DIFF_PAIR_DIMENSIONS::ShowModal() == wxID_OK`. */
+  showDiffPairDimensionsDialog?(aDialog: DIALOG_PNS_DIFF_PAIR_DIMENSIONS): Promise<boolean>;
+  /** `DIALOG_TRACK_VIA_SIZE::ShowModal() == wxID_OK`. */
+  showTrackViaSizeDialog?(aDialog: DIALOG_TRACK_VIA_SIZE): Promise<boolean>;
   /**
    * `DIALOG_FILTER_SELECTION( frame, aOptions ).ShowModal() == wxID_OK`, the
    * dialog editing `aOptions` in place. Optional: absent answers cancel.
@@ -1680,16 +1664,14 @@ export class PCB_EDIT_FRAME extends PCB_BASE_EDIT_FRAME {
     return this.hooks.showPnsSettingsDialog?.(aSettings) ?? Promise.resolve();
   }
 
-  /** `DIALOG_PNS_DIFF_PAIR_DIMENSIONS::ShowModal`, through the window. */
-  ShowDiffPairDimensionsDialog(
-    aValue: DiffPairDimensionsValue,
-  ): Promise<DiffPairDimensionsValue | null> {
-    return this.hooks.showDiffPairDimensionsDialog?.(aValue) ?? Promise.resolve(null);
+  /** `DIALOG_PNS_DIFF_PAIR_DIMENSIONS::ShowModal() == wxID_OK`, through the window. */
+  ShowDiffPairDimensionsDialog(aDialog: DIALOG_PNS_DIFF_PAIR_DIMENSIONS): Promise<boolean> {
+    return this.hooks.showDiffPairDimensionsDialog?.(aDialog) ?? Promise.resolve(false);
   }
 
-  /** `DIALOG_TRACK_VIA_SIZE::ShowModal`, through the window. */
-  ShowTrackViaSizeDialog(aValue: CustomTrackViaSize): Promise<CustomTrackViaSize | null> {
-    return this.hooks.showTrackViaSizeDialog?.(aValue) ?? Promise.resolve(null);
+  /** `DIALOG_TRACK_VIA_SIZE::ShowModal() == wxID_OK`, through the window. */
+  ShowTrackViaSizeDialog(aDialog: DIALOG_TRACK_VIA_SIZE): Promise<boolean> {
+    return this.hooks.showTrackViaSizeDialog?.(aDialog) ?? Promise.resolve(false);
   }
 
   /**

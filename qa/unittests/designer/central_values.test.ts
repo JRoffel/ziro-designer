@@ -334,7 +334,7 @@ const BASELINE: Record<string, { colours: number; metrics: number }> = {
   // (`pcb_draw_panel_gal_ui.tsx`) went; they draw on PCB_DRAW_PANEL_GAL.
   // 10-10: colours 20 -> 19, metrics 114 -> 88 - DIALOG_PLOT's inline box/legend/row styles, gone
   // with the dialog transcribed onto the sizers (dialog_plot_base.tsx).
-  'editors/pcb': { colours: 19, metrics: 88 },
+  'editors/pcb': { colours: 18, metrics: 75 },
   // At zero, and listed rather than absent: `prefs/` is the settings store, and
   // the one literal it had - the 3D viewer's `rgb(0,255,0)` selection colour -
   // is `PARAM<COLOR4D>( "render.opengl_selection_color", …, COLOR4D( 0, 1, 0, 1 ) )`
@@ -1451,7 +1451,8 @@ describe('the scan totals, so the numbers in the PR stay true', () => {
     // 276 -> 275 (10-10): HK_PROMPT_DIALOG's invented var(--ze-border, #444) separator.
     // 275 -> 274 (10-10): DIALOG_PLOT's browse popup shadow, gone with its inline styles.
     // 274 -> 273: .ze-lp-syntax's #6fa8ff (Text Properties' pair).
-    expect(SITES.filter((s) => s.kind === 'colours').length).toBe(273);
+    // 273 -> 272 (10-11): Filter Selection's inline rgba shadow, gone with its _base pair.
+    expect(SITES.filter((s) => s.kind === 'colours').length).toBe(272);
     // 1657 -> 1649: the same sweep. A native colour input has no useful
     // default size, so eight of the sixteen sites gave theirs an inline
     // width and height; the shared swatch takes --swatch-*-w/h. Rescanned.
@@ -1679,7 +1680,9 @@ describe('the scan totals, so the numbers in the PR stay true', () => {
     // 996 -> 985: the common/widgets row above.
     // 985 -> 973: the common/widgets row above.
     // 973 -> 953: the same.
-    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(953);
+    // 953 -> 940 (10-11): editors/pcb 88 -> 75, Filter Selection's inline layout and the other
+    // dialogs of the pcbnew pairs batch.
+    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(940);
   });
 
   it('and the two agree with the per-area table, which is where they come from', () => {

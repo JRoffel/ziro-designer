@@ -225,7 +225,10 @@ import { DialogUpdatePcb, type UpdatePcbOptions } from './dialogs/dialog_update_
 import { DialogGlobalEditTeardrops } from './dialogs/dialog_global_edit_teardrops_ui.js';
 import { BuildBomTextFromBoard } from './build_BOM_from_board.js';
 import { DialogBoardStatistics } from './dialogs/dialog_board_statistics.js';
-import { DialogFilterSelection } from './dialogs/dialog_filter_selection_ui.js';
+import {
+  DIALOG_FILTER_SELECTION,
+  DialogFilterSelection,
+} from './dialogs/dialog_filter_selection.js';
 import type { MOVE_EXACT_VALUES, ROTATION_ANCHOR } from './tools/edit_tool.js';
 import type { DOGBONE_PARAMETERS } from './tools/item_modification_routine.js';
 import type { TOOL_ACTION } from '@ziroeda/common/tool/tool_action.js';
@@ -266,19 +269,19 @@ import type { CONVERT_SETTINGS } from './pcbnew_settings.js';
 import type { ZONE_SETTINGS } from './zone_settings.js';
 import { DialogPnsSettings } from './dialogs/dialog_pns_settings.js';
 import {
+  type DIALOG_PNS_DIFF_PAIR_DIMENSIONS,
   DialogPnsDiffPairDimensions,
-  type DiffPairDimensionsValue,
 } from './dialogs/dialog_pns_diff_pair_dimensions.js';
-import { type CustomTrackViaSize, DialogTrackViaSize } from './dialogs/dialog_track_via_size.js';
+import { type DIALOG_TRACK_VIA_SIZE, DialogTrackViaSize } from './dialogs/dialog_track_via_size.js';
 import type { RoutingSettings } from './router/pns_routing_settings.js';
 import { DialogPositionRelativeModeless } from './dialogs/dialog_position_relative_ui.js';
 import type { DIALOG_POSITION_RELATIVE } from './dialogs/dialog_position_relative.js';
-import { DialogOffsetItem } from './dialogs/dialog_offset_item_ui.js';
+import { DialogOffsetItem } from './dialogs/dialog_offset_item.js';
 import { DialogSwapLayers } from './dialogs/dialog_swap_layers.js';
 import { choiceOf } from './grid_layer_box_helpers.js';
 import { DialogCleanupTracksAndVias } from './dialogs/dialog_cleanup_tracks_and_vias_ui.js';
 import { DialogCleanupGraphics } from './dialogs/dialog_cleanup_graphics_ui.js';
-import { DialogUnusedPadLayers } from './dialogs/dialog_unused_pad_layers_ui.js';
+import { DialogUnusedPadLayers } from './dialogs/dialog_unused_pad_layers.js';
 import { DialogGlobalDeletion } from './dialogs/dialog_global_deletion_ui.js';
 import { DialogGlobalEditTracksAndVias } from './dialogs/dialog_global_edit_tracks_and_vias_ui.js';
 import { DialogExchangeFootprints } from './dialogs/dialog_exchange_footprints_ui.js';
@@ -1571,8 +1574,8 @@ export function PcbEditor({
     resolve: (aValues: MOVE_EXACT_VALUES | null) => void;
   } | null>(null);
   const [filterDlg, setFilterDlg] = useState<{
-    opts: SelectionFilter;
-    resolve: (aOk: boolean, aEdited?: SelectionFilter) => void;
+    dialog: DIALOG_FILTER_SELECTION;
+    resolve: (aOk: boolean) => void;
   } | null>(null);
   const [statsOpen, setStatsOpen] = useState(false);
 
@@ -1666,12 +1669,12 @@ export function PcbEditor({
     resolve: () => void;
   } | null>(null);
   const [dpDimsReq, setDpDimsReq] = useState<{
-    value: DiffPairDimensionsValue;
-    resolve: (aValue: DiffPairDimensionsValue | null) => void;
+    dialog: DIALOG_PNS_DIFF_PAIR_DIMENSIONS;
+    resolve: (aOk: boolean) => void;
   } | null>(null);
   const [trackViaSizeReq, setTrackViaSizeReq] = useState<{
-    value: CustomTrackViaSize;
-    resolve: (aValue: CustomTrackViaSize | null) => void;
+    dialog: DIALOG_TRACK_VIA_SIZE;
+    resolve: (aOk: boolean) => void;
   } | null>(null);
   const [arrayOpen, setArrayOpen] = useState(false);
   // Kept across openings, as upstream persists its ARRAY_OPTIONS.
@@ -2334,10 +2337,10 @@ export function PcbEditor({
       /** `m_appearancePanel->OnLayerChanged()`: the layer combo follows a layer a tool chose. */
       showPnsSettingsDialog: (aSettings) =>
         new Promise<void>((resolve) => setPnsSettingsReq({ settings: aSettings, resolve })),
-      showDiffPairDimensionsDialog: (aValue) =>
-        new Promise((resolve) => setDpDimsReq({ value: aValue, resolve })),
-      showTrackViaSizeDialog: (aValue) =>
-        new Promise((resolve) => setTrackViaSizeReq({ value: aValue, resolve })),
+      showDiffPairDimensionsDialog: (aDialog) =>
+        new Promise((resolve) => setDpDimsReq({ dialog: aDialog, resolve })),
+      showTrackViaSizeDialog: (aDialog) =>
+        new Promise((resolve) => setTrackViaSizeReq({ dialog: aDialog, resolve })),
       activeLayerChanged: (aLayer) => {
         if (frameRef.current?.GetBoard()?.IsLayerEnabled(aLayer)) setActiveLayer(LSET.Name(aLayer));
       },
@@ -4296,16 +4299,10 @@ export function PcbEditor({
   selWindowRef.current = {
     showInfoBarWarning: (aMsg) => setInfoBarError(aMsg),
     showFilterSelectionDialog: (aOptions) =>
+      // `DIALOG_FILTER_SELECTION dlg( m_frame, opts )`: wxID_OK writes the choices back into the
+      // tool's OPTIONS (`m_priv->m_filterOpts`) in TransferDataFromWindow.
       new Promise<boolean>((resolve) =>
-        setFilterDlg({
-          opts: { ...aOptions },
-          // wxID_OK writes the dialog's choices back into the tool's OPTIONS
-          // (`m_priv->m_filterOpts`, TransferDataFromWindow).
-          resolve: (aOk, aEdited) => {
-            if (aOk && aEdited) Object.assign(aOptions, aEdited);
-            resolve(aOk);
-          },
-        }),
+        setFilterDlg({ dialog: new DIALOG_FILTER_SELECTION(aOptions), resolve }),
       ),
     updateProperties: () => {
       refreshSelectionMirrorRef.current();
@@ -7866,28 +7863,18 @@ export function PcbEditor({
       )}
       {dpDimsReq && (
         <DialogPnsDiffPairDimensions
-          value={dpDimsReq.value}
-          units={unitLabel}
-          onOk={(v) => {
-            dpDimsReq.resolve(v);
-            setDpDimsReq(null);
-          }}
-          onClose={() => {
-            dpDimsReq.resolve(null);
+          dialog={dpDimsReq.dialog}
+          onClose={(aOk) => {
+            dpDimsReq.resolve(aOk);
             setDpDimsReq(null);
           }}
         />
       )}
       {trackViaSizeReq && (
         <DialogTrackViaSize
-          value={trackViaSizeReq.value}
-          units={unitLabel}
-          onOk={(v) => {
-            trackViaSizeReq.resolve(v);
-            setTrackViaSizeReq(null);
-          }}
-          onClose={() => {
-            trackViaSizeReq.resolve(null);
+          dialog={trackViaSizeReq.dialog}
+          onClose={(aOk) => {
+            trackViaSizeReq.resolve(aOk);
             setTrackViaSizeReq(null);
           }}
         />
@@ -8099,14 +8086,9 @@ export function PcbEditor({
       )}
       {filterDlg && (
         <DialogFilterSelection
-          filter={filterDlg.opts}
-          onChange={(next) => setFilterDlg({ ...filterDlg, opts: next })}
-          onApply={() => {
-            filterDlg.resolve(true, filterDlg.opts);
-            setFilterDlg(null);
-          }}
-          onClose={() => {
-            filterDlg.resolve(false);
+          dialog={filterDlg.dialog}
+          onClose={(aOk) => {
+            filterDlg.resolve(aOk);
             setFilterDlg(null);
           }}
         />

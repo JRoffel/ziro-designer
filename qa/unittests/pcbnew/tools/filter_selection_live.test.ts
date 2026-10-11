@@ -8,10 +8,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { BOARD } from '@ziroeda/pcbnew/board.js';
 import type { BOARD_ITEM } from '@ziroeda/pcbnew/board_item.js';
-import {
-  DEFAULT_SELECTION_FILTER,
-  type SelectionFilter,
-} from '@ziroeda/pcbnew/dialogs/dialog_filter_selection.js';
+import { type SelectionFilter } from '@ziroeda/pcbnew/dialogs/dialog_filter_selection.js';
 import { ParseBoard } from '@ziroeda/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.js';
 import {
   filterSelectionItems,
@@ -110,7 +107,18 @@ describe('itemIsIncludedByFilter', () => {
 describe('filterSelectionItems', () => {
   it('keeps the passing items in selection order', () => {
     const items = ['14', '11', '03', '01', '04'].map(byUuid);
-    expect(filterSelectionItems(items, DEFAULT_SELECTION_FILTER).map((i) => i.m_Uuid)).toEqual([
+    // Every kind but locked footprints.
+    const opts = {
+      footprints: true,
+      lockedFootprints: false,
+      tracks: true,
+      vias: true,
+      zones: true,
+      boardOutline: true,
+      techLayers: true,
+      text: true,
+    };
+    expect(filterSelectionItems(items, opts).map((i) => i.m_Uuid)).toEqual([
       byUuid('14').m_Uuid,
       byUuid('11').m_Uuid,
       byUuid('01').m_Uuid,

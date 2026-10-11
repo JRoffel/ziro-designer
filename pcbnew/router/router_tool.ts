@@ -27,6 +27,8 @@
  * so the two menus number their rows differently against the same lists.
  */
 
+import { DIALOG_PNS_DIFF_PAIR_DIMENSIONS } from '../dialogs/dialog_pns_diff_pair_dimensions.js';
+import { DIALOG_TRACK_VIA_SIZE } from '../dialogs/dialog_track_via_size.js';
 import type { BOARD_DESIGN_SETTINGS, DIFF_PAIR_DIMENSION } from '../board_design_settings.js';
 import { VIA_DIMENSION } from '../board_design_settings.js';
 import type { Vec2 } from '@ziroeda/kimath/src/math/vector2.js';
@@ -2628,22 +2630,13 @@ export class ROUTER_TOOL extends PNS_TOOL_BASE {
   /** `DpDimensionsDialog` (router_tool.cpp:1698-1715). */
   *DpDimensionsDialog(_aEvent: TOOL_EVENT): COROUTINE_BODY<number> {
     const sizes = copySizes(this.m_router?.sizes() ?? this.m_savedSizes);
+    const settingsDlg = new DIALOG_PNS_DIFF_PAIR_DIMENSIONS(this.editFrame(), sizes);
 
-    const result = yield* this.RunMainStackModal(() =>
-      this.editFrame().ShowDiffPairDimensionsDialog({
-        width: sizes.diffPairWidth,
-        gap: sizes.diffPairGap,
-        viaGap: sizes.diffPairViaGap,
-        viaGapSameAsTraceGap: sizes.diffPairViaGapSameAsTraceGap,
-      }),
+    const ok = yield* this.RunMainStackModal(() =>
+      this.editFrame().ShowDiffPairDimensionsDialog(settingsDlg),
     );
 
-    if (result) {
-      sizes.diffPairWidth = result.width;
-      sizes.diffPairGap = result.gap;
-      sizes.diffPairViaGap = result.viaGap;
-      sizes.diffPairViaGapSameAsTraceGap = result.viaGapSameAsTraceGap;
-
+    if (ok) {
       this.m_router?.updateSizes(sizes);
       this.m_savedSizes = copySizes(sizes);
 
@@ -2674,19 +2667,13 @@ export class ROUTER_TOOL extends PNS_TOOL_BASE {
   *CustomTrackWidthDialog(aEvent: TOOL_EVENT): COROUTINE_BODY<number> {
     const bds = this.board().GetDesignSettings();
 
-    const result = yield* this.RunMainStackModal(() =>
-      this.editFrame().ShowTrackViaSizeDialog({
-        trackWidth: bds.GetCustomTrackWidth(),
-        via: new VIA_DIMENSION(bds.GetCustomViaSize(), bds.GetCustomViaDrill()),
-      }),
+    const sizeDlg = new DIALOG_TRACK_VIA_SIZE(this.editFrame(), bds);
+
+    const ok = yield* this.RunMainStackModal(() =>
+      this.editFrame().ShowTrackViaSizeDialog(sizeDlg),
     );
 
-    if (result) {
-      // DIALOG_TRACK_VIA_SIZE::TransferDataFromWindow
-      bds.SetCustomTrackWidth(result.trackWidth);
-      bds.SetCustomViaSize(result.via.m_Diameter);
-      bds.SetCustomViaDrill(result.via.m_Drill);
-
+    if (ok) {
       bds.m_TempOverrideTrackWidth = true;
       bds.UseCustomTrackViaSize(true);
 

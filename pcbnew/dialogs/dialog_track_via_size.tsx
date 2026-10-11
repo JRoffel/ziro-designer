@@ -2,123 +2,131 @@
 // Copyright (C) 2026 ZiroEDA and contributors.
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
 /**
- * Custom Track/Via Size — what `TRACK_WIDTH_MENU`'s "Use Custom Values..." row
- * opens. Counterparts: `pcbnew/dialogs/dialog_track_via_size.cpp` for the
- * behaviour and `dialog_track_via_size_base.cpp` for the layout.
+ * `DIALOG_TRACK_VIA_SIZE` (pcbnew/dialogs/dialog_track_via_size.cpp): what the router's "Use
+ * Custom Values..." opens. It edits the BOARD_DESIGN_SETTINGS it is given: `m_customTrackWidth`
+ * and the custom via, which `GetCurrentTrackWidth()` and `GetCurrentViaSize()` return while
+ * `UseCustomTrackViaSize()` is on.
  *
- * Three rows of `fgSizer1 = new wxFlexGridSizer( 0, 3, 0, 0 )` with
- * `AddGrowableCol( 1 )` — label, entry, unit — then a `wxStaticLine` and the
- * standard buttons. The values it writes are `m_customTrackWidth` and
- * `m_customViaSize`, which `GetCurrentTrackWidth()` and `GetCurrentViaSize()`
- * return whenever `m_useCustomTrackVia` is on.
+ * OK runs `PCB_VIA::ValidateViaParameters` over the via pair - the same function Board Setup >
+ * Pre-defined Sizes validates its via grid with - and on a failure puts the caret in the field
+ * the error names. No minimum is enforced: the constructor's `minSize` lands in UNIT_BINDER's
+ * `aAllowEval` (a bool), not in a range.
  *
- * Two things it does that a plainer dialog would not:
- *
- *  - every field carries a `minSize` of `0.01 * IU_PER_MM`
- *    (`dialog_track_via_size.cpp:35`), passed to `UNIT_BINDER` as its lower
- *    bound rather than checked here;
- *  - OK runs `PCB_VIA::ValidateViaParameters` over the via pair and, on a
- *    failure, puts the caret in the field the error names — the SAME function
- *    Board Setup > Pre-defined Sizes validates its via grid with, so the two
- *    refuse the same values with the same words.
+ * `DialogTrackViaSize` below is the window, DIALOG_TRACK_VIA_SIZE_BASE over the class.
  */
-import { TextCtrl } from '@ziroeda/wx/controls.js';
-import { useState, type JSX } from 'react';
-import { pcbIUScale } from '@ziroeda/common/eda_units.js';
+import { type JSX, useReducer, useRef, useState } from 'react';
+import { MessageDialogError } from '@ziroeda/common/dialogs/dialog_message.js';
+import { unitLabel } from '@ziroeda/common/eda_units.js';
+import {
+  UNIT_BINDER,
+  type UNIT_BINDER_UNITS_PROVIDER,
+} from '@ziroeda/common/widgets/unit_binder.js';
+import type { BOARD_DESIGN_SETTINGS } from '../board_design_settings.js';
 import { PCB_VIA, VIA_PARAMETER_ERROR_FIELD } from '../pcb_track.js';
-import { VIA_DIMENSION } from '../board_design_settings.js';
-import { DialogShim } from '@ziroeda/common/dialog_shim.js';
-import { pcbUnitText, pcbUnitValue, unitLabel } from '../pcb_unit_binder.js';
-import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
+import { DIALOG_TRACK_VIA_SIZE_BASE, type UNIT } from './dialog_track_via_size_base.js';
 
-/** [data] `const int minSize = (int)( 0.01 * pcbIUScale.IU_PER_MM )`, `:35`. */
-const MIN_SIZE = Math.round(0.01 * pcbIUScale.IU_PER_MM);
+export class DIALOG_TRACK_VIA_SIZE {
+  readonly m_trackWidth: UNIT_BINDER;
+  readonly m_viaDiameter: UNIT_BINDER;
+  readonly m_viaDrill: UNIT_BINDER;
+  /** `DisplayError( GetParent(), … )` and the field `SetFocus()` goes to. */
+  m_error: { message: string; focus: 'diameter' | 'drill' | null } | null = null;
 
-export interface CustomTrackViaSize {
-  /** `GetCustomTrackWidth()`. */
-  trackWidth: number;
-  /** `GetCustomViaSize()` / `GetCustomViaDrill()`. */
-  via: VIA_DIMENSION;
-}
+  private readonly m_settings: BOARD_DESIGN_SETTINGS;
 
-interface Props {
-  value: CustomTrackViaSize;
-  /** The frame's display units — every field here is a `UNIT_BINDER`. */
-  units: StatusUnits;
-  onOk: (next: CustomTrackViaSize) => void;
-  onClose: () => void;
-}
+  constructor(aParent: UNIT_BINDER_UNITS_PROVIDER, aSettings: BOARD_DESIGN_SETTINGS) {
+    this.m_trackWidth = new UNIT_BINDER(aParent, 'Track width:');
+    this.m_viaDiameter = new UNIT_BINDER(aParent, 'Via diameter:');
+    this.m_viaDrill = new UNIT_BINDER(aParent, 'Via hole:');
+    this.m_settings = aSettings;
+  }
 
-export function DialogTrackViaSize({ value, units, onOk, onClose }: Props): JSX.Element {
-  // A `UNIT_BINDER` holds text and parses on commit; driving the model off
-  // every keystroke rewrites "0." under the caret.
-  const [trackWidth, setTrackWidth] = useState(() => pcbUnitText(value.trackWidth, units));
-  const [viaDiameter, setViaDiameter] = useState(() => pcbUnitText(value.via.m_Diameter, units));
-  const [viaDrill, setViaDrill] = useState(() => pcbUnitText(value.via.m_Drill, units));
-  const [error, setError] = useState<{ message: string; field: 'diameter' | 'drill' } | null>(null);
+  TransferDataFromWindow(): boolean {
+    const viaDiameter = this.m_viaDiameter.GetIntValue();
+    const viaDrill = this.m_viaDrill.GetIntValue();
+    const error = PCB_VIA.ValidateViaParameters(viaDiameter, viaDrill);
 
-  const row = (
-    label: string,
-    id: string,
-    text: string,
-    setText: (s: string) => void,
-  ): JSX.Element => (
-    <>
-      {/* [data] the label's `wxALIGN_CENTER_VERTICAL|wxTOP|wxBOTTOM|wxRIGHT, 5`. */}
-      <span className="lbl">{label}</span>
-      <TextCtrl value={text} onChange={(aValue) => setText(aValue)} id={id} className="ze-search" />
-      {/* [data] the unit label's `wxALL|wxALIGN_CENTER_VERTICAL, 5`. */}
-      <span className="unit">{unitLabel(units)}</span>
-    </>
-  );
+    if (error) {
+      const focus =
+        error.m_Field === VIA_PARAMETER_ERROR_FIELD.DRILL
+          ? 'drill'
+          : error.m_Field === VIA_PARAMETER_ERROR_FIELD.DIAMETER
+            ? 'diameter'
+            : null;
 
-  // `TransferDataFromWindow`: validate the via pair, then store all three.
-  const apply = (): void => {
-    const next: CustomTrackViaSize = {
-      trackWidth: Math.max(MIN_SIZE, pcbUnitValue(trackWidth, units)),
-      via: new VIA_DIMENSION(
-        Math.max(MIN_SIZE, pcbUnitValue(viaDiameter, units)),
-        Math.max(MIN_SIZE, pcbUnitValue(viaDrill, units)),
-      ),
-    };
-
-    const bad = PCB_VIA.ValidateViaParameters(next.via.m_Diameter, next.via.m_Drill);
-
-    if (bad) {
-      // `DisplayError( … ); m_viaDrillText->SetFocus();`
-      const field = bad.m_Field === VIA_PARAMETER_ERROR_FIELD.DIAMETER ? 'diameter' : 'drill';
-      setError({ message: bad.m_Message, field });
-      document.getElementById(`ze-ctv-${field}`)?.focus();
-      return;
+      this.m_error = { message: error.m_Message, focus };
+      return false;
     }
 
-    onOk(next);
-  };
+    // Store dialog values to the router settings
+    this.m_settings.SetCustomTrackWidth(this.m_trackWidth.GetIntValue());
+    this.m_settings.SetCustomViaSize(this.m_viaDiameter.GetIntValue());
+    this.m_settings.SetCustomViaDrill(this.m_viaDrill.GetIntValue());
+
+    return true;
+  }
+
+  TransferDataToWindow(): boolean {
+    // Load router settings to dialog fields
+    this.m_trackWidth.SetValue(this.m_settings.GetCustomTrackWidth());
+    this.m_viaDiameter.SetValue(this.m_settings.GetCustomViaSize());
+    this.m_viaDrill.SetValue(this.m_settings.GetCustomViaDrill());
+
+    return true;
+  }
+}
+
+/** `ShowModal()` of DIALOG_TRACK_VIA_SIZE: `onClose( true )` is wxID_OK. */
+export function DialogTrackViaSize({
+  dialog,
+  onClose,
+}: {
+  dialog: DIALOG_TRACK_VIA_SIZE;
+  onClose: (aOk: boolean) => void;
+}): JSX.Element {
+  const [, bump] = useReducer((n: number) => n + 1, 0);
+  const [error, setError] = useState<DIALOG_TRACK_VIA_SIZE['m_error']>(null);
+  const diameterRef = useRef<HTMLInputElement>(null);
+  const drillRef = useRef<HTMLInputElement>(null);
+
+  // OnInitDialog -> TransferDataToWindow
+  useState(() => dialog.TransferDataToWindow());
+
+  const unit = (aBinder: UNIT_BINDER): UNIT => ({
+    value: aBinder.GetText(),
+    units: unitLabel(aBinder.GetUnits()),
+    onChange: (aText) => {
+      aBinder.SetText(aText);
+      bump();
+    },
+  });
 
   return (
-    <DialogShim title="Track Width and Via Size" onClose={onClose} className="ze-ctv-dialog">
-      {/* [data] `bSizes->Add( fgSizer1, 1, wxEXPAND|wxALL, 10 )`. */}
-      <div className="ze-modal-body ze-ctv-body">
-        {error && (
-          <div className="ze-pref-error" role="alert">
-            {error.message}
-          </div>
-        )}
-        <div className="ze-ctv-grid">
-          {row('Track width:', 'ze-ctv-track', trackWidth, setTrackWidth)}
-          {row('Via diameter:', 'ze-ctv-diameter', viaDiameter, setViaDiameter)}
-          {row('Via hole:', 'ze-ctv-drill', viaDrill, setViaDrill)}
-        </div>
-      </div>
+    <>
+      <DIALOG_TRACK_VIA_SIZE_BASE
+        m_trackWidth={unit(dialog.m_trackWidth)}
+        m_viaDiameter={{ ...unit(dialog.m_viaDiameter), inputRef: diameterRef }}
+        m_viaDrill={{ ...unit(dialog.m_viaDrill), inputRef: drillRef }}
+        onOK={() => {
+          if (dialog.TransferDataFromWindow()) onClose(true);
+          else {
+            setError(dialog.m_error);
+            dialog.m_error = null;
+          }
+        }}
+        onCancel={() => onClose(false)}
+      />
+      {error !== null && (
+        <MessageDialogError
+          message={error.message}
+          onClose={() => {
+            setError(null);
 
-      <div className="ze-modal-footer">
-        <button type="button" onClick={onClose}>
-          Cancel
-        </button>
-        <button type="button" className="primary" onClick={apply}>
-          OK
-        </button>
-      </div>
-    </DialogShim>
+            if (error.focus === 'drill') drillRef.current?.focus();
+            else if (error.focus === 'diameter') diameterRef.current?.focus();
+          }}
+        />
+      )}
+    </>
   );
 }

@@ -43,7 +43,9 @@ const BASELINE: Record<string, number> = {
   // one user, and goes when that dialog is converted. Its own .ze-padprops-dialog is deleted.
   // 467 -> 463 (10-11): DRC on its _base pair.
   // 463 -> 448 (10-11): Push Pad, Swap Layers, Enumerate Pads and Target Properties pairs.
-  pcbnew: 448,
+  // 448 -> 434 (10-11): Unused Pad Layers, Filter Selection, Offset Item, Track/Via Size and
+  // Diff Pair Dimensions pairs.
+  pcbnew: 434,
 };
 
 const git = (...aSpecs: string[]): string[] =>

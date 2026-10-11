@@ -5,10 +5,13 @@
  * `DIALOG_UNUSED_PAD_LAYERS` (pcbnew/dialogs/dialog_unused_pad_layers.cpp):
  * mark the copper layers of through-hole pads and vias that connect nothing as
  * removable ("Remove Unused Layers") or bring them all back ("Restore All
- * Layers"), on the selection or the whole board, as one commit. The window is
- * dialog_unused_pad_layers_ui.tsx.
+ * Layers"), on the selection or the whole board, as one commit. `DialogUnusedPadLayers` below
+ * is the window, DIALOG_UNUSED_PAD_LAYERS_BASE over the class.
  */
+import { type JSX, useState } from 'react';
+import { KiBitmapBundle } from '@ziroeda/common/bitmap.js';
 import type { EDA_ITEM } from '@ziroeda/common/eda_item.js';
+import type { CHECK } from '@ziroeda/wx/controls.js';
 import { BITMAPS } from '@ziroeda/include/bitmaps/bitmaps_list.js';
 import type { COMMIT } from '@ziroeda/common/commit.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
@@ -18,6 +21,7 @@ import { PAD_ATTRIB } from '../padstack.js';
 import type { PCB_BASE_FRAME } from '../pcb_base_frame.js';
 import type { PCB_VIA } from '../pcb_track.js';
 import { VIATYPE } from '../pcb_track_types.js';
+import { DIALOG_UNUSED_PAD_LAYERS_BASE } from './dialog_unused_pad_layers_base.js';
 
 export class DIALOG_UNUSED_PAD_LAYERS {
   m_cbVias = false;
@@ -122,4 +126,44 @@ export class DIALOG_UNUSED_PAD_LAYERS {
 
     this.m_commit.Push('Remove Unused Pads');
   }
+}
+
+type BOX = 'm_cbVias' | 'm_cbPads' | 'm_cbSelectedOnly' | 'm_cbPreserveExternalLayers';
+
+/** `ShowModal()` of DIALOG_UNUSED_PAD_LAYERS. */
+export function DialogUnusedPadLayers({
+  dialog,
+  onClose,
+}: {
+  dialog: DIALOG_UNUSED_PAD_LAYERS;
+  onClose: () => void;
+}): JSX.Element {
+  const [, redraw] = useState(0);
+  // syncImages is the handler of three of the boxes; it only re-reads GetImage().
+  const check = (aKey: BOX): CHECK => ({
+    value: dialog[aKey],
+    onChange: (aOn) => {
+      dialog[aKey] = aOn;
+      redraw((n) => n + 1);
+    },
+  });
+
+  return (
+    <DIALOG_UNUSED_PAD_LAYERS_BASE
+      m_cbVias={check('m_cbVias')}
+      m_cbPads={check('m_cbPads')}
+      m_cbSelectedOnly={check('m_cbSelectedOnly')}
+      m_cbPreserveExternalLayers={check('m_cbPreserveExternalLayers')}
+      image={KiBitmapBundle(dialog.GetImage())}
+      onOK={() => {
+        dialog.OnOK();
+        onClose();
+      }}
+      onApply={() => {
+        dialog.OnApply();
+        onClose();
+      }}
+      onCancel={onClose}
+    />
+  );
 }

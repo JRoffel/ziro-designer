@@ -7,11 +7,12 @@
  * once the user has drawn the offset with the ruler. It invites the user to
  * edit one offset vector, Cartesian or polar.
  *
- * The class is the dialog's logic and control state; the window is
- * `dialog_offset_item_ui.tsx`. `aOffset` is `OFFSET_VECTOR& aOffset`: the dialog
+ * The class is the dialog's logic and control state; `DialogOffsetItem` below is the window,
+ * DIALOG_OFFSET_ITEM_BASE over the class. `aOffset` is `OFFSET_VECTOR& aOffset`: the dialog
  * writes the edited vector back into the object it was given, in
  * `TransferDataFromWindow`.
  */
+import { type JSX, useEffect, useRef, useSyncExternalStore } from 'react';
 import { type EdaUnits, unitLabel } from '@ziroeda/common/eda_units.js';
 import { COORD_TYPES_T } from '@ziroeda/common/origin_transforms.js';
 import { UNIT_BINDER } from '@ziroeda/common/widgets/unit_binder.js';
@@ -20,6 +21,7 @@ import { KiROUND } from '@ziroeda/kimath/src/math/util.js';
 /** `OFFSET_VECTOR`, which the dialog writes through (`OFFSET_VECTOR& aOffset`). */
 export type OFFSET_VECTOR = { x: number; y: number };
 import type { PCB_BASE_FRAME } from '../pcb_base_frame.js';
+import { DIALOG_OFFSET_ITEM_BASE, type UNIT } from './dialog_offset_item_base.js';
 
 /** `DIALOG_OFFSET_ITEM_BASE`'s title. */
 export const DIALOG_OFFSET_ITEM_TITLE = 'Offset Item';
@@ -231,4 +233,55 @@ export class DIALOG_OFFSET_ITEM {
 
     return true;
   }
+}
+
+/** `ShowModal()` of DIALOG_OFFSET_ITEM: `onResult( true )` is wxID_OK after TransferDataFromWindow. */
+export function DialogOffsetItem({
+  dialog,
+  onResult,
+}: {
+  dialog: DIALOG_OFFSET_ITEM;
+  onResult: (aOk: boolean) => void;
+}): JSX.Element {
+  useSyncExternalStore(
+    (listener) => dialog.Subscribe(listener),
+    () => dialog.GetVersion(),
+  );
+
+  const xRef = useRef<HTMLInputElement>(null);
+
+  // `TransferDataToWindow()` when the dialog opens, then `SetInitialFocus( m_xEntry )`.
+  useEffect(() => {
+    dialog.TransferDataToWindow();
+    xRef.current?.focus();
+  }, [dialog]);
+
+  const unit = (aBinder: UNIT_BINDER, aLabel: string, aUnits: string): UNIT => ({
+    label: aLabel,
+    value: aBinder.GetText(),
+    units: aUnits,
+    onChange: (aText) => dialog.SetEntryText(aBinder, aText),
+    onBlur: () => dialog.OnTextFocusLost(aBinder),
+  });
+
+  return (
+    <DIALOG_OFFSET_ITEM_BASE
+      title={DIALOG_OFFSET_ITEM_TITLE}
+      m_xOffset={unit(dialog.m_xOffset, dialog.GetXLabel(), dialog.GetXUnitLabel())}
+      xEntryRef={xRef}
+      m_yOffset={unit(dialog.m_yOffset, dialog.GetYLabel(), dialog.GetYUnitLabel())}
+      clearXToolTip={dialog.m_clearXToolTip}
+      clearYToolTip={dialog.m_clearYToolTip}
+      onClearX={() => dialog.OnClear('x')}
+      onClearY={() => dialog.OnClear('y')}
+      m_polarCoords={{
+        value: dialog.m_polarCoords,
+        onChange: (aOn) => dialog.OnPolarChanged(aOn),
+      }}
+      onOK={() => {
+        if (dialog.TransferDataFromWindow()) onResult(true);
+      }}
+      onCancel={() => onResult(false)}
+    />
+  );
 }

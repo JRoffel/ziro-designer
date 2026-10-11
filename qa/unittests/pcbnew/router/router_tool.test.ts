@@ -7,6 +7,8 @@
  * it or Esc abandons the head, and the via and layer commands move the head
  * between copper layers mid-route.
  */
+import type { DIALOG_PNS_DIFF_PAIR_DIMENSIONS } from '@ziroeda/pcbnew/dialogs/dialog_pns_diff_pair_dimensions.js';
+import type { DIALOG_TRACK_VIA_SIZE } from '@ziroeda/pcbnew/dialogs/dialog_track_via_size.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import { LSET } from '@ziroeda/common/lset.js';
@@ -72,20 +74,28 @@ class ROUTER_TEST_FRAME extends TEST_PCB_FRAME {
   chosenLayer: PCB_LAYER_ID = PCB_LAYER_ID.UNDEFINED_LAYER;
   /** The ROUTING_SETTINGS the settings dialog was opened on. */
   pnsSettingsShown: RoutingSettings[] = [];
-  dpDimsAnswer: DP_DIMS | null = null;
-  trackViaAnswer: TRACK_VIA | null = null;
+  /** What the user types into the dialog before OK; null is Cancel. */
+  dpDimsAnswer: ((aDlg: DIALOG_PNS_DIFF_PAIR_DIMENSIONS) => void) | null = null;
+  trackViaAnswer: ((aDlg: DIALOG_TRACK_VIA_SIZE) => void) | null = null;
 
   ShowPnsSettingsDialog(aSettings: RoutingSettings): Promise<void> {
     this.pnsSettingsShown.push(aSettings);
     return Promise.resolve();
   }
 
-  ShowDiffPairDimensionsDialog(_aValue: DP_DIMS): Promise<DP_DIMS | null> {
-    return Promise.resolve(this.dpDimsAnswer);
+  /** ShowModal: OnInitDialog's TransferDataToWindow, the typing, then OK's TransferDataFromWindow. */
+  ShowDiffPairDimensionsDialog(aDlg: DIALOG_PNS_DIFF_PAIR_DIMENSIONS): Promise<boolean> {
+    aDlg.TransferDataToWindow();
+    if (!this.dpDimsAnswer) return Promise.resolve(false);
+    this.dpDimsAnswer(aDlg);
+    return Promise.resolve(aDlg.TransferDataFromWindow());
   }
 
-  ShowTrackViaSizeDialog(_aValue: TRACK_VIA): Promise<TRACK_VIA | null> {
-    return Promise.resolve(this.trackViaAnswer);
+  ShowTrackViaSizeDialog(aDlg: DIALOG_TRACK_VIA_SIZE): Promise<boolean> {
+    aDlg.TransferDataToWindow();
+    if (!this.trackViaAnswer) return Promise.resolve(false);
+    this.trackViaAnswer(aDlg);
+    return Promise.resolve(aDlg.TransferDataFromWindow());
   }
 
   override ShowInfoBarError(aErrorMsg: string): void {
@@ -95,18 +105,6 @@ class ROUTER_TEST_FRAME extends TEST_PCB_FRAME {
   SelectOneLayer(): Promise<PCB_LAYER_ID> {
     return Promise.resolve(this.chosenLayer);
   }
-}
-
-interface DP_DIMS {
-  width: number;
-  gap: number;
-  viaGap: number;
-  viaGapSameAsTraceGap: boolean;
-}
-
-interface TRACK_VIA {
-  trackWidth: number;
-  via: VIA_DIMENSION;
 }
 
 /** Let RunMainStackModal's promise settle and the coroutine resume. */
@@ -494,11 +492,12 @@ describe('ROUTER_TOOL dialogs (router_tool.cpp:1698-1727, 2874-2910)', () => {
 
   it('Differential Pair Dimensions: OK sets the router sizes and the board custom pair', async () => {
     arm();
-    h.frame.dpDimsAnswer = {
-      width: 0.3 * MM,
-      gap: 0.4 * MM,
-      viaGap: 0.5 * MM,
-      viaGapSameAsTraceGap: false,
+    h.frame.dpDimsAnswer = (d) => {
+      d.m_traceWidth.SetValue(0.3 * MM);
+      d.m_traceGap.SetValue(0.4 * MM);
+      d.m_viaTraceGapEqual = false;
+      d.OnViaTraceGapEqualCheck();
+      d.m_viaGap.SetValue(0.5 * MM);
     };
     h.mgr.RunAction(PCB_ACTIONS.routerDiffPairDialog);
     await settle();
@@ -518,7 +517,11 @@ describe('ROUTER_TOOL dialogs (router_tool.cpp:1698-1727, 2874-2910)', () => {
   });
 
   it('Custom Track/Via Size (Q) mid-route: the route continues at the custom width', async () => {
-    h.frame.trackViaAnswer = { trackWidth: 0.7 * MM, via: new VIA_DIMENSION(0.9 * MM, 0.45 * MM) };
+    h.frame.trackViaAnswer = (d) => {
+      d.m_trackWidth.SetValue(0.7 * MM);
+      d.m_viaDiameter.SetValue(0.9 * MM);
+      d.m_viaDrill.SetValue(0.45 * MM);
+    };
     arm();
     click(mm(40, 60));
     mouse(h, TA_MOUSE_MOTION, mm(44, 60));

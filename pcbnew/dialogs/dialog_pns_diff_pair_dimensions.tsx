@@ -2,133 +2,148 @@
 // Copyright (C) 2026 ZiroEDA and contributors.
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
 /**
- * Differential Pair Dimensions — what `DIFF_PAIR_MENU`'s "Use Custom Values..."
- * row opens. Counterparts: `pcbnew/dialogs/dialog_pns_diff_pair_dimensions.cpp`
- * and `dialog_pns_diff_pair_dimensions_base.cpp`.
+ * `DIALOG_PNS_DIFF_PAIR_DIMENSIONS` (pcbnew/dialogs/dialog_pns_diff_pair_dimensions.cpp): what
+ * `DIFF_PAIR_MENU`'s "Use Custom Values..." opens. It edits the `PNS::SIZES_SETTINGS` it is given
+ * - ROUTER_TOOL::DpDimensionsDialog's copy of the router's sizes - not BOARD_DESIGN_SETTINGS.
  *
- * Three rows of `fgSizer1 = new wxFlexGridSizer( 0, 3, 5, 0 )` with
- * `AddGrowableCol( 1 )`, then one checkbox and the standard buttons.
+ * It refuses a gap of zero with its own message ("Track gap must be greater than 0.") and
+ * focuses that field, and refuses nothing else: a width of zero is accepted. The "Via gap same
+ * as track gap" box greys the via gap row and writes the sizes as it is toggled
+ * (updateCheckbox).
  *
- * It is unlike its Track/Via sibling in three ways, and each is upstream's:
- *
- *  - it writes `PNS::SIZES_SETTINGS` rather than `BOARD_DESIGN_SETTINGS`, so
- *    what it sets is the live route's dimensions, not the board's stored
- *    custom values;
- *  - the "Via gap same as track gap" checkbox GREYS the via gap row rather than
- *    hiding it, and starts ticked — `m_viaTraceGapEqual->SetValue( true )` in
- *    the base file — so the via gap field is disabled on a first open;
- *  - it refuses a gap of zero with its own message ("Track gap must be greater
- *    than 0.") and focuses that field, and refuses NOTHING else. A width of
- *    zero is accepted.
- *
- * It also stamps `SetDiffPairGapSource( "user choice" )` and the width's, which
- * is the string `ROUTER_TOOL`'s status bar shows afterwards.
+ * `DialogPnsDiffPairDimensions` below is the window, DIALOG_PNS_DIFF_PAIR_DIMENSIONS_BASE over
+ * the class.
  */
-import { CheckBox, TextCtrl } from '@ziroeda/wx/controls.js';
-import { useState, type JSX } from 'react';
-import { DialogShim } from '@ziroeda/common/dialog_shim.js';
-import { pcbUnitText, pcbUnitValue, unitLabel } from '../pcb_unit_binder.js';
-import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
+import { type JSX, useReducer, useRef, useState } from 'react';
+import { MessageDialogError } from '@ziroeda/common/dialogs/dialog_message.js';
+import { unitLabel } from '@ziroeda/common/eda_units.js';
+import {
+  UNIT_BINDER,
+  type UNIT_BINDER_UNITS_PROVIDER,
+} from '@ziroeda/common/widgets/unit_binder.js';
+import type { PnsRouterSizes } from '../router/pns_router.js';
+import {
+  DIALOG_PNS_DIFF_PAIR_DIMENSIONS_BASE,
+  type UNIT,
+} from './dialog_pns_diff_pair_dimensions_base.js';
 
-/** The `PNS::SIZES_SETTINGS` members this dialog reads and writes, in IU. */
-export interface DiffPairDimensionsValue {
-  /** `DiffPairWidth()`. */
-  width: number;
-  /** `DiffPairGap()`. */
-  gap: number;
-  /** The raw `m_diffPairViaGap`. */
-  viaGap: number;
-  /** `DiffPairViaGapSameAsTraceGap()`. */
-  viaGapSameAsTraceGap: boolean;
+/** `SIZES_SETTINGS::DiffPairViaGap()`: the trace gap while "same as trace gap" holds. */
+function DiffPairViaGap(aSizes: PnsRouterSizes): number {
+  return aSizes.diffPairViaGapSameAsTraceGap ? aSizes.diffPairGap : aSizes.diffPairViaGap;
 }
 
-interface Props {
-  value: DiffPairDimensionsValue;
-  /** The frame's display units — all three fields are `UNIT_BINDER`s. */
-  units: StatusUnits;
-  onOk: (next: DiffPairDimensionsValue) => void;
-  onClose: () => void;
-}
+export class DIALOG_PNS_DIFF_PAIR_DIMENSIONS {
+  readonly m_traceWidth: UNIT_BINDER;
+  readonly m_traceGap: UNIT_BINDER;
+  readonly m_viaGap: UNIT_BINDER;
+  /** `m_viaTraceGapEqual->SetValue( true )` in the base. */
+  m_viaTraceGapEqual = true;
+  /** `DisplayErrorMessage` and the field `SetFocus()` goes to. */
+  m_error: { message: string; focus: 'gap' } | null = null;
 
-export function DialogPnsDiffPairDimensions({ value, units, onOk, onClose }: Props): JSX.Element {
-  const [width, setWidth] = useState(() => pcbUnitText(value.width, units));
-  const [gap, setGap] = useState(() => pcbUnitText(value.gap, units));
-  const [viaGap, setViaGap] = useState(() => pcbUnitText(value.viaGap, units));
-  const [same, setSame] = useState(value.viaGapSameAsTraceGap);
-  const [error, setError] = useState<string | null>(null);
+  private readonly m_sizes: PnsRouterSizes;
 
-  const row = (
-    label: string,
-    id: string,
-    text: string,
-    setText: (s: string) => void,
-    disabled = false,
-  ): JSX.Element => (
-    <>
-      <span className={`lbl${disabled ? ' disabled' : ''}`}>{label}</span>
-      <TextCtrl
-        value={text}
-        onChange={(aValue) => setText(aValue)}
-        disabled={disabled}
-        id={id}
-        className="ze-search"
-      />
-      <span className={`unit${disabled ? ' disabled' : ''}`}>{unitLabel(units)}</span>
-    </>
-  );
+  constructor(aParent: UNIT_BINDER_UNITS_PROVIDER, aSizes: PnsRouterSizes) {
+    this.m_traceWidth = new UNIT_BINDER(aParent, 'Width:');
+    this.m_traceGap = new UNIT_BINDER(aParent, 'Track gap:');
+    this.m_viaGap = new UNIT_BINDER(aParent, 'Via gap:');
+    this.m_sizes = aSizes;
+  }
 
-  // `TransferDataFromWindow`: the gap is the only value that can refuse.
-  const apply = (): void => {
-    const next: DiffPairDimensionsValue = {
-      width: pcbUnitValue(width, units),
-      gap: pcbUnitValue(gap, units),
-      viaGap: pcbUnitValue(viaGap, units),
-      viaGapSameAsTraceGap: same,
-    };
-
-    if (next.gap <= 0) {
-      setError('Track gap must be greater than 0.');
-      document.getElementById('ze-dpd-gap')?.focus();
-      return;
+  TransferDataFromWindow(): boolean {
+    if (this.m_traceGap.GetValue() <= 0) {
+      this.m_error = { message: 'Track gap must be greater than 0.', focus: 'gap' };
+      return false;
     }
 
-    onOk(next);
-  };
+    // Save widgets' values to settings
+    this.m_sizes.diffPairGap = this.m_traceGap.GetValue();
+    this.m_sizes.diffPairViaGap = this.m_viaGap.GetValue();
+    this.m_sizes.diffPairWidth = this.m_traceWidth.GetValue();
+
+    this.m_sizes.diffPairGapSource = 'user choice';
+    this.m_sizes.diffPairWidthSource = 'user choice';
+
+    return true;
+  }
+
+  TransferDataToWindow(): boolean {
+    this.m_traceWidth.SetValue(this.m_sizes.diffPairWidth);
+    this.m_traceGap.SetValue(this.m_sizes.diffPairGap);
+    this.m_viaGap.SetValue(DiffPairViaGap(this.m_sizes));
+    this.m_viaTraceGapEqual = this.m_sizes.diffPairViaGapSameAsTraceGap;
+    this.updateCheckbox();
+
+    return true;
+  }
+
+  private updateCheckbox(): void {
+    this.m_sizes.diffPairViaGapSameAsTraceGap = this.m_viaTraceGapEqual;
+    this.m_viaGap.Enable(!this.m_viaTraceGapEqual);
+  }
+
+  OnViaTraceGapEqualCheck(): void {
+    this.updateCheckbox();
+  }
+}
+
+/** `ShowModal()` of DIALOG_PNS_DIFF_PAIR_DIMENSIONS: `onClose( true )` is wxID_OK. */
+export function DialogPnsDiffPairDimensions({
+  dialog,
+  onClose,
+}: {
+  dialog: DIALOG_PNS_DIFF_PAIR_DIMENSIONS;
+  onClose: (aOk: boolean) => void;
+}): JSX.Element {
+  const [, bump] = useReducer((n: number) => n + 1, 0);
+  const [error, setError] = useState<string | null>(null);
+  const gapRef = useRef<HTMLInputElement>(null);
+
+  // OnInitDialog -> TransferDataToWindow
+  useState(() => dialog.TransferDataToWindow());
+
+  const unit = (aBinder: UNIT_BINDER): UNIT => ({
+    value: aBinder.GetText(),
+    units: unitLabel(aBinder.GetUnits()),
+    enabled: aBinder.IsEnabled(),
+    onChange: (aText) => {
+      aBinder.SetText(aText);
+      bump();
+    },
+  });
 
   return (
-    <DialogShim title="Differential Pair Dimensions" onClose={onClose} className="ze-dpd-dialog">
-      {/* [data] `bSizer7->Add( fgSizer1, 0, wxEXPAND|wxTOP|wxRIGHT|wxLEFT, 10 )`. */}
-      <div className="ze-modal-body ze-dpd-body">
-        {error && (
-          <div className="ze-pref-error" role="alert">
-            {error}
-          </div>
-        )}
-        <div className="ze-dpd-grid">
-          {row('Width:', 'ze-dpd-width', width, setWidth)}
-          {row('Track gap:', 'ze-dpd-gap', gap, setGap)}
-          {/* `updateCheckbox()` disables the row rather than hiding it, so the
-            value stays visible while it is not being used. */}
-          {row('Via gap:', 'ze-dpd-via-gap', viaGap, setViaGap, same)}
-        </div>
-
-        {/* [data] `bSizer7->Add( m_viaTraceGapEqual, 0, wxALL|wxEXPAND, 10 )`. */}
-        <CheckBox
-          label="Via gap same as track gap"
-          checked={same}
-          className="ze-pref-check ze-dpd-same"
-          onChange={(aChecked) => setSame(aChecked)}
+    <>
+      <DIALOG_PNS_DIFF_PAIR_DIMENSIONS_BASE
+        m_traceWidth={unit(dialog.m_traceWidth)}
+        m_traceGap={{ ...unit(dialog.m_traceGap), inputRef: gapRef }}
+        m_viaGap={unit(dialog.m_viaGap)}
+        m_viaTraceGapEqual={{
+          value: dialog.m_viaTraceGapEqual,
+          onChange: (aOn) => {
+            dialog.m_viaTraceGapEqual = aOn;
+            dialog.OnViaTraceGapEqualCheck();
+            bump();
+          },
+        }}
+        onOK={() => {
+          if (dialog.TransferDataFromWindow()) onClose(true);
+          else {
+            setError(dialog.m_error?.message ?? null);
+            dialog.m_error = null;
+          }
+        }}
+        onCancel={() => onClose(false)}
+      />
+      {error !== null && (
+        <MessageDialogError
+          message={error}
+          onClose={() => {
+            setError(null);
+            gapRef.current?.focus();
+          }}
         />
-      </div>
-
-      <div className="ze-modal-footer">
-        <button type="button" onClick={onClose}>
-          Cancel
-        </button>
-        <button type="button" className="primary" onClick={apply}>
-          OK
-        </button>
-      </div>
-    </DialogShim>
+      )}
+    </>
   );
 }
