@@ -287,7 +287,7 @@ import {
 } from './dialogs/dialog_cleanup_graphics.js';
 import { DialogUnusedPadLayers } from './dialogs/dialog_unused_pad_layers.js';
 import { DialogGlobalDeletion } from './dialogs/dialog_global_deletion.js';
-import { DialogGlobalEditTracksAndVias } from './dialogs/dialog_global_edit_tracks_and_vias_ui.js';
+import { DialogGlobalEditTracksAndVias } from './dialogs/dialog_global_edit_tracks_and_vias.js';
 import { DialogExchangeFootprints } from './dialogs/dialog_exchange_footprints.js';
 import { DialogNonCopperZonesProperties } from './dialogs/dialog_non_copper_zones_properties.js';
 import { DIALOG_NON_COPPER_ZONES_EDITOR } from './dialogs/dialog_non_copper_zones_properties.js';
@@ -295,7 +295,7 @@ import type { DIALOG_EXCHANGE_FOOTPRINTS } from './dialogs/dialog_exchange_footp
 import {
   DialogGlobalEditTextAndGraphics,
   type LAYER_DEFAULTS_ROW,
-} from './dialogs/dialog_global_edit_text_and_graphics_ui.js';
+} from './dialogs/dialog_global_edit_text_and_graphics.js';
 import type { DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS } from './dialogs/dialog_global_edit_text_and_graphics.js';
 import { LAYER_CLASS } from './board_design_settings.js';
 import type { DIALOG_GLOBAL_EDIT_TRACKS_AND_VIAS } from './dialogs/dialog_global_edit_tracks_and_vias.js';

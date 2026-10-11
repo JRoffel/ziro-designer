@@ -8,6 +8,14 @@
  * net class / custom rule values, applied to every visited item and saved as
  * one undo entry. The window is dialog_global_edit_tracks_and_vias_ui.tsx.
  */
+import { type JSX, useReducer, useState } from 'react';
+import { unitLabel } from '@ziroeda/common/eda_units.js';
+import type { CHECK } from '@ziroeda/wx/controls.js';
+import {
+  DIALOG_GLOBAL_EDIT_TRACKS_AND_VIAS_BASE,
+  type CHOICE_FIELD,
+  type UNIT_FIELD,
+} from './dialog_global_edit_tracks_and_vias_base.js';
 import { PCB_LAYER_ID, ToLAYER_ID } from '@ziroeda/common/layer_id.js';
 import { ITEM_PICKER, PICKED_ITEMS_LIST, UNDO_REDO } from '@ziroeda/common/undo_redo_container.js';
 import { INDETERMINATE_ACTION } from '@ziroeda/common/widgets/ui_common.js';
@@ -335,4 +343,155 @@ export class DIALOG_GLOBAL_EDIT_TRACKS_AND_VIAS {
 
     return true;
   }
+}
+
+/** A PCB_LAYER_BOX_SELECTOR row: the layer, its name and swatch. */
+export interface TRACKS_VIAS_LAYER_CHOICE {
+  layer: number;
+  label: string;
+  swatch?: string;
+}
+
+type FLAG =
+  | 'm_tracks'
+  | 'm_throughVias'
+  | 'm_microVias'
+  | 'm_blindVias'
+  | 'm_buriedVias'
+  | 'm_netFilterOpt'
+  | 'm_netclassFilterOpt'
+  | 'm_layerFilterOpt'
+  | 'm_filterByTrackWidth'
+  | 'm_filterByViaSize'
+  | 'm_selectedItemsFilter';
+
+/** `ShowModal()` of DIALOG_GLOBAL_EDIT_TRACKS_AND_VIAS, its base over the class. */
+export function DialogGlobalEditTracksAndVias({
+  dialog,
+  nets,
+  layers,
+  onClose,
+}: {
+  dialog: DIALOG_GLOBAL_EDIT_TRACKS_AND_VIAS;
+  nets: ReadonlyMap<number, string>;
+  layers: readonly TRACKS_VIAS_LAYER_CHOICE[];
+  onClose: () => void;
+}): JSX.Element {
+  const [, redraw] = useReducer((n: number) => n + 1, 0);
+
+  // OnInitDialog -> TransferDataToWindow
+  useState(() => dialog.TransferDataToWindow());
+
+  const close = (): void => {
+    dialog.OnClose();
+    onClose();
+  };
+  const flag = (aKey: FLAG): CHECK => ({
+    value: dialog[aKey],
+    onChange: (aOn) => {
+      dialog[aKey] = aOn;
+      redraw();
+    },
+  });
+  const choice = (c: CHOICE, aEnabled = true): CHOICE_FIELD => ({
+    items: c.items,
+    choice: {
+      value: c.selection,
+      enabled: aEnabled,
+      onChange: (aIndex) => {
+        c.selection = aIndex;
+        redraw();
+      },
+    },
+  });
+  const size = (b: UNIT_BINDER): UNIT_FIELD => ({
+    value: b.GetText(),
+    units: unitLabel(b.GetUnits()),
+    onChange: (aText) => {
+      b.SetText(aText);
+      redraw();
+    },
+  });
+  const rows = layers.map((l) => ({ value: String(l.layer), label: l.label, swatch: l.swatch }));
+  const off = !dialog.ActionControlsEnabled();
+
+  return (
+    <DIALOG_GLOBAL_EDIT_TRACKS_AND_VIAS_BASE
+      m_tracks={flag('m_tracks')}
+      m_vias={{
+        value: dialog.GetViasValue(),
+        onChange: (aValue) => {
+          dialog.OnVias(aValue === true);
+          redraw();
+        },
+      }}
+      m_throughVias={flag('m_throughVias')}
+      m_microVias={flag('m_microVias')}
+      m_blindVias={flag('m_blindVias')}
+      m_buriedVias={flag('m_buriedVias')}
+      m_netFilterOpt={flag('m_netFilterOpt')}
+      m_netFilter={{
+        netInfo: nets,
+        netcode: dialog.m_netFilter,
+        onChange: (aNetcode) => {
+          dialog.m_netFilter = aNetcode;
+          redraw();
+        },
+      }}
+      m_netclassFilterOpt={flag('m_netclassFilterOpt')}
+      m_netclassFilter={{
+        items: dialog.m_netclassNames,
+        choice: {
+          value: dialog.m_netclassNames.indexOf(dialog.m_netclassFilter),
+          onChange: (aIndex) => {
+            dialog.m_netclassFilter = dialog.m_netclassNames[aIndex]!;
+            redraw();
+          },
+        },
+      }}
+      m_layerFilterOpt={flag('m_layerFilterOpt')}
+      m_layerFilter={{
+        rows,
+        value: String(dialog.m_layerFilter),
+        onChange: (aLayer) => {
+          dialog.m_layerFilter = Number(aLayer);
+          redraw();
+        },
+      }}
+      m_filterByTrackWidth={flag('m_filterByTrackWidth')}
+      m_trackWidthFilter={size(dialog.m_trackWidthFilter)}
+      m_filterByViaSize={flag('m_filterByViaSize')}
+      m_viaSizeFilter={size(dialog.m_viaSizeFilter)}
+      m_selectedItemsFilter={flag('m_selectedItemsFilter')}
+      m_setToSpecifiedValues={{
+        value: dialog.m_setToSpecifiedValues,
+        onSelect: (aSpecified) => {
+          dialog.m_setToSpecifiedValues = aSpecified;
+          redraw();
+        },
+      }}
+      m_layerCtrl={{
+        // `_( "-- leave unchanged --  " )`, the box's first row.
+        rows: [{ value: String(-1), label: INDETERMINATE_ACTION }, ...rows],
+        value: String(dialog.m_layerCtrl),
+        enabled: !off,
+        onChange: (aLayer) => {
+          dialog.m_layerCtrl = Number(aLayer);
+          redraw();
+        },
+      }}
+      m_trackWidthCtrl={choice(dialog.m_trackWidthCtrl, !off)}
+      m_viaSizesCtrl={choice(dialog.m_viaSizesCtrl, !off)}
+      m_annularRingsCtrl={choice(dialog.m_annularRingsCtrl, !off)}
+      m_protectionFeatures={choice(dialog.m_protectionFeatures, !off)}
+      onOK={() => {
+        if (dialog.TransferDataFromWindow()) close();
+      }}
+      onApply={() => {
+        dialog.TransferDataFromWindow();
+        redraw();
+      }}
+      onCancel={close}
+    />
+  );
 }

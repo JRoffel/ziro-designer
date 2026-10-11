@@ -13,6 +13,16 @@
  * `m_isBoardEditor` is false in the footprint editor, which hides the board
  * scope boxes and the two parent filters and relabels the footprint boxes.
  */
+import { type JSX, useReducer, useState } from 'react';
+import { MessageDialogError } from '@ziroeda/common/dialogs/dialog_message.js';
+import { unitLabel } from '@ziroeda/common/eda_units.js';
+import type { CHECK } from '@ziroeda/wx/controls.js';
+import { wxGrid, wxGridCellAttr, wxGridCellBoolRenderer } from '@ziroeda/wx/grid.js';
+import type { CHECK3 } from '@ziroeda/wx/wx_checkbox.js';
+import {
+  DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS_BASE,
+  type UNIT_FIELD,
+} from './dialog_global_edit_text_and_graphics_base.js';
 import { GetPenSizeForBold, GetPenSizeForNormal } from '@ziroeda/common/gr_text.js';
 import type { EDA_ITEM } from '@ziroeda/common/eda_item.js';
 import { RECURSE_MODE } from '@ziroeda/common/eda_item.js';
@@ -415,4 +425,245 @@ function isEdaText(aItem: BOARD_ITEM): boolean {
     default:
       return false;
   }
+}
+
+/** A PCB_LAYER_BOX_SELECTOR row: the layer, its name and swatch. */
+export interface TEXT_GFX_LAYER_CHOICE {
+  layer: number;
+  label: string;
+  swatch?: string;
+}
+
+/** One layer class's defaults row of m_grid, already in the frame's units. */
+export interface LAYER_DEFAULTS_ROW {
+  name: string;
+  line: string;
+  width: string;
+  height: string;
+  thickness: string;
+  italic: boolean | null;
+  upright: boolean | null;
+}
+
+type FLAG =
+  | 'm_references'
+  | 'm_values'
+  | 'm_otherFootprintFields'
+  | 'm_footprintGraphics'
+  | 'm_footprintTexts'
+  | 'm_footprintDimensions'
+  | 'm_boardGraphics'
+  | 'm_boardText'
+  | 'm_boardDimensions'
+  | 'm_layerFilterOpt'
+  | 'm_referenceFilterOpt'
+  | 'm_footprintFilterOpt'
+  | 'm_selectedItemsFilter'
+  | 'm_centerOnFP';
+
+/** The headings the constructor writes into m_grid's row 0 (ROW_HEADER). */
+const GRID_HEADER = [
+  '',
+  'Line Thickness',
+  'Text Width',
+  'Text Height',
+  'Text Thickness',
+  'Italic',
+  'Keep Upright',
+];
+
+/** The constructor's m_grid: row 0 the headings, a row per layer class, bools as check boxes. */
+function layerDefaultsGrid(aRows: readonly LAYER_DEFAULTS_ROW[]): wxGrid {
+  const grid = new wxGrid();
+  grid.CreateGrid(aRows.length + 1, GRID_HEADER.length);
+  grid.EnableEditing(false);
+  GRID_HEADER.forEach((h, c) => grid.SetCellValue(0, c, h));
+
+  aRows.forEach((r, i) => {
+    const row = i + 1;
+    [r.name, r.line, r.width, r.height, r.thickness].forEach((v, c) =>
+      grid.SetCellValue(row, c, v),
+    );
+
+    for (const [col, v] of [
+      [5, r.italic],
+      [6, r.upright],
+    ] as const) {
+      const attr = new wxGridCellAttr();
+      attr.SetRenderer(new wxGridCellBoolRenderer());
+      grid.SetAttr(row, col, attr);
+      grid.SetCellValue(row, col, v ? '1' : '');
+    }
+  });
+
+  return grid;
+}
+
+/** `ShowModal()` of DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS, its base over the class. */
+export function DialogGlobalEditTextAndGraphics({
+  dialog,
+  layers,
+  defaults,
+  onClose,
+}: {
+  dialog: DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS;
+  layers: readonly TEXT_GFX_LAYER_CHOICE[];
+  defaults: readonly LAYER_DEFAULTS_ROW[];
+  onClose: () => void;
+}): JSX.Element {
+  const [, redraw] = useReducer((n: number) => n + 1, 0);
+  const [error, setError] = useState<string | null>(null);
+  const [grid] = useState(() => layerDefaultsGrid(defaults));
+
+  // OnInitDialog -> TransferDataToWindow
+  useState(() => dialog.TransferDataToWindow());
+
+  const close = (): void => {
+    dialog.OnClose();
+    onClose();
+  };
+  const flag = (aKey: FLAG, aEnabled = true): CHECK => ({
+    value: dialog[aKey],
+    enabled: aEnabled,
+    onChange: (aOn) => {
+      dialog[aKey] = aOn;
+      redraw();
+    },
+  });
+  const tri = (
+    aKey: 'm_visible' | 'm_bold' | 'm_italic' | 'm_keepUpright',
+    aEnabled: boolean,
+  ): CHECK3 => ({
+    value: dialog[aKey],
+    enabled: aEnabled,
+    onChange: (aValue) => {
+      dialog[aKey] = aValue;
+      if (aKey === 'm_bold') dialog.OnTextSize();
+      redraw();
+    },
+  });
+  const unit = (b: UNIT_BINDER, aEnabled: boolean, aOnText?: () => void): UNIT_FIELD => ({
+    label: b.GetLabel(),
+    value: b.GetText(),
+    units: unitLabel(b.GetUnits()),
+    enabled: aEnabled,
+    onChange: (aText) => {
+      b.SetText(aText);
+      aOnText?.();
+      redraw();
+    },
+  });
+  /** Validate, then TransferDataFromWindow: what OK and Apply share. */
+  const apply = (): boolean => {
+    const bad = dialog.ValidationError();
+
+    if (bad !== null) {
+      setError(`${bad.replace(/:$/, '')} must be between the minimum and maximum text size.`);
+      return false;
+    }
+
+    return dialog.TransferDataFromWindow();
+  };
+
+  const rows = layers.map((l) => ({ value: String(l.layer), label: l.label, swatch: l.swatch }));
+  const on = dialog.SpecifiedValuesEnabled();
+  const fp = dialog.FootprintScopeLabels();
+
+  return (
+    <>
+      <DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS_BASE
+        m_references={flag('m_references')}
+        m_boardGraphics={flag('m_boardGraphics')}
+        m_values={flag('m_values')}
+        m_boardText={flag('m_boardText')}
+        m_otherFootprintFields={flag('m_otherFootprintFields')}
+        m_boardDimensions={flag('m_boardDimensions')}
+        m_footprintGraphics={{ label: fp.graphics, check: flag('m_footprintGraphics') }}
+        m_footprintTexts={{ label: fp.texts, check: flag('m_footprintTexts') }}
+        m_footprintDimensions={{ label: fp.dimensions, check: flag('m_footprintDimensions') }}
+        boardItemsShown={dialog.m_isBoardEditor}
+        m_layerFilterOpt={flag('m_layerFilterOpt')}
+        m_layerFilter={{
+          rows,
+          value: String(dialog.m_layerFilter),
+          onChange: (aLayer) => {
+            dialog.m_layerFilter = Number(aLayer);
+            dialog.m_layerFilterOpt = true; // OnLayerFilterSelect
+            redraw();
+          },
+        }}
+        m_referenceFilterOpt={flag('m_referenceFilterOpt')}
+        m_referenceFilter={{
+          value: dialog.m_referenceFilter,
+          onChange: (aText) => {
+            dialog.m_referenceFilter = aText;
+            dialog.m_referenceFilterOpt = true; // OnReferenceFilterText
+            redraw();
+          },
+        }}
+        m_footprintFilterOpt={flag('m_footprintFilterOpt')}
+        m_footprintFilter={{
+          value: dialog.m_footprintFilter,
+          onChange: (aText) => {
+            dialog.m_footprintFilter = aText;
+            dialog.m_footprintFilterOpt = true; // OnFootprintFilterText
+            redraw();
+          },
+        }}
+        m_selectedItemsFilter={flag('m_selectedItemsFilter')}
+        m_setToSpecifiedValues={{
+          value: on,
+          onSelect: (aSpecified) => {
+            dialog.m_setToSpecifiedValues = aSpecified;
+            redraw();
+          },
+        }}
+        m_LayerCtrl={{
+          rows: [{ value: String(-1), label: INDETERMINATE_ACTION }, ...rows],
+          value: String(dialog.m_LayerCtrl),
+          enabled: on,
+          onChange: (aLayer) => {
+            dialog.m_LayerCtrl = Number(aLayer);
+            redraw();
+          },
+        }}
+        m_visible={tri('m_visible', on)}
+        m_lineWidth={unit(dialog.m_lineWidth, on)}
+        m_fontCtrl={{
+          face: dialog.m_fontCtrl === 'Default Font' ? '' : dialog.m_fontCtrl,
+          enabled: on,
+          onChange: (aFace) => {
+            dialog.m_fontCtrl = aFace === '' ? 'Default Font' : aFace;
+            redraw();
+          },
+        }}
+        m_bold={tri('m_bold', on)}
+        m_textWidth={unit(dialog.m_textWidth, on, () => dialog.OnTextSize())}
+        m_italic={tri('m_italic', on)}
+        m_textHeight={unit(dialog.m_textHeight, on, () => dialog.OnTextSize())}
+        m_keepUpright={tri('m_keepUpright', on)}
+        m_thickness={unit(dialog.m_thickness, dialog.ThicknessEnabled())}
+        m_autoTextThickness={{
+          checked: dialog.m_autoTextThickness,
+          enabled: on,
+          onClick: () => {
+            dialog.OnAutoTextThickness(!dialog.m_autoTextThickness);
+            redraw();
+          },
+        }}
+        m_centerOnFP={flag('m_centerOnFP', on)}
+        setToLayerDefaultsLabel={dialog.LayerDefaultsLabel()}
+        m_grid={grid}
+        onOK={() => {
+          if (apply()) close();
+        }}
+        onApply={() => {
+          apply();
+          redraw();
+        }}
+        onCancel={close}
+      />
+      {error !== null && <MessageDialogError message={error} onClose={() => setError(null)} />}
+    </>
+  );
 }
