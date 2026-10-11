@@ -7565,13 +7565,6 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
   overflow: auto;
   font-size: 12.5px;
 }
-/* m_textEntrySizer: caption column + growable value column, 12 px margin. */
-.ze-lp-entry {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  margin: 12px 12px 1px;
-}
 /* No `min-width: 0`. A wx sizer never lets a control fall below its own best
    size -- that is the guarantee CLAUDE.md names -- and `bSizer11` puts the
    hyperlink combo at `wxGBPosition( 10, 1 )` spanning FIVE columns with
@@ -7590,23 +7583,10 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
 .ze-lp-value:focus {
   border-color: var(--chrome-active-border);
 }
-.ze-lp-entry-row2 {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin: 0 12px 5px;
-}
 .ze-lp-check {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-}
-.ze-lp-syntax {
-  color: #6fa8ff;
-  text-decoration: none;
-}
-.ze-lp-syntax:hover {
-  text-decoration: underline;
 }
 /* sbFields: the grid plus its add / move / delete buttons. */
 .ze-lp-fields,
@@ -7996,86 +7976,6 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
   margin: 0 20px 20px;
   font-size: var(--ui-font-size-info);
   font-style: italic;
-}
-
-/* Text / Text Box Properties (dialog_text_properties_base.cpp): the entry grows
-   with the dialog, then a label | control grid for the formatting rows. */
-/* No width. `dialog_text_properties_base.cpp:20` is
-   `SetSizeHints( wxDefaultSize, wxDefaultSize )` and `:280` ends
-   `bMainSizer->Fit( this )`: the dialog is exactly as wide as its content
-   wants, and the content's floor is the text control's own
-   `SetMinSize( wxSize( 500, 140 ) )` (:71), which `.ze-tp-text` states. A
-   `width: 560px` here was a number nobody in KiCad wrote, and it was what
-   clipped the dialog and forced the body to scroll sideways. `.ze-modal` is
-   already `width: max-content`. */
-.ze-modal.ze-text-props {
-  height: auto;
-  max-height: 92vh;
-}
-.ze-tp-body {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  padding: 10px;
-  /* `overflow-y` only. `overflow: auto` on both axes made the BODY scroll
-     sideways instead of letting the dialog grow, so the dialog stayed at its
-     stated width and hid the right-hand end of every row. A wxDialog has no
-     horizontal scrollbar; it is fitted to its content and that is the end of
-     it. */
-  overflow-x: visible;
-  overflow-y: auto;
-  /* No `font-size`. This said 12.5px against the dialog's own 11pt / 14.67px —
-     KiCad calls SetFont on nothing in this dialog, so every control takes the
-     GUI font, which `.ze-app` already hands down. */
-}
-.ze-tp-entry {
-  display: flex;
-  align-items: flex-start;
-  gap: 5px;
-  margin-bottom: 5px;
-}
-/* `m_textCtrl->SetMinSize( wxSize( 500, 140 ) )`
-   (`dialog_text_properties_base.cpp:71`) -- the one control in this dialog that
-   states its own size, and the reason KiCad's Text box is so much taller than
-   the 96px we had guessed. */
-.ze-tp-text {
-  /* `m_textEntrySizer->Add( m_textCtrl, wxGBPosition( 0, 1 ), wxGBSpan( 1, 5 ),
-     wxEXPAND )` (`:73`) -- it spans every remaining column and fills them, so
-     the 500 below is a floor and not the width. */
-  width: 100%;
-  /* [data] SetMinSize( wxSize( 500, 140 ) ).x */
-  min-width: 500px;
-  /* [data] the same call's height. */
-  min-height: 140px;
-  resize: vertical;
-  font-family: inherit;
-}
-/* `m_textEntrySizer = new wxGridBagSizer( 2, 3 )` (`:32`): 2px between rows,
-   3px between columns. It was a uniform 5. */
-.ze-tp-grid {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  /* [data] wxGridBagSizer( 2, 3 ) -- vgap, hgap. */
-  gap: 2px 3px;
-}
-/* `m_textEntrySizer->SetEmptyCellSize( wxSize( 0, 6 ) )` (`:35`), and the
-   grid-bag deliberately skips rows 2, 5 and 9: the font row is 3, the border
-   checkbox 6 and the hyperlink 10. Those three gaps are real 6px bands, and
-   the last of them is the space above the Link row. */
-.ze-tp-gap {
-  grid-column: 1 / -1;
-  /* [data] SetEmptyCellSize( wxSize( 0, 6 ) ).y */
-  height: 6px;
-}
-.ze-tp-span {
-  grid-column: 1 / -1;
-  margin-top: 5px;
-}
-/* m_filledCtrl sits to the right of the Border checkbox (wxRIGHT 80). */
-.ze-tp-fill {
-  margin-left: 80px;
 }
 
 /* PAGED_DIALOG — the shell Preferences, Schematic Setup and Board Setup all
@@ -14204,6 +14104,14 @@ fieldset.ze-sbox > legend {
   margin-right: 4px;
   border: 1px solid #000; /* bmpDC.SetPen( *wxBLACK_PEN ) */
   box-sizing: content-box;
+}
+/* WX_COMBOBOX's SEPARATOR row: OnMeasureItem returns 11, and OnDrawItem draws a
+   1 px wxSYS_COLOUR_GRAYTEXT line across the middle. */
+.ze-combo-separator {
+  /* [data] WX_COMBOBOX::OnMeasureItem returns 11 for SEPARATOR. */
+  height: 11px;
+  background:
+    linear-gradient(var(--ctl-fg-disabled), var(--ctl-fg-disabled)) center / 100% 1px no-repeat;
 }
 .ze-combo-item {
   /* A wxChoice popup row is 30px, not a GtkMenu's 26 — measured on a real

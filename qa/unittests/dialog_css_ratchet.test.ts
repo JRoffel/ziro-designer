@@ -24,7 +24,9 @@ const BASELINE: Record<string, number> = {
   // 114 -> 122 (10-11): not new CSS. ze-lp-* classes the old Table Cell and Label forms shared
   // are Text / Sheet Properties' alone now (ze-lp-entry, -syntax, -fields, -shape, -options...),
   // and go with those dialogs; the ones nothing uses any more were deleted.
-  eeschema: 122,
+  // 122 -> 114 (10-11): Text Properties' pair; the .ze-tp-* form and the ze-lp-* classes it
+  // alone still used.
+  eeschema: 114,
   gerbview: 31,
   pagelayout_editor: 14,
   // 477 -> 465 (10-10): the drill and position-file dialogs on the sizers.

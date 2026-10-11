@@ -58,6 +58,7 @@ export const wxALL = wxTOP | wxBOTTOM | wxRIGHT | wxLEFT;
 /** Sizer item flags (wx/defs.h `wxStretch`, `wxAlignment`). Left and top are 0. */
 export const wxEXPAND = 0x2000;
 export const wxSHAPED = 0x4000;
+export const wxFIXED_MINSIZE = 0x8000;
 export const wxALIGN_LEFT = 0;
 export const wxALIGN_TOP = 0;
 export const wxALIGN_CENTER_HORIZONTAL = 0x0100;

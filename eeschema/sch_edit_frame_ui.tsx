@@ -182,7 +182,7 @@ import type { GRID_TEXT_BUTTON_HOST } from '@ziroeda/common/widgets/grid_text_bu
 import {
   DIALOG_TEXT_PROPERTIES,
   DialogTextProperties,
-  type TextPropsInitial,
+  type TEXT_DIALOG_VALUES,
 } from './dialogs/dialog_text_properties.js';
 import {
   DIALOG_SYMBOL_PROPERTIES,
@@ -1095,7 +1095,7 @@ export function SchematicEditor({
   } | null>(null);
   const [textDialog, setTextDialog] = useState<{
     dlg: DIALOG_TEXT_PROPERTIES;
-    shown: TextPropsInitial;
+    shown: TEXT_DIALOG_VALUES;
     resolve: (aId: number) => void;
   } | null>(null);
   /**
@@ -2312,19 +2312,6 @@ export function SchematicEditor({
     },
     [liveDocs, flatSheets],
   );
-
-  /** The link combo's page entries: "#<page>" labelled "Page 3 (Power)", as
-   *  DIALOG_TEXT_PROPERTIES fills m_hyperlinkCombo from Schematic().Hierarchy(). */
-  const linkPages = useMemo<{ value: string; label: string }[]>(() => {
-    return flatSheets.map((ref) => {
-      const page = pageNumberOf(ref.path);
-      const name =
-        ref.path === '/'
-          ? '<root sheet>'
-          : (sheetInstanceRefs.find((r) => r.path === ref.path)?.name ?? ref.file);
-      return { value: `#${page}`, label: `Page ${page} (${name})` };
-    });
-  }, [flatSheets, pageNumberOf, sheetInstanceRefs]);
 
   // DIALOG_SCH_FIND, modeless: SCH_BASE_FRAME::ShowFindReplaceDialog builds it through the
   // factory installed here; SCH_FIND_REPLACE_TOOL does the finding and reports on the info bar.
@@ -7482,16 +7469,11 @@ export function SchematicEditor({
 
       {textDialog && (
         <DialogTextProperties
+          dlg={textDialog.dlg}
           units={units}
-          kind={textDialog.dlg.IsTextBox() ? 'textbox' : 'text'}
-          pages={linkPages}
           initial={textDialog.shown}
           onOk={(values) => {
-            const error = textDialog.dlg.TransferDataFromWindow(values);
-            if (error) {
-              schFrameRef.current!.DisplayError(error);
-              return;
-            }
+            if (!textDialog.dlg.TransferDataFromWindow(values)) return;
             setTextDialog(null);
             textDialog.resolve(wxID_OK);
           }}

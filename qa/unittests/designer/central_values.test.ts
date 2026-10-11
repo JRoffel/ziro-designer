@@ -837,8 +837,9 @@ const BASELINE: Record<string, { colours: number; metrics: number }> = {
   // GRID_CELL_STATUS_ICON_RENDERER's wxART_BUTTON bitmap, 16 x 16.) Rescanned.
   // metrics 643 -> 642: .ze-help-label's margins went with it (StaticText states the label).
   // metrics 642 -> 631: Annotate's .ze-annotate-* block went with its _base pair.
-  // metrics 631 -> 629: the unused .ze-lp-multiline / .ze-lp-auto rules (Label Properties' pair).
-  'common/widgets': { colours: 127, metrics: 629 },
+  // metrics 631 -> 629: the unused .ze-lp-multiline / .ze-lp-auto rules (Label Properties' pair);
+  // colours 127 -> 126, metrics 629 -> 619: Text Properties' .ze-tp-* / .ze-lp-entry / -syntax rules.
+  'common/widgets': { colours: 126, metrics: 619 },
   // 10-10: metrics 1 -> 0, the menu drawing's one literal went to external/wx with it.
   'common/tool': { colours: 0, metrics: 0 },
   // metrics 0 -> 15 on 09-26: the stage-1 moves, 8 from `dialogs` and 7 from
@@ -1448,7 +1449,8 @@ describe('the scan totals, so the numbers in the PR stay true', () => {
     // CSS rebuilt from dialog_find_base.cpp.
     // 276 -> 275 (10-10): HK_PROMPT_DIALOG's invented var(--ze-border, #444) separator.
     // 275 -> 274 (10-10): DIALOG_PLOT's browse popup shadow, gone with its inline styles.
-    expect(SITES.filter((s) => s.kind === 'colours').length).toBe(274);
+    // 274 -> 273: .ze-lp-syntax's #6fa8ff (Text Properties' pair).
+    expect(SITES.filter((s) => s.kind === 'colours').length).toBe(273);
     // 1657 -> 1649: the same sweep. A native colour input has no useful
     // default size, so eight of the sixteen sites gave theirs an inline
     // width and height; the shared swatch takes --swatch-*-w/h. Rescanned.
@@ -1674,8 +1676,8 @@ describe('the scan totals, so the numbers in the PR stay true', () => {
     // 1001 -> 1000: Image Properties, the same row.
     // 1000 -> 996: the stroke dialogs (the two rows above).
     // 996 -> 985: the common/widgets row above.
-    // 985 -> 983: the common/widgets row above.
-    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(983);
+    // 985 -> 973: the common/widgets row above.
+    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(973);
   });
 
   it('and the two agree with the per-area table, which is where they come from', () => {

@@ -2,187 +2,117 @@
 // Copyright (C) 2026 ZiroEDA and contributors.
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
 /**
- * Text / Text Box Properties. Counterpart: `eeschema/dialogs/
- * dialog_text_properties.cpp` over `dialog_text_properties_base.cpp`, one
- * dialog serving SCH_TEXT and SCH_TEXTBOX, with the border/fill rows shown
- * only for the box:
+ * `DIALOG_TEXT_PROPERTIES` (eeschema/dialogs/dialog_text_properties.cpp) over
+ * DIALOG_TEXT_PROPERTIES_BASE: one dialog for SCH_TEXT and SCH_TEXTBOX, the border and fill rows
+ * shown only for the box. The class is the model half - the values the window shows
+ * (TransferDataToWindow), the SCH_COMMIT its OK makes (TransferDataFromWindow) and the
+ * constructor's choices; DialogTextProperties is the window, holding the controls' state and the
+ * small handlers (onBorderChecked, onFillChecked, onHyperlink*, the radio icon groups).
  *
- *   Text:  [ multi-line entry                    ]
- *   [ ] Exclude from simulation        Syntax help
- *   Font:      [Default Font]  | B I | ⇤ ⇔ ⇥ | ⤒ ⇕ ⤓ | ⇉ ⇊ |
- *   Text size: [    ] mm   Color: [swatch]
- *   [ ] Border                        [ ] Background fill
- *   Width:     [    ] mm   Color: [swatch]   Fill color: [swatch]
- *   Style:     [ Default ▾ ]
- *                                      [ Cancel ] [ OK ]
- *
- * The entry grows with the dialog (AddGrowableRow( 0 )), the icon bar carries
- * KiCad's own bitmaps in its order, bold, italic, the three horizontal and
- * three vertical alignments, then horizontal/vertical text, and the colour
- * swatches sit in their thin bordered frames.
- *
- * The font choice offers upstream's two built-in entries; the outline fonts
- * FONT_CHOICE also lists are not available, because this build draws every
- * face with KiCad's own stroke font (issue #154). The choice itself is stored,
- * so a file that names a face keeps it.
+ * The font choice offers upstream's two built-in entries plus whatever FONT_CHOICE lists here.
  */
-
-import { Button, CheckBox } from '@ziroeda/wx/controls.js';
-import { useEffect, useRef, useState, type JSX } from 'react';
-import { iuToMM, mmToIU } from '@ziroeda/common';
-import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
-import {
-  parseUnitValueDouble,
-  stringFromValue,
-  unitLabel,
-} from '@ziroeda/common/widgets/unit_binder.js';
-import { BitmapButton, BitmapButtonSeparator } from '@ziroeda/common/widgets/bitmap_button.js';
-import { ColorSwatch } from '@ziroeda/common/widgets/color_swatch.js';
-import { color4dToItemColor, type ItemColor, itemColorToColor4d } from './item_color.js';
-import {
-  LINE_STYLE_NAMES,
-  lineStyleComboValue,
-  type LineStyleToken,
-} from '@ziroeda/common/stroke_params.js';
-import { FontChoice } from '@ziroeda/common/widgets/font_choice.js';
-import { Combo } from '@ziroeda/wx/combobox.js';
-import { DialogShim } from '@ziroeda/common/dialog_shim.js';
+import { type JSX, useEffect, useRef, useState } from 'react';
+import { DisplayErrorMessage } from '@ziroeda/common/confirm.js';
 import { FILL_T } from '@ziroeda/common/eda_shape.js';
 import { EDA_TEXT } from '@ziroeda/common/eda_text.js';
 import { FONT } from '@ziroeda/common/font/font.js';
 import { GR_TEXT_H_ALIGN_T, GR_TEXT_V_ALIGN_T } from '@ziroeda/common/font/text_attributes.js';
-import { LINE_STYLE, lineTypeNames } from '@ziroeda/common/stroke_params.js';
+import type { Color4d } from '@ziroeda/common/gal/color4d.js';
+import { bitmapUrl } from '@ziroeda/common/bitmap_store.js';
+import {
+  LINE_STYLE,
+  LINE_STYLE_NAMES,
+  lineStyleComboValue,
+  lineTypeNames,
+} from '@ziroeda/common/stroke_params.js';
+import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
+import { UNIT_BINDER, unitLabel } from '@ziroeda/common/widgets/unit_binder.js';
+import { WX_COMBOBOX_SEPARATOR } from '@ziroeda/wx/combobox.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { ANGLE_HORIZONTAL, ANGLE_VERTICAL } from '@ziroeda/kimath/src/geometry/eda_angle.js';
+import { schIUScale } from '@ziroeda/common/eda_units.js';
 import { SCH_COMMIT } from '../sch_commit.js';
 import type { SCH_EDIT_FRAME } from '../sch_edit_frame.js';
 import type { SCH_TEXT } from '../sch_text.js';
 import type { SCH_TEXTBOX } from '../sch_textbox.js';
+import { DIALOG_TEXT_PROPERTIES_BASE, type ICON_BUTTON } from './dialog_text_properties_base.js';
 import { lineStyleOfToken, lineStyleToken } from './dialog_wire_bus_properties.js';
 
 export type HAlign = 'left' | 'center' | 'right';
 export type VAlign = 'top' | 'center' | 'bottom';
 
+/** m_hAlignLeft .. m_hAlignRight: bitmap and tooltip. */
 const H_BUTTONS: { value: HAlign; icon: string; title: string }[] = [
   { value: 'left', icon: 'text_align_left', title: 'Align left' },
   { value: 'center', icon: 'text_align_center', title: 'Align horizontal center' },
   { value: 'right', icon: 'text_align_right', title: 'Align right' },
 ];
 
+/** m_vAlignTop .. m_vAlignBottom. */
 const V_BUTTONS: { value: VAlign; icon: string; title: string }[] = [
   { value: 'top', icon: 'text_valign_top', title: 'Align top' },
   { value: 'center', icon: 'text_valign_center', title: 'Align vertical center' },
   { value: 'bottom', icon: 'text_valign_bottom', title: 'Align bottom' },
 ];
 
-/** Everything the dialog hands back (TransferDataFromWindow). */
-export interface TextPropsResult {
+/** m_borderStyleCombo: `lineTypeNames`, name and bitmap, in order. */
+const BORDER_STYLES = LINE_STYLE_NAMES.map((d) => ({
+  value: d.value,
+  label: d.label,
+  ...(d.bitmap && bitmapUrl(d.bitmap) ? { bitmap: bitmapUrl(d.bitmap)! } : {}),
+}));
+
+/** What the window's controls hold (TransferDataToWindow / TransferDataFromWindow). */
+export interface TEXT_DIALOG_VALUES {
   text: string;
   /** FONT_CHOICE: '' = Default Font, otherwise the face written to the file. */
   face: string;
   bold: boolean;
   italic: boolean;
-  sizeIU: number;
-  color?: ItemColor;
+  /** m_textSize's text, in the frame's units. */
+  size: string;
+  color: Color4d;
   hAlign: HAlign;
   vAlign: VAlign;
-  /** 0 or 90, the two orientation buttons (SetTextAngle). */
+  /** 0 or 90, m_horizontal / m_vertical. */
   angle: number;
   excludeFromSim: boolean;
-  /** `(hyperlink "…")`: a sheet page ("#3") or a URL; '' = none. */
+  /** m_hyperlinkCombo: a sheet page ("#3") or a URL; '' = none. */
   hyperlink: string;
+  /** m_hyperlinkCb. */
+  hyperlinkOn: boolean;
   /** Text box only: border and fill. */
-  border?: boolean;
-  borderWidthIU?: number;
-  borderColor?: ItemColor;
-  borderStyle?: string;
-  filled?: boolean;
-  fillColor?: ItemColor;
+  border: boolean;
+  /** m_borderWidth's text: empty when the box has no border. */
+  borderWidth: string;
+  borderColor: Color4d;
+  /** A `lineTypeNames` token. */
+  borderStyle: string;
+  filled: boolean;
+  fillColor: Color4d;
 }
 
-export interface TextPropsInitial extends TextPropsResult {}
-
-interface Props {
-  /** SCH_TEXT or SCH_TEXTBOX, the box adds the border and fill rows. */
-  kind: 'text' | 'textbox';
-  initial: TextPropsInitial;
-  /** The hierarchy's pages, for the link combo ("#3" — Page 3 (Power)). */
-  pages?: readonly { value: string; label: string }[];
-  /**
-   * The frame's display units, `EDA_DRAW_FRAME::GetUserUnits()`. Both size
-   * fields are `UNIT_BINDER`s upstream, so they format and parse in the frame's
-   * units and the label beside each carries the unit name. These printed "mm"
-   * whatever the frame was set to.
-   */
-  units: StatusUnits;
-  onOk: (result: TextPropsResult) => void;
-  onCancel: () => void;
-}
-
-/** `UNIT_BINDER::SetValue`: the frame's units, with the label carrying the name. */
-const sizeToText = (iu: number, units: StatusUnits): string =>
-  stringFromValue(iuToMM(iu), units, false);
-
-/** COLOR_SWATCH in its wxBORDER_SIMPLE panel, with KiCad's "unset" clear. */
-function Swatch({
-  color,
-  onChange,
-  title,
-}: {
-  color?: ItemColor;
-  onChange: (c: ItemColor | undefined) => void;
-  title: string;
-}): JSX.Element {
-  return (
-    <>
-      {/* COLOR_SWATCH: it draws the colour and opens DIALOG_COLOR_PICKER
-            (color_swatch.cpp:301-328), where an <input type="color"> handed
-            the job to the desktop's own popup - anchored to the control, so
-            off-screen near the window edge, and unable to carry alpha. */}
-      <span className="ze-lp-swatch-frame">
-        <ColorSwatch
-          className="ze-lp-swatch"
-          label={title}
-          color={itemColorToColor4d(color)}
-          onChange={(c) => onChange(color4dToItemColor(c))}
-        />
-      </span>
-    </>
-  );
-}
-
+/** DIALOG_TEXT_PROPERTIES' window over its base. */
 export function DialogTextProperties({
-  kind,
+  dlg,
   initial,
-  pages,
   units,
   onOk,
   onCancel,
-}: Props): JSX.Element {
-  const [text, setText] = useState(initial.text);
-  const [bold, setBold] = useState(initial.bold);
-  const [italic, setItalic] = useState(initial.italic);
-  const [hAlign, setHAlign] = useState<HAlign>(initial.hAlign);
-  const [vAlign, setVAlign] = useState<VAlign>(initial.vAlign);
-  const [angle, setAngle] = useState(initial.angle);
-  const [sizeText, setSizeText] = useState(() => sizeToText(initial.sizeIU, units));
-  const [color, setColor] = useState<ItemColor | undefined>(initial.color);
-  const [excludeFromSim, setExcludeFromSim] = useState(initial.excludeFromSim);
-  const [face, setFace] = useState(initial.face ?? '');
-  const [linkOn, setLinkOn] = useState(!!initial.hyperlink);
-  const [link, setLink] = useState(initial.hyperlink ?? '');
-  const [border, setBorder] = useState(initial.border ?? false);
-  const [borderWidth, setBorderWidth] = useState(() =>
-    sizeToText(initial.borderWidthIU ?? 0, units),
-  );
-  const [borderColor, setBorderColor] = useState<ItemColor | undefined>(initial.borderColor);
-  // Like DIALOG_SHAPE_PROPERTIES, the text-box border combo is filled from
-  // `lineTypeNames` alone (dialog_text_properties.cpp:66), so a border with no
-  // style of its own shows Solid rather than a "Default" entry upstream lacks.
-  const [borderStyle, setBorderStyle] = useState(lineStyleComboValue(initial.borderStyle));
-  const [filled, setFilled] = useState(initial.filled ?? false);
-  const [fillColor, setFillColor] = useState<ItemColor | undefined>(initial.fillColor);
+}: {
+  dlg: DIALOG_TEXT_PROPERTIES;
+  initial: TEXT_DIALOG_VALUES;
+  /** The frame's units, which both UNIT_BINDERs label their entries with. */
+  units: StatusUnits;
+  onOk: (aValues: TEXT_DIALOG_VALUES) => void;
+  onCancel: () => void;
+}): JSX.Element {
+  const [v, setV] = useState(initial);
+  // m_lastLink: what unticking Link cleared, put back when it is ticked again.
+  const [lastLink, setLastLink] = useState('');
   const textRef = useRef<HTMLTextAreaElement>(null);
+  const set = (patch: Partial<TEXT_DIALOG_VALUES>): void => setV((p) => ({ ...p, ...patch }));
+  const background = dlg.SwatchBackground();
 
   // SetInitialFocus( m_textCtrl ).
   useEffect(() => {
@@ -190,241 +120,94 @@ export function DialogTextProperties({
     textRef.current?.select();
   }, []);
 
-  const isBox = kind === 'textbox';
+  // onBorderChecked: ticking the border with no width gives it the default line width.
+  const onBorderChecked = (aOn: boolean): void =>
+    set({ border: aOn, ...(aOn ? { borderWidth: dlg.OnBorderChecked(v.borderWidth) } : {}) });
 
-  const submit = (): void => {
-    if (!text.trim()) return;
-    // `UNIT_BINDER::GetValue` — parsed in the frame's units, and a value that
-    // carries its own suffix is honoured.
-    const n = parseUnitValueDouble(sizeText, units);
-    const w = parseUnitValueDouble(borderWidth, units);
-    onOk({
-      text,
-      face,
-      hyperlink: linkOn ? link.trim() : '',
-      bold,
-      italic,
-      sizeIU: Number.isFinite(n) && n > 0 ? Math.round(mmToIU(n)) : initial.sizeIU,
-      ...(color ? { color } : {}),
-      hAlign,
-      vAlign,
-      angle,
-      excludeFromSim,
-      ...(isBox
-        ? {
-            border,
-            borderWidthIU: Number.isFinite(w) && w >= 0 ? Math.round(mmToIU(w)) : 0,
-            ...(borderColor ? { borderColor } : {}),
-            borderStyle,
-            filled,
-            ...(fillColor ? { fillColor } : {}),
-          }
-        : {}),
-    });
+  // onHyperlinkChecked.
+  const onHyperlinkChecked = (aOn: boolean): void => {
+    if (aOn && v.hyperlink === '') set({ hyperlinkOn: true, hyperlink: lastLink });
+    else if (!aOn && v.hyperlink !== '') {
+      setLastLink(v.hyperlink);
+      set({ hyperlinkOn: false, hyperlink: '' });
+    } else set({ hyperlinkOn: aOn });
   };
 
+  const icon = (
+    bitmap: string,
+    tooltip: string,
+    checked: boolean,
+    onClick: () => void,
+  ): ICON_BUTTON => ({ bitmap, tooltip, checked, onClick });
+
+  const choices = dlg.HyperlinkChoices();
+
   return (
-    <DialogShim
-      title={isBox ? 'Text Box Properties' : 'Text Properties'}
-      onClose={onCancel}
-      className="ze-text-props"
-    >
-      <div className="ze-modal-body ze-tp-body">
-        <div className="ze-tp-entry">
-          <span className="ze-lp-fmt-label">Text:</span>
-          <textarea
-            ref={textRef}
-            className="ze-lp-value ze-tp-text"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => e.stopPropagation()}
-          />
-        </div>
-
-        <div className="ze-lp-entry-row2">
-          <CheckBox
-            label="Exclude from simulation"
-            checked={excludeFromSim}
-            className="ze-lp-check"
-            onChange={(v) => setExcludeFromSim(v)}
-          />
-          <a
-            className="ze-lp-syntax"
-            href="https://docs.kicad.org/GetStarted#text"
-            target="_blank"
-            rel="noreferrer"
-            title="Show syntax help window"
-          >
-            Syntax help
-          </a>
-        </div>
-
-        <div className="ze-tp-grid">
-          {/* m_textEntrySizer row 2, left empty at SetEmptyCellSize's 6px. */}
-          <div className="ze-tp-gap" />
-
-          <span className="ze-lp-fmt-label">Font:</span>
-          {/* The shared FontChoice, which is `Combo` — our owner-drawn
-            combo, as FONT_CHOICE is wxOwnerDrawnComboBox. This was a
-            hand-rolled `<select>` saying the same thing in its own words. */}
-          {/* Row 3 of m_textEntrySizer holds BOTH: the font control at
-            (3,1) spanning two columns and `bSizeCtrlSizer` at (3,3)
-            spanning three (`dialog_text_properties_base.cpp:97,178`). The
-            bar was a direct grid child here, so `.ze-lp-iconbar`'s
-            `grid-column: 1 / -1` threw it onto a row of its own; nesting
-            it beside the font in one flex row is what the field dialog
-            already does. */}
-          <div className="ze-lp-sizerow">
-            <FontChoice face={face} onChange={setFace} />
-            <div className="ze-lp-iconbar">
-              <BitmapButtonSeparator />
-              <BitmapButton
-                bitmap="text_bold"
-                tooltip="Bold"
-                checked={bold}
-                onClick={() => setBold(!bold)}
-              />
-              <BitmapButton
-                bitmap="text_italic"
-                tooltip="Italic"
-                checked={italic}
-                onClick={() => setItalic(!italic)}
-              />
-              <BitmapButtonSeparator />
-              {H_BUTTONS.map((b) => (
-                <BitmapButton
-                  key={b.value}
-                  bitmap={b.icon}
-                  tooltip={b.title}
-                  checked={hAlign === b.value}
-                  onClick={() => setHAlign(b.value)}
-                />
-              ))}
-              <BitmapButtonSeparator />
-              {V_BUTTONS.map((b) => (
-                <BitmapButton
-                  key={b.value}
-                  bitmap={b.icon}
-                  tooltip={b.title}
-                  checked={vAlign === b.value}
-                  onClick={() => setVAlign(b.value)}
-                />
-              ))}
-              <BitmapButtonSeparator />
-              <BitmapButton
-                bitmap="text_horizontal"
-                tooltip="Horizontal"
-                checked={angle === 0}
-                onClick={() => setAngle(0)}
-              />
-              <BitmapButton
-                bitmap="text_vertical"
-                tooltip="Vertical"
-                checked={angle === 90}
-                onClick={() => setAngle(90)}
-              />
-              <BitmapButtonSeparator />
-            </div>
-          </div>
-
-          <span className="ze-lp-fmt-label">Text size:</span>
-          <div className="ze-lp-sizerow">
-            <input
-              className="ze-lp-size"
-              value={sizeText}
-              onChange={(e) => setSizeText(e.target.value)}
-              onKeyDown={(e) => e.stopPropagation()}
-            />
-            <span className="ze-lp-units">{unitLabel(units)}</span>
-            <span className="ze-lp-colorlabel">Color:</span>
-            <Swatch color={color} onChange={setColor} title="Text color" />
-          </div>
-
-          {isBox && (
-            <>
-              {/* row 5, empty. */}
-              <div className="ze-tp-gap" />
-              <label className="ze-lp-check ze-tp-span">
-                <input
-                  type="checkbox"
-                  checked={border}
-                  onChange={(e) => setBorder(e.target.checked)}
-                />
-                Border
-                <CheckBox
-                  label="Background fill"
-                  checked={filled}
-                  className="ze-lp-check ze-tp-fill"
-                  onChange={(v) => setFilled(v)}
-                />
-              </label>
-
-              <span className="ze-lp-fmt-label">Width:</span>
-              <div className="ze-lp-sizerow">
-                <input
-                  className="ze-lp-size"
-                  value={borderWidth}
-                  disabled={!border}
-                  onChange={(e) => setBorderWidth(e.target.value)}
-                  onKeyDown={(e) => e.stopPropagation()}
-                />
-                <span className="ze-lp-units">{unitLabel(units)}</span>
-                <span className="ze-lp-colorlabel">Color:</span>
-                <Swatch color={borderColor} onChange={setBorderColor} title="Border color" />
-                <span className="ze-lp-colorlabel">Fill color:</span>
-                <Swatch color={fillColor} onChange={setFillColor} title="Fill color" />
-              </div>
-
-              <span className="ze-lp-fmt-label">Style:</span>
-              <Combo
-                className="ze-lp-font"
-                value={borderStyle}
-                disabled={!border}
-                options={LINE_STYLE_NAMES.map((s) => ({ value: s.value, label: s.label }))}
-                onChange={(v) => setBorderStyle(v as LineStyleToken)}
-              />
-            </>
-          )}
-
-          {/* row 9, empty — the band above the Link row. */}
-          <div className="ze-tp-gap" />
-
-          {/* m_hyperlinkCb + m_hyperlinkCombo: a sheet page or a URL. */}
-          <CheckBox
-            label="Link:"
-            checked={linkOn}
-            className="ze-lp-check"
-            onChange={(v) => setLinkOn(v)}
-          />
-          <div className="ze-lp-sizerow">
-            <input
-              className="ze-lp-value"
-              list="ze-text-links"
-              disabled={!linkOn}
-              placeholder="#3, https://…"
-              value={link}
-              onChange={(e) => setLink(e.target.value)}
-              onKeyDown={(e) => e.stopPropagation()}
-            />
-            <datalist id="ze-text-links">
-              {(pages ?? []).map((p) => (
-                <option key={p.value} value={p.value}>
-                  {p.label}
-                </option>
-              ))}
-              <option value="file://" />
-              <option value="http://" />
-              <option value="https://" />
-            </datalist>
-          </div>
-        </div>
-      </div>
-
-      <div className="ze-modal-footer">
-        <Button label="Cancel" onClick={onCancel} />
-        <Button label="OK" isDefault disabled={!text.trim()} onClick={submit} />
-      </div>
-    </DialogShim>
+    <DIALOG_TEXT_PROPERTIES_BASE
+      title={dlg.Title()}
+      m_infoBar={dlg.InfoBarMessage()}
+      m_textCtrl={v.text}
+      onText={(t) => set({ text: t })}
+      textRef={textRef}
+      schematicOnlyShown
+      m_excludeFromSim={{ value: v.excludeFromSim, onChange: (on) => set({ excludeFromSim: on }) }}
+      onSyntaxHelp={() => dlg.ShowSyntaxHelp()}
+      font={v.face}
+      onFont={(f) => set({ face: f })}
+      m_bold={icon('text_bold', 'Bold', v.bold, () => set({ bold: !v.bold }))}
+      m_italic={icon('text_italic', 'Italic', v.italic, () => set({ italic: !v.italic }))}
+      // onHAlignButton / onVAlignButton / onTextAngleButton: each group is a radio set.
+      hAlign={H_BUTTONS.map((b) =>
+        icon(b.icon, b.title, v.hAlign === b.value, () => set({ hAlign: b.value })),
+      )}
+      vAlign={V_BUTTONS.map((b) =>
+        icon(b.icon, b.title, v.vAlign === b.value, () => set({ vAlign: b.value })),
+      )}
+      orientation={[
+        icon('text_horizontal', 'Horizontal text', v.angle === 0, () => set({ angle: 0 })),
+        icon('text_vertical', 'Vertical text', v.angle === 90, () => set({ angle: 90 })),
+      ]}
+      m_textSizeCtrl={v.size}
+      onTextSize={(t) => set({ size: t })}
+      units={unitLabel(units)}
+      m_textColorSwatch={{ color: v.color, background, onChange: (c) => set({ color: c }) }}
+      boxShown={dlg.IsTextBox()}
+      m_borderCheckbox={{ value: v.border, onChange: onBorderChecked }}
+      borderEnabled={v.border}
+      m_borderWidthCtrl={v.borderWidth}
+      onBorderWidth={(t) => set({ borderWidth: t })}
+      m_borderColorSwatch={{
+        color: v.borderColor,
+        background,
+        enabled: v.border,
+        onChange: (c) => set({ borderColor: c }),
+      }}
+      borderStyles={BORDER_STYLES}
+      m_borderStyleCombo={v.borderStyle}
+      onBorderStyle={(s) => set({ borderStyle: s })}
+      // onFillChecked: the fill colour follows the box.
+      m_filledCtrl={{ value: v.filled, onChange: (on) => set({ filled: on }) }}
+      m_fillColorSwatch={{
+        color: v.fillColor,
+        background,
+        enabled: v.filled,
+        onChange: (c) => set({ fillColor: c }),
+      }}
+      m_hyperlinkCb={{ value: v.hyperlinkOn, onChange: onHyperlinkChecked }}
+      m_hyperlinkCombo={v.hyperlink}
+      hyperlinkChoices={choices.map((c) => c.text)}
+      hyperlinkMenuText={choices.map((c) => c.menuText)}
+      // onHyperlinkText: typing a destination ticks Link.
+      onHyperlinkText={(t) => set({ hyperlink: t, ...(t !== '' ? { hyperlinkOn: true } : {}) })}
+      // onHyperlinkCombo: a destination picked from the list ticks Link.
+      onHyperlinkCombo={() => set({ hyperlinkOn: true })}
+      symbolEditorShown={false}
+      m_privateCheckbox={{ value: false, onChange: () => {} }}
+      m_commonToAllUnits={{ value: false, onChange: () => {} }}
+      m_commonToAllBodyStyles={{ value: false, onChange: () => {} }}
+      onOK={() => onOk(v)}
+      onCancel={onCancel}
+    />
   );
 }
 
@@ -445,26 +228,88 @@ export const INVALID_HYPERLINK_MESSAGE =
   'or "#<page number>" to create a hyperlink to a page in this schematic.';
 
 /**
- * `DIALOG_TEXT_PROPERTIES` (eeschema/dialogs/dialog_text_properties.cpp), the schematic editor's
- * model half for a live SCH_TEXT or SCH_TEXTBOX: the values the form shows (TransferDataToWindow)
- * and the SCH_COMMIT its OK makes (TransferDataFromWindow). The symbol editor's private and
- * common-to-units boxes belong to that frame and are not here.
+ * `DIALOG_TEXT_PROPERTIES` for a live SCH_TEXT or SCH_TEXTBOX in the schematic editor. The
+ * symbol editor's private and common-to-units boxes belong to that frame and are not here.
  */
 export class DIALOG_TEXT_PROPERTIES {
   private readonly m_frame: SCH_EDIT_FRAME;
   private readonly m_currentItem: SCH_TEXT | SCH_TEXTBOX;
+  private readonly m_textSize: UNIT_BINDER;
+  private readonly m_borderWidth: UNIT_BINDER;
+  private readonly m_hyperlinkChoices: { text: string; menuText?: string }[] = [];
 
   constructor(aParent: SCH_EDIT_FRAME, aItem: SCH_TEXT | SCH_TEXTBOX) {
     this.m_frame = aParent;
     this.m_currentItem = aItem;
+    this.m_textSize = new UNIT_BINDER(aParent, 'Text size:', (aMessage) =>
+      DisplayErrorMessage(aMessage),
+    );
+    this.m_borderWidth = new UNIT_BINDER(aParent, 'Width:', (aMessage) =>
+      DisplayErrorMessage(aMessage),
+    );
+
+    for (const sheet of aParent.Schematic().Hierarchy()) {
+      const sheetPageNum = sheet.GetPageNumber();
+      const sheetName = sheet.size() === 1 ? '<root sheet>' : (sheet.Last()?.GetName() ?? '');
+
+      this.m_hyperlinkChoices.push({
+        text: `#${sheetPageNum}`,
+        menuText: `Page ${sheetPageNum} (${sheetName})`,
+      });
+    }
+
+    this.m_hyperlinkChoices.push({ text: WX_COMBOBOX_SEPARATOR });
+    this.m_hyperlinkChoices.push({ text: 'file://', menuText: 'file://...' });
+    this.m_hyperlinkChoices.push({ text: 'http://', menuText: 'http://...' });
+    this.m_hyperlinkChoices.push({ text: 'https://', menuText: 'https://...' });
   }
 
   IsTextBox(): boolean {
     return this.m_currentItem.Type() === KICAD_T.SCH_TEXTBOX_T;
   }
 
+  /** `SetTitle( _( "Text Box Properties" ) )` for a box; the base's title otherwise. */
+  Title(): string {
+    return this.IsTextBox() ? 'Text Box Properties' : 'Text Properties';
+  }
+
+  /** The box's m_infoBar note when the theme overrides item colours, else null. */
+  InfoBarMessage(): string | null {
+    if (this.IsTextBox() && this.m_frame.GetColorSettings().GetOverrideSchItemColors())
+      return 'Note: individual item colors overridden in Preferences.';
+
+    return null;
+  }
+
+  /** m_hyperlinkCombo's Append()s: each sheet's page, then the separator and three schemes. */
+  HyperlinkChoices(): readonly { text: string; menuText?: string }[] {
+    return this.m_hyperlinkChoices;
+  }
+
+  /** `OnFormattingHelp()`: SCH_TEXT::ShowSyntaxHelp, the frame's syntax help window. */
+  ShowSyntaxHelp(): void {
+    this.m_frame.ShowBusSyntaxHelp();
+  }
+
+  /** `SetSwatchBackground( schematicBackground )`. */
+  SwatchBackground(): Color4d {
+    return this.m_frame.GetDrawBgColor();
+  }
+
+  /** `onBorderChecked()`: a border ticked with no width takes the default line thickness. */
+  OnBorderChecked(aWidthText: string): string {
+    this.m_borderWidth.SetText(aWidthText);
+
+    if (aWidthText.trim() === '' || this.m_borderWidth.GetValue() < 0) {
+      const defaultInMils = this.m_frame.eeconfig()?.drawing.default_line_thickness ?? 0;
+      this.m_borderWidth.SetValue(schIUScale.milsToIU(defaultInMils));
+    }
+
+    return this.m_borderWidth.GetText();
+  }
+
   /** `TransferDataToWindow()`. */
-  TransferDataToWindow(): TextPropsInitial {
+  TransferDataToWindow(): TEXT_DIALOG_VALUES {
     const item = this.m_currentItem;
     let text = item.GetText();
 
@@ -473,20 +318,27 @@ export class DIALOG_TEXT_PROPERTIES {
 
     if (schematic) text = schematic.ConvertKIIDsToRefs(text);
 
-    const values: TextPropsInitial = {
+    this.m_textSize.SetValue(item.GetTextWidth());
+
+    const values: TEXT_DIALOG_VALUES = {
       text,
       face: item.GetFont()?.GetName() ?? '',
       bold: item.IsBold(),
       italic: item.IsItalic(),
-      sizeIU: item.GetTextWidth(),
-      ...(color4dToItemColor(item.GetTextColor())
-        ? { color: color4dToItemColor(item.GetTextColor()) }
-        : {}),
+      size: this.m_textSize.GetText(),
+      color: item.GetTextColor(),
       hAlign: H_OF[item.GetHorizJustify()] ?? 'left',
       vAlign: V_OF[item.GetVertJustify()] ?? 'center',
       angle: item.GetTextAngle().IsVertical() ? 90 : 0,
       excludeFromSim: item.GetExcludedFromSim(),
       hyperlink: item.GetHyperlink(),
+      hyperlinkOn: !!item.GetHyperlink(),
+      border: false,
+      borderWidth: '',
+      borderColor: item.GetTextColor(),
+      borderStyle: lineStyleToken(LINE_STYLE.SOLID),
+      filled: false,
+      fillColor: item.GetTextColor(),
     };
 
     if (this.IsTextBox()) {
@@ -494,28 +346,43 @@ export class DIALOG_TEXT_PROPERTIES {
       const style = textBox.GetStroke().GetLineStyle();
 
       values.border = textBox.GetWidth() >= 0;
-      values.borderWidthIU = Math.max(0, textBox.GetWidth());
-      const borderColor = color4dToItemColor(textBox.GetStroke().GetColor());
-      if (borderColor) values.borderColor = borderColor;
-      values.borderStyle = lineTypeNames.has(style)
-        ? lineStyleToken(style)
-        : lineStyleToken(LINE_STYLE.SOLID);
+
+      if (textBox.GetWidth() >= 0) {
+        this.m_borderWidth.SetValue(textBox.GetWidth());
+        values.borderWidth = this.m_borderWidth.GetText();
+      }
+
+      values.borderColor = textBox.GetStroke().GetColor();
+      values.borderStyle = lineStyleComboValue(
+        lineTypeNames.has(style) ? lineStyleToken(style) : undefined,
+      );
       values.filled = textBox.IsSolidFill();
-      const fillColor = color4dToItemColor(textBox.GetFillColor());
-      if (fillColor) values.fillColor = fillColor;
+      values.fillColor = textBox.GetFillColor();
     }
 
     return values;
   }
 
   /**
-   * `TransferDataFromWindow()`. Returns the error to show when the dialog must stay open
-   * (an invalid hyperlink), else null.
+   * `TransferDataFromWindow()`. False keeps the dialog open: a text size out of range, or an
+   * invalid hyperlink, each reported through DisplayError.
    */
-  TransferDataFromWindow(aValues: TextPropsResult): string | null {
+  TransferDataFromWindow(aValues: TEXT_DIALOG_VALUES): boolean {
     const item = this.m_currentItem;
 
-    if (!EDA_TEXT.ValidateHyperlink(aValues.hyperlink)) return INVALID_HYPERLINK_MESSAGE;
+    this.m_textSize.SetText(aValues.size);
+    this.m_borderWidth.SetText(aValues.borderWidth);
+
+    // Don't allow text to disappear; it can be difficult to correct if you can't select it
+    if (!this.m_textSize.Validate(0.01, 1000.0, 'mm')) return false;
+
+    // Upstream checks the link after SetText() and returns with the commit unpushed, which leaves
+    // the item edited with no undo step; refusing before anything changes keeps the dialog's
+    // promise that Cancel leaves the item as it was.
+    if (!EDA_TEXT.ValidateHyperlink(aValues.hyperlink)) {
+      DisplayErrorMessage(INVALID_HYPERLINK_MESSAGE);
+      return false;
+    }
 
     const commit = new SCH_COMMIT(this.m_frame);
 
@@ -532,10 +399,11 @@ export class DIALOG_TEXT_PROPERTIES {
     // On Windows, a new line is coded as \r\n. We use only \n in KiCad files.
     item.SetText(text.replaceAll('\r', ''));
     item.SetExcludedFromSim(aValues.excludeFromSim);
+
     item.SetHyperlink(aValues.hyperlink);
 
-    if (item.GetTextWidth() !== aValues.sizeIU)
-      item.SetTextSize({ x: aValues.sizeIU, y: aValues.sizeIU });
+    if (item.GetTextWidth() !== this.m_textSize.GetValue())
+      item.SetTextSize({ x: this.m_textSize.GetIntValue(), y: this.m_textSize.GetIntValue() });
 
     item.SetFont(
       aValues.face === '' ? null : FONT.GetFont(aValues.face, aValues.bold, aValues.italic),
@@ -544,7 +412,7 @@ export class DIALOG_TEXT_PROPERTIES {
     // Must come after SetTextSize()
     item.SetBold(aValues.bold);
     item.SetItalic(aValues.italic);
-    item.SetTextColor(itemColorToColor4d(aValues.color));
+    item.SetTextColor(aValues.color);
 
     item.SetHorizJustify(
       aValues.hAlign === 'right'
@@ -566,16 +434,16 @@ export class DIALOG_TEXT_PROPERTIES {
       const textBox = item as SCH_TEXTBOX;
       const stroke = textBox.GetStroke();
 
-      if (aValues.border) stroke.SetWidth(Math.max(0, aValues.borderWidthIU ?? 0));
+      if (aValues.border) stroke.SetWidth(Math.max(0, this.m_borderWidth.GetIntValue()));
       else stroke.SetWidth(-1);
 
-      const style = lineStyleOfToken(aValues.borderStyle ?? 'solid');
+      const style = lineStyleOfToken(aValues.borderStyle);
       stroke.SetLineStyle(lineTypeNames.has(style) ? style : LINE_STYLE.SOLID);
-      stroke.SetColor(itemColorToColor4d(aValues.borderColor));
+      stroke.SetColor(aValues.borderColor);
       textBox.SetStroke(stroke);
 
       textBox.SetFillMode(aValues.filled ? FILL_T.FILLED_WITH_COLOR : FILL_T.NO_FILL);
-      textBox.SetFillColor(itemColorToColor4d(aValues.fillColor));
+      textBox.SetFillColor(aValues.fillColor);
 
       textBox.ClearBoundingBoxCache();
       textBox.ClearRenderCache();
@@ -600,6 +468,6 @@ export class DIALOG_TEXT_PROPERTIES {
 
     if (!commit.Empty()) commit.Push('Edit Text Properties');
 
-    return null;
+    return true;
   }
 }

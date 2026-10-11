@@ -300,6 +300,9 @@ export function Combo({
   );
 }
 
+/** WX_COMBOBOX's SEPARATOR (common/widgets/wx_combobox.cpp). */
+export const WX_COMBOBOX_SEPARATOR = '---';
+
 /**
  * A `wxComboBox` — the editable one: a text entry the user types into, with a drop-down of
  * suggestions beside it (the sheet pin's names, a label's existing values). Its list is drawn
@@ -316,10 +319,17 @@ export function TextCombo({
   title,
   autoFocus,
   ariaLabel,
+  menuText,
 }: {
   value: string;
   /** The suggestions; picking one replaces the entry's text. */
   options: readonly string[];
+  /**
+   * WX_COMBOBOX's `m_menuText`: what the list shows for option i, when that differs from the
+   * text it puts in the entry ("Page 2 (power)" for "#2"). A menu text of "---" is
+   * WX_COMBOBOX's SEPARATOR: an 11 px rule that cannot be picked.
+   */
+  menuText?: readonly (string | undefined)[];
   onChange: (value: string) => void;
   /** `wxEVT_COMBOBOX`: a suggestion picked from the list (after `onChange`), never typing. */
   onSelect?: (value: string) => void;
@@ -406,23 +416,38 @@ export function TextCombo({
           role="listbox"
           style={{ position: 'fixed', left: box.left, top: box.top, minWidth: box.width }}
         >
-          {options.map((o) => (
-            <div
-              key={o}
-              role="option"
-              aria-selected={o === value}
-              className={`ze-combo-item${o === value ? ' selected' : ''}`}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                onChange(o);
-                onSelect?.(o);
-                setOpen(false);
-                inputRef.current?.focus();
-              }}
-            >
-              {o}
-            </div>
-          ))}
+          {options.map((o, i) => {
+            const text = menuText?.[i] ?? o;
+            // TryVetoMouse / TryVetoSelect: a click on the separator is swallowed.
+            if (text === WX_COMBOBOX_SEPARATOR)
+              return (
+                <div
+                  // biome-ignore lint/suspicious/noArrayIndexKey: the list is static per open.
+                  key={i}
+                  role="separator"
+                  className="ze-combo-separator"
+                  onMouseDown={(e) => e.preventDefault()}
+                />
+              );
+            return (
+              <div
+                // biome-ignore lint/suspicious/noArrayIndexKey: the list is static per open.
+                key={i}
+                role="option"
+                aria-selected={o === value}
+                className={`ze-combo-item${o === value ? ' selected' : ''}`}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  onChange(o);
+                  onSelect?.(o);
+                  setOpen(false);
+                  inputRef.current?.focus();
+                }}
+              >
+                {text}
+              </div>
+            );
+          })}
         </div>
       )}
     </>

@@ -8,6 +8,7 @@
  */
 import { resolve } from 'node:path';
 import { GR_TEXT_H_ALIGN_T, GR_TEXT_V_ALIGN_T } from '@ziroeda/common/font/text_attributes.js';
+import { SetErrorPresenter } from '@ziroeda/common/confirm.js';
 import { PGM_BASE, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import {
@@ -17,7 +18,7 @@ import {
 import type { SCH_SYMBOL } from '@ziroeda/eeschema/sch_symbol.js';
 import { SCH_TEXT } from '@ziroeda/eeschema/sch_text.js';
 import { SCH_TEXTBOX } from '@ziroeda/eeschema/sch_textbox.js';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { openProject, schFrame, schToolHarness } from './support/sch_tool_harness.js';
 
 const ORACLE = resolve(__dirname, '../../data/eeschema/netlist_oracle/complex_hierarchy');
@@ -46,7 +47,7 @@ describe('DIALOG_TEXT_PROPERTIES', () => {
 
     expect(
       dlg.TransferDataFromWindow({ ...dlg.TransferDataToWindow(), text: `v=\${${ref}:VALUE}` }),
-    ).toBe(null);
+    ).toBe(true);
 
     expect(text.GetText()).toBe(`v=\${${root.Path().AsString()}/${symbol.m_Uuid}:VALUE}`);
     expect(new DIALOG_TEXT_PROPERTIES(h.frame, text).TransferDataToWindow().text).toBe(
@@ -58,9 +59,12 @@ describe('DIALOG_TEXT_PROPERTIES', () => {
     const { h, text, dlg } = setUp();
     const undo = h.frame.GetUndoCommandCount();
 
+    const error = vi.fn();
+    SetErrorPresenter(error);
     expect(
       dlg.TransferDataFromWindow({ ...dlg.TransferDataToWindow(), text: 'x', hyperlink: 'nope' }),
-    ).toBe(INVALID_HYPERLINK_MESSAGE);
+    ).toBe(false);
+    expect(error.mock.calls[0]?.[0]).toBe(INVALID_HYPERLINK_MESSAGE);
     expect(text.GetText()).toBe('hello');
     expect(h.frame.GetUndoCommandCount()).toBe(undo);
   });
@@ -71,7 +75,7 @@ describe('DIALOG_TEXT_PROPERTIES', () => {
 
     dlg.TransferDataFromWindow({
       ...dlg.TransferDataToWindow(),
-      sizeIU: 2540,
+      size: '0.254',
       hAlign: 'right',
       vAlign: 'bottom',
       angle: 90,
@@ -100,7 +104,7 @@ describe('DIALOG_TEXT_PROPERTIES', () => {
       ...dlg.TransferDataToWindow(),
       border: false,
       filled: true,
-      fillColor: [255, 0, 0, 1],
+      fillColor: { r: 1, g: 0, b: 0, a: 1 },
     });
 
     expect(box.GetWidth()).toBe(-1);
@@ -108,5 +112,29 @@ describe('DIALOG_TEXT_PROPERTIES', () => {
     const min = box.GetMinSize();
     expect(Math.abs(box.GetEnd().x - box.GetStart().x)).toBeGreaterThanOrEqual(min.x);
     expect(Math.abs(box.GetEnd().y - box.GetStart().y)).toBeGreaterThanOrEqual(min.y);
+  });
+
+  it('refuses a text size under 0.01 mm, and writes a ticked border at its width', () => {
+    const { h, text, dlg } = setUp();
+    const error = vi.fn();
+    SetErrorPresenter(error);
+    const width = text.GetTextWidth();
+    expect(dlg.TransferDataFromWindow({ ...dlg.TransferDataToWindow(), size: '0.001' })).toBe(
+      false,
+    );
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(text.GetTextWidth()).toBe(width);
+
+    const box = new SCH_TEXTBOX();
+    box.SetText('b');
+    h.frame.AddToScreen(box, h.frame.GetScreen());
+    const boxDlg = new DIALOG_TEXT_PROPERTIES(h.frame, box);
+    boxDlg.TransferDataFromWindow({
+      ...boxDlg.TransferDataToWindow(),
+      border: true,
+      borderWidth: '0.3',
+    });
+    // 0.3 mm in schematic IU (100 nm).
+    expect(box.GetWidth()).toBe(3000);
   });
 });
