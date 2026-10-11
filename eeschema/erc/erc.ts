@@ -2152,7 +2152,9 @@ import { LIB_ID as LIB_ID_LIVE } from '@ziroeda/common/lib_id.js';
 import { wxCmp } from '@ziroeda/wx/wxstring.js';
 import type { SCH_LABEL_BASE } from '../sch_label.js';
 import type { SCH_FIELD } from '../sch_field.js';
-import type { SCH_SHEET_PATH as SCH_SHEET_PATH_LIVE } from '../sch_sheet_path.js';
+import { SCH_SHEET_PATH as SCH_SHEET_PATH_LIVE } from '../sch_sheet_path.js';
+import type { SCH_TEXT } from '../sch_text.js';
+import type { SCH_TEXTBOX } from '../sch_textbox.js';
 import { RECURSE_MODE } from '@ziroeda/common/eda_item.js';
 import type { SCH_ITEM as SCH_ITEM_LIVE } from '../sch_item.js';
 import type { VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
@@ -3018,6 +3020,154 @@ export class ERC_TESTER {
   }
 
   /**
+   * `TestTextVars( aDrawingSheet )` (erc.cpp:186): every field, text, text box, sheet pin and
+   * symbol body text whose shown text still holds a `${...}` gets ERCE_UNRESOLVED_VARIABLE, and a
+   * `${ERC_WARNING msg}` / `${ERC_ERROR msg}` assertion anywhere in a text raises that generic
+   * marker instead. The drawing-sheet half waits for RunTests to be handed the drawing sheet.
+   */
+  TestTextVars(): void {
+    const project = this.m_schematic.Project();
+    const resolver = (aToken: { value: string }) => project.TextVarResolver(aToken);
+
+    // str.Matches( wxS( "*${*}*" ) )
+    const hasVar = (aStr: string): boolean => /\$\{[\s\S]*\}/.test(aStr);
+    const unresolved = (aStr: string): boolean => hasVar(ExpandEnvVarSubstitutions(aStr, resolver));
+
+    const testAssertion = (
+      aItem: SCH_ITEM_LIVE | null,
+      aSheet: SCH_SHEET_PATH_LIVE,
+      aScreen: SCH_SCREEN,
+      aText: string,
+      aPos: VECTOR2I,
+    ): boolean => {
+      // Match anywhere in the text; a `\${ERC_ERROR ...}` stays inert.
+      const reportEach = (aExpr: RegExp, aErrorCode: number): boolean => {
+        let found = false;
+        for (const m of aText.matchAll(aExpr)) {
+          found = true;
+          let ercText = m[2] ?? '';
+          const ercItem = ERC_ITEM.Create(aErrorCode)!;
+
+          if (aItem) ercItem.SetItems(aItem);
+          else ercText += ' (in drawing sheet)';
+
+          ercItem.SetSheetSpecificPath(aSheet);
+          ercItem.SetErrorMessage(ercText);
+          aScreen.Append(new SCH_MARKER_LIVE(ercItem, aPos));
+        }
+        return found;
+      };
+
+      const foundWarning = reportEach(
+        /(^|[^\\])\$\{ERC_WARNING\s*([^}]*)\}/g,
+        ERCE.ERCE_GENERIC_WARNING,
+      );
+      const foundError = reportEach(/(^|[^\\])\$\{ERC_ERROR\s*([^}]*)\}/g, ERCE.ERCE_GENERIC_ERROR);
+
+      return foundWarning || foundError;
+    };
+
+    const report = (
+      aOwner: SCH_ITEM_LIVE,
+      aSheet: SCH_SHEET_PATH_LIVE,
+      aScreen: SCH_SCREEN,
+      aPos: VECTOR2I,
+    ): void => {
+      const ercItem = ERC_ITEM.Create(ERCE.ERCE_UNRESOLVED_VARIABLE)!;
+      ercItem.SetItems(aOwner);
+      ercItem.SetSheetSpecificPath(aSheet);
+      aScreen.Append(new SCH_MARKER_LIVE(ercItem, aPos));
+    };
+
+    const testFields = (
+      aOwner: SCH_ITEM_LIVE,
+      aFields: readonly SCH_FIELD[],
+      aSheet: SCH_SHEET_PATH_LIVE,
+      aScreen: SCH_SCREEN,
+    ): void => {
+      for (const field of aFields) {
+        if (testAssertion(field, aSheet, aScreen, field.GetText(), field.GetPosition())) {
+          // Don't run unresolved test
+        } else if (unresolved(field.GetShownText(aSheet, true))) {
+          report(aOwner, aSheet, aScreen, field.GetPosition());
+        }
+      }
+    };
+
+    for (const sheet of this.m_sheetList) {
+      const screen = sheet.LastScreen()!;
+
+      // Snapshot before iterating: the loop body appends SCH_MARKERs to this same screen.
+      const items = [...screen.Items()];
+
+      for (const item of items) {
+        const type = item.Type();
+
+        if (type === KICAD_T_LIVE.SCH_SYMBOL_T) {
+          const symbol = item as SCH_SYMBOL;
+          testFields(symbol, symbol.GetFields(), sheet, screen);
+
+          symbol.GetLibSymbolRef()?.RunOnChildren((child) => {
+            if (
+              child.Type() !== KICAD_T_LIVE.SCH_TEXT_T &&
+              child.Type() !== KICAD_T_LIVE.SCH_TEXTBOX_T
+            )
+              return;
+
+            const text = child as SCH_TEXT | SCH_TEXTBOX;
+            const shown =
+              child.Type() === KICAD_T_LIVE.SCH_TEXT_T
+                ? (text as SCH_TEXT).GetShownText(sheet, true)
+                : (text as SCH_TEXTBOX).GetShownText(null, sheet, true);
+
+            if (testAssertion(symbol, sheet, screen, text.GetText(), text.GetPosition())) {
+              // Don't run unresolved test
+            } else if (unresolved(shown)) {
+              const bbox = symbol.GetTransform().TransformCoordinate(text.GetBoundingBox());
+              const c = bbox.Centre();
+              const pos = symbol.GetPosition();
+              report(symbol, sheet, screen, { x: c.x + pos.x, y: c.y + pos.y });
+            }
+          }, RECURSE_MODE.NO_RECURSE);
+        } else if (
+          type === KICAD_T_LIVE.SCH_LABEL_T ||
+          type === KICAD_T_LIVE.SCH_GLOBAL_LABEL_T ||
+          type === KICAD_T_LIVE.SCH_HIER_LABEL_T ||
+          type === KICAD_T_LIVE.SCH_DIRECTIVE_LABEL_T
+        ) {
+          const label = item as unknown as SCH_LABEL_BASE;
+          testFields(label as unknown as SCH_ITEM_LIVE, label.GetFields(), sheet, screen);
+        } else if (type === KICAD_T_LIVE.SCH_SHEET_T) {
+          const subSheet = item as unknown as SCH_SHEET;
+          testFields(subSheet as unknown as SCH_ITEM_LIVE, subSheet.GetFields(), sheet, screen);
+
+          const subSheetPath = new SCH_SHEET_PATH_LIVE(sheet);
+          subSheetPath.push_back(subSheet);
+
+          for (const pin of subSheet.GetPins()) {
+            if (hasVar(pin.GetShownText(subSheetPath, true)))
+              report(pin as unknown as SCH_ITEM_LIVE, sheet, screen, pin.GetPosition());
+          }
+        } else if (type === KICAD_T_LIVE.SCH_TEXT_T) {
+          const text = item as SCH_TEXT;
+          if (testAssertion(text, sheet, screen, text.GetText(), text.GetPosition())) {
+            // Don't run unresolved test
+          } else if (hasVar(text.GetShownText(sheet, true))) {
+            report(text, sheet, screen, text.GetPosition());
+          }
+        } else if (type === KICAD_T_LIVE.SCH_TEXTBOX_T) {
+          const textBox = item as SCH_TEXTBOX;
+          if (testAssertion(textBox, sheet, screen, textBox.GetText(), textBox.GetPosition())) {
+            // Don't run unresolved test
+          } else if (hasVar(textBox.GetShownText(null, sheet, true))) {
+            report(textBox, sheet, screen, textBox.GetPosition());
+          }
+        }
+      }
+    }
+  }
+
+  /**
    * Check for field names with leading or trailing whitespace, on symbols and sheets.
    *
    * @return the warning count
@@ -3588,7 +3738,7 @@ export class ERC_TESTER {
     if (this.m_settings.IsTestEnabled(ERCE.ERCE_SAME_LOCAL_GLOBAL_LABEL))
       this.TestSameLocalGlobalLabel();
 
-    // Pending: TestTextVars.
+    if (this.m_settings.IsTestEnabled(ERCE.ERCE_UNRESOLVED_VARIABLE)) this.TestTextVars();
 
     if (this.m_settings.IsTestEnabled(ERCE.ERCE_FIELD_NAME_WHITESPACE))
       this.TestFieldNameWhitespace();

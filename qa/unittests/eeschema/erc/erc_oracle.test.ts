@@ -29,7 +29,6 @@ const ORACLE = join(DATA, 'erc_oracle');
 
 /** The types only the ERC_TESTER tests still pending produce (erc.ts' RunTests). */
 const PENDING = new Set([
-  'unresolved_variable',
   'simulation_model_issue',
   'lib_symbol_issues',
   'lib_symbol_mismatch',
@@ -145,7 +144,7 @@ function runErc(aDir: string, aSource: string): Report {
 const FILES = readdirSync(ORACLE).filter((f) => f.endsWith('.json'));
 
 describe('ERC_TESTER against kicad-cli sch erc', () => {
-  it('has the oracle', () => expect(FILES.length).toBe(49));
+  it('has the oracle', () => expect(FILES.length).toBe(50));
 
   for (const f of FILES) {
     it(f, { timeout: 120_000 }, () => {
