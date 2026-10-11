@@ -108,7 +108,7 @@ import { ZOOM_TOOL } from '@ziroeda/common/tool/zoom_tool.js';
 import { PICKER_TOOL } from '@ziroeda/common/tool/picker_tool.js';
 import { SCH_SELECTION_TOOL } from './tools/sch_selection_tool.js';
 import { findItemsFromSyncSelection } from './cross-probing.js';
-import type { KIID } from '@ziroeda/common/kiid.js';
+import { type KIID, kiidFromString } from '@ziroeda/common/kiid.js';
 import { wxID_CANCEL, wxID_OK } from '@ziroeda/wx/menu.js';
 import { EVENTS } from '@ziroeda/common/tool/tool_event.js';
 import { VIEW_UPDATE_FLAGS } from '@ziroeda/common/view/view_item.js';
@@ -123,7 +123,7 @@ import type { PICKED_SYMBOL } from './sch_screen.js';
 import type { LIB_SYMBOL } from './lib_symbol.js';
 import type { LIB_ID } from '@ziroeda/common/lib_id.js';
 import type { SCH_SHEET } from './sch_sheet.js';
-import type { SCH_SHEET_PATH } from './sch_sheet_path.js';
+import { SCH_SHEET_PATH } from './sch_sheet_path.js';
 import { SCH_CLEANUP_FLAGS, SCHEMATIC } from './schematic.js';
 import { SCH_UNDO_REDO_MIXIN } from './schematic_undo_redo.js';
 import { SCH_DESIGN_BLOCK_UTILS_MIXIN } from './sch_design_block_utils.js';
@@ -2078,6 +2078,22 @@ export class SCH_EDIT_FRAME extends SCH_BASE_FRAME implements SCHEMATIC_HOLDER {
 
           if (this.hooks.crossProbingSettings().flash_selection && items.length > 0)
             this.StartCrossProbeFlash(items);
+        }
+
+        break;
+      }
+
+      case MAIL_T.MAIL_SCH_GET_ITEM: {
+        const uuid = kiidFromString(payload);
+        const path = new SCH_SHEET_PATH();
+        const item = this.Schematic().ResolveItem(uuid, path, true);
+
+        if (item) {
+          if (item.Type() === KICAD_T.SCH_SHEET_T)
+            mail.SetPayload((item as SCH_SHEET).GetShownName(false));
+          else if (item.Type() === KICAD_T.SCH_SYMBOL_T)
+            mail.SetPayload((item as SCH_SYMBOL).GetRef(path, true));
+          else mail.SetPayload(item.GetFriendlyName());
         }
 
         break;
