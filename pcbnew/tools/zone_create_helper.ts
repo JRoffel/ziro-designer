@@ -37,7 +37,7 @@ import type { BOARD_ITEM } from '../board_item.js';
 import type { BOARD_ITEM_CONTAINER } from '../board_item_container.js';
 import { DIALOG_NON_COPPER_ZONES_EDITOR } from '../dialogs/dialog_non_copper_zones_properties.js';
 import { DIALOG_RULE_AREA_PROPERTIES } from '../dialogs/dialog_rule_area_properties.js';
-import { DIALOG_COPPER_ZONE } from '../dialogs/panel_zone_properties.js';
+import { DIALOG_COPPER_ZONE } from '../dialogs/dialog_copper_zones.js';
 import type { PCB_BASE_EDIT_FRAME } from '../pcb_base_edit_frame.js';
 import { PCB_SHAPE } from '../pcb_shape.js';
 import { TEARDROP_TYPE } from '../teardrop/teardrop_parameters.js';

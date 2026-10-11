@@ -60,7 +60,7 @@ import {
   PANEL_ZONE_PROPERTIES,
   type PANEL_ZONE_PROPERTIES_FRAME,
 } from '../dialogs/panel_zone_properties.js';
-import { PanelZoneProperties } from '../dialogs/panel_zone_properties_ui.js';
+import { PanelZoneProperties } from '../dialogs/panel_zone_properties.js';
 import type { ZONE } from '../zone.js';
 import {
   DIALOG_ZONE_MANAGER,

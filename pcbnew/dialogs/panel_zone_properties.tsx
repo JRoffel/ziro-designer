@@ -16,6 +16,11 @@
  * The zone's *outline* is not edited here; that is the point editor's job.
  */
 
+import { type JSX, useState } from 'react';
+import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
+import { pcbUnitText, pcbUnitValue, unitLabel } from '../pcb_unit_binder.js';
+import { ZoneLayerPropertiesGrid } from '../zone_layer_properties_grid.js';
+import { PANEL_ZONE_PROPERTIES_BASE, type UNIT_FIELD } from './panel_zone_properties_base.js';
 import { pcbIUScale } from '@ziroeda/common/eda_units.js';
 import { LSET_Name, LSET_NameToLayer } from '@ziroeda/common/layer_ids.js';
 import { LSET } from '@ziroeda/common/lset.js';
@@ -288,99 +293,6 @@ export function acceptZoneOptions(
   return { ok: true };
 }
 
-/**
- * `DIALOG_COPPER_ZONE` + `PANEL_ZONE_PROPERTIES` on a live copper ZONE, as
- * `PCB_EDIT_FRAME::Edit_Zone_Params` (edit_zone_helpers.cpp:41-85) drives
- * them: the settings are the board's default zone settings with the zone
- * read over them (`zoneInfo << *aZone`); OK runs AcceptOptions (:344-455) and
- * the dialog's layer check, then one BOARD_COMMIT, "Edit Zone Properties":
- * `ExportSetting` onto the zone, the net when the board has it, and the
- * settings (net orphaned) become the board's default zone settings.
- *
- * The panel edits neither the priority, the hatch hole area nor the fill
- * state, so the values' `priority`, `hatchHoleMinArea` and `filled` are shown
- * and not written. Refilling is BOARD_COMMIT's, under the frame's "Auto-refill
- * zones" setting (board_commit.cpp:229), not this dialog's.
- */
-export class DIALOG_COPPER_ZONE {
-  private readonly m_frame: PCB_BASE_EDIT_FRAME;
-  private readonly m_zone: ZONE | null;
-  private readonly m_settings: ZONE_SETTINGS;
-  /** `m_ptr`: the caller's settings, written on OK when there is no zone. */
-  private readonly m_ptr: ZONE_SETTINGS | null;
-  /** `m_convertSettings`: CONVERT_TOOL's, when it opens the dialog. */
-  readonly m_convertSettings: CONVERT_SETTINGS | null;
-
-  /**
-   * On a live zone, as `Edit_Zone_Params` opens it; or, with `aZone` null, on
-   * `aSettings` alone, as `InvokeCopperZonesEditor( frame, nullptr, &zoneInfo,
-   * &convertSettings )` does for CONVERT_TOOL - no commit, the settings come
-   * back through `*m_ptr`.
-   */
-  constructor(
-    aFrame: PCB_BASE_EDIT_FRAME,
-    aZone: ZONE | null,
-    aSettings: ZONE_SETTINGS | null = null,
-    aConvertSettings: CONVERT_SETTINGS | null = null,
-  ) {
-    this.m_frame = aFrame;
-    this.m_zone = aZone;
-    this.m_ptr = aSettings;
-    this.m_convertSettings = aConvertSettings;
-
-    if (aZone) {
-      this.m_settings = aFrame.GetDesignSettings().GetDefaultZoneSettings().clone();
-      this.m_settings.importFrom(aZone);
-    } else {
-      this.m_settings = aSettings!.clone();
-    }
-  }
-
-  private copperLayerCount(): number {
-    return (this.m_zone?.GetBoard() ?? this.m_frame.GetBoard())?.GetCopperLayerCount() ?? 2;
-  }
-
-  /** The "Conversion Settings" box's controls, or null when there is none. */
-  TransferConversionToWindow(): ConversionBoxValues | null {
-    return this.m_convertSettings ? CONVERSION_BOX.ToWindow(this.m_convertSettings, false) : null;
-  }
-
-  /** TransferZoneSettingsToWindow (:139-237), plus the dialog's layer list. */
-  TransferDataToWindow(): ZoneValues {
-    return zoneSettingsToValues(this.m_settings, this.m_zone, this.copperLayerCount());
-  }
-
-  /** AcceptOptions (:344-455): false where a validator refuses. */
-  private acceptOptions(v: ZoneValues): TransferResult {
-    return acceptZoneOptions(this.m_settings, v, this.m_zone, false, this.m_frame.GetBoard());
-  }
-
-  TransferDataFromWindow(
-    v: ZoneValues,
-    aConversion: ConversionBoxValues | null = null,
-  ): TransferResult {
-    // DIALOG_COPPER_ZONE::TransferDataFromWindow's layer check comes first.
-    const layers = layerSetOfTokens(v.layers);
-
-    if (layers.none()) return { ok: false, message: 'No layer selected.' };
-
-    this.m_settings.m_Layers = layers;
-
-    const accepted = this.acceptOptions(v);
-    if (!accepted.ok) return accepted;
-
-    if (this.m_convertSettings && aConversion)
-      CONVERSION_BOX.FromWindow(this.m_convertSettings, aConversion, false);
-
-    // `*m_ptr = *m_zoneSettingsBag.GetZoneSettings( m_zone )`: with no zone,
-    // the caller's settings; with one, Edit_Zone_Params' commit.
-    if (this.m_zone) editZoneParamsCommit(this.m_frame, this.m_zone, this.m_settings);
-    else this.m_ptr!.CopyFrom(this.m_settings, true);
-
-    return { ok: true };
-  }
-}
-
 // ---------------------------------------------------------------------------
 // PANEL_ZONE_PROPERTIES: the panel both the Copper Zone dialog and the Zone
 // Manager put a zone's fields in
@@ -595,4 +507,189 @@ export class PANEL_ZONE_PROPERTIES {
 
     return r.ok;
   }
+}
+
+/** `m_PadInZoneOptChoices` (`panel_zone_properties_base.cpp:105`), in order. */
+const PAD_CONNECTION = ['full', 'thermal', 'thru_hole_only', 'none'] as const;
+/** `m_OutlineDisplayCtrlChoices` (`:166`). */
+const OUTLINE_DISPLAY_CHOICES = ['none', 'edge', 'full'] as const;
+/** `m_cornerSmoothingChoiceChoices` (`:344`). */
+const CORNER_SMOOTHING = ['none', 'chamfer', 'fillet'] as const;
+/** `m_cbRemoveIslandsChoices` (`:370`): the ISLAND_REMOVAL_MODE order. */
+const REMOVE_ISLANDS = ['always', 'never', 'area'] as const;
+
+export interface PanelZonePropertiesProps {
+  /** What the panel's controls hold. */
+  values: ZoneValues;
+  /** A control changed: the fields that moved. */
+  onChange: (patch: Partial<ZoneValues>) => void;
+  /** The frame's display units: every distance here is a UNIT_BINDER upstream. */
+  units: StatusUnits;
+  /** Net codes and names, for the NET_SELECTOR. */
+  nets: ReadonlyMap<number, string>;
+  /** `allowNetSpec`. */
+  allowNetSpec?: boolean;
+  /** `m_isTeardrop`: outlines are never smoothed and the pad connection is fixed. */
+  teardrop?: boolean;
+}
+
+/**
+ * PANEL_ZONE_PROPERTIES's window, PANEL_ZONE_PROPERTIES_BASE over the values the class holds.
+ *
+ * The overrides grid is the shared LAYER_PROPERTIES_GRID_TABLE. OnAddLayerItem is its
+ * AppendRows: the zone's next layer, in UI order, that has no row, or "All zone layers already
+ * overridden." on the infobar. OnDeleteLayerItem deletes the last row: WX_GRID's OnDeleteRows
+ * deletes the selected ones, which this grid does not report yet.
+ */
+export function PanelZoneProperties({
+  values: v,
+  onChange: set,
+  units,
+  nets,
+  allowNetSpec = true,
+  teardrop = false,
+}: PanelZonePropertiesProps): JSX.Element {
+  // `AddPage( m_clearancesPanel, …, true )`: the first tab opens selected.
+  const [page, setPage] = useState(0);
+  // Distance boxes are held as text so a half-typed number survives the caret.
+  const [text, setText] = useState<Record<string, string>>({});
+  // ShowMessageFor( _( "All zone layers already overridden." ), 8000, wxICON_WARNING ).
+  const [overridden, setOverridden] = useState(false);
+
+  const dist = (aKey: keyof ZoneValues, aEnabled = true): UNIT_FIELD => ({
+    value: text[aKey] ?? pcbUnitText(v[aKey] as number, units),
+    units: unitLabel(units),
+    enabled: aEnabled,
+    onChange: (aText) => {
+      setText((t) => ({ ...t, [aKey]: aText }));
+      const iu = pcbUnitValue(aText, units);
+      if (Number.isFinite(iu)) set({ [aKey]: iu } as Partial<ZoneValues>);
+    },
+  });
+  /** A plain number with its unit text: degrees, an area. */
+  const num = (aKey: keyof ZoneValues, aUnits: string, aEnabled = true): UNIT_FIELD => ({
+    value: text[aKey] ?? String(v[aKey]),
+    units: aUnits,
+    enabled: aEnabled,
+    onChange: (aText) => {
+      setText((t) => ({ ...t, [aKey]: aText }));
+      const n = Number(aText);
+      if (aText.trim() !== '' && Number.isFinite(n)) set({ [aKey]: n } as Partial<ZoneValues>);
+    },
+  });
+  const choice = <T extends string>(aList: readonly T[], aValue: T, aOn: (v: T) => void) => ({
+    value: aList.indexOf(aValue),
+    onChange: (aIndex: number) => aOn(aList[aIndex]!),
+  });
+
+  // onNetSelector: "Zones with no net never have islands removed" - the choice is forced to
+  // Never and disabled, and updateInfoBar() raises the bar. It returns at once when the selector
+  // is hidden.
+  const noNet = allowNetSpec && v.net <= 0;
+  // OnCornerSmoothingSelection / OnRemoveIslandsSelection: Show( false ), the space reserved.
+  const showRadius = v.cornerSmoothing === 'chamfer' || v.cornerSmoothing === 'fillet';
+  const showAreaLimit = !noNet && v.islandRemovalMode === 'area';
+  // onHatched.
+  const hatched = v.fillMode === 'hatch';
+
+  const overrideLayers = Object.keys(v.layerProperties);
+
+  return (
+    <PANEL_ZONE_PROPERTIES_BASE
+      m_copperZoneInfoBar={
+        noNet
+          ? '<no net> will result in an isolated copper island.'
+          : overridden
+            ? 'All zone layers already overridden.'
+            : null
+      }
+      m_tcZoneName={{ value: v.name, onChange: (aText) => set({ name: aText }) }}
+      netShown={allowNetSpec}
+      m_netSelector={{
+        netInfo: nets,
+        // SetSelectedNetcode( std::max( 0, m_settings->m_Netcode ) )
+        netcode: Math.max(0, v.net),
+        onChange: (aNet) => set({ net: aNet }),
+      }}
+      m_cbLocked={{ value: v.locked, onChange: (aOn) => set({ locked: aOn }) }}
+      m_notebook={{ selection: page, onPageChanged: setPage }}
+      m_clearance={dist('clearance')}
+      m_minWidth={dist('minThickness')}
+      m_PadInZoneOpt={{
+        ...choice(PAD_CONNECTION, v.padConnection, (aPad) => set({ padConnection: aPad })),
+        enabled: !teardrop,
+      }}
+      m_antipad={dist('thermalGap')}
+      m_spokeWidth={dist('thermalBridgeWidth')}
+      m_OutlineDisplayCtrl={choice(OUTLINE_DISPLAY_CHOICES, v.hatchStyle, (aStyle) =>
+        set({ hatchStyle: aStyle }),
+      )}
+      m_outlineHatchPitch={dist('hatchPitch')}
+      m_cbHatched={{
+        value: hatched,
+        onChange: (aOn) => set({ fillMode: aOn ? 'hatch' : 'solid' }),
+      }}
+      m_gridStyleRotation={num('hatchOrientation', 'deg', hatched)}
+      m_gridStyleThickness={dist('hatchThickness', hatched)}
+      m_gridStyleGap={dist('hatchGap', hatched)}
+      m_spinCtrlSmoothLevel={{
+        value: v.hatchSmoothingLevel,
+        enabled: hatched,
+        onChange: (aValue) => set({ hatchSmoothingLevel: aValue }),
+      }}
+      m_spinCtrlSmoothValue={{
+        value: v.hatchSmoothingValue,
+        enabled: hatched,
+        onChange: (aValue) => set({ hatchSmoothingValue: aValue }),
+      }}
+      m_layerSpecificOverrides={
+        <ZoneLayerPropertiesGrid
+          layers={overrideLayers}
+          value={Object.fromEntries(
+            overrideLayers.map((l) => [l, { hatchingOffset: v.layerProperties[l]! }]),
+          )}
+          onChange={(aNext) =>
+            set({
+              layerProperties: Object.fromEntries(
+                overrideLayers.map((l) => [l, aNext[l]?.hatchingOffset ?? v.layerProperties[l]!]),
+              ),
+            })
+          }
+        />
+      }
+      overridesEnabled={hatched}
+      OnAddLayerItem={() => {
+        const next = v.layers.find((l) => !(l in v.layerProperties));
+
+        if (next === undefined) {
+          setOverridden(true);
+          return;
+        }
+
+        set({ layerProperties: { ...v.layerProperties, [next]: { x: 0, y: 0 } } });
+      }}
+      OnDeleteLayerItem={() => {
+        const last = overrideLayers[overrideLayers.length - 1];
+        if (last === undefined) return;
+        const { [last]: _drop, ...rest } = v.layerProperties;
+        set({ layerProperties: rest });
+      }}
+      m_cornerSmoothingChoice={{
+        ...choice(CORNER_SMOOTHING, v.cornerSmoothing, (aSmoothing) =>
+          set({ cornerSmoothing: aSmoothing }),
+        ),
+        enabled: !teardrop,
+      }}
+      m_cornerRadius={dist('cornerRadius')}
+      cornerRadiusShown={showRadius}
+      m_cbRemoveIslands={{
+        ...choice(REMOVE_ISLANDS, noNet ? 'never' : v.islandRemovalMode, (aMode) =>
+          set({ islandRemovalMode: aMode }),
+        ),
+        enabled: !noNet,
+      }}
+      m_islandThreshold={num('islandAreaMin', 'mm²')}
+      islandThresholdShown={showAreaLimit}
+    />
+  );
 }

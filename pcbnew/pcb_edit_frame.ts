@@ -212,7 +212,7 @@ import { DIALOG_TEXTBOX_PROPERTIES } from './dialogs/dialog_textbox_properties.j
 import { DIALOG_BARCODE_PROPERTIES } from './dialogs/dialog_barcode_properties.js';
 import type { PCB_BARCODE } from './pcb_barcode.js';
 import type { DIALOG_NON_COPPER_ZONES_EDITOR } from './dialogs/dialog_non_copper_zones_properties.js';
-import type { DIALOG_COPPER_ZONE } from './dialogs/panel_zone_properties.js';
+import type { DIALOG_COPPER_ZONE } from './dialogs/dialog_copper_zones.js';
 import type { DIALOG_RULE_AREA_PROPERTIES } from './dialogs/dialog_rule_area_properties.js';
 import { PCB_PICKER_TOOL } from './tools/pcb_picker_tool.js';
 import type { PCB_SELECTION } from './tools/pcb_selection.js';

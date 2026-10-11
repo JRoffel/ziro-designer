@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { pcbIUScale } from '@ziroeda/common/eda_units.js';
 import { PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import type { BOARD } from '@ziroeda/pcbnew/board.js';
-import { DIALOG_COPPER_ZONE } from '@ziroeda/pcbnew/dialogs/panel_zone_properties.js';
+import { DIALOG_COPPER_ZONE } from '@ziroeda/pcbnew/dialogs/dialog_copper_zones.js';
 import { ParseBoard } from '@ziroeda/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.js';
 import type { ZONE } from '@ziroeda/pcbnew/zone.js';
 import {

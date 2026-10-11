@@ -73,7 +73,7 @@ import type {
   TextBoxValues,
 } from './dialogs/dialog_textbox_properties.js';
 import { DialogTextBoxProperties } from './dialogs/dialog_textbox_properties_ui.js';
-import { DIALOG_COPPER_ZONE } from './dialogs/panel_zone_properties.js';
+import { DIALOG_COPPER_ZONE } from './dialogs/dialog_copper_zones.js';
 import type { PCB_BASE_EDIT_FRAME_DIALOG_HOOKS } from './pcb_base_edit_frame.js';
 import type { PCB_TABLE } from './pcb_table.js';
 

@@ -32,7 +32,7 @@ import type { DIALOG_TEXT_PROPERTIES } from '@ziroeda/pcbnew/dialogs/dialog_text
 import type { PCB_TEXT } from '@ziroeda/pcbnew/pcb_text.js';
 import { DIALOG_NON_COPPER_ZONES_EDITOR } from '@ziroeda/pcbnew/dialogs/dialog_non_copper_zones_properties.js';
 import { DIALOG_RULE_AREA_PROPERTIES } from '@ziroeda/pcbnew/dialogs/dialog_rule_area_properties.js';
-import { DIALOG_COPPER_ZONE } from '@ziroeda/pcbnew/dialogs/panel_zone_properties.js';
+import { DIALOG_COPPER_ZONE } from '@ziroeda/pcbnew/dialogs/dialog_copper_zones.js';
 import type { ZONE } from '@ziroeda/pcbnew/zone.js';
 import type { PCB_TABLE } from '@ziroeda/pcbnew/pcb_table.js';
 import { PCB_TEXTBOX as PcbTextboxClass, type PCB_TEXTBOX } from '@ziroeda/pcbnew/pcb_textbox.js';

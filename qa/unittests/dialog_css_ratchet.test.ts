@@ -53,7 +53,8 @@ const BASELINE: Record<string, number> = {
   // 434 -> 427 (10-11): Move Exact, Footprint Associations, Global Deletion and Outset Items pairs.
   // 427 -> 402 (10-11): Cleanup Graphics, Cleanup Tracks & Vias and Reference Image pairs.
   // 402 -> 389 (10-11): PNS Settings, Import Netlist, Update PCB and Import Settings pairs.
-  pcbnew: 389,
+  // 389 -> 367 (10-11): Copper Zones and PANEL_ZONE_PROPERTIES on their _base pairs.
+  pcbnew: 367,
 };
 
 const git = (...aSpecs: string[]): string[] =>

@@ -79,7 +79,8 @@ export function CheckBox({
   title,
   className,
 }: {
-  label: string;
+  /** Its text; a wxDataViewListCtrl toggle row puts its icon-text cell here. */
+  label: ReactNode;
   checked?: boolean;
   onChange?: (aChecked: boolean) => void;
   /** The `_base` member instead of `checked` / `onChange` / `disabled`. */

@@ -48,7 +48,7 @@ export interface IMPORT_GRAPHICS_RESULT {
   fixDiscontinuities: boolean;
   tolerance: number;
 }
-import type { DIALOG_COPPER_ZONE } from './dialogs/panel_zone_properties.js';
+import type { DIALOG_COPPER_ZONE } from './dialogs/dialog_copper_zones.js';
 import type { DIALOG_NON_COPPER_ZONES_EDITOR } from './dialogs/dialog_non_copper_zones_properties.js';
 import type { DIALOG_RULE_AREA_PROPERTIES } from './dialogs/dialog_rule_area_properties.js';
 import { ANGLE_90, type EDA_ANGLE } from '@ziroeda/kimath/src/geometry/eda_angle.js';

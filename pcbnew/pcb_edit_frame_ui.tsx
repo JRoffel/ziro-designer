@@ -367,7 +367,8 @@ import {
   type DIALOG_FOOTPRINT_PROPERTIES,
   DialogFootprintProperties,
 } from './dialogs/dialog_footprint_properties.js';
-import { DIALOG_COPPER_ZONE, type ZoneValues } from './dialogs/panel_zone_properties.js';
+import { DIALOG_COPPER_ZONE } from './dialogs/dialog_copper_zones.js';
+import type { ZoneValues } from './dialogs/panel_zone_properties.js';
 import {
   DIALOG_TRACK_VIA_PROPERTIES,
   type TrackViaValues,

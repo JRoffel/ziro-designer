@@ -26,7 +26,7 @@ import type { ZONE } from './zone.js';
 import { ZONE_SETTINGS } from './zone_settings.js';
 import { DIALOG_FOOTPRINT_PROPERTIES_FP_EDITOR } from './dialogs/dialog_footprint_properties_fp_editor.js';
 import { DIALOG_TEXT_PROPERTIES } from './dialogs/dialog_text_properties.js';
-import { DIALOG_COPPER_ZONE } from './dialogs/panel_zone_properties.js';
+import { DIALOG_COPPER_ZONE } from './dialogs/dialog_copper_zones.js';
 import { DIALOG_NON_COPPER_ZONES_EDITOR } from './dialogs/dialog_non_copper_zones_properties.js';
 import { DIALOG_RULE_AREA_PROPERTIES } from './dialogs/dialog_rule_area_properties.js';
 

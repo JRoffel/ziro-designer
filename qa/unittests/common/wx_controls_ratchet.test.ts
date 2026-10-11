@@ -95,7 +95,8 @@ const BASELINE: Record<(typeof AREAS)[number], Record<Kind, number>> = {
   // then the batch-3 pairs - button 55, checkbox 33, entry 25, sbox 37.
   // then the batch-4 pairs - checkbox 31, entry 24.
   // then the batch-5 pairs - button 51, checkbox 28, entry 23, sbox 32.
-  pcbnew: { button: 51, checkbox: 28, select: 1, frame: 1, radio: 4, entry: 23, sbox: 32 },
+  // then Copper Zones and its panel - button 48, checkbox 27, entry 20, sbox 31.
+  pcbnew: { button: 48, checkbox: 27, select: 1, frame: 1, radio: 4, entry: 20, sbox: 31 },
 };
 
 function tsxFiles(aDir: string, aOut: string[] = []): string[] {

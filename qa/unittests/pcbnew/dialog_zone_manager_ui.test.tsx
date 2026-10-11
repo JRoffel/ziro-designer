@@ -94,7 +94,8 @@ const selectedRow = (): number =>
   Array.from(document.querySelectorAll('.ze-zm-grid tbody tr')).findIndex((tr) =>
     tr.classList.contains('selected'),
   );
-const nameInput = (): HTMLInputElement => document.getElementById('ze-cz-name') as HTMLInputElement;
+const nameInput = (): HTMLInputElement =>
+  screen.getByRole('textbox', { name: 'Zone name' }) as HTMLInputElement;
 const btn = (name: string): HTMLElement => screen.getByRole('button', { name });
 
 describe('Zone Manager window', () => {

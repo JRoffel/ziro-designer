@@ -13,7 +13,7 @@
  * which ones are hidden rather than disabled.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { DialogCopperZones } from '@ziroeda/pcbnew/dialogs/dialog_copper_zones.js';
 import type { ZoneValues } from '@ziroeda/pcbnew/dialogs/panel_zone_properties.js';
 
@@ -84,18 +84,33 @@ function open(
   );
 }
 
-const tab = (name: string): HTMLElement => screen.getByRole('button', { name });
+const tab = (name: string): HTMLElement => screen.getByRole('tab', { name });
+/** A notebook page: wx keeps every page, and shows the selected one. */
+const page = (name: string): HTMLElement => screen.getByRole('tabpanel', { name });
+/** Show( false ) under wxRESERVE_SPACE_EVEN_IF_HIDDEN: laid out, not drawn. */
+const isHidden = (el: HTMLElement): boolean => {
+  for (let e: HTMLElement | null = el; e; e = e.parentElement)
+    if (e.style.visibility === 'hidden') return true;
+  return false;
+};
 
 describe('the frame', () => {
   it('puts the layer list beside the fields, not inside them', () => {
     open();
     // `bMainSizer` is horizontal with `bSizerLeft` at proportion 0.
-    const list = document.querySelector('.ze-cz-layers');
-    expect(list).toBeTruthy();
+    const list = screen.getByRole('listbox', { name: 'Layers' });
     expect(screen.getByText('Layers:')).toBeTruthy();
-    // Each row carries the layer's colour swatch, as the wxDataViewListCtrl's
-    // renderer draws.
-    expect(document.querySelectorAll('.ze-cz-layer-list .ze-layer-swatch')).toHaveLength(2);
+    // Each row carries the layer's colour swatch, as SetupLayersList's icon column draws.
+    expect(list.querySelectorAll('.ze-layer-swatch')).toHaveLength(2);
+    expect(list.closest('[role="tabpanel"]')).toBeNull();
+  });
+
+  it('ticking a layer in the list puts the zone on it (OnLayerSelection)', () => {
+    const onApply = vi.fn();
+    open({ layers: ['F.Cu'] }, { onApply });
+    fireEvent.click(screen.getByLabelText('B.Cu'));
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+    expect((onApply.mock.calls[0]![0] as ZoneValues).layers).toEqual(['F.Cu', 'B.Cu']);
   });
 
   it('hides the Zone Manager button for a zone still being drawn', () => {
@@ -114,7 +129,7 @@ describe('the frame', () => {
     const onApply = vi.fn();
     const onOpenZoneManager = vi.fn();
     open({ name: 'pour' }, { existingZone: true, onApply, onOpenZoneManager });
-    fireEvent.change(document.getElementById('ze-cz-name') as HTMLInputElement, {
+    fireEvent.change(screen.getByRole('textbox', { name: 'Zone name' }), {
       target: { value: 'edited' },
     });
     fireEvent.click(screen.getByText('Open Zone Manager...'));
@@ -139,8 +154,8 @@ describe('the frame', () => {
     open({}, { teardrop: true });
     expect(screen.getByText('Legacy Teardrop Properties')).toBeTruthy();
     expect(screen.queryByText('Copper Zone Properties')).toBeNull();
-    expect((document.getElementById('ze-cz-smoothing') as HTMLButtonElement).disabled).toBe(true);
-    expect((document.getElementById('ze-cz-padconn') as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByLabelText('Corner smoothing') as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByLabelText('Pad connections') as HTMLButtonElement).disabled).toBe(true);
   });
 });
 
@@ -148,25 +163,24 @@ describe('the three notebook pages', () => {
   it('opens on Clearances && Pad Connections', () => {
     // `AddPage( m_clearancesPanel, …, true )`.
     open();
-    expect(tab('Clearances & Pad Connections').className).toContain('active');
-    expect(screen.getByText('Pad connections:')).toBeTruthy();
+    expect(tab('Clearances & Pad Connections').getAttribute('aria-selected')).toBe('true');
+    expect(within(page('Clearances & Pad Connections')).getByText('Pad connections:')).toBeTruthy();
   });
 
   it('keeps Outline display on Display Overrides, not on the first page', () => {
     open();
-    expect(screen.queryByText('Outline display:')).toBeNull();
-    fireEvent.click(tab('Display Overrides'));
-    expect(screen.getByText('Outline display:')).toBeTruthy();
-    expect(screen.getByText('Outline hatch pitch:')).toBeTruthy();
+    expect(within(page('Clearances & Pad Connections')).queryByText('Outline display:')).toBeNull();
+    expect(within(page('Display Overrides')).getByText('Outline display:')).toBeTruthy();
+    expect(within(page('Display Overrides')).getByText('Outline hatch pitch:')).toBeTruthy();
   });
 
   it('keeps the hatch parameters on Hatched Fill', () => {
     open();
-    expect(screen.queryByText('Hatch width:')).toBeNull();
-    fireEvent.click(tab('Hatched Fill'));
-    expect(screen.getByText('Hatched fill')).toBeTruthy();
-    expect(screen.getByText('Hatch width:')).toBeTruthy();
-    expect(screen.getByText('Hatch offset overrides:')).toBeTruthy();
+    expect(within(page('Clearances & Pad Connections')).queryByText('Hatch width:')).toBeNull();
+    const hatched = within(page('Hatched Fill'));
+    expect(hatched.getByText('Hatched fill')).toBeTruthy();
+    expect(hatched.getByText('Hatch width:')).toBeTruthy();
+    expect(hatched.getByText('Hatch offset overrides:')).toBeTruthy();
   });
 });
 
@@ -185,28 +199,28 @@ describe('Corner smoothing and Remove islands sit outside the notebook', () => {
     open();
     for (const t of ['Clearances & Pad Connections', 'Display Overrides', 'Hatched Fill']) {
       fireEvent.click(tab(t));
-      expect(screen.getByText('Corner smoothing:')).toBeTruthy();
-      expect(screen.getByText('Remove islands:')).toBeTruthy();
+      expect(screen.getByText('Corner smoothing:').closest('[role="tabpanel"]')).toBeNull();
+      expect(screen.getByText('Remove islands:').closest('[role="tabpanel"]')).toBeNull();
     }
   });
 
   it('hides Radius until the smoothing is Chamfer or Fillet', () => {
     // `OnCornerSmoothingSelection` — `Show( false )`, and the cell is reserved.
-    open();
-    expect(screen.getByText('Radius:').hasAttribute('hidden')).toBe(true);
+    open({ cornerSmoothing: 'none' });
+    expect(isHidden(screen.getByText('Radius:'))).toBe(true);
 
     cleanup();
     open({ cornerSmoothing: 'fillet' });
-    expect(screen.getByText('Radius:').hasAttribute('hidden')).toBe(false);
+    expect(isHidden(screen.getByText('Radius:'))).toBe(false);
   });
 
   it('hides Area limit until the mode is Below area limit', () => {
     open();
-    expect(screen.getByText('Area limit:').hasAttribute('hidden')).toBe(true);
+    expect(isHidden(screen.getByText('Area limit:'))).toBe(true);
 
     cleanup();
     open({ islandRemovalMode: 'area' });
-    expect(screen.getByText('Area limit:').hasAttribute('hidden')).toBe(false);
+    expect(isHidden(screen.getByText('Area limit:'))).toBe(false);
   });
 });
 
@@ -237,7 +251,7 @@ describe('<no net>', () => {
   it('forces Remove islands to Never and disables it', () => {
     // "Zones with no net never have islands removed."
     open({ net: 0, islandRemovalMode: 'always' });
-    const combo = document.querySelector<HTMLButtonElement>('#ze-cz-islands');
+    const combo = screen.getByLabelText('Remove islands') as HTMLButtonElement;
     expect(combo!.disabled).toBe(true);
     expect(combo!.textContent).toContain('Never');
   });
@@ -271,28 +285,31 @@ describe('the Hatched Fill tab', () => {
     // `enableHatchedFill( enable )` runs over every one of them.
     open({ fillMode: 'solid' });
     fireEvent.click(tab('Hatched Fill'));
-    expect((document.querySelector('.ze-cz-hatchfields') as HTMLFieldSetElement).disabled).toBe(
-      true,
-    );
+    const width = () => screen.getByRole('textbox', { name: 'Hatch width' }) as HTMLInputElement;
+    expect(width().disabled).toBe(true);
+    expect(
+      (screen.getByRole('button', { name: 'Add a layer override' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
 
     cleanup();
     open({ fillMode: 'hatch' });
-    fireEvent.click(tab('Hatched Fill'));
-    expect((document.querySelector('.ze-cz-hatchfields') as HTMLFieldSetElement).disabled).toBe(
-      false,
-    );
+    expect(width().disabled).toBe(false);
   });
 
-  it('adds one override row per layer, and refuses once every layer has one', () => {
-    // `OnAddLayerItem` puts up "All zone layers already overridden." when
-    // there is nothing left to add.
-    open({ fillMode: 'hatch', layers: ['F.Cu'] });
+  it('adds one override row per layer, and says so once every layer has one', () => {
+    // `OnAddLayerItem`: AppendRows fails when nothing is left to add, and the infobar puts up
+    // "All zone layers already overridden." The button itself stays live.
+    open({ fillMode: 'hatch', layers: ['F.Cu'], net: 1 });
     fireEvent.click(tab('Hatched Fill'));
-    const add = screen.getByTitle('Add a layer override') as HTMLButtonElement;
+    const add = () =>
+      screen.getByRole('button', { name: 'Add a layer override' }) as HTMLButtonElement;
 
-    expect(add.disabled).toBe(false);
-    fireEvent.click(add);
-    expect(screen.getByLabelText('F.Cu X Offset')).toBeTruthy();
-    expect((screen.getByTitle('Add a layer override') as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(add());
+    expect(within(page('Hatched Fill')).getByText('F.Cu')).toBeTruthy();
+    expect(screen.queryByText('All zone layers already overridden.')).toBeNull();
+
+    fireEvent.click(add());
+    expect(add().disabled).toBe(false);
+    expect(screen.getByText('All zone layers already overridden.')).toBeTruthy();
   });
 });
