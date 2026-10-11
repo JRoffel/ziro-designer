@@ -7570,108 +7570,6 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
 .ze-lp-value:focus {
   border-color: var(--chrome-active-border);
 }
-.ze-lp-check {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-/* sbFields: the grid plus its add / move / delete buttons. */
-.ze-lp-fields,
-.ze-lp-shape,
-.ze-lp-formatting {
-  border: 1px solid var(--chrome-border);
-  border-radius: 3px;
-  margin: 5px;
-  padding: 5px;
-}
-/* Neither a colour nor a size: a wxStaticBox label takes both from the dialog. */
-.ze-lp-fields legend,
-.ze-lp-shape legend,
-.ze-lp-formatting legend {
-  padding: 0 4px;
-}
-.ze-lp-grid-wrap {
-  min-height: 100px;
-  max-height: 220px;
-  overflow: auto;
-  border: 1px solid var(--chrome-border);
-  background: var(--chrome-bg2);
-}
-.ze-lp-grid {
-  border-collapse: collapse;
-  width: 100%;
-  table-layout: fixed;
-}
-/* FIELDS_GRID's columns: every one keeps the width its `_base.cpp` sets, and
-   exactly ONE absorbs the slack.
-
-     `dialog_label_properties_base.cpp:93-100`
-       SetColSize( 0, 72 )  Name        SetColSize( 4, 70 )  H Align
-       SetColSize( 1, 84 )  Value       SetColSize( 5, 70 )  V Align
-       SetColSize( 2, 48 )  Show        SetColSize( 6, 48 )  Italic
-       SetColSize( 3, 48 )  Show Name   SetColSize( 7, 48 )  Bold
-
-     `fields_grid_table.cpp:422`
-       aGrid->SetupColumnAutosizer( FDC_VALUE );
-
-   `SetupColumnAutosizer` remembers every column's size and then, on every
-   resize, gives the leftover to that ONE flexible column (wx_grid.cpp:1081).
-   So Value grows and the other seven never do.
-
-   The widths were already correct in `COLUMNS` and were set on each `<th>` —
-   but `table-layout: fixed` on a `width: 100%` table spreads the surplus over
-   ALL columns equally, so "Show" ended up as wide as "Name" and "Show Name"
-   wrapped to two lines. The `<colgroup>` states them where the table layout
-   actually reads them, and Value alone is `auto`. */
-.ze-lp-grid th {
-  height: 22px;
-  text-align: center;
-  font-weight: 500;
-  /* [px] wxGrid's column-label ink. Not --chrome-fg: a label is dimmer than a
-     cell's own text, and this is the value a live grid reports. */
-  color: #c7c9cc;
-  background: var(--chrome-bg);
-  border: 1px solid var(--chrome-border);
-  position: sticky;
-  top: 0;
-}
-.ze-lp-grid td {
-  border: 1px solid var(--chrome-border);
-  padding: 0 2px;
-  text-align: left;
-  vertical-align: middle;
-}
-.ze-lp-grid td.c {
-  text-align: center;
-}
-.ze-lp-grid tr.sel td {
-  background: var(--chrome-active);
-  color: var(--selection-fg);
-}
-.ze-lp-grid input[type="text"],
-.ze-lp-grid input:not([type]),
-.ze-lp-grid select {
-  width: 100%;
-  box-sizing: border-box;
-  font: inherit;
-  padding: 2px 3px;
-  background: transparent;
-  color: var(--chrome-fg);
-  border: none;
-  outline: none;
-}
-.ze-lp-grid select {
-  background: var(--chrome-bg2);
-}
-.ze-lp-fieldbtns {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 0 0;
-}
-.ze-lp-gap {
-  width: 20px;
-}
 /* The bold/italic/alignment row. These are KiCad's own `BITMAP_BUTTON`, not a
    wxBitmapButton, and it sizes itself rather than asking GTK
    (`common/widgets/bitmap_button.cpp:101-107`):
@@ -7722,34 +7620,6 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
 }
 .ze-lp-iconbtn:disabled > * {
   filter: var(--bitmap-disabled-filter);
-}
-/* optionsSizer: Shape (natural width) beside a growable Formatting box. */
-.ze-lp-options {
-  display: flex;
-  align-items: stretch;
-}
-.ze-lp-shape {
-  flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.ze-lp-shape label {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding-bottom: 2px;
-}
-.ze-lp-formatting {
-  flex: 1;
-  min-width: 0;
-}
-/* m_formattingGB: label | control | icon bar, then label | size + colour. */
-.ze-lp-fmt-grid {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  gap: 3px 5px;
 }
 .ze-lp-fmt-label {
   white-space: nowrap;
@@ -7883,11 +7753,6 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
   background:
     linear-gradient(var(--ctl-fg-disabled), var(--ctl-fg-disabled)) center / 1px 100% no-repeat;
 }
-.ze-lp-sizerow {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-}
 /* `m_textSizeCtrl` and the position ctrls are plain wxTextCtrls at
    wxSize( -1, -1 ), so GTK's own best size is the answer -- measured by
    qa/probes/field_props_width_probe.cpp:
@@ -7908,9 +7773,6 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
   border: 1px solid var(--chrome-border);
   border-radius: 3px;
   outline: none;
-}
-.ze-lp-colorlabel {
-  margin-left: 15px;
 }
 /* COLOR_SWATCH inside its wxBORDER_SIMPLE panel. */
 .ze-lp-swatch-frame {

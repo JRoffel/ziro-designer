@@ -839,7 +839,8 @@ const BASELINE: Record<string, { colours: number; metrics: number }> = {
   // metrics 642 -> 631: Annotate's .ze-annotate-* block went with its _base pair.
   // metrics 631 -> 629: the unused .ze-lp-multiline / .ze-lp-auto rules (Label Properties' pair);
   // colours 127 -> 126, metrics 629 -> 619: Text Properties' .ze-tp-* / .ze-lp-entry / -syntax rules.
-  'common/widgets': { colours: 126, metrics: 619 },
+  // metrics 619 -> 599: the .ze-lp-* fields / options / grid rules Sheet Properties' pair retired.
+  'common/widgets': { colours: 126, metrics: 599 },
   // 10-10: metrics 1 -> 0, the menu drawing's one literal went to external/wx with it.
   'common/tool': { colours: 0, metrics: 0 },
   // metrics 0 -> 15 on 09-26: the stage-1 moves, 8 from `dialogs` and 7 from
@@ -1677,7 +1678,8 @@ describe('the scan totals, so the numbers in the PR stay true', () => {
     // 1000 -> 996: the stroke dialogs (the two rows above).
     // 996 -> 985: the common/widgets row above.
     // 985 -> 973: the common/widgets row above.
-    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(973);
+    // 973 -> 953: the same.
+    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(953);
   });
 
   it('and the two agree with the per-area table, which is where they come from', () => {

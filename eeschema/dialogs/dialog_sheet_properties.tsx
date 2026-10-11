@@ -21,11 +21,10 @@
  * asking first whether an absolute path should be made relative; the undo step is the caller's,
  * gated on the isUndoable out-parameter.
  */
-import { Button, CheckBox } from '@ziroeda/wx/controls.js';
 import { type JSX, useReducer, useState } from 'react';
 import { DisplayErrorMessage, ShowKicadMessageDialog } from '@ziroeda/common/confirm.js';
 import { ensureFileExtension } from '@ziroeda/common/common.js';
-import { DialogShim } from '@ziroeda/common/dialog_shim.js';
+import { SCH_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import { type Color4d, color4dEquals } from '@ziroeda/common/gal/color4d.js';
 import type { KiDialogRequest } from '@ziroeda/common/kidialog.js';
 import type { KiDialogResult } from '@ziroeda/common/kidialog_do_not_show.js';
@@ -38,10 +37,9 @@ import {
   SHEET_MANDATORY_FIELDS,
 } from '@ziroeda/common/template_fieldnames.js';
 import { KiCadSchematicFileExtension } from '@ziroeda/common/wildcards_and_files_ext.js';
-import { ColorSwatch } from '@ziroeda/common/widgets/color_swatch.js';
 import type { GRID_TEXT_BUTTON_HOST } from '@ziroeda/common/widgets/grid_text_button_helpers.js';
 import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
-import { StdBitmapButton } from '@ziroeda/common/widgets/std_bitmap_button.js';
+import { DIALOG_SHEET_PROPERTIES_BASE } from './dialog_sheet_properties_base.js';
 import { UNIT_BINDER, unitLabel } from '@ziroeda/common/widgets/unit_binder.js';
 import { WX_GRID } from '@ziroeda/common/widgets/wx_grid.js';
 import { wxCENTER, wxICON_QUESTION, wxYES_DEFAULT, wxYES_NO } from '@ziroeda/wx/defs.js';
@@ -163,6 +161,11 @@ export class DIALOG_SHEET_PROPERTIES {
 
   /** `DIALOG_SHIM::OnModify()`: nothing reads the modified flag here. */
   OnModify(): void {}
+
+  /** `SetSwatchBackground( canvas )`: LAYER_SCHEMATIC_BACKGROUND. */
+  SwatchBackground(): Color4d {
+    return this.m_frame.GetColorSettings().GetColor(SCH_LAYER_ID.LAYER_SCHEMATIC_BACKGROUND);
+  }
 
   /** m_infoBar: "Note: individual item colors overridden in Preferences." */
   ShowsOverrideNote(): boolean {
@@ -580,7 +583,7 @@ export class DIALOG_SHEET_PROPERTIES {
   }
 }
 
-/** The form over DIALOG_SHEET_PROPERTIES. */
+/** DIALOG_SHEET_PROPERTIES' window over its base. */
 export function DialogSheetProperties({
   dlg,
   initial,
@@ -595,161 +598,56 @@ export function DialogSheetProperties({
   onCancel: () => void;
 }): JSX.Element {
   const [, redraw] = useReducer((n: number) => n + 1, 0);
-  const [borderWidth, setBorderWidth] = useState(initial.borderWidth);
-  const [borderColor, setBorderColor] = useState(initial.borderColor);
-  const [backgroundColor, setBackgroundColor] = useState(initial.backgroundColor);
-  const [excludeFromSim, setExcludeFromSim] = useState(initial.excludeFromSim);
-  const [excludeFromBom, setExcludeFromBom] = useState(initial.excludeFromBom);
-  const [excludeFromBoard, setExcludeFromBoard] = useState(initial.excludeFromBoard);
-  const [dnp, setDnp] = useState(initial.dnp);
-  const [pageNumber, setPageNumber] = useState(initial.pageNumber);
-
-  const submit = (): void =>
-    onOk({
-      borderWidth,
-      borderColor,
-      backgroundColor,
-      excludeFromSim,
-      excludeFromBom,
-      excludeFromBoard,
-      dnp,
-      pageNumber,
-    });
-
-  const button = (aBitmap: string, aTip: string, aRun: () => void): JSX.Element => (
-    <StdBitmapButton
-      bitmap={aBitmap}
-      title={aTip}
-      tooltip={null}
-      onClick={() => {
-        aRun();
-        redraw();
-      }}
-    />
-  );
+  const [v, setV] = useState(initial);
+  const set = (patch: Partial<SHEET_DIALOG_VALUES>): void => setV((p) => ({ ...p, ...patch }));
+  const fieldAction = (aAction: () => void) => () => {
+    aAction();
+    redraw();
+  };
 
   return (
-    <DialogShim title="Sheet Properties" onClose={onCancel} className="ze-label-props">
-      <div className="ze-modal-body ze-lp-body">
-        {dlg.ShowsOverrideNote() && (
-          <div className="ze-infobar">Note: individual item colors overridden in Preferences.</div>
-        )}
-
-        {/* sbFields */}
-        <fieldset className="ze-lp-fields">
-          <legend>Fields</legend>
-          <div className="ze-lp-grid-wrap">
-            <WxGridView
-              grid={dlg.Grid()}
-              columns={GRID_COLUMNS}
-              flexCol={FIELDS_DATA_COL_ORDER.FDC_VALUE}
-              ariaLabel="Fields"
-              onUpdate={redraw}
-            />
-          </div>
-          <div className="ze-lp-fieldbtns">
-            {button('small_plus', 'Add field', () => dlg.OnAddField())}
-            {button('small_up', 'Move up', () => dlg.OnMoveUp())}
-            {button('small_down', 'Move down', () => dlg.OnMoveDown())}
-            <span className="ze-lp-gap" />
-            {button('small_trash', 'Delete field', () => dlg.OnDeleteField())}
-          </div>
-        </fieldset>
-
-        {/* bSizer5: Attributes beside Style. */}
-        <div className="ze-lp-options">
-          <fieldset className="ze-lp-shape">
-            <legend>Attributes</legend>
-            <label className="ze-lp-check">
-              Page number:
-              <input
-                className="ze-lp-size"
-                value={pageNumber}
-                onChange={(e) => setPageNumber(e.target.value)}
-                onKeyDown={(e) => e.stopPropagation()}
-              />
-            </label>
-            <CheckBox
-              label="Exclude from simulation"
-              checked={excludeFromSim}
-              className="ze-lp-check"
-              onChange={(v) => setExcludeFromSim(v)}
-            />
-            <CheckBox
-              label="Exclude from bill of materials"
-              checked={excludeFromBom}
-              title={
-                'This is useful for adding symbols for board footprints such as fiducials\n' +
-                'and logos that you do not want to appear in the bill of materials export'
-              }
-              className="ze-lp-check"
-              onChange={(v) => setExcludeFromBom(v)}
-            />
-            <CheckBox
-              label="Exclude from board"
-              checked={excludeFromBoard}
-              title={
-                'This is useful for adding symbols that only get exported to the bill of materials but\n' +
-                'not required to layout the board such as mechanical fasteners and enclosures'
-              }
-              className="ze-lp-check"
-              onChange={(v) => setExcludeFromBoard(v)}
-            />
-            <CheckBox
-              label="Do not populate"
-              checked={dnp}
-              className="ze-lp-check"
-              onChange={(v) => setDnp(v)}
-            />
-          </fieldset>
-
-          <fieldset className="ze-lp-formatting">
-            <legend>Style</legend>
-            <div className="ze-lp-fmt-grid">
-              <span className="ze-lp-fmt-label">Border</span>
-              <span className="ze-lp-fmt-label">Fill</span>
-              <div className="ze-lp-sizerow">
-                <span className="ze-lp-fmt-label">Width:</span>
-                <input
-                  className="ze-lp-size"
-                  value={borderWidth}
-                  onChange={(e) => setBorderWidth(e.target.value)}
-                  onKeyDown={(e) => e.stopPropagation()}
-                />
-                <span className="ze-lp-units">{unitLabel(units)}</span>
-                <span className="ze-lp-colorlabel">Color:</span>
-                <span className="ze-lp-swatch-frame">
-                  <ColorSwatch
-                    className="ze-lp-swatch"
-                    label="Border color"
-                    color={borderColor}
-                    onChange={setBorderColor}
-                  />
-                </span>
-              </div>
-              <div className="ze-lp-sizerow">
-                <span className="ze-lp-colorlabel">Color:</span>
-                <span className="ze-lp-swatch-frame">
-                  <ColorSwatch
-                    className="ze-lp-swatch"
-                    label="Fill color"
-                    color={backgroundColor}
-                    onChange={setBackgroundColor}
-                  />
-                </span>
-              </div>
-            </div>
-          </fieldset>
-        </div>
-      </div>
-
-      {/* m_sizerBottom: the hierarchical path beside the standard buttons. */}
-      <div className="ze-modal-footer">
-        <span className="ze-sheetprops-pathlabel">Hierarchical path:</span>
-        <span className="ze-sheetprops-path">{dlg.HierarchicalPath()}</span>
-        <Button label="Cancel" onClick={onCancel} />
-        <Button label="OK" isDefault onClick={submit} />
-      </div>
-    </DialogShim>
+    <DIALOG_SHEET_PROPERTIES_BASE
+      m_infoBar={
+        dlg.ShowsOverrideNote() ? 'Note: individual item colors overridden in Preferences.' : null
+      }
+      m_grid={
+        <WxGridView
+          grid={dlg.Grid()}
+          columns={GRID_COLUMNS}
+          flexCol={FIELDS_DATA_COL_ORDER.FDC_VALUE}
+          ariaLabel="Fields"
+        />
+      }
+      onAddField={fieldAction(() => dlg.OnAddField())}
+      onMoveUp={fieldAction(() => dlg.OnMoveUp())}
+      onMoveDown={fieldAction(() => dlg.OnMoveDown())}
+      onDeleteField={fieldAction(() => dlg.OnDeleteField())}
+      m_pageNumberTextCtrl={v.pageNumber}
+      onPageNumber={(t) => set({ pageNumber: t })}
+      m_cbExcludeFromSim={{
+        value: v.excludeFromSim,
+        onChange: (on) => set({ excludeFromSim: on }),
+      }}
+      m_cbExcludeFromBom={{
+        value: v.excludeFromBom,
+        onChange: (on) => set({ excludeFromBom: on }),
+      }}
+      m_cbExcludeFromBoard={{
+        value: v.excludeFromBoard,
+        onChange: (on) => set({ excludeFromBoard: on }),
+      }}
+      m_cbDNP={{ value: v.dnp, onChange: (on) => set({ dnp: on }) }}
+      m_borderWidthCtrl={v.borderWidth}
+      onBorderWidth={(t) => set({ borderWidth: t })}
+      units={unitLabel(units)}
+      m_borderSwatch={v.borderColor}
+      onBorderColor={(c) => set({ borderColor: c })}
+      m_backgroundSwatch={v.backgroundColor}
+      onBackgroundColor={(c) => set({ backgroundColor: c })}
+      swatchBackground={dlg.SwatchBackground()}
+      m_hierarchicalPath={dlg.HierarchicalPath()}
+      onOK={() => onOk(v)}
+      onCancel={onCancel}
+    />
   );
 }

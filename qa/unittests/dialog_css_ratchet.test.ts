@@ -30,7 +30,8 @@ const BASELINE: Record<string, number> = {
   // old DRC window; with DRC a _base pair they are ERC's alone, and go when ERC is converted.
   // 124 -> 123 (10-11): Field Properties' pair; the .ze-fieldprops-* rules (the ze-lp-* ones
   // it shared stay with Sheet Properties).
-  eeschema: 123,
+  // 123 -> 118 (10-11): Sheet Properties' pair; the last users of most .ze-lp-* rules.
+  eeschema: 118,
   gerbview: 31,
   pagelayout_editor: 14,
   // 477 -> 465 (10-10): the drill and position-file dialogs on the sizers.
