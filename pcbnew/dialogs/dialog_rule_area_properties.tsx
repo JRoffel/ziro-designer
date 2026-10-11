@@ -29,6 +29,14 @@
  * step, because the writer emits a stored source verbatim.
  */
 
+import { type JSX, useState } from 'react';
+import { MessageDialogError } from '@ziroeda/common/dialogs/dialog_message.js';
+import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
+import { pcbUnitText, pcbUnitValue, unitLabel } from '../pcb_unit_binder.js';
+import { ConversionSettingsBox } from '../tools/convert_settings_dialog_ui.js';
+import { DIALOG_RULE_AREA_PROPERTIES_BASE } from './dialog_rule_area_properties_base.js';
+import { PANEL_RULE_AREA_PROPERTIES_KEEPOUT_BASE } from './panel_rule_area_properties_keepout_base.js';
+import { PANEL_RULE_AREA_PROPERTIES_PLACEMENT_BASE } from './panel_rule_area_properties_placement_base.js';
 import { pcbMmToIU as mmToIU } from '@ziroeda/common/eda_units.js';
 // ZONE_SETTINGS' defaults for a fresh rule area, which is also what a copper
 // zone being *converted* into one starts from.
@@ -505,4 +513,152 @@ export class DIALOG_RULE_AREA_PROPERTIES {
 
     return { ok: true };
   }
+}
+
+/** `m_OutlineDisplayCtrlChoices`, in order. */
+const OUTLINE_DISPLAY_CHOICES = ['none', 'edge', 'full'] as const;
+
+type KEEPOUT =
+  | 'doNotAllowTracks'
+  | 'doNotAllowVias'
+  | 'doNotAllowPads'
+  | 'doNotAllowCopperPour'
+  | 'doNotAllowFootprints';
+
+/**
+ * DIALOG_RULE_AREA_PROPERTIES's ShowModal: its base with the Keepouts and Placement pages
+ * (`AddPage( m_keepoutProperties, _( "Keepouts" ), true )`, `AddPage( m_placementProperties,
+ * _( "Placement" ) )`), and the Conversion Settings box when CONVERT_TOOL opened it.
+ */
+export function DialogRuleAreaProperties({
+  units,
+  initial,
+  layers,
+  sources,
+  onApply,
+  conversion = null,
+  onClose,
+}: {
+  units: StatusUnits;
+  initial: RuleAreaValues;
+  /** SetupLayersList's rows: the layers, with the colour each swatch draws. */
+  layers: readonly { name: string; color: string }[];
+  sources: PlacementSources;
+  onApply: (values: RuleAreaValues, conversion: ConversionBoxValues | null) => void;
+  conversion?: ConversionBoxValues | null;
+  onClose: () => void;
+}): JSX.Element {
+  const [v, setV] = useState<RuleAreaValues>(initial);
+  const [page, setPage] = useState<PlacementPage>(() => collectPlacementPage(initial, sources));
+  const [tab, setTab] = useState<number>(() => initialRuleAreaPage(initial));
+  const [pitchText, setPitchText] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [conv, setConv] = useState<ConversionBoxValues | null>(conversion);
+  const set = (patch: Partial<RuleAreaValues>): void => setV((prev) => ({ ...prev, ...patch }));
+
+  const keepout = (aKey: KEEPOUT) => ({
+    value: v[aKey],
+    onChange: (aOn: boolean) => set({ [aKey]: aOn } as Partial<RuleAreaValues>),
+  });
+  const combo = (aType: PlacementSourceType) => {
+    const c =
+      aType === 'sheetname'
+        ? page.sheet
+        : aType === 'component_class'
+          ? page.componentClass
+          : page.group;
+    return {
+      items: c.options,
+      selection: c.selected,
+      enabled: page.enabled === aType,
+      onChange: (aIndex: number) => setPage((p) => withPlacementSelection(p, aType, aIndex)),
+    };
+  };
+
+  const accept = (): void => {
+    const placement = placementFromPage(page);
+    const next: RuleAreaValues = {
+      ...v,
+      placementEnabled: placement.enabled,
+      placementSourceType: placement.sourceType,
+      placementSource: placement.source,
+    };
+    const err = ruleAreaValuesError(next);
+
+    if (err?.field === 'layers') setError(NO_LAYERS_SELECTED);
+    else if (err)
+      setError(
+        `Outline hatch pitch must be ${err.kind === 'min' ? 'at least' : 'no more than'} ` +
+          `${pcbUnitText(err.bound, units)} ${unitLabel(units)}.`,
+      );
+    else onApply(next, conv);
+  };
+
+  return (
+    <>
+      <DIALOG_RULE_AREA_PROPERTIES_BASE
+        title={conv ? 'Convert to Rule Area' : 'Rule Area Properties'}
+        conversionBox={
+          conv ? <ConversionSettingsBox values={conv} units={units} onChange={setConv} /> : null
+        }
+        m_layers={layers.map((l) => ({
+          toggle: v.layers.includes(l.name),
+          text: l.name,
+          iconColour: l.color,
+        }))}
+        OnLayerSelection={(aRow, aOn) => {
+          const name = layers[aRow]!.name;
+          set({ layers: aOn ? [...v.layers, name] : v.layers.filter((x) => x !== name) });
+        }}
+        m_tcName={{ value: v.name, onChange: (aText) => set({ name: aText }) }}
+        m_cbLocked={{ value: v.locked, onChange: (aOn) => set({ locked: aOn }) }}
+        m_areaPropertiesNb={{
+          selection: tab,
+          onPageChanged: setTab,
+          pages: [
+            {
+              text: 'Keepouts',
+              content: (
+                <PANEL_RULE_AREA_PROPERTIES_KEEPOUT_BASE
+                  m_cbTracksCtrl={keepout('doNotAllowTracks')}
+                  m_cbViasCtrl={keepout('doNotAllowVias')}
+                  m_cbPadsCtrl={keepout('doNotAllowPads')}
+                  m_cbCopperPourCtrl={keepout('doNotAllowCopperPour')}
+                  m_cbFootprintsCtrl={keepout('doNotAllowFootprints')}
+                />
+              ),
+            },
+            {
+              text: 'Placement',
+              content: (
+                <PANEL_RULE_AREA_PROPERTIES_PLACEMENT_BASE
+                  source={page.enabled}
+                  onSourceChange={(aSource) => setPage((p) => withPlacementRadio(p, aSource))}
+                  m_sheetCombo={combo('sheetname')}
+                  m_componentClassCombo={combo('component_class')}
+                  m_groupCombo={combo('group')}
+                />
+              ),
+            },
+          ],
+        }}
+        m_OutlineDisplayCtrl={{
+          value: OUTLINE_DISPLAY_CHOICES.indexOf(v.hatchStyle as 'none' | 'edge' | 'full'),
+          onChange: (aIndex) => set({ hatchStyle: OUTLINE_DISPLAY_CHOICES[aIndex]! }),
+        }}
+        m_outlineHatchPitch={{
+          value: pitchText ?? pcbUnitText(v.hatchPitch, units),
+          units: unitLabel(units),
+          onChange: (aText) => {
+            setPitchText(aText);
+            const iu = pcbUnitValue(aText, units);
+            if (Number.isFinite(iu)) set({ hatchPitch: iu });
+          },
+        }}
+        onOK={accept}
+        onCancel={onClose}
+      />
+      {error !== null && <MessageDialogError message={error} onClose={() => setError(null)} />}
+    </>
+  );
 }

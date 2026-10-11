@@ -18,7 +18,7 @@ import {
   ANCHOR_TYPE,
   DIALOG_POSITION_RELATIVE,
 } from '@ziroeda/pcbnew/dialogs/dialog_position_relative.js';
-import { DialogPositionRelativeModeless } from '@ziroeda/pcbnew/dialogs/dialog_position_relative_ui.js';
+import { DialogPositionRelativeModeless } from '@ziroeda/pcbnew/dialogs/dialog_position_relative.js';
 import { ParseBoard } from '@ziroeda/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.js';
 import { PCB_SCREEN } from '@ziroeda/pcbnew/pcb_screen.js';
 import { PCB_ACTIONS } from '@ziroeda/pcbnew/tools/pcb_actions.js';
@@ -94,7 +94,10 @@ beforeEach(() => {
 
 afterEach(cleanup);
 
-const input = (id: string): HTMLInputElement => document.getElementById(id) as HTMLInputElement;
+/** The two offset entries, by the names their labels give them. */
+const NAMES: Record<string, string> = { 'ze-posrel-x': 'Offset X', 'ze-posrel-y': 'Offset Y' };
+const input = (id: string): HTMLInputElement =>
+  screen.getByRole('textbox', { name: NAMES[id] }) as HTMLInputElement;
 /** DIALOG_OFFSET_ITEM's two entries, X (or Distance) then Y (or Angle): their labels follow polar. */
 const offsetEntry = (i: number): HTMLInputElement =>
   screen.getAllByRole('textbox')[i] as HTMLInputElement;

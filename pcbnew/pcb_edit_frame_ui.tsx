@@ -35,7 +35,7 @@ import {
   isBackgroundDark,
   selectionAreaColors,
 } from '@ziroeda/common/preview_items/selection_area.js';
-import { DialogRuleAreaProperties } from './dialogs/dialog_rule_area_properties_ui.js';
+import { DialogRuleAreaProperties } from './dialogs/dialog_rule_area_properties.js';
 import type { PROGRESS_REPORTER_LIKE } from './connectivity/connectivity_algo.js';
 import { PROF_TIMER, traceAllegroPerf, wxLogTrace } from '@ziroeda/common/trace_helpers.js';
 import {
@@ -275,7 +275,7 @@ import {
 import { type DIALOG_TRACK_VIA_SIZE, DialogTrackViaSize } from './dialogs/dialog_track_via_size.js';
 import { writeRoutingSettings } from './router/pns_routing_settings.js';
 import { updatePcbnewLiveSettings } from './browser/pcbnew_live_settings.js';
-import { DialogPositionRelativeModeless } from './dialogs/dialog_position_relative_ui.js';
+import { DialogPositionRelativeModeless } from './dialogs/dialog_position_relative.js';
 import type { DIALOG_POSITION_RELATIVE } from './dialogs/dialog_position_relative.js';
 import { DialogOffsetItem } from './dialogs/dialog_offset_item.js';
 import { DialogSwapLayers } from './dialogs/dialog_swap_layers.js';
@@ -289,7 +289,7 @@ import { DialogUnusedPadLayers } from './dialogs/dialog_unused_pad_layers.js';
 import { DialogGlobalDeletion } from './dialogs/dialog_global_deletion.js';
 import { DialogGlobalEditTracksAndVias } from './dialogs/dialog_global_edit_tracks_and_vias_ui.js';
 import { DialogExchangeFootprints } from './dialogs/dialog_exchange_footprints_ui.js';
-import { DialogNonCopperZonesProperties } from './dialogs/dialog_non_copper_zones_properties_ui.js';
+import { DialogNonCopperZonesProperties } from './dialogs/dialog_non_copper_zones_properties.js';
 import { DIALOG_NON_COPPER_ZONES_EDITOR } from './dialogs/dialog_non_copper_zones_properties.js';
 import type { DIALOG_EXCHANGE_FOOTPRINTS } from './dialogs/dialog_exchange_footprints.js';
 import {

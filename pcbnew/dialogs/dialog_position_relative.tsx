@@ -17,6 +17,8 @@
  * Every field of `_base.cpp`'s sizer tree that the logic changes is a field
  * here: the labels, the unit labels, the Reset tooltips, the reference line.
  */
+import { type JSX, useEffect, useRef, useSyncExternalStore } from 'react';
+import { DIALOG_POSITION_RELATIVE_BASE } from './dialog_position_relative_base.js';
 import { UNITS_PROVIDER } from '@ziroeda/common/units_provider.js';
 import { type EdaUnits, pcbIUScale, unitLabel } from '@ziroeda/common/eda_units.js';
 import type { EDA_ITEM } from '@ziroeda/common/eda_item.js';
@@ -482,4 +484,61 @@ export class DIALOG_POSITION_RELATIVE implements PICKER_RECEIVER {
     aEntry.SetText(aText);
     this.notify();
   }
+}
+
+/** DIALOG_POSITION_RELATIVE's modeless window, DIALOG_POSITION_RELATIVE_BASE over the class. */
+export function DialogPositionRelativeModeless({
+  dialog,
+}: {
+  dialog: DIALOG_POSITION_RELATIVE;
+}): JSX.Element | null {
+  useSyncExternalStore(
+    (listener) => dialog.Subscribe(listener),
+    () => dialog.GetVersion(),
+  );
+
+  const shown = dialog.IsShown();
+  const xRef = useRef<HTMLInputElement>(null);
+  const raised = dialog.GetRaiseCount();
+
+  // `SetInitialFocus( m_xEntry )`, and `Raise(); SetFocus()` when the picker returns.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `raised` is the trigger, the effect does not read it
+  useEffect(() => {
+    if (shown) xRef.current?.focus();
+  }, [shown, raised]);
+
+  if (!shown) return null;
+
+  return (
+    <DIALOG_POSITION_RELATIVE_BASE
+      title={DIALOG_POSITION_RELATIVE_TITLE}
+      m_referenceInfo={dialog.m_referenceInfo}
+      OnUseUserOriginClick={() => dialog.OnUseUserOriginClick()}
+      OnUseGridOriginClick={() => dialog.OnUseGridOriginClick()}
+      OnSelectItemClick={() => dialog.OnSelectItemClick()}
+      OnSelectPointClick={() => dialog.OnSelectPointClick()}
+      m_xEntry={{
+        label: dialog.GetXLabel(),
+        value: dialog.m_xOffset.GetText(),
+        units: dialog.GetXUnitLabel(),
+        onChange: (aText) => dialog.SetEntryText(dialog.m_xOffset, aText),
+        OnTextFocusLost: () => dialog.OnTextFocusLost(dialog.m_xOffset),
+        inputRef: xRef,
+      }}
+      m_yEntry={{
+        label: dialog.GetYLabel(),
+        value: dialog.m_yOffset.GetText(),
+        units: dialog.GetYUnitLabel(),
+        onChange: (aText) => dialog.SetEntryText(dialog.m_yOffset, aText),
+        OnTextFocusLost: () => dialog.OnTextFocusLost(dialog.m_yOffset),
+      }}
+      clearXTip={dialog.m_clearXToolTip}
+      clearYTip={dialog.m_clearYToolTip}
+      OnClearX={() => dialog.OnClear('x')}
+      OnClearY={() => dialog.OnClear('y')}
+      m_polarCoords={{ value: dialog.m_polarCoords, onChange: (aOn) => dialog.OnPolarChanged(aOn) }}
+      OnOkClick={() => dialog.OnOkClick()}
+      onCancel={() => dialog.OnCancel()}
+    />
+  );
 }

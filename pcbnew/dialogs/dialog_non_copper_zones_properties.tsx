@@ -22,6 +22,14 @@
  * non-copper zone can keep a name that collides with another.
  */
 
+import { type JSX, useState } from 'react';
+import { MessageDialogError } from '@ziroeda/common/dialogs/dialog_message.js';
+import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
+import { pcbUnitText, pcbUnitValue, unitLabel } from '../pcb_unit_binder.js';
+import {
+  DIALOG_NONCOPPER_ZONES_PROPERTIES_BASE,
+  type UNIT_FIELD,
+} from './dialog_non_copper_zones_properties_base.js';
 import { pcbMmToIU as mmToIU } from '@ziroeda/common/eda_units.js';
 import type { ZoneBorderStyle, ZoneValueError } from './dialog_rule_area_properties.js';
 import { LSET_Name } from '@ziroeda/common/layer_ids.js';
@@ -210,4 +218,114 @@ export class DIALOG_NON_COPPER_ZONES_EDITOR {
 
     return { ok: true };
   }
+}
+
+/** `m_OutlineDisplayCtrlChoices`, in order. */
+const OUTLINE_STYLES = ['none', 'edge', 'full'] as const;
+/** `m_cornerSmoothingChoiceChoices`: SMOOTHING_NONE, SMOOTHING_CHAMFER, SMOOTHING_FILLET. */
+const SMOOTHING_CHOICES = ['none', 'chamfer', 'fillet'] as const;
+/** `m_GridStyleCtrlChoices`: POLYGONS, HATCH_PATTERN. */
+const FILL_TYPES = ['solid', 'hatch'] as const;
+
+type LengthKey = 'hatchPitch' | 'minThickness' | 'cornerRadius' | 'hatchThickness' | 'hatchGap';
+
+/**
+ * `InvokeNonCopperZonesEditor`'s ShowModal: DIALOG_NONCOPPER_ZONES_PROPERTIES_BASE over the class.
+ * Not here yet: the Conversion Settings box upstream inserts when CONVERT_TOOL opens it.
+ */
+export function DialogNonCopperZonesProperties({
+  dialog,
+  units,
+  layers,
+  onResult,
+}: {
+  dialog: DIALOG_NON_COPPER_ZONES_EDITOR;
+  /** The frame's units: the lengths are UNIT_BINDERs upstream. */
+  units: StatusUnits;
+  /** `SetupLayersList( m_layers, m_parent, LSET::AllNonCuMask() )`: the non-copper layers. */
+  layers: readonly { name: string; color: string }[];
+  /** OK (true, after the transfer took) or Cancel (false). */
+  onResult: (aOk: boolean) => void;
+}): JSX.Element {
+  const [v, setV] = useState<NonCopperZoneValues>(() => dialog.TransferDataToWindow());
+  // Lengths held as text while typed, so a half-typed number survives the caret.
+  const [texts, setTexts] = useState<Partial<Record<string, string>>>({});
+  const [error, setError] = useState<string | null>(null);
+
+  const set = (patch: Partial<NonCopperZoneValues>): void => setV((p) => ({ ...p, ...patch }));
+  const hatch = v.fillMode === 'hatch';
+
+  const length = (aKey: LengthKey, aEnabled = true): UNIT_FIELD => ({
+    value: texts[aKey] ?? pcbUnitText(v[aKey], units),
+    units: unitLabel(units),
+    enabled: aEnabled,
+    onChange: (aText) => {
+      setTexts((t) => ({ ...t, [aKey]: aText }));
+      const iu = pcbUnitValue(aText, units);
+      if (Number.isFinite(iu)) set({ [aKey]: iu } as Partial<NonCopperZoneValues>);
+    },
+  });
+  const choice = <T extends string>(aList: readonly T[], aValue: T, aOn: (v: T) => void) => ({
+    value: aList.indexOf(aValue),
+    onChange: (aIndex: number) => aOn(aList[aIndex]!),
+  });
+
+  return (
+    <>
+      <DIALOG_NONCOPPER_ZONES_PROPERTIES_BASE
+        m_layers={layers.map((l) => ({
+          toggle: v.layers.includes(l.name),
+          text: l.name,
+          iconColour: l.color,
+        }))}
+        OnLayerSelection={(aRow, aOn) => {
+          const name = layers[aRow]!.name;
+          set({ layers: aOn ? [...v.layers, name] : v.layers.filter((x) => x !== name) });
+        }}
+        m_cbLocked={{ value: v.locked, onChange: (aOn) => set({ locked: aOn }) }}
+        m_OutlineDisplayCtrl={choice(OUTLINE_STYLES, v.hatchStyle, (aStyle) =>
+          set({ hatchStyle: aStyle }),
+        )}
+        m_outlineHatchPitch={length('hatchPitch')}
+        m_minWidth={length('minThickness')}
+        m_cornerSmoothingChoice={choice(SMOOTHING_CHOICES, v.cornerSmoothing, (aSmoothing) =>
+          set({ cornerSmoothing: aSmoothing }),
+        )}
+        // OnUpdateUI: "Chamfer distance:" for a chamfer, else "Fillet radius:"; the control is
+        // enabled while any smoothing is chosen.
+        cornerRadiusLabel={v.cornerSmoothing === 'chamfer' ? 'Chamfer distance:' : 'Fillet radius:'}
+        m_cornerRadius={length('cornerRadius', v.cornerSmoothing !== 'none')}
+        m_GridStyleCtrl={choice(FILL_TYPES, v.fillMode, (aMode) => set({ fillMode: aMode }))}
+        m_hatchOrient={{
+          value: texts.hatchOrientation ?? String(v.hatchOrientation),
+          units: 'degree',
+          enabled: hatch,
+          onChange: (aText) => {
+            setTexts((t) => ({ ...t, hatchOrientation: aText }));
+            const d = Number(aText);
+            if (aText.trim() !== '' && Number.isFinite(d)) set({ hatchOrientation: d });
+          },
+        }}
+        m_hatchWidth={length('hatchThickness', hatch)}
+        m_hatchGap={length('hatchGap', hatch)}
+        m_spinCtrlSmoothLevel={{
+          value: v.hatchSmoothingLevel,
+          enabled: hatch,
+          onChange: (aValue) => set({ hatchSmoothingLevel: aValue }),
+        }}
+        m_spinCtrlSmoothValue={{
+          value: v.hatchSmoothingValue,
+          enabled: hatch,
+          onChange: (aValue) => set({ hatchSmoothingValue: aValue }),
+        }}
+        onOK={() => {
+          const r = dialog.TransferDataFromWindow(v);
+          if (r.ok) onResult(true);
+          else setError(r.message ?? 'A value is out of range.');
+        }}
+        onCancel={() => onResult(false)}
+      />
+      {error !== null && <MessageDialogError message={error} onClose={() => setError(null)} />}
+    </>
+  );
 }

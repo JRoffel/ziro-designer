@@ -14,7 +14,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { DialogRuleAreaProperties } from '@ziroeda/pcbnew/dialogs/dialog_rule_area_properties_ui.js';
+import { DialogRuleAreaProperties } from '@ziroeda/pcbnew/dialogs/dialog_rule_area_properties.js';
 import type {
   PlacementSources,
   RuleAreaValues,
@@ -82,14 +82,30 @@ const cb = (label: string): HTMLInputElement =>
  * into a test of the wrong thing.
  */
 const placementCombos = (): HTMLButtonElement[] =>
-  Array.from(document.querySelectorAll<HTMLButtonElement>('.ze-rule-area-placement .ze-combo'));
+  Array.from(
+    screen
+      .getByRole('tabpanel', { name: 'Placement' })
+      .querySelectorAll<HTMLButtonElement>('.ze-combo'),
+  );
+
+describe('the keepout boxes', () => {
+  it('each box writes its own ZONE::SetDoNot… flag', () => {
+    const onApply = vi.fn();
+    open({}, onApply);
+    // A new area forbids tracks, vias and pads; clear vias alone.
+    fireEvent.click(cb('Keep out vias'));
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+    const v = onApply.mock.calls[0]![0] as RuleAreaValues;
+    expect([v.doNotAllowTracks, v.doNotAllowVias, v.doNotAllowPads]).toEqual([true, false, true]);
+  });
+});
 
 describe('the two notebook pages', () => {
   it('opens on Keepouts for a new area', () => {
     // `m_areaPropertiesNb->SetSelection( 0 )` — a new area forbids tracks,
     // vias and pads, so `HasKeepoutParametersSet` is true.
     open();
-    expect(screen.getByRole('button', { name: 'Keepouts' }).className).toContain('active');
+    expect(screen.getByRole('tab', { name: 'Keepouts' }).className).toContain('active');
     expect(screen.getByText('Keep out tracks')).toBeTruthy();
   });
 
@@ -101,7 +117,7 @@ describe('the two notebook pages', () => {
       doNotAllowPads: false,
       placementEnabled: true,
     });
-    expect(screen.getByRole('button', { name: 'Placement' }).className).toContain('active');
+    expect(screen.getByRole('tab', { name: 'Placement' }).className).toContain('active');
     expect(screen.getByText('No placement')).toBeTruthy();
   });
 
@@ -126,7 +142,7 @@ describe('Outline display and hatch pitch are NOT on a page', () => {
 
   it('and stay visible on the Placement page', () => {
     open();
-    fireEvent.click(screen.getByRole('button', { name: 'Placement' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Placement' }));
     expect(screen.getByText('Outline display:')).toBeTruthy();
     expect(screen.getByText('Outline hatch pitch:')).toBeTruthy();
   });
@@ -140,7 +156,7 @@ describe('the placement page', () => {
       doNotAllowPads: false,
       placementEnabled: true,
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Placement' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Placement' }));
 
     const combos = placementCombos();
     expect(combos).toHaveLength(3);
@@ -155,7 +171,7 @@ describe('the placement page', () => {
       doNotAllowPads: false,
       placementEnabled: true,
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Placement' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Placement' }));
     fireEvent.click(screen.getByLabelText('Place items in group:', { selector: 'input' }));
 
     expect(placementCombos().map((c) => !c.disabled)).toEqual([false, false, true]);
@@ -204,7 +220,7 @@ describe('TransferDataFromWindow', () => {
     // so a disabled area still remembers where it would have pointed.
     const onApply = vi.fn();
     open({}, onApply);
-    fireEvent.click(screen.getByRole('button', { name: 'Placement' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Placement' }));
     fireEvent.click(screen.getByLabelText('Place items from sheet:', { selector: 'input' }));
     fireEvent.click(screen.getByLabelText('No placement', { selector: 'input' }));
     fireEvent.click(screen.getByRole('button', { name: 'OK' }));

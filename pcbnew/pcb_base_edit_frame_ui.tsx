@@ -47,7 +47,7 @@ import type {
 import { DialogDimensionProperties } from './dialogs/dialog_dimension_properties_ui.js';
 import { DialogShapeProperties } from './dialogs/dialog_graphic_properties.js';
 import type { DIALOG_NON_COPPER_ZONES_EDITOR } from './dialogs/dialog_non_copper_zones_properties.js';
-import { DialogNonCopperZonesProperties } from './dialogs/dialog_non_copper_zones_properties_ui.js';
+import { DialogNonCopperZonesProperties } from './dialogs/dialog_non_copper_zones_properties.js';
 import {
   type DIALOG_PAD_PROPERTIES,
   DialogPadProperties,
@@ -60,7 +60,7 @@ import {
   collectPlacementSources,
   DIALOG_RULE_AREA_PROPERTIES,
 } from './dialogs/dialog_rule_area_properties.js';
-import { DialogRuleAreaProperties } from './dialogs/dialog_rule_area_properties_ui.js';
+import { DialogRuleAreaProperties } from './dialogs/dialog_rule_area_properties.js';
 import type { DIALOG_SHAPE_PROPERTIES, ShapeValues } from './dialogs/dialog_shape_properties.js';
 import {
   type DIALOG_TABLE_PROPERTIES,
