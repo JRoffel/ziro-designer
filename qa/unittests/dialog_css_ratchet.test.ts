@@ -21,11 +21,13 @@ const BASELINE: Record<string, number> = {
   common: 183, // -11 (10-11): the shared Table Properties form, replaced by one pair per editor
   cvpcb: 8,
   designer: 138,
-  eeschema: 127, // -13 (10-11): Shape Properties' .ze-shapeprops-*, then Annotate's .ze-annotate-*
+  eeschema: 114, // -26 (10-11): Shape, Annotate and Find's own classes went with their _base pairs
   gerbview: 31,
   pagelayout_editor: 14,
   // 477 -> 465 (10-10): the drill and position-file dialogs on the sizers.
-  pcbnew: 465,
+  // 465 -> 466 (10-11): not new CSS. `span2` was shared with eeschema's Find dialog; with Find a
+  // _base pair, Exchange Footprints (.ze-xfp-upper > .ze-radio.span2) is its only user.
+  pcbnew: 466,
 };
 
 const git = (...aSpecs: string[]): string[] =>

@@ -69,10 +69,8 @@
  * (wxFR_REPLACEDIALOG). Enter = Find, F3 / Shift+F3 = OnCharHook, Esc = close.
  */
 import { useEffect, useRef, type JSX } from 'react';
-import { DialogShim } from '@ziroeda/common/dialog_shim.js';
-import { Button, CheckBox, HyperlinkCtrl, StaticLine } from '@ziroeda/wx/controls.js';
 import { KeyNameFromKeyCode } from '@ziroeda/common/hotkeys_basic.js';
-import { TextCombo } from '@ziroeda/wx/combobox.js';
+import { DIALOG_SCH_FIND_BASE } from './dialog_sch_find_base.js';
 import type { MatchMode, SchSearchData } from '../tools/sch_find_replace_tool.js';
 import type { SCH_FIND_REPLACE_TOOL } from '../tools/sch_find_replace_tool.js';
 import type { SCH_BASE_FRAME } from '../sch_base_frame.js';
@@ -142,178 +140,86 @@ export function DialogSchFind({
   const setMode = (mode: MatchMode, on: boolean): void =>
     onChange({ ...data, matchMode: on ? mode : 'plain' });
 
-  const check = (
-    label: string,
-    checked: boolean,
-    set: (on: boolean) => void,
-    className: string,
-    disabled = false,
-  ) => (
-    <CheckBox
-      label={label}
-      checked={checked}
-      onChange={set}
-      className={className}
-      disabled={disabled}
-    />
-  );
-
   // `ACTIONS::showSearch.GetHotKey()` appended as " (%s)" (dialog_sch_find.cpp:83-87).
   const hotkey = ACTIONS.showSearch.GetHotKey();
   const linkLabel = `Show search panel${hotkey ? ` (${KeyNameFromKeyCode(hotkey)})` : ''}`;
 
   return (
-    <DialogShim
+    <DIALOG_SCH_FIND_BASE
       title={replace ? 'Find and Replace' : 'Find'}
-      onClose={onClose}
-      modeless
-      className="ze-schfind"
-    >
-      {/* mainSizer (V) */}
-      <div
-        className="ze-schfind-main"
-        onKeyDown={(e) => {
-          // OnCharHook: F3 / Shift+F3 search from the dialog's own string.
-          if (e.key === 'F3') {
-            e.preventDefault();
-            e.stopPropagation();
-            if (e.shiftKey) onFindPrevious();
-            else onFindNext();
-          }
-        }}
-      >
-        {/* topSizer (H), proportion 1 */}
-        <div className="ze-schfind-top">
-          {/* leftSizer (V), 1, wxEXPAND|wxALL 5 */}
-          <div className="ze-schfind-left">
-            {/* leftGridSizer( 3, 2, 3, 3 ), column 1 growable; wxALL|wxEXPAND 5 */}
-            <div className="ze-schfind-grid">
-              <span className="ze-schfind-label">Search for:</span>
-              <TextCombo
-                className="ze-schfind-combo"
-                // m_comboFind->SetToolTip( _( "Text with optional wildcards" ) )
-                title="Text with optional wildcards"
-                value={data.findString}
-                options={findStrings}
-                autoFocus
-                onChange={(v) => onChange({ ...data, findString: v })}
-                // wxTE_PROCESS_ENTER: OnSearchForEnter is OnFind.
-                onEnter={onFindNext}
-              />
-              {replace && (
-                <>
-                  <span className="ze-schfind-label ze-schfind-replace-label">Replace with:</span>
-                  <TextCombo
-                    className="ze-schfind-combo"
-                    value={data.replaceString}
-                    options={replaceStrings}
-                    onChange={(v) => onChange({ ...data, replaceString: v })}
-                    // OnReplaceWithEnter is OnFind too.
-                    onEnter={onFindNext}
-                  />
-                </>
-              )}
-            </div>
-            {/* gbSizer2 = wxGridBagSizer( 0, 20 ), empty cell height 8; 1, wxEXPAND|wxTOP 5.
-                Each box is wxBOTTOM|wxRIGHT|wxLEFT 5. */}
-            <div className="ze-schfind-options">
-              {check(
-                'Match case',
-                data.matchCase,
-                (on) => onChange({ ...data, matchCase: on }),
-                'r0 c0',
-              )}
-              {check(
-                'Whole words only',
-                data.matchMode === 'wholeword',
-                (on) => setMode('wholeword', on),
-                'r0 c1',
-              )}
-              {check(
-                'Regular Expression',
-                data.matchMode === 'regex',
-                (on) => setMode('regex', on),
-                'r0 c2',
-              )}
-              {/* Row 1 is empty: SetEmptyCellSize( wxSize( -1, 8 ) ). */}
-              <span className="ze-schfind-empty" />
-              {!symbolEditor &&
-                check(
-                  'Search pin names and numbers',
-                  data.searchAllPins,
-                  (on) => onChange({ ...data, searchAllPins: on }),
-                  'r2 c0 span2',
-                )}
-              {!symbolEditor &&
-                check(
-                  'Search net names',
-                  data.searchNetNames,
-                  (on) => onChange({ ...data, searchNetNames: on }),
-                  'r2 c2',
-                )}
-              {check(
-                'Include hidden fields',
-                data.searchAllFields,
-                (on) => onChange({ ...data, searchAllFields: on }),
-                'r3 c0 span3',
-              )}
-              {!symbolEditor &&
-                check(
-                  'Search the current sheet only',
-                  data.searchCurrentSheetOnly,
-                  (on) => onChange({ ...data, searchCurrentSheetOnly: on }),
-                  'r4 c0 span3',
-                  data.searchSelectedOnly,
-                )}
-              {check(
-                'Search the current selection only',
-                data.searchSelectedOnly,
-                (on) => onChange({ ...data, searchSelectedOnly: on }),
-                'r5 c0 span3',
-              )}
-              {replace &&
-                !symbolEditor &&
-                check(
-                  'Replace matches in reference designators',
-                  data.replaceReferences,
-                  (on) => onChange({ ...data, replaceReferences: on }),
-                  'r6 c0 span3',
-                )}
-            </div>
-          </div>
-          {/* rightSizer (V), 0, wxALL|wxEXPAND 6 */}
-          <div className="ze-schfind-buttons">
-            {/* m_buttonFind->SetDefault(); wxALL|wxEXPAND 6 */}
-            <Button label="Find" isDefault onClick={onFindNext} />
-            {replace && (
-              <Button
-                label="Replace"
-                disabled={!data.findString || !canReplace}
-                onClick={onReplace}
-              />
-            )}
-            {replace && (
-              <Button label="Replace All" disabled={!data.findString} onClick={onReplaceAll} />
-            )}
-            <Button label="Close" onClick={onClose} />
-          </div>
-        </div>
-        {/* bSizer6 (V), wxEXPAND|wxBOTTOM|wxRIGHT|wxLEFT 5. `m_staticline1->Hide()` and
-            `m_searchPanelLink->Hide()` in the Symbol Editor. */}
-        {!symbolEditor && (
-          <div className="ze-schfind-foot">
-            <StaticLine className="ze-schfind-line" />
-            {onShowSearchPanel && (
-              <HyperlinkCtrl
-                label={linkLabel}
-                className="ze-schfind-link"
-                onClick={onShowSearchPanel}
-              />
-            )}
-          </div>
-        )}
-      </div>
-    </DialogShim>
+      m_comboFind={data.findString}
+      comboFindChoices={findStrings}
+      onComboFind={(v) => onChange({ ...data, findString: v })}
+      replaceShown={!!replace}
+      m_comboReplace={data.replaceString}
+      comboReplaceChoices={replaceStrings}
+      onComboReplace={(v) => onChange({ ...data, replaceString: v })}
+      m_checkMatchCase={{
+        value: data.matchCase,
+        onChange: (on) => onChange({ ...data, matchCase: on }),
+      }}
+      m_checkWholeWord={{
+        value: data.matchMode === 'wholeword',
+        onChange: (on) => setMode('wholeword', on),
+      }}
+      m_checkRegexMatch={{
+        value: data.matchMode === 'regex',
+        onChange: (on) => setMode('regex', on),
+      }}
+      m_cbSearchPins={{
+        shown: !symbolEditor,
+        value: data.searchAllPins,
+        onChange: (on) => onChange({ ...data, searchAllPins: on }),
+      }}
+      m_cbSearchNetNames={{
+        shown: !symbolEditor,
+        value: data.searchNetNames,
+        onChange: (on) => onChange({ ...data, searchNetNames: on }),
+      }}
+      m_cbSearchHiddenFields={{
+        value: data.searchAllFields,
+        onChange: (on) => onChange({ ...data, searchAllFields: on }),
+      }}
+      m_cbCurrentSheetOnly={{
+        shown: !symbolEditor,
+        value: data.searchCurrentSheetOnly,
+        enabled: !data.searchSelectedOnly,
+        onChange: (on) => onChange({ ...data, searchCurrentSheetOnly: on }),
+      }}
+      m_cbSelectedOnly={{
+        value: data.searchSelectedOnly,
+        onChange: (on) => onChange({ ...data, searchSelectedOnly: on }),
+      }}
+      m_cbReplaceReferences={{
+        shown: !!replace && !symbolEditor,
+        value: data.replaceReferences,
+        onChange: (on) => onChange({ ...data, replaceReferences: on }),
+      }}
+      onFind={onFindNext}
+      m_buttonReplace={{
+        shown: !!replace,
+        enabled: !!data.findString && canReplace,
+        onClick: () => onReplace?.(),
+      }}
+      m_buttonReplaceAll={{
+        shown: !!replace,
+        enabled: !!data.findString,
+        onClick: () => onReplaceAll?.(),
+      }}
+      searchPanelLinkShown={!symbolEditor && !!onShowSearchPanel}
+      searchPanelLinkLabel={linkLabel}
+      onShowSearchPanel={() => onShowSearchPanel?.()}
+      onCharHook={(e) => {
+        // OnCharHook: F3 / Shift+F3 search from the dialog's own string.
+        if (e.key === 'F3') {
+          e.preventDefault();
+          e.stopPropagation();
+          if (e.shiftKey) onFindPrevious();
+          else onFindNext();
+        }
+      }}
+      onCancel={onClose}
+    />
   );
 }
 

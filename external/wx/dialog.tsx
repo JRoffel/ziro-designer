@@ -313,9 +313,18 @@ export function Dialog({
     resize.current = null;
   };
 
-  const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>): void => {
+  /**
+   * `wxEVT_CHAR_HOOK`: the top-level window sees the key before the focused control does, so
+   * the hook runs in the capture phase - a control that stops a key's propagation (an entry, a
+   * grid) cannot hide it. A key the hook consumes (preventDefault) goes no further.
+   */
+  const onKeyDownCapture = (e: ReactKeyboardEvent<HTMLDivElement>): void => {
     onCharHook?.(e);
 
+    if (e.defaultPrevented) e.stopPropagation();
+  };
+
+  const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>): void => {
     if (e.defaultPrevented) return;
 
     if (e.key === 'Escape' && modeless) {
@@ -352,6 +361,7 @@ export function Dialog({
       aria-label={title}
       tabIndex={-1}
       onMouseDown={(e) => e.stopPropagation()}
+      onKeyDownCapture={onKeyDownCapture}
       onKeyDown={onKeyDown}
     >
       <div
