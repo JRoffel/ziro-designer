@@ -49,8 +49,7 @@ function open(): { written: { path: string; text: string }[] } {
   return { written };
 }
 
-const tabs = (): string[] =>
-  Array.from(document.querySelectorAll('.ze-erc-tabs .tab')).map((t) => t.textContent ?? '');
+const tabs = (): string[] => screen.queryAllByRole('tab').map((t) => t.textContent ?? '');
 
 describe('DialogExportNetlist', () => {
   it('installs the seven built-in pages in the constructor s order', () => {
@@ -63,7 +62,8 @@ describe('DialogExportNetlist', () => {
       'Allegro',
       'CadStar',
       'PADS',
-      'Spice',
+      // wxT( "SPICE" ) (dialog_export_netlist.cpp:347); this said 'Spice'.
+      'SPICE',
       'SPICE Model',
     ]);
   });
@@ -82,5 +82,33 @@ describe('DialogExportNetlist', () => {
     ).toBe(true);
     expect(written[0]!.text).toContain('R1 VIN OUT 10k');
     expect(written[0]!.text.endsWith('\n.ends\n')).toBe(true);
+  });
+
+  it('each page carries the label its Install* adds', () => {
+    open();
+    expect(screen.getByText('Export netlist in KiCad format')).toBeTruthy();
+    expect(screen.getByText('Export netlist in SPICE format')).toBeTruthy();
+    expect(screen.getByText('Export netlist as a SPICE .subckt model')).toBeTruthy();
+  });
+
+  it('the SPICE page: the save options live, the sheet-root and event boxes ticked and greyed', () => {
+    open();
+    fireEvent.click(screen.getByRole('tab', { name: 'SPICE' }));
+    const root = screen.getAllByLabelText('Use current sheet as root')[0] as HTMLInputElement;
+    expect([root.checked, root.disabled]).toEqual([true, true]);
+    const events = screen.getByLabelText('Save all digital event data') as HTMLInputElement;
+    expect([events.checked, events.disabled]).toEqual([true, true]);
+    expect((screen.getByLabelText('Save all voltages') as HTMLInputElement).disabled).toBe(false);
+  });
+
+  it('writes into the output path, with Save all voltages in the SPICE text', () => {
+    const { written } = open();
+    fireEvent.change(screen.getByLabelText('Output path'), { target: { value: 'out' } });
+    expect((screen.getByLabelText('Output path') as HTMLInputElement).value).toBe('out');
+    fireEvent.click(screen.getByRole('tab', { name: 'SPICE' }));
+    fireEvent.click(screen.getByLabelText('Save all voltages'));
+    fireEvent.click(screen.getByRole('button', { name: 'Export Netlist' }));
+    expect(written[0]!.path).toBe('out/amp_sheet.cir');
+    expect(written[0]!.text).toContain('.save all');
   });
 });

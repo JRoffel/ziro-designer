@@ -441,7 +441,9 @@ const BASELINE: Record<string, { colours: number; metrics: number }> = {
   // metrics 108 -> 100: DIALOG_SCH_IMPORT_SETTINGS likewise (its inline font sizes and margins).
   // metrics 100 -> 99: DIALOG_IMAGE_PROPERTIES likewise.
   // metrics 99 -> 96: Line, Wire & Bus and Junction Properties are their _base pairs.
-  'editors/schematic': { colours: 16, metrics: 96 },
+  // colours 16 -> 15, metrics 96 -> 81 (10-11): Export Netlist's and Library Links' inline styles,
+  // gone with their _base pairs.
+  'editors/schematic': { colours: 15, metrics: 81 },
   // 166 -> 163 metrics on `editors/schematic`, moved here whole: cvpcb's
   // three windows left `editors/schematic/dialogs/` for the root `cvpcb/`
   // package (cvpcb/STRUCTURE.md's stage two). No colours moved (the five
@@ -1457,7 +1459,8 @@ describe('the scan totals, so the numbers in the PR stay true', () => {
     // 274 -> 273: .ze-lp-syntax's #6fa8ff (Text Properties' pair).
     // 273 -> 272 (10-11): Filter Selection's inline rgba shadow, gone with its _base pair.
     // 272 -> 268 (10-11): the old Move Exact and Outset Items forms, gone with their _base pairs.
-    expect(SITES.filter((s) => s.kind === 'colours').length).toBe(268);
+    // 268 -> 267: Export Netlist's inline #c33.
+    expect(SITES.filter((s) => s.kind === 'colours').length).toBe(267);
     // 1657 -> 1649: the same sweep. A native colour input has no useful
     // default size, so eight of the sixteen sites gave theirs an inline
     // width and height; the shared swatch takes --swatch-*-w/h. Rescanned.
@@ -1690,8 +1693,9 @@ describe('the scan totals, so the numbers in the PR stay true', () => {
     // pair); 932 -> 931: Change Symbols' .ze-chsym-* rules.
     // 931 -> 901 (10-11): the old Move Exact and Outset Items forms, gone with their _base pairs.
     // 901 -> 899: the shared Page Settings pair.
-    // 899 -> 888 (10-11): the batch-5 pcbnew pairs' old forms and their shell.css rules.
-    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(888);
+    // 899 -> 888 (10-11): the batch-5 pcbnew pairs' old forms and their shell.css rules;
+    // 888 -> 873: Export Netlist's and Library Links' inline layout.
+    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(873);
   });
 
   it('and the two agree with the per-area table, which is where they come from', () => {

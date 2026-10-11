@@ -334,7 +334,8 @@ const BASELINE: Record<string, number> = {
   // plus one is six; 41 - 6. RESCANNED from this tree.
   // 35 -> 32: Import Settings is its _base (its three inline 12.5px sizes went).
   // 32 -> 27: the stroke dialogs' and Shape Properties' help labels are StaticText info fonts.
-  'editors/schematic': 27,
+  // 27 -> 24 (10-11): Export Netlist's inline font sizes, gone with its _base pair.
+  'editors/schematic': 24,
   // 2 until the Symbol Editor parity pass deleted the invented
   // "Double-click a symbol..." hint that an empty SYMBOL_EDIT_FRAME does not
   // have; it carried an inline `fontSize: 14` and a `color: '#888'`.
@@ -748,8 +749,9 @@ describe('hardcoded font sizes do not grow', () => {
     // 80 -> 75: the editors/schematic row above.
     // 75 -> 72 (10-11): the editors/pcb row above.
     // 72 -> 60 (10-11): the editors/pcb row above, again.
-    // 60 -> 57 (10-11): the editors/pcb row above.
-    expect(sites.length).toBe(57);
+    // 60 -> 57 (10-11): the editors/pcb row above; 57 -> 54: Export Netlist's inline font
+    // sizes, see the editors/schematic row.
+    expect(sites.length).toBe(54);
   });
 });
 

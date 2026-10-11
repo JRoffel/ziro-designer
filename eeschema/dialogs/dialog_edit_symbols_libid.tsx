@@ -17,11 +17,11 @@
  * and the double-click browse, which need a symbol chooser this dialog is not
  * handed; the new id is typed.
  */
-import { Button } from '@ziroeda/wx/controls.js';
 import { type JSX, useState } from 'react';
 import { isValidLibId, type LibIdRow } from '../index.js';
 import { DisplayInfoMessage } from '@ziroeda/common/confirm.js';
-import { DialogShim } from '@ziroeda/common/dialog_shim.js';
+import { MessageDialogError } from '@ziroeda/common/dialogs/dialog_message.js';
+import { DIALOG_EDIT_SYMBOLS_LIBID_BASE } from './dialog_edit_symbols_libid_base.js';
 import { SingleChoiceDialog } from '@ziroeda/common/dialogs/dialog_single_choice.js';
 import { wxGridSelectionModes } from '@ziroeda/wx/grid.js';
 import { WxGridView } from '@ziroeda/wx/grid_ui.js';
@@ -60,6 +60,9 @@ export function DialogEditSymbolsLibId({
     candidates: string[];
     resolve: (v: string | null) => void;
   } | null>(null);
+
+  // The last apply's errors, shown once as DisplayError would.
+  const [errorsSeen, setErrorsSeen] = useState(false);
 
   /** `m_OrphansRowIndexes`. */
   const orphanRows = rows.flatMap((r, i) => (r.orphan ? [i] : []));
@@ -144,79 +147,59 @@ export function DialogEditSymbolsLibId({
       if (next !== '' && next !== current) changes.set(current, next);
     }
 
+    setErrorsSeen(false);
     onApply(changes);
   };
 
   return (
     <>
-      <DialogShim title="Symbol Library References" onClose={onClose} className="ze-label-dialog">
-        <div
-          className="ze-label-dialog-body"
-          style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
-        >
-          {errors.length > 0 && (
-            <div className="ze-props-error">
-              {errors.map((e) => (
-                <div key={e}>{e}</div>
-              ))}
-            </div>
-          )}
-          {/* `m_grid->SetMinSize( wxSize( -1, 300 ) )`. */}
-          <div
-            className="ze-grid-pane"
-            style={{
-              // [data] m_grid->SetMinSize( wxSize( -1, 300 ) ) (_base.cpp:51)
-              minHeight: 300,
-              maxHeight: '55vh',
+      <DIALOG_EDIT_SYMBOLS_LIBID_BASE
+        m_grid={
+          <WxGridView
+            grid={grid}
+            tricks={tricks}
+            columns={[{ width: 280 }, { width: 280 }, { width: 280 }]}
+            flexCol={COL_NEW_LIBID}
+            onUpdate={onUpdate}
+            ariaLabel="Symbol library references"
+            renderCell={(row, col, value) => {
+              // `m_autoWrapRenderer` on the references.
+              if (col === COL_REFS)
+                return (
+                  <span className="ze-grid-text" style={{ whiteSpace: 'normal' }}>
+                    {value}
+                  </span>
+                );
+
+              // An orphan's id: `font.MakeBold(); font.MakeItalic()`.
+              if (col === COL_CURR_LIBID && rows[row]?.orphan)
+                return (
+                  <span
+                    className="ze-grid-text"
+                    style={{ fontWeight: 'bold', fontStyle: 'italic' }}
+                  >
+                    {value}
+                  </span>
+                );
+
+              return null;
             }}
-          >
-            <WxGridView
-              grid={grid}
-              tricks={tricks}
-              columns={[{ width: 280 }, { width: 280 }, { width: 280 }]}
-              flexCol={COL_NEW_LIBID}
-              onUpdate={onUpdate}
-              ariaLabel="Symbol library references"
-              renderCell={(row, col, value) => {
-                // `m_autoWrapRenderer` on the references.
-                if (col === COL_REFS)
-                  return (
-                    <span className="ze-grid-text" style={{ whiteSpace: 'normal' }}>
-                      {value}
-                    </span>
-                  );
-
-                // An orphan's id: `font.MakeBold(); font.MakeItalic()`.
-                if (col === COL_CURR_LIBID && rows[row]?.orphan)
-                  return (
-                    <span
-                      className="ze-grid-text"
-                      style={{ fontWeight: 'bold', fontStyle: 'italic' }}
-                    >
-                      {value}
-                    </span>
-                  );
-
-                return null;
-              }}
-            />
-          </div>
-        </div>
-        <div className="ze-modal-footer">
-          <Button
-            label="Map Orphans"
-            disabled={orphanRows.length === 0}
-            title={
-              'If some symbols are orphaned (the linked symbol is not found anywhere),\n' +
-              'try to find a candidate having the same name in one of loaded symbol libraries.'
-            }
-            onClick={() => void onClickOrphansButton()}
           />
-          <span style={{ flex: 1 }} />
-          <Button label="Cancel" onClick={onClose} />
-          <Button label="OK" isDefault onClick={() => void apply()} />
-        </div>
-      </DialogShim>
+        }
+        m_buttonOrphanItems={{
+          enabled: orphanRows.length > 0,
+          onClick: () => void onClickOrphansButton(),
+        }}
+        // Greyed until the live switch: the record apply path replaces the library id only, and
+        // cannot yet reload the symbol's fields from the new library (TransferDataFromWindow's
+        // m_checkBoxUpdateFields branch).
+        m_checkBoxUpdateFields={{ value: false, enabled: false, onChange: () => {} }}
+        onOK={() => void apply()}
+        onCancel={onClose}
+      />
+      {errors.length > 0 && !errorsSeen && (
+        <MessageDialogError message={errors.join('\n')} onClose={() => setErrorsSeen(true)} />
+      )}
       {choice && (
         <SingleChoiceDialog
           caption={`Candidates count ${choice.candidates.length} `}

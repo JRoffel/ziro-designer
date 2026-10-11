@@ -15,11 +15,10 @@
  * (Custom command-line generators are a desktop-only feature and omitted.)
  */
 
-import { Button } from '@ziroeda/wx/controls.js';
 import { useState, type JSX } from 'react';
 import { strToU8, zipSync } from 'fflate';
 import { RPT_SEVERITY_ACTION, RPT_SEVERITY_ERROR, type ReportLine } from '@ziroeda/common';
-import { HtmlReportPanel, RPT_SEVERITY_ALL } from '@ziroeda/common/widgets/wx_html_report_panel.js';
+import { RPT_SEVERITY_ALL } from '@ziroeda/common/widgets/wx_html_report_panel.js';
 import {
   generateSpiceNetlist,
   serializeSchematic,
@@ -32,7 +31,7 @@ import { loadProjectSchematic, symbolLibraryUri } from '../cross-probing.js';
 import { WriteNetListText } from '../netlist_exporters/netlist_generator.js';
 import { generateSpiceModelNetlist } from '../netlist_exporters/netlist_exporter_spice_model.js';
 import type { SCHEMATIC } from '../schematic.js';
-import { DialogShim } from '@ziroeda/common/dialog_shim.js';
+import { DIALOG_EXPORT_NETLIST_BASE } from './dialog_export_netlist_base.js';
 
 interface Props {
   doc: Schematic;
@@ -63,56 +62,37 @@ interface Props {
 
 type ExportTab = NetlistFormat | 'spice' | 'spicemodel';
 
-// The constructor's page order (dialog_export_netlist.cpp:270-297).
+// The constructor's page order and titles, each with the label its Install* adds
+// (dialog_export_netlist.cpp:270-297, 345-401).
 const TABS: { id: ExportTab; label: string; ext: string; note: string }[] = [
+  { id: 'kicadxml', label: 'KiCad', ext: 'xml', note: 'Export netlist in KiCad format' },
+  { id: 'orcadpcb2', label: 'OrcadPCB2', ext: 'net', note: 'Export netlist in OrcadPCB2 format' },
+  // A netlist plus a devices/ folder of package definitions; see doExport.
+  { id: 'allegro', label: 'Allegro', ext: 'txt', note: 'Export netlist in Allegro format' },
+  { id: 'cadstar', label: 'CadStar', ext: 'frp', note: 'Export netlist in CadStar format' },
+  { id: 'pads', label: 'PADS', ext: 'asc', note: 'Export netlist in PADS format' },
+  { id: 'spice', label: 'SPICE', ext: 'cir', note: 'Export netlist in SPICE format' },
   {
-    id: 'kicadxml',
-    label: 'KiCad',
-    ext: 'xml',
-    note: 'The KiCad generic XML netlist (used by BOM tools and importers).',
-  },
-  {
-    id: 'orcadpcb2',
-    label: 'OrcadPCB2',
-    ext: 'net',
-    note: 'The classic OrcadPCB2 text netlist.',
-  },
-  {
-    id: 'allegro',
-    label: 'Allegro',
-    ext: 'txt',
-    note:
-      'The Cadence Allegro / Telesis netlist. Writes a netlist plus a devices/ ' +
-      'folder of package definitions.',
-  },
-  {
-    id: 'cadstar',
-    label: 'CadStar',
-    ext: 'frp',
-    note: 'The CadStar netlist (NETLIST_EXPORTER_CADSTAR).',
-  },
-  {
-    id: 'pads',
-    label: 'PADS',
-    ext: 'asc',
-    note: 'The PADS-PCB netlist (NETLIST_EXPORTER_PADS).',
-  },
-  {
-    id: 'spice',
-    label: 'Spice',
-    ext: 'cir',
-    note: 'SPICE circuit netlist for external simulators (NETLIST_EXPORTER_SPICE).',
-  },
-  {
-    // `InstallPageSpiceModel` (dialog_export_netlist.cpp:390-401). Its type
-    // has no `FilenamePrms` case, so upstream's save dialog proposes the bare
-    // project name under the all-files filter — no extension.
+    // `InstallPageSpiceModel`. Its type has no `FilenamePrms` case, so upstream's save dialog
+    // proposes the bare project name under the all-files filter - no extension.
     id: 'spicemodel',
     label: 'SPICE Model',
     ext: '',
     note: 'Export netlist as a SPICE .subckt model',
   },
 ];
+
+/**
+ * m_CurSheetAsRoot: the record exporter walks the open sheet only, which is the option ticked,
+ * so it shows ticked and greyed until the live switch can export the whole hierarchy.
+ */
+const CUR_SHEET_AS_ROOT = {
+  label: 'Use current sheet as root',
+  title: 'Export netlist only for the current sheet',
+  value: true,
+  enabled: false,
+  onChange: () => {},
+};
 
 export function DialogExportNetlist({
   doc,
@@ -136,7 +116,6 @@ export function DialogExportNetlist({
   const [saveAllVoltages, setSaveAllVoltages] = useState(false);
   const [saveAllCurrents, setSaveAllCurrents] = useState(false);
   const [saveAllDissipations, setSaveAllDissipations] = useState(false);
-  const [spiceErrors, setSpiceErrors] = useState<string[]>([]);
   const active = TABS.find((t) => t.id === tab)!;
 
   /**
@@ -200,7 +179,6 @@ export function DialogExportNetlist({
             })
           : generateSpiceModelNetlist(doc, libById, projectName, null);
       errors = out.errors;
-      setSpiceErrors(errors);
       text = out.text;
     } else {
       const schematic = liveSchematic();
@@ -234,92 +212,68 @@ export function DialogExportNetlist({
     if (errors.length === 0) onClose();
   };
 
+  const check = (label: string, title: string, value: boolean, set: (v: boolean) => void) => ({
+    label,
+    title,
+    value,
+    onChange: set,
+  });
+
   return (
-    <DialogShim title="Export Netlist" onClose={onClose}>
-      <div className="ze-erc-tabs" style={{ padding: '6px 10px 0' }}>
-        {TABS.map((t) => (
-          <div
-            key={t.id}
-            className={`tab${tab === t.id ? ' active' : ''}`}
-            onClick={() => setTab(t.id)}
-          >
-            {t.label}
-          </div>
-        ))}
-      </div>
-      <div className="ze-modal-body" style={{ display: 'block', padding: '14px' }}>
-        <p className="ze-muted" style={{ fontSize: 12.5, margin: '0 0 8px' }}>
-          {active.note}
-        </p>
-        <div style={{ fontSize: 12 }}>
-          Output file: <code>{active.ext === '' ? baseName : `${baseName}.${active.ext}`}</code>
-        </div>
-        {(tab === 'spice' || tab === 'spicemodel') && spiceErrors.length > 0 && (
-          <div style={{ color: 'var(--ze-error, #c33)', marginTop: 4 }}>
-            {spiceErrors.map((e) => (
-              <div key={e}>{e}</div>
-            ))}
-          </div>
-        )}
-        {tab === 'spice' && (
-          <div style={{ marginTop: 10, display: 'grid', gap: 4, fontSize: 12.5 }}>
-            <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <input
-                type="checkbox"
-                checked={saveAllVoltages}
-                onChange={(e) => setSaveAllVoltages(e.target.checked)}
-              />
-              Save all voltages
-            </label>
-            <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <input
-                type="checkbox"
-                checked={saveAllCurrents}
-                onChange={(e) => setSaveAllCurrents(e.target.checked)}
-              />
-              Save all currents
-            </label>
-            <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <input
-                type="checkbox"
-                checked={saveAllDissipations}
-                onChange={(e) => setSaveAllDissipations(e.target.checked)}
-              />
-              Save all power dissipations
-            </label>
-          </div>
-        )}
-        {/* Output directory, project-relative, as the Plot dialog has. */}
-        <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10 }}>
-          Output directory:
-          <input
-            list="ze-netlist-folders"
-            value={outputDir}
-            placeholder="(project folder)"
-            onChange={(e) => setOutputDir(e.target.value)}
-            style={{ flex: 1 }}
-          />
-          <datalist id="ze-netlist-folders">
-            {projectFolders.map((f) => (
-              <option key={f} value={f} />
-            ))}
-          </datalist>
-        </label>
-      </div>
-      {/* Output Messages (WX_HTML_REPORT_PANEL), as the other exporters have. */}
-      <div style={{ padding: '0 10px 8px' }}>
-        <HtmlReportPanel
-          lines={messages}
-          fileName="netlist-report.txt"
-          minHeight={90}
-          visibleSeverities={severities}
-          onVisibleSeveritiesChange={setSeverities}
-        />
-      </div>
-      <div className="ze-modal-footer">
-        <Button label="Close" onClick={onClose} />
-        <Button label="Export Netlist" isDefault onClick={doExport} />
-      </div>
-    </DialogShim>
+    <DIALOG_EXPORT_NETLIST_BASE
+      m_outputPath={outputDir}
+      onOutputPath={setOutputDir}
+      selection={TABS.findIndex((t) => t.id === tab)}
+      onPageChanged={(i) => setTab(TABS[i]!.id)}
+      pages={TABS.map((t) => ({
+        title: t.label,
+        label: t.note,
+        checks:
+          t.id === 'spice'
+            ? [
+                { ...CUR_SHEET_AS_ROOT, grow: true },
+                check(
+                  'Save all voltages',
+                  'Write a directive to save all voltages (.save all)',
+                  saveAllVoltages,
+                  setSaveAllVoltages,
+                ),
+                check(
+                  'Save all currents',
+                  'Write a directive to save all currents (.probe alli)',
+                  saveAllCurrents,
+                  setSaveAllCurrents,
+                ),
+                check(
+                  'Save all power dissipations',
+                  'Write directives to save power dissipation of all items (.probe p(<item>))',
+                  saveAllDissipations,
+                  setSaveAllDissipations,
+                ),
+                {
+                  // The exporter writes no `esave none`, which is this box ticked; greyed until
+                  // the option is ported.
+                  label: 'Save all digital event data',
+                  title:
+                    'If not set, write a directive to prevent the saving of digital event data ' +
+                    '(esave none)',
+                  value: true,
+                  enabled: false,
+                  onChange: () => {},
+                },
+              ]
+            : t.id === 'spicemodel'
+              ? [{ ...CUR_SHEET_AS_ROOT, grow: true }]
+              : [],
+      }))}
+      m_MessagesBox={{
+        lines: messages,
+        fileName: 'netlist-report.txt',
+        visibleSeverities: severities,
+        onVisibleSeveritiesChange: setSeverities,
+      }}
+      onOK={doExport}
+      onCancel={onClose}
+    />
   );
 }
