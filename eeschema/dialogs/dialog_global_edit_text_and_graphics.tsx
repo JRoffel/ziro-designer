@@ -11,10 +11,8 @@
  * The class keeps upstream's members and methods; the wx controls are the values the form hands
  * TransferDataFromWindow, as DIALOG_TABLECELL_PROPERTIES does.
  */
-import { Button, CheckBox, StaticText } from '@ziroeda/wx/controls.js';
 import { type JSX, useState } from 'react';
 import { DisplayErrorMessage } from '@ziroeda/common/confirm.js';
-import { DialogShim } from '@ziroeda/common/dialog_shim.js';
 import { EDA_TEXT } from '@ziroeda/common/eda_text.js';
 import { FILL_T } from '@ziroeda/common/eda_shape.js';
 import { FONT } from '@ziroeda/common/font/font.js';
@@ -24,13 +22,11 @@ import { SCH_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import { type LINE_STYLE, LINE_STYLE_NAMES } from '@ziroeda/common/stroke_params.js';
 import { unescapeString, wildCompareString } from '@ziroeda/common/string_utils.js';
 import { FIELD_T } from '@ziroeda/common/template_fieldnames.js';
-import { ColorSwatch } from '@ziroeda/common/widgets/color_swatch.js';
-import { FontChoice } from '@ziroeda/common/widgets/font_choice.js';
 import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
 import { INDETERMINATE_ACTION } from '@ziroeda/common/widgets/ui_common.js';
 import { UNIT_BINDER, unitLabel } from '@ziroeda/common/widgets/unit_binder.js';
-import { type CHECK_STATE, TriStateCheck } from '@ziroeda/wx/wx_checkbox.js';
-import { Combo } from '@ziroeda/wx/combobox.js';
+import type { CHECK_STATE } from '@ziroeda/wx/wx_checkbox.js';
+import { DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS_BASE } from './dialog_global_edit_text_and_graphics_base.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { SCH_COMMIT } from '../sch_commit.js';
 import type { SCH_EDIT_FRAME } from '../sch_edit_frame.js';
@@ -518,7 +514,7 @@ export class DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS {
   }
 }
 
-/** The form over DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS; Apply applies and stays open. */
+/** DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS' window over its base. */
 export function DialogGlobalEditTextAndGraphics({
   dlg,
   initial,
@@ -531,195 +527,97 @@ export function DialogGlobalEditTextAndGraphics({
   onClose: () => void;
 }): JSX.Element {
   const [v, setValues] = useState(initial);
-  const set = <K extends keyof GLOBAL_EDIT_VALUES>(k: K, x: GLOBAL_EDIT_VALUES[K]): void =>
-    setValues((s) => ({ ...s, [k]: x }));
+  const set = (patch: Partial<GLOBAL_EDIT_VALUES>): void => setValues((s) => ({ ...s, ...patch }));
 
   const close = (): void => {
     dlg.Destroy(v);
     onClose();
   };
 
-  const ok = (): void => {
-    if (dlg.TransferDataFromWindow(v)) close();
-  };
+  type BOOL_KEY = {
+    [K in keyof GLOBAL_EDIT_VALUES]: GLOBAL_EDIT_VALUES[K] extends boolean ? K : never;
+  }[keyof GLOBAL_EDIT_VALUES];
+  type TEXT_KEY =
+    | 'fieldnameFilter'
+    | 'referenceFilter'
+    | 'symbolFilter'
+    | 'netFilter'
+    | 'textSize'
+    | 'lineWidth'
+    | 'junctionSize';
+  type CHOICE_KEY = 'orientation' | 'hAlign' | 'vAlign' | 'lineStyle' | 'typeFilter';
+  type TRI_KEY = 'bold' | 'italic' | 'visible' | 'showFieldNames';
+  type COLOR_KEY = 'textColor' | 'color' | 'fillColor' | 'dotColor';
 
-  const check = (k: keyof GLOBAL_EDIT_SCOPE | 'selectedFilterOpt', label: string) => (
-    <CheckBox label={label} checked={v[k]} onChange={(v) => set(k, v)} />
-  );
-
-  /** A filter's option and its text; typing ticks the option (OnReferenceFilterText & co). */
-  const filter = (
-    opt: 'fieldnameFilterOpt' | 'referenceFilterOpt' | 'symbolFilterOpt' | 'netFilterOpt',
-    text: 'fieldnameFilter' | 'referenceFilter' | 'symbolFilter' | 'netFilter',
-    label: string,
-  ) => (
-    <>
-      <CheckBox label={label} checked={v[opt]} onChange={(v) => set(opt, v)} />
-      <input
-        className="ze-lp-value"
-        value={v[text]}
-        onChange={(e) => {
-          set(text, e.target.value);
-          set(opt, true);
-        }}
-        onKeyDown={(e) => e.stopPropagation()}
-      />
-    </>
-  );
-
-  const choice = (
-    k: 'orientation' | 'hAlign' | 'vAlign' | 'lineStyle' | 'typeFilter',
-    choices: string[],
-  ) => (
-    <Combo
-      value={String(v[k])}
-      options={choices.map((label, i) => ({ value: String(i), label }))}
-      onChange={(next) => set(k, Number(next))}
-    />
-  );
-
-  const size = (k: 'textSize' | 'lineWidth' | 'junctionSize') => (
-    <>
-      <input
-        className="ze-lp-size"
-        value={v[k]}
-        onChange={(e) => set(k, e.target.value)}
-        onKeyDown={(e) => e.stopPropagation()}
-      />
-      <span className="ze-lp-units">{unitLabel(units)}</span>
-    </>
-  );
-
-  const swatch = (
-    on: 'setTextColor' | 'setColor' | 'setFillColor' | 'setDotColor',
-    color: 'textColor' | 'color' | 'fillColor' | 'dotColor',
-    label: string,
-  ) => (
-    <>
-      <CheckBox label={label} checked={v[on]} onChange={(v) => set(on, v)} />
-      <span className="ze-lp-swatch-frame">
-        <ColorSwatch
-          className="ze-lp-swatch"
-          label={label}
-          color={v[color]}
-          onChange={(c) => set(color, c)}
-        />
-      </span>
-    </>
-  );
-
-  /** m_staticText12..16: KIUI::GetSmallInfoFont( this ).Italic(). */
-  const note = (text: string) => <StaticText label={text} font="smallInfo" italic />;
-  const empty = <span />;
+  const check = (k: BOOL_KEY) => ({ value: v[k], onChange: (on: boolean) => set({ [k]: on }) });
+  const entry = (k: TEXT_KEY) => ({ value: v[k], onChange: (t: string) => set({ [k]: t }) });
+  // OnReferenceFilterText & co: typing in a filter ticks its option.
+  const filter = (k: TEXT_KEY, opt: BOOL_KEY) => ({
+    value: v[k],
+    onChange: (t: string) => set({ [k]: t, [opt]: true }),
+  });
+  const choice = (k: CHOICE_KEY) => ({ value: v[k], onChange: (i: number) => set({ [k]: i }) });
+  const tri = (k: TRI_KEY) => ({ value: v[k], onChange: (x: CHECK_STATE) => set({ [k]: x }) });
+  const swatch = (k: COLOR_KEY) => ({ color: v[k], onChange: (c: Color4d) => set({ [k]: c }) });
 
   return (
-    <DialogShim title="Edit Text and Graphic Properties" onClose={close} className="ze-label-props">
-      <div className="ze-modal-body ze-lp-body">
-        {/* bSizerTop: Scope beside Filter Items. */}
-        <div className="ze-ge-top">
-          <fieldset className="ze-props-group ze-ge-scope">
-            <legend>Scope</legend>
-            {check('references', 'Reference designators')}
-            {check('values', 'Values')}
-            {check('otherFields', 'Other symbol fields')}
-            <span className="ze-ge-gap" />
-            {check('wires', 'Wires & wire labels')}
-            {check('buses', 'Buses & bus labels')}
-            {check('globalLabels', 'Global labels')}
-            {check('hierLabels', 'Hierarchical labels')}
-            {check('labelFields', 'Label fields')}
-            <span className="ze-ge-gap" />
-            {check('sheetTitles', 'Sheet titles')}
-            {check('sheetFields', 'Other sheet fields')}
-            {check('sheetPins', 'Sheet pins')}
-            {check('sheetBorders', 'Sheet borders & backgrounds')}
-            <span className="ze-ge-gap" />
-            {check('schTextAndGraphics', 'Schematic text & graphics')}
-          </fieldset>
-          <fieldset className="ze-props-group">
-            <legend>Filter Items</legend>
-            <div className="ze-ge-filters">
-              {filter('fieldnameFilterOpt', 'fieldnameFilter', 'By field name:')}
-              {filter('referenceFilterOpt', 'referenceFilter', 'By parent reference designator:')}
-              {filter('symbolFilterOpt', 'symbolFilter', 'By parent symbol library id:')}
-              <CheckBox
-                label="By parent symbol type:"
-                checked={v.typeFilterOpt}
-                onChange={(v) => set('typeFilterOpt', v)}
-              />
-              {choice('typeFilter', TYPE_FILTER_CHOICES)}
-              {filter('netFilterOpt', 'netFilter', 'By net:')}
-              {check('selectedFilterOpt', 'Selected items only')}
-            </div>
-          </fieldset>
-        </div>
-
-        {/* sbAction: fgSizer1, six columns, the growable 1, 3 and 5. */}
-        <fieldset className="ze-props-group">
-          <legend>Set To</legend>
-          <div className="ze-ge-action">
-            <span className="ze-lp-fmt-label">Font:</span>
-            <FontChoice face={v.font} indeterminate onChange={(f) => set('font', f)} />
-            {empty}
-            {empty}
-            {swatch('setTextColor', 'textColor', 'Text color:')}
-
-            <span className="ze-lp-fmt-label">Text size:</span>
-            {size('textSize')}
-            {empty}
-            <TriStateCheck label="Bold" value={v.bold} onChange={(x) => set('bold', x)} />
-            <TriStateCheck label="Italic" value={v.italic} onChange={(x) => set('italic', x)} />
-
-            <span className="ze-lp-fmt-label">Orientation:</span>
-            {choice('orientation', ORIENTATION_CHOICES)}
-            {note('(labels only)')}
-            {empty}
-            {empty}
-            {empty}
-
-            <span className="ze-lp-fmt-label">H Align:</span>
-            {choice('hAlign', H_ALIGN_CHOICES)}
-            {note('(fields only)')}
-            {empty}
-            <TriStateCheck label="Visible" value={v.visible} onChange={(x) => set('visible', x)} />
-            {note('(fields only)')}
-
-            <span className="ze-lp-fmt-label">V Align:</span>
-            {choice('vAlign', V_ALIGN_CHOICES)}
-            {note('(fields only)')}
-            {empty}
-            <TriStateCheck
-              label="Show field name"
-              value={v.showFieldNames}
-              onChange={(x) => set('showFieldNames', x)}
-            />
-            {note('(fields only)')}
-
-            <hr className="ze-ge-rule" />
-
-            <span className="ze-lp-fmt-label">Line width:</span>
-            {size('lineWidth')}
-            {empty}
-            {swatch('setColor', 'color', 'Line color:')}
-
-            <span className="ze-lp-fmt-label">Line style:</span>
-            {choice('lineStyle', LINE_STYLE_CHOICES)}
-            {empty}
-            {empty}
-            {swatch('setFillColor', 'fillColor', 'Fill color:')}
-
-            <span className="ze-lp-fmt-label">Junction size:</span>
-            {size('junctionSize')}
-            {empty}
-            {swatch('setDotColor', 'dotColor', 'Junction color:')}
-          </div>
-        </fieldset>
-      </div>
-      <div className="ze-modal-footer">
-        <Button label="Apply" onClick={() => dlg.TransferDataFromWindow(v)} />
-        <Button label="Cancel" onClick={close} />
-        <Button label="OK" isDefault onClick={ok} />
-      </div>
-    </DialogShim>
+    <DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS_BASE
+      m_references={check('references')}
+      m_values={check('values')}
+      m_otherFields={check('otherFields')}
+      m_wires={check('wires')}
+      m_buses={check('buses')}
+      m_globalLabels={check('globalLabels')}
+      m_hierLabels={check('hierLabels')}
+      m_labelFields={check('labelFields')}
+      m_sheetTitles={check('sheetTitles')}
+      m_sheetFields={check('sheetFields')}
+      m_sheetPins={check('sheetPins')}
+      m_sheetBorders={check('sheetBorders')}
+      m_schTextAndGraphics={check('schTextAndGraphics')}
+      m_fieldnameFilterOpt={check('fieldnameFilterOpt')}
+      m_fieldnameFilter={filter('fieldnameFilter', 'fieldnameFilterOpt')}
+      m_referenceFilterOpt={check('referenceFilterOpt')}
+      m_referenceFilter={filter('referenceFilter', 'referenceFilterOpt')}
+      m_symbolFilterOpt={check('symbolFilterOpt')}
+      m_symbolFilter={filter('symbolFilter', 'symbolFilterOpt')}
+      m_typeFilterOpt={check('typeFilterOpt')}
+      typeFilterChoices={TYPE_FILTER_CHOICES}
+      m_typeFilter={choice('typeFilter')}
+      m_netFilterOpt={check('netFilterOpt')}
+      m_netFilter={filter('netFilter', 'netFilterOpt')}
+      m_selectedFilterOpt={check('selectedFilterOpt')}
+      font={v.font}
+      onFont={(f) => set({ font: f })}
+      m_setTextColor={check('setTextColor')}
+      m_textColorSwatch={swatch('textColor')}
+      m_textSizeCtrl={entry('textSize')}
+      m_bold={tri('bold')}
+      m_italic={tri('italic')}
+      orientationChoices={ORIENTATION_CHOICES}
+      m_orientation={choice('orientation')}
+      hAlignChoices={H_ALIGN_CHOICES}
+      m_hAlign={choice('hAlign')}
+      m_visible={tri('visible')}
+      vAlignChoices={V_ALIGN_CHOICES}
+      m_vAlign={choice('vAlign')}
+      m_showFieldNames={tri('showFieldNames')}
+      m_LineWidthCtrl={entry('lineWidth')}
+      m_setColor={check('setColor')}
+      m_colorSwatch={swatch('color')}
+      lineStyleChoices={LINE_STYLE_CHOICES}
+      m_lineStyle={choice('lineStyle')}
+      m_setFillColor={check('setFillColor')}
+      m_fillColorSwatch={swatch('fillColor')}
+      m_dotSizeCtrl={entry('junctionSize')}
+      m_setDotColor={check('setDotColor')}
+      m_dotColorSwatch={swatch('dotColor')}
+      units={unitLabel(units)}
+      onOK={() => {
+        if (dlg.TransferDataFromWindow(v)) close();
+      }}
+      onApply={() => dlg.TransferDataFromWindow(v)}
+      onCancel={close}
+    />
   );
 }

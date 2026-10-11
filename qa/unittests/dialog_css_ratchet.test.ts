@@ -32,7 +32,8 @@ const BASELINE: Record<string, number> = {
   // it shared stay with Sheet Properties).
   // 123 -> 118 (10-11): Sheet Properties' pair; the last users of most .ze-lp-* rules.
   // 118 -> 98 (10-11): Symbol Properties' pair; the whole .ze-symprops-* block.
-  eeschema: 98,
+  // 98 -> 85 (10-11): Global Edit's pair; .ze-ge-* and the last .ze-lp-* / .ze-label-props rules.
+  eeschema: 85,
   gerbview: 31,
   pagelayout_editor: 14,
   // 477 -> 465 (10-10): the drill and position-file dialogs on the sizers.
