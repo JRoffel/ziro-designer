@@ -7572,9 +7572,6 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
   gap: 3px;
   margin: 12px 12px 1px;
 }
-.ze-lp-caption {
-  flex: 0 0 auto;
-}
 /* No `min-width: 0`. A wx sizer never lets a control fall below its own best
    size -- that is the guarantee CLAUDE.md names -- and `bSizer11` puts the
    hyperlink combo at `wxGBPosition( 10, 1 )` spanning FIVE columns with
@@ -7592,10 +7589,6 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
 }
 .ze-lp-value:focus {
   border-color: var(--chrome-active-border);
-}
-.ze-lp-multiline {
-  resize: vertical;
-  min-height: 72px;
 }
 .ze-lp-entry-row2 {
   display: flex;
@@ -7922,9 +7915,6 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
   /* [px] wxSYS_COLOUR_GRAYTEXT #929292, drawn 1px wide at GetSize().x / 2. */
   background:
     linear-gradient(var(--ctl-fg-disabled), var(--ctl-fg-disabled)) center / 1px 100% no-repeat;
-}
-.ze-lp-auto {
-  margin-left: 5px;
 }
 .ze-lp-sizerow {
   display: flex;
