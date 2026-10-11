@@ -274,7 +274,7 @@ import type { RoutingSettings } from './router/pns_routing_settings.js';
 import { DialogPositionRelativeModeless } from './dialogs/dialog_position_relative_ui.js';
 import type { DIALOG_POSITION_RELATIVE } from './dialogs/dialog_position_relative.js';
 import { DialogOffsetItem } from './dialogs/dialog_offset_item_ui.js';
-import { DialogSwapLayers } from './dialogs/dialog_swap_layers_ui.js';
+import { DialogSwapLayers } from './dialogs/dialog_swap_layers.js';
 import { choiceOf } from './grid_layer_box_helpers.js';
 import { DialogCleanupTracksAndVias } from './dialogs/dialog_cleanup_tracks_and_vias_ui.js';
 import { DialogCleanupGraphics } from './dialogs/dialog_cleanup_graphics_ui.js';
@@ -297,8 +297,12 @@ import type { DIALOG_UNUSED_PAD_LAYERS } from './dialogs/dialog_unused_pad_layer
 import type { DIALOG_CLEANUP_GRAPHICS } from './dialogs/dialog_cleanup_graphics.js';
 import type { DIALOG_CLEANUP_TRACKS_AND_VIAS } from './dialogs/dialog_cleanup_tracks_and_vias.js';
 import type { DIALOG_SWAP_LAYERS } from './dialogs/dialog_swap_layers.js';
-import { DialogPushPadProperties } from './dialogs/dialog_push_pad_properties_ui.js';
-import { DialogEnumPads } from './dialogs/dialog_enum_pads_ui.js';
+import { DialogPushPadProperties } from './dialogs/dialog_push_pad_properties.js';
+import { DialogEnumPads } from './dialogs/dialog_enum_pads.js';
+import {
+  type DIALOG_TARGET_PROPERTIES,
+  DialogTargetProperties,
+} from './dialogs/dialog_target_properties.js';
 import { DialogFpEditPadTable } from './dialogs/dialog_fp_edit_pad_table_ui.js';
 import type { DIALOG_PUSH_PAD_PROPERTIES } from './dialogs/dialog_push_pad_properties.js';
 import type { DIALOG_ENUM_PADS } from './dialogs/dialog_enum_pads.js';
@@ -1632,6 +1636,7 @@ export function PcbEditor({
     resolve: (aOk: boolean) => void;
   } | null>(null);
   const [padTableDlg, setPadTableDlg] = useState<DIALOG_FP_EDIT_PAD_TABLE | null>(null);
+  const [targetDlg, setTargetDlg] = useState<DIALOG_TARGET_PROPERTIES | null>(null);
   /** CONVERT_TOOL's modal dialogs, each with the promise the tool waits on. */
   const [outsetDlg, setOutsetDlg] = useState<{
     params: OUTSET_PARAMETERS;
@@ -2454,6 +2459,8 @@ export function PcbEditor({
       showEnumPadsDialog: (aDialog) =>
         new Promise<boolean>((resolve) => setEnumPadsDlg({ dialog: aDialog, resolve })),
       showPadTableDialog: (aDialog) => setPadTableDlg(aDialog),
+      // PCB_EDIT_FRAME::ShowTargetOptionsDialog: DIALOG_TARGET_PROPERTIES, modal.
+      showTargetOptionsDialog: (aDialog) => setTargetDlg(aDialog),
       dismissInfoBar: () => editWindowRef.current?.dismissInfoBar(),
       eventToWindow: (aEvent) => selWindowRef.current?.eventToWindow(aEvent) ?? false,
       highlightChanged: () => refreshInspectionMirrorRef.current(),
@@ -8526,6 +8533,9 @@ export function PcbEditor({
             enumPadsDlg.resolve(aOk);
           }}
         />
+      )}
+      {targetDlg && (
+        <DialogTargetProperties dialog={targetDlg} onClose={() => setTargetDlg(null)} />
       )}
       {padTableDlg && (
         <DialogFpEditPadTable dialog={padTableDlg} onClose={() => setPadTableDlg(null)} />

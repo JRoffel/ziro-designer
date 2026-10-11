@@ -11,7 +11,7 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { FRAME_T } from '@ziroeda/common/frame_type.js';
 import { DIALOG_ENUM_PADS } from '@ziroeda/pcbnew/dialogs/dialog_enum_pads.js';
-import { DialogEnumPads } from '@ziroeda/pcbnew/dialogs/dialog_enum_pads_ui.js';
+import { DialogEnumPads } from '@ziroeda/pcbnew/dialogs/dialog_enum_pads.js';
 import {
   COL_NUMBER,
   DIALOG_FP_EDIT_PAD_TABLE,
@@ -21,7 +21,7 @@ import {
   DIALOG_PUSH_PAD_PROPERTIES,
   wxID_CANCEL,
 } from '@ziroeda/pcbnew/dialogs/dialog_push_pad_properties.js';
-import { DialogPushPadProperties } from '@ziroeda/pcbnew/dialogs/dialog_push_pad_properties_ui.js';
+import { DialogPushPadProperties } from '@ziroeda/pcbnew/dialogs/dialog_push_pad_properties.js';
 import type { PCB_DRAW_PANEL_GAL } from '@ziroeda/pcbnew/pcb_draw_panel_gal.js';
 import { ParseBoard } from '@ziroeda/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.js';
 import { PCB_SCREEN } from '@ziroeda/pcbnew/pcb_screen.js';
@@ -123,11 +123,11 @@ describe('DialogEnumPads (dialog_enum_pads_base.cpp)', () => {
     expect(
       screen.getByText('Pad names are restricted to 4 characters (including number).'),
     ).toBeTruthy();
-    const prefix = screen.getByLabelText('Pad name prefix:') as HTMLInputElement;
+    const prefix = screen.getByLabelText('Pad name prefix') as HTMLInputElement;
     expect(prefix.value).toBe('AB');
     expect(prefix.maxLength).toBe(4);
-    expect((screen.getByLabelText('First pad number:') as HTMLInputElement).value).toBe('7');
-    expect((screen.getByLabelText('Numbering step:') as HTMLInputElement).value).toBe('3');
+    expect((screen.getByLabelText('First pad number') as HTMLInputElement).value).toBe('7');
+    expect((screen.getByLabelText('Numbering step') as HTMLInputElement).value).toBe('3');
     expect(document.activeElement).toBe(prefix);
   });
 
@@ -140,9 +140,9 @@ describe('DialogEnumPads (dialog_enum_pads_base.cpp)', () => {
     const dlg = new DIALOG_ENUM_PADS(params);
     const onResult = vi.fn();
     render(<DialogEnumPads dialog={dlg} onResult={onResult} />);
-    fireEvent.change(screen.getByLabelText('Pad name prefix:'), { target: { value: 'P' } });
-    fireEvent.change(screen.getByLabelText('First pad number:'), { target: { value: '12' } });
-    fireEvent.change(screen.getByLabelText('Numbering step:'), { target: { value: '4' } });
+    fireEvent.change(screen.getByLabelText('Pad name prefix'), { target: { value: 'P' } });
+    fireEvent.change(screen.getByLabelText('First pad number'), { target: { value: '12' } });
+    fireEvent.change(screen.getByLabelText('Numbering step'), { target: { value: '4' } });
     fireEvent.click(screen.getByRole('button', { name: 'OK' }));
     expect(params).toEqual({ startNumber: 12, step: 4, prefix: 'P' });
     expect(onResult).toHaveBeenCalledWith(true);
@@ -153,12 +153,12 @@ describe('DialogEnumPads (dialog_enum_pads_base.cpp)', () => {
     const dlg = new DIALOG_ENUM_PADS(params);
     const onResult = vi.fn();
     render(<DialogEnumPads dialog={dlg} onResult={onResult} />);
-    fireEvent.change(screen.getByLabelText('First pad number:'), { target: { value: '9' } });
+    fireEvent.change(screen.getByLabelText('First pad number'), { target: { value: '9' } });
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onResult.mock.calls).toEqual([[false], [false]]);
     expect(params.startNumber).toBe(1);
-    fireEvent.keyDown(screen.getByLabelText('Pad name prefix:'), { key: 'Enter' });
+    fireEvent.keyDown(screen.getByLabelText('Pad name prefix'), { key: 'Enter' });
     expect(onResult).toHaveBeenLastCalledWith(true);
   });
 });

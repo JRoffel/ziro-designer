@@ -178,6 +178,7 @@ export function TextCtrl({
   id,
   ariaLabel,
   autoFocus,
+  maxLength,
 }: {
   value: string;
   onChange?: (aValue: string) => void;
@@ -196,8 +197,11 @@ export function TextCtrl({
   id?: string;
   ariaLabel?: string;
   autoFocus?: boolean;
+  /** `SetMaxLength( n )`. */
+  maxLength?: number;
 }): JSX.Element {
   const common = {
+    maxLength,
     id,
     value,
     readOnly,

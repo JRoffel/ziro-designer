@@ -90,7 +90,8 @@ const BASELINE: Record<(typeof AREAS)[number], Record<Kind, number>> = {
   // ... then DIALOG_PLOT: button 81 -> 79, checkbox 58 -> 42, entry 31 -> 30, sbox 61 -> 54.
   // 10-11: Pad Properties on its _base pair - button 73 -> 70, checkbox 41 -> 39, sbox 45 -> 38;
   // then DRC on its pair - button 70 -> 69.
-  pcbnew: { button: 69, checkbox: 39, select: 1, frame: 1, radio: 4, entry: 30, sbox: 38 },
+  // then Push Pad / Swap Layers / Enumerate Pads / Target Properties - button 67, entry 28.
+  pcbnew: { button: 67, checkbox: 39, select: 1, frame: 1, radio: 4, entry: 28, sbox: 38 },
 };
 
 function tsxFiles(aDir: string, aOut: string[] = []): string[] {

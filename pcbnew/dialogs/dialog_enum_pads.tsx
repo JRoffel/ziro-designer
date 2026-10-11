@@ -6,6 +6,8 @@
  * (pcbnew/dialogs/dialog_enum_pads.cpp / .h): the numbering parameters
  * `PAD_TOOL::EnumeratePads` asks for before its click loop.
  */
+import { type JSX, useEffect, useRef, useState } from 'react';
+import { DIALOG_ENUM_PADS_BASE } from './dialog_enum_pads_base.js';
 
 /**
  * `SEQUENTIAL_PAD_ENUMERATION_PARAMS`.
@@ -71,4 +73,49 @@ export class DIALOG_ENUM_PADS {
     // No other validation implemented
     return true;
   }
+}
+
+/** `ShowModal()` of DIALOG_ENUM_PADS: `onResult( true )` is wxID_OK after TransferDataFromWindow. */
+export function DialogEnumPads({
+  dialog,
+  onResult,
+}: {
+  dialog: DIALOG_ENUM_PADS;
+  onResult: (aOk: boolean) => void;
+}): JSX.Element {
+  const [, redraw] = useState(0);
+  const prefixRef = useRef<HTMLInputElement>(null);
+
+  // `SetInitialFocus( m_padPrefix )`
+  useEffect(() => {
+    prefixRef.current?.focus();
+  }, []);
+
+  const set = (aApply: () => void): void => {
+    aApply();
+    redraw((n) => n + 1);
+  };
+
+  return (
+    <DIALOG_ENUM_PADS_BASE
+      title={DIALOG_ENUM_PADS_TITLE}
+      m_padPrefix={{
+        value: dialog.m_padPrefix,
+        onChange: (aText) => set(() => (dialog.m_padPrefix = aText)),
+      }}
+      padPrefixRef={prefixRef}
+      m_padStartNum={{
+        value: dialog.m_padStartNum,
+        onChange: (aValue) => set(() => (dialog.m_padStartNum = aValue)),
+      }}
+      m_padNumStep={{
+        value: dialog.m_padNumStep,
+        onChange: (aValue) => set(() => (dialog.m_padNumStep = aValue)),
+      }}
+      onOK={() => {
+        if (dialog.TransferDataFromWindow()) onResult(true);
+      }}
+      onCancel={() => onResult(false)}
+    />
+  );
 }

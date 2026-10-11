@@ -28,15 +28,29 @@ beforeEach(() => {
   frame = new TEST_PCB_FRAME(board);
 });
 
+/** The dialog as OnInitDialog leaves it, then the user's typing. */
+const opened = () => {
+  const d = dlg();
+  d.TransferDataToWindow();
+  return d;
+};
+
 describe('DIALOG_TARGET_PROPERTIES', () => {
   it('reads Size, Thickness and the shape (x is choice 1)', () => {
-    expect(dlg().TransferDataToWindow()).toEqual({ size: MM(4), thickness: MM(0.2), shape: 1 });
+    const d = opened();
+
+    expect(d.m_Size.GetValue()).toBe(MM(4));
+    expect(d.m_Thickness.GetValue()).toBe(MM(0.2));
+    expect(d.m_TargetShape.GetSelection()).toBe(1);
   });
 
   it('writes all three back as one undo step, "Edit Alignment Target"', () => {
-    expect(dlg().TransferDataFromWindow({ size: MM(6), thickness: MM(0.3), shape: 0 })).toEqual({
-      ok: true,
-    });
+    const d = opened();
+
+    d.m_Size.SetText('6');
+    d.m_Thickness.SetText('0.3');
+    d.m_TargetShape.SetSelection(0);
+    expect(d.TransferDataFromWindow()).toBe(true);
     expect(target().GetSize()).toBe(MM(6));
     expect(target().GetWidth()).toBe(MM(0.3));
     expect(target().GetShape()).toBe(0);
@@ -47,23 +61,28 @@ describe('DIALOG_TARGET_PROPERTIES', () => {
   });
 
   it('refuses a size under one mil ("hard to see/select"), changing nothing', () => {
-    const r = dlg().TransferDataFromWindow({ size: MM(0.02), thickness: MM(0.3), shape: 0 });
-    expect(r.ok).toBe(false);
-    expect(r.message).toContain('Size must be at least 0.0254 mm');
+    const d = opened();
+
+    d.m_Size.SetText('0.02');
+    expect(d.TransferDataFromWindow()).toBe(false);
+    expect(d.m_error).toContain('Size must be at least 0.0254 mm');
     expect(target().GetSize()).toBe(MM(4));
     expect(frame.GetUndoCommandCount()).toBe(0);
   });
 
   it('accepts exactly one mil', () => {
-    expect(
-      dlg().TransferDataFromWindow({ size: pcbIUScale.milsToIU(1), thickness: MM(0.2), shape: 1 })
-        .ok,
-    ).toBe(true);
+    const d = opened();
+
+    d.m_Size.SetText('0.0254');
+    expect(d.TransferDataFromWindow()).toBe(true);
   });
 
   it('a target mid-edit is flagged IN_EDIT and pushes no commit of its own', () => {
     target().SetFlags(IS_MOVING);
-    dlg().TransferDataFromWindow({ size: MM(6), thickness: MM(0.2), shape: 1 });
+    const d = opened();
+
+    d.m_Size.SetText('6');
+    d.TransferDataFromWindow();
     expect(target().GetSize()).toBe(MM(6));
     expect(target().GetFlags() & IN_EDIT).toBe(IN_EDIT);
     expect(frame.GetUndoCommandCount()).toBe(0);

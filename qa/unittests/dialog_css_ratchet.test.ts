@@ -42,7 +42,8 @@ const BASELINE: Record<string, number> = {
   // (footprint editor properties) and .ze-tvp-note (graphic properties); with it gone each has
   // one user, and goes when that dialog is converted. Its own .ze-padprops-dialog is deleted.
   // 467 -> 463 (10-11): DRC on its _base pair.
-  pcbnew: 463,
+  // 463 -> 448 (10-11): Push Pad, Swap Layers, Enumerate Pads and Target Properties pairs.
+  pcbnew: 448,
 };
 
 const git = (...aSpecs: string[]): string[] =>

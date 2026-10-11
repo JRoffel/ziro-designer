@@ -7,11 +7,14 @@
  * "do not modify pads having a different ..." filters and the two buttons that
  * choose between the current footprint and every identical one.
  *
- * The class is the dialog's logic and control state; the window is
- * `dialog_push_pad_properties_ui.tsx`.
+ * The class is the dialog's logic and control state; `DialogPushPadProperties` below is the
+ * window, DIALOG_PUSH_PAD_PROPERTIES_BASE over the class.
  */
+import { type JSX, useState } from 'react';
 import { FRAME_T } from '@ziroeda/common/frame_type.js';
+import type { CHECK } from '@ziroeda/wx/controls.js';
 import type { PCB_BASE_FRAME } from '../pcb_base_frame.js';
+import { DIALOG_PUSH_PAD_PROPERTIES_BASE } from './dialog_push_pad_properties_base.js';
 
 /** `wxID_CANCEL`, which `ShowModal()` answers when the dialog is dismissed. */
 export const wxID_CANCEL = 5101;
@@ -68,4 +71,48 @@ export class DIALOG_PUSH_PAD_PROPERTIES {
 
     return returncode;
   }
+}
+
+type FILTER =
+  | 'm_Pad_Shape_Filter_CB'
+  | 'm_Pad_Layer_Filter_CB'
+  | 'm_Pad_Orient_Filter_CB'
+  | 'm_Pad_Type_Filter_CB';
+
+/**
+ * `ShowModal()` of DIALOG_PUSH_PAD_PROPERTIES: `onResult` is what it returns - 0 for OK, 1 for
+ * Apply, `wxID_CANCEL` otherwise.
+ */
+export function DialogPushPadProperties({
+  dialog,
+  onResult,
+}: {
+  dialog: DIALOG_PUSH_PAD_PROPERTIES;
+  onResult: (aReturnCode: number) => void;
+}): JSX.Element {
+  // The check boxes are the dialog's own fields; a counter redraws after one is toggled.
+  const [, redraw] = useState(0);
+  const check = (aKey: FILTER): CHECK => ({
+    value: dialog[aKey],
+    onChange: (aOn) => {
+      dialog[aKey] = aOn;
+      redraw((n) => n + 1);
+    },
+  });
+
+  return (
+    <DIALOG_PUSH_PAD_PROPERTIES_BASE
+      title={DIALOG_PUSH_PAD_PROPERTIES_TITLE}
+      m_Pad_Shape_Filter_CB={check('m_Pad_Shape_Filter_CB')}
+      m_Pad_Layer_Filter_CB={check('m_Pad_Layer_Filter_CB')}
+      m_Pad_Orient_Filter_CB={check('m_Pad_Orient_Filter_CB')}
+      m_Pad_Type_Filter_CB={check('m_Pad_Type_Filter_CB')}
+      okLabel={PUSH_PAD_OK_LABEL}
+      applyLabel={PUSH_PAD_APPLY_LABEL}
+      applyShown={dialog.m_applyShown}
+      onOK={() => onResult(dialog.PadPropertiesAccept('ok'))}
+      onApply={() => onResult(dialog.PadPropertiesAccept('apply'))}
+      onCancel={() => onResult(wxID_CANCEL)}
+    />
+  );
 }
