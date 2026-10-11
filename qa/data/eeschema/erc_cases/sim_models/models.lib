@@ -1,0 +1,3 @@
+.subckt OPA1 1 2
+.ends
+.MODEL DIODE1 D

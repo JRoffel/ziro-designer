@@ -1450,9 +1450,10 @@ export function* runErcSteps(
         const reference = sym.fields.find((f) => f.key === 'Reference')?.value ?? '';
         // Power symbols and anything else referenced with '#' are not simulated.
         if (reference.startsWith('#') || sym.excludedFromSim) return;
+        const lib = libById.get(schSymbolLibraryName(sym));
         const issues = checkSimModel(
-          sym,
-          libById.get(schSymbolLibraryName(sym)),
+          new Map(sym.fields.map((f) => [f.key, f.value])),
+          (lib?.units ?? []).reduce((n, u) => n + u.pins.length, 0),
           opts.simLibraryText ?? (() => undefined),
         );
         if (issues.length === 0) return;
@@ -2163,6 +2164,8 @@ import { UNITS_PROVIDER } from '@ziroeda/common/units_provider.js';
 import { schIUScale } from '@ziroeda/common/eda_units.js';
 import { SymbolLibAdapter } from '../project_sch.js';
 import { CheckDuplicatePins } from '../symbol_checker.js';
+import { SIM_LIB_MGR } from '../sim/sim_lib_mgr.js';
+import { WX_STRING_REPORTER } from '@ziroeda/common/reporter.js';
 import type { KIFACE } from '@ziroeda/common/kiway.js';
 import type { PROJECT } from '@ziroeda/common/project.js';
 import { KIFACE_ADDR_ID } from '@ziroeda/include/kiface_ids.js';
@@ -3333,6 +3336,56 @@ export class ERC_TESTER {
   }
 
   /**
+   * `TestSimModelIssues()` (erc.cpp:2054): every simulated symbol (its sheet and itself not
+   * excluded from simulation, its reference not starting with '#') has its model built, and
+   * whatever building reported becomes one ERCE_SIMULATION_MODEL marker.
+   *
+   * @return the marker count
+   */
+  TestSimModelIssues(): number {
+    const reporter = new WX_STRING_REPORTER();
+    let err_count = 0;
+    const libMgr = new SIM_LIB_MGR(this.m_schematic.Project());
+    const variant = this.m_schematic.GetCurrentVariant();
+
+    for (const sheet of this.m_sheetList) {
+      if (sheet.GetExcludedFromSim(variant)) continue;
+
+      const markers: SCH_MARKER_LIVE[] = [];
+
+      for (const item of sheet.LastScreen()!.Items().OfType(KICAD_T_LIVE.SCH_SYMBOL_T)) {
+        const symbol = item as SCH_SYMBOL;
+
+        // Power symbols and other symbols which have the reference starting with "#" are
+        // not included in simulation
+        if (symbol.GetRef(sheet).startsWith('#') || symbol.ResolveExcludedFromSim()) continue;
+
+        // Reset for each symbol
+        reporter.Clear();
+
+        libMgr.CreateModel(sheet, symbol, true, 0, variant, reporter);
+
+        if (reporter.HasMessage()) {
+          const ercItem = ERC_ITEM.Create(ERCE.ERCE_SIMULATION_MODEL)!;
+
+          // Remove \n and \r at e.o.l if any:
+          ercItem.SetErrorMessage(reporter.GetMessages().trimEnd());
+          ercItem.SetItems(symbol);
+
+          markers.push(new SCH_MARKER_LIVE(ercItem, symbol.GetPosition()));
+        }
+      }
+
+      for (const marker of markers) {
+        sheet.LastScreen()!.Append(marker);
+        err_count += 1;
+      }
+    }
+
+    return err_count;
+  }
+
+  /**
    * Check for field names with leading or trailing whitespace, on symbols and sheets.
    *
    * @return the warning count
@@ -3912,7 +3965,7 @@ export class ERC_TESTER {
     if (this.m_settings.IsTestEnabled(ERCE.ERCE_FIELD_NAME_WHITESPACE))
       this.TestFieldNameWhitespace();
 
-    // Pending: TestSimModelIssues.
+    if (this.m_settings.IsTestEnabled(ERCE.ERCE_SIMULATION_MODEL)) this.TestSimModelIssues();
 
     if (this.m_settings.IsTestEnabled(ERCE.ERCE_NOCONNECT_CONNECTED)) this.TestNoConnectPins();
 

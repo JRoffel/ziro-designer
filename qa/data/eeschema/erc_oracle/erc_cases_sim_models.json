@@ -1,0 +1,546 @@
+{
+    "$schema": "https://schemas.kicad.org/erc.v1.json",
+    "coordinate_units": "mm",
+    "date": "2026-10-12T03:03:38",
+    "ignored_checks": [
+        {
+            "description": "Global label only appears once in the schematic",
+            "key": "single_global_label"
+        },
+        {
+            "description": "Assigned footprint doesn't match footprint filters",
+            "key": "footprint_filter"
+        }
+    ],
+    "included_severities": [
+        "error",
+        "warning",
+        "exclusion"
+    ],
+    "kicad_version": "10.0.6",
+    "sheets": [
+        {
+            "path": "/",
+            "uuid_path": "/91111111-2222-3333-4444-555555555555",
+            "violations": [
+                {
+                    "description": "Pin not connected",
+                    "items": [
+                        {
+                            "description": "Symbol R1 Pin 1 [A, Passive, Line]",
+                            "pos": {
+                                "x": 0.254,
+                                "y": 0.4699
+                            },
+                            "uuid": "4df699ec-b4e6-4935-8a49-168f28952fe9"
+                        }
+                    ],
+                    "severity": "error",
+                    "type": "pin_not_connected"
+                },
+                {
+                    "description": "Pin not connected",
+                    "items": [
+                        {
+                            "description": "Symbol R1 Pin 2 [B, Passive, Line]",
+                            "pos": {
+                                "x": 0.254,
+                                "y": 0.5461
+                            },
+                            "uuid": "d6522922-e13b-4474-851a-b36ab0ba4d52"
+                        }
+                    ],
+                    "severity": "error",
+                    "type": "pin_not_connected"
+                },
+                {
+                    "description": "Pin not connected",
+                    "items": [
+                        {
+                            "description": "Symbol U1 Pin 1 [A, Passive, Line]",
+                            "pos": {
+                                "x": 0.508,
+                                "y": 0.4699
+                            },
+                            "uuid": "7fd52ab5-77e6-422a-8766-6811affccb5e"
+                        }
+                    ],
+                    "severity": "error",
+                    "type": "pin_not_connected"
+                },
+                {
+                    "description": "No simulation model definition found.",
+                    "items": [
+                        {
+                            "description": "Symbol U1 [TWO]",
+                            "pos": {
+                                "x": 0.508,
+                                "y": 0.508
+                            },
+                            "uuid": "00000000-0000-0000-0000-000000000002"
+                        }
+                    ],
+                    "severity": "error",
+                    "type": "simulation_model_issue"
+                },
+                {
+                    "description": "Pin not connected",
+                    "items": [
+                        {
+                            "description": "Symbol U1 Pin 2 [B, Passive, Line]",
+                            "pos": {
+                                "x": 0.508,
+                                "y": 0.5461
+                            },
+                            "uuid": "b068c684-6eec-4c18-aba1-503ead06fa70"
+                        }
+                    ],
+                    "severity": "error",
+                    "type": "pin_not_connected"
+                },
+                {
+                    "description": "Pin not connected",
+                    "items": [
+                        {
+                            "description": "Symbol U2 Pin 1 [A, Passive, Line]",
+                            "pos": {
+                                "x": 0.762,
+                                "y": 0.4699
+                            },
+                            "uuid": "d23dddbd-8af1-42c9-b433-ac08af37761d"
+                        }
+                    ],
+                    "severity": "error",
+                    "type": "pin_not_connected"
+                },
+                {
+                    "description": "Simulation model library not found at '/home/akshay/wt-eeschema-dev/qa/data/eeschema/erc_cases/sim_models/missing.lib'\nFile 'missing.lib' does not exist.\nError loading simulation model: could not find base model 'OPA' in library 'missing.lib'",
+                    "items": [
+                        {
+                            "description": "Symbol U2 [TWO]",
+                            "pos": {
+                                "x": 0.762,
+                                "y": 0.508
+                            },
+                            "uuid": "00000000-0000-0000-0000-000000000003"
+                        }
+                    ],
+                    "severity": "error",
+                    "type": "simulation_model_issue"
+                },
+                {
+                    "description": "Pin not connected",
+                    "items": [
+                        {
+                            "description": "Symbol U2 Pin 2 [B, Passive, Line]",
+                            "pos": {
+                                "x": 0.762,
+                                "y": 0.5461
+                            },
+                            "uuid": "bd247611-7cf1-439e-b211-8e240c5c50c6"
+                        }
+                    ],
+                    "severity": "error",
+                    "type": "pin_not_connected"
+                },
+                {
+                    "description": "Pin not connected",
+                    "items": [
+                        {
+                            "description": "Symbol U3 Pin 1 [A, Passive, Line]",
+                            "pos": {
+                                "x": 1.016,
+                                "y": 0.4699
+                            },
+                            "uuid": "1df96fed-e78b-41a6-9cf0-f2dd5322cccb"
+                        }
+                    ],
+                    "severity": "error",
+                    "type": "pin_not_connected"
+                },
+                {
+                    "description": "Error loading simulation model: no 'Sim.Name' field",
+                    "items": [
+                        {
+                            "description": "Symbol U3 [TWO]",
+                            "pos": {
+                                "x": 1.016,
+                                "y": 0.508
+                            },
+                            "uuid": "00000000-0000-0000-0000-000000000004"
+                        }
+                    ],
+                    "severity": "error",
+                    "type": "simulation_model_issue"
+                },
+                {
+                    "description": "Pin not connected",
+                    "items": [
+                        {
+                            "description": "Symbol U3 Pin 2 [B, Passive, Line]",
+                            "pos": {
+                                "x": 1.016,
+                                "y": 0.5461
+                            },
+                            "uuid": "afadf98f-3efa-4b62-9ae0-f1bdcbfb4e49"
+                        }
+                    ],
+                    "severity": "error",
+                    "type": "pin_not_connected"
+                },
+                {
+                    "description": "Pin not connected",
+                    "items": [
+                        {
+                            "description": "Symbol U4 Pin 1 [A, Passive, Line]",
+                            "pos": {
+                                "x": 1.27,
+                                "y": 0.4699
+                            },
+                            "uuid": "8f36a1f2-d14b-4bf2-adb4-78c316308c13"
+                        }
+                    ],
+                    "severity": "error",
+                    "type": "pin_not_connected"
+                },
+                {
+                    "description": "Error loading simulation model: could not find base model 'OPA' in library '/home/akshay/wt-eeschema-dev/qa/data/eeschema/erc_cases/sim_models/models.lib'",
+                    "items": [
+                        {
+                            "description": "Symbol U4 [TWO]",
+                            "pos": {
+                                "x": 1.27,
+                                "y": 0.508
+                            },
+                            "uuid": "00000000-0000-0000-0000-000000000005"
+                        }
+                    ],
+                    "severity": "error",
+                    "type": "simulation_model_issue"
+                },
+                {
+                    "description": "Pin not connected",
+                    "items": [
+                        {
+                            "description": "Symbol U4 Pin 2 [B, Passive, Line]",
+                            "pos": {
+                                "x": 1.27,
+                                "y": 0.5461
+                            },
+                            "uuid": "797d6d7b-5251-4017-81cd-1d97c3fd27eb"
+                        }
+                    ],
+                    "severity": "error",
+                    "type": "pin_not_connected"
+                },
+                {
+                    "description": "Pin not connected",
+                    "items": [
+                        {
+                            "description": "Symbol U5 Pin 1 [A, Passive, Line]",
+                            "pos": {
+                                "x": 1.524,
+                                "y": 0.4699
+                            },
+                            "uuid": "5e339cda-dffc-49a7-8980-acd4ef95f9ac"
+                        }
+                    ],
+                    "severity": "error",
+                    "type": "pin_not_connected"
+                },
+                {
+                    "description": "Pin not connected",
+                    "items": [
+                        {
+                            "description": "Symbol U5 Pin 2 [B, Passive, Line]",
+                            "pos": {
+                                "x": 1.524,
+                                "y": 0.5461
+                            },
+                            "uuid": "c4a18176-4ae2-4739-8a6a-298b7591a0d0"
+                        }
+                    ],
+                    "severity": "error",
+                    "type": "pin_not_connected"
+                },
+                {
+                    "description": "Pin not connected",
+                    "items": [
+                        {
+                            "description": "Symbol #U6 Pin 1 [A, Passive, Line]",
+                            "pos": {
+                                "x": 1.778,
+                                "y": 0.4699
+                            },
+                            "uuid": "8dacd3c8-379e-4a17-b664-ab2b416ae61d"
+                        }
+                    ],
+                    "severity": "error",
+                    "type": "pin_not_connected"
+                },
+                {
+                    "description": "Pin not connected",
+                    "items": [
+                        {
+                            "description": "Symbol #U6 Pin 2 [B, Passive, Line]",
+                            "pos": {
+                                "x": 1.778,
+                                "y": 0.5461
+                            },
+                            "uuid": "57ae3920-7143-4199-9600-6f6bf7eb17f3"
+                        }
+                    ],
+                    "severity": "error",
+                    "type": "pin_not_connected"
+                },
+                {
+                    "description": "Pin not connected",
+                    "items": [
+                        {
+                            "description": "Symbol U7 Pin 1 [A, Passive, Line]",
+                            "pos": {
+                                "x": 2.032,
+                                "y": 0.4699
+                            },
+                            "uuid": "ca6765c9-8226-449b-8ed0-ecf584911f32"
+                        }
+                    ],
+                    "severity": "error",
+                    "type": "pin_not_connected"
+                },
+                {
+                    "description": "Pin not connected",
+                    "items": [
+                        {
+                            "description": "Symbol U7 Pin 2 [B, Passive, Line]",
+                            "pos": {
+                                "x": 2.032,
+                                "y": 0.5461
+                            },
+                            "uuid": "b650a308-6e46-4dc0-90f7-ab82146119cf"
+                        }
+                    ],
+                    "severity": "error",
+                    "type": "pin_not_connected"
+                },
+                {
+                    "description": "Pin not connected",
+                    "items": [
+                        {
+                            "description": "Symbol U8 Pin 1 [A, Passive, Line]",
+                            "pos": {
+                                "x": 2.286,
+                                "y": 0.4699
+                            },
+                            "uuid": "9a678dcd-56f0-4c5b-9319-ebedc3652eea"
+                        }
+                    ],
+                    "severity": "error",
+                    "type": "pin_not_connected"
+                },
+                {
+                    "description": "Pin not connected",
+                    "items": [
+                        {
+                            "description": "Symbol U8 Pin 2 [B, Passive, Line]",
+                            "pos": {
+                                "x": 2.286,
+                                "y": 0.5461
+                            },
+                            "uuid": "63269e84-bafb-4b29-9cc7-9c0615852c59"
+                        }
+                    ],
+                    "severity": "error",
+                    "type": "pin_not_connected"
+                },
+                {
+                    "description": "The current configuration does not include the symbol library 'T'",
+                    "items": [
+                        {
+                            "description": "Symbol R1 [TWO]",
+                            "pos": {
+                                "x": 0.254,
+                                "y": 0.508
+                            },
+                            "uuid": "00000000-0000-0000-0000-000000000001"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "lib_symbol_issues"
+                },
+                {
+                    "description": "The current configuration does not include the symbol library 'T'",
+                    "items": [
+                        {
+                            "description": "Symbol U1 [TWO]",
+                            "pos": {
+                                "x": 0.508,
+                                "y": 0.508
+                            },
+                            "uuid": "00000000-0000-0000-0000-000000000002"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "lib_symbol_issues"
+                },
+                {
+                    "description": "The current configuration does not include the symbol library 'T'",
+                    "items": [
+                        {
+                            "description": "Symbol U2 [TWO]",
+                            "pos": {
+                                "x": 0.762,
+                                "y": 0.508
+                            },
+                            "uuid": "00000000-0000-0000-0000-000000000003"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "lib_symbol_issues"
+                },
+                {
+                    "description": "The current configuration does not include the symbol library 'T'",
+                    "items": [
+                        {
+                            "description": "Symbol U3 [TWO]",
+                            "pos": {
+                                "x": 1.016,
+                                "y": 0.508
+                            },
+                            "uuid": "00000000-0000-0000-0000-000000000004"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "lib_symbol_issues"
+                },
+                {
+                    "description": "The current configuration does not include the symbol library 'T'",
+                    "items": [
+                        {
+                            "description": "Symbol U4 [TWO]",
+                            "pos": {
+                                "x": 1.27,
+                                "y": 0.508
+                            },
+                            "uuid": "00000000-0000-0000-0000-000000000005"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "lib_symbol_issues"
+                },
+                {
+                    "description": "The current configuration does not include the symbol library 'T'",
+                    "items": [
+                        {
+                            "description": "Symbol U5 [TWO]",
+                            "pos": {
+                                "x": 1.524,
+                                "y": 0.508
+                            },
+                            "uuid": "00000000-0000-0000-0000-000000000006"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "lib_symbol_issues"
+                },
+                {
+                    "description": "The current configuration does not include the symbol library 'T'",
+                    "items": [
+                        {
+                            "description": "Symbol #U6 [TWO]",
+                            "pos": {
+                                "x": 1.778,
+                                "y": 0.508
+                            },
+                            "uuid": "00000000-0000-0000-0000-000000000007"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "lib_symbol_issues"
+                },
+                {
+                    "description": "The current configuration does not include the symbol library 'T'",
+                    "items": [
+                        {
+                            "description": "Symbol U7 [TWO]",
+                            "pos": {
+                                "x": 2.032,
+                                "y": 0.508
+                            },
+                            "uuid": "00000000-0000-0000-0000-000000000008"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "lib_symbol_issues"
+                },
+                {
+                    "description": "The current configuration does not include the symbol library 'T'",
+                    "items": [
+                        {
+                            "description": "Symbol U8 [TWO]",
+                            "pos": {
+                                "x": 2.286,
+                                "y": 0.508
+                            },
+                            "uuid": "00000000-0000-0000-0000-000000000009"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "lib_symbol_issues"
+                },
+                {
+                    "description": "The current configuration does not include the symbol library 'T'",
+                    "items": [
+                        {
+                            "description": "Symbol U9 [TWO]",
+                            "pos": {
+                                "x": 0.508,
+                                "y": 0.508
+                            },
+                            "uuid": "00000000-0000-0000-0000-000000000010"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "lib_symbol_issues"
+                }
+            ]
+        },
+        {
+            "path": "/nosim/",
+            "uuid_path": "/91111111-2222-3333-4444-555555555555/a1111111-2222-3333-4444-555555555555",
+            "violations": [
+                {
+                    "description": "Pin not connected",
+                    "items": [
+                        {
+                            "description": "Symbol U9 Pin 1 [A, Passive, Line]",
+                            "pos": {
+                                "x": 0.508,
+                                "y": 0.4699
+                            },
+                            "uuid": "ac152942-ea1e-4bc0-8d5c-f9f682a3df80"
+                        }
+                    ],
+                    "severity": "error",
+                    "type": "pin_not_connected"
+                },
+                {
+                    "description": "Pin not connected",
+                    "items": [
+                        {
+                            "description": "Symbol U9 Pin 2 [B, Passive, Line]",
+                            "pos": {
+                                "x": 0.508,
+                                "y": 0.5461
+                            },
+                            "uuid": "f7304b9f-3e81-4775-90b1-20a187930762"
+                        }
+                    ],
+                    "severity": "error",
+                    "type": "pin_not_connected"
+                }
+            ]
+        }
+    ],
+    "source": "sim_models.kicad_sch"
+}

@@ -1,0 +1,12 @@
+{
+  "erc": {
+    "rule_severities": {
+      "four_way_junction": "warning",
+      "simulation_model_issue": "error"
+    }
+  },
+  "meta": {
+    "filename": "quirks.kicad_pro",
+    "version": 3
+  }
+}

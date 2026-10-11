@@ -20,7 +20,6 @@
  * reading the type.
  */
 
-import type { LibSymbol, SchSymbol } from '../types.js';
 import { strNumCmp } from '@ziroeda/common/string_utils.js';
 import {
   SIM_DEVICE_FIELD,
@@ -38,8 +37,13 @@ export interface SimModelIssue {
   message: string;
 }
 
-const fieldValue = (sym: SchSymbol, key: string): string =>
-  sym.fields.find((f) => f.key === key)?.value ?? '';
+/**
+ * The fields SIM_LIB_MGR::CreateModel builds the model from - the instance's Reference, the
+ * Value and every `Sim.*` field, by name, as shown - so a field the symbol lacks reads empty.
+ */
+export type SIM_FIELDS = ReadonlyMap<string, string>;
+
+const fieldValue = (aFields: SIM_FIELDS, key: string): string => aFields.get(key) ?? '';
 
 /**
  * SIM_MODEL::InferSimModel, reduced to the question ERC asks: do these fields
@@ -50,11 +54,11 @@ const fieldValue = (sym: SchSymbol, key: string): string =>
  * two-pin V/I source (`Sim.Type` empty or "DC").
  */
 export function inferSimModelType(
-  sym: SchSymbol,
-  lib: LibSymbol | undefined,
+  sym: SIM_FIELDS,
+  aPinCount: number,
 ): { deviceType: string; modelType: string } | null {
-  const pinCount = (lib?.units ?? []).reduce((n, u) => n + u.pins.length, 0);
-  if (pinCount !== 2) return null;
+  // `pins.size() != 2`: the symbol's pins, `SCH_SYMBOL::GetPins( nullptr )`.
+  if (aPinCount !== 2) return null;
 
   const reference = fieldValue(sym, 'Reference');
   const prefix = reference.replace(/[0-9?]+$/, '');
@@ -126,17 +130,11 @@ export function readTypeFromFields(deviceType: string, modelType: string): { fou
  * the library's contents; returning undefined is upstream's "not found".
  */
 export function checkSimModel(
-  sym: SchSymbol,
-  lib: LibSymbol | undefined,
+  sym: SIM_FIELDS,
+  aPinCount: number,
   libraryText: (path: string) => string | undefined,
 ): SimModelIssue[] {
   const issues: SimModelIssue[] = [];
-  const reference = fieldValue(sym, 'Reference');
-
-  // Inference runs first and fills in the device/type when it succeeds.
-  const inferred = inferSimModelType(sym, lib);
-  const deviceType = inferred?.deviceType ?? fieldValue(sym, SIM_DEVICE_FIELD);
-  const modelType = inferred?.modelType ?? fieldValue(sym, SIM_TYPE_FIELD);
 
   const libraryPath = fieldValue(sym, SIM_LIBRARY_FIELD);
   const baseModelName = fieldValue(sym, SIM_NAME_FIELD);
@@ -160,16 +158,27 @@ export function checkSimModel(
     return issues;
   }
 
-  if (!readTypeFromFields(deviceType, modelType).found) {
-    issues.push({
-      message:
-        reference !== ''
-          ? `No simulation model definition found for symbol '${reference}'.`
-          : 'No simulation model definition found.',
-    });
-  }
+  const issue = simModelTypeIssue(sym, aPinCount);
+  if (issue) issues.push(issue);
 
   return issues;
+}
+
+/**
+ * The model a symbol with no `Sim.Library` gets: InferSimModel first, then
+ * `SIM_MODEL::ReadTypeFromFields` (sim_model.cpp:405), whose failure is the one
+ * thing building it reports. Its message names the symbol only when the fields
+ * hold a FIELD_T::REFERENCE, and CreateModel copies every field it passes as a
+ * USER field, so the ERC always sees the plain one.
+ */
+export function simModelTypeIssue(sym: SIM_FIELDS, aPinCount: number): SimModelIssue | null {
+  const inferred = inferSimModelType(sym, aPinCount);
+  const deviceType = inferred?.deviceType ?? fieldValue(sym, SIM_DEVICE_FIELD);
+  const modelType = inferred?.modelType ?? fieldValue(sym, SIM_TYPE_FIELD);
+
+  if (readTypeFromFields(deviceType, modelType).found) return null;
+
+  return { message: 'No simulation model definition found.' };
 }
 
 /**

@@ -33,7 +33,12 @@ const symbolWith = (fields: string, ref = 'R1') => {
         ${fields}
         (uuid "s1")))`),
   );
-  return { sym: doc.symbols[0]!, lib: doc.libSymbols[0]! };
+  const sym = doc.symbols[0]!;
+  const lib = doc.libSymbols[0]!;
+  return {
+    fields: new Map(sym.fields.map((f) => [f.key, f.value])),
+    pins: lib.units.reduce((n, u) => n + u.pins.length, 0),
+  };
 };
 
 describe('readTypeFromFields', () => {
@@ -58,24 +63,26 @@ describe('checkSimModel', () => {
   const noLibraries = () => undefined;
 
   it('says nothing about a plain RLC symbol (InferSimModel covers it)', () => {
-    const { sym, lib } = symbolWith('(property "Value" "10k" (at 10 10 0))');
-    expect(checkSimModel(sym, lib, noLibraries)).toEqual([]);
+    const { fields, pins } = symbolWith('(property "Value" "10k" (at 10 10 0))');
+    expect(checkSimModel(fields, pins, noLibraries)).toEqual([]);
   });
 
   it('says nothing about a behavioural RLC value either', () => {
-    const { sym, lib } = symbolWith('(property "Value" "V(1)*2" (at 10 10 0))');
-    expect(checkSimModel(sym, lib, noLibraries)).toEqual([]);
+    const { fields, pins } = symbolWith('(property "Value" "V(1)*2" (at 10 10 0))');
+    expect(checkSimModel(fields, pins, noLibraries)).toEqual([]);
   });
 
   it('reports a Sim.Type that no device provides', () => {
-    const { sym, lib } = symbolWith(
+    const { fields, pins } = symbolWith(
       `(property "Value" "10k" (at 10 10 0))
        (property "Sim.Device" "R" (at 10 10 0))
        (property "Sim.Type" "SIN" (at 10 10 0))`,
       'U1',
     );
-    expect(checkSimModel(sym, lib, noLibraries)).toEqual([
-      { message: "No simulation model definition found for symbol 'U1'." },
+    // kicad-cli's message for the same fields (erc_cases/sim_models U1): CreateModel copies the
+    // Reference as a USER field, so ReadTypeFromFields never finds one to name.
+    expect(checkSimModel(fields, pins, noLibraries)).toEqual([
+      { message: 'No simulation model definition found.' },
     ]);
   });
 
@@ -90,7 +97,7 @@ describe('checkSimModel', () => {
 
     // The library cannot be resolved at all.
     const missing = withLib('(property "Sim.Name" "OPA" (at 10 10 0))');
-    expect(checkSimModel(missing.sym, missing.lib, noLibraries)).toEqual([
+    expect(checkSimModel(missing.fields, missing.pins, noLibraries)).toEqual([
       { message: "Simulation model library not found at 'models.lib'" },
     ]);
 
@@ -99,13 +106,13 @@ describe('checkSimModel', () => {
 
     // Present, but the symbol names no model.
     const noName = withLib('');
-    expect(checkSimModel(noName.sym, noName.lib, resolve)).toEqual([
+    expect(checkSimModel(noName.fields, noName.pins, resolve)).toEqual([
       { message: "Error loading simulation model: no 'Sim.Name' field" },
     ]);
 
     // Present, but the model isn't in it.
     const unknown = withLib('(property "Sim.Name" "OPA" (at 10 10 0))');
-    expect(checkSimModel(unknown.sym, unknown.lib, resolve)).toEqual([
+    expect(checkSimModel(unknown.fields, unknown.pins, resolve)).toEqual([
       {
         message:
           "Error loading simulation model: could not find base model 'OPA' in library 'models.lib'",
@@ -114,7 +121,7 @@ describe('checkSimModel', () => {
 
     // …and nothing at all when the model is there (case-insensitively).
     const ok = withLib('(property "Sim.Name" "diode1" (at 10 10 0))');
-    expect(checkSimModel(ok.sym, ok.lib, resolve)).toEqual([]);
+    expect(checkSimModel(ok.fields, ok.pins, resolve)).toEqual([]);
   });
 });
 

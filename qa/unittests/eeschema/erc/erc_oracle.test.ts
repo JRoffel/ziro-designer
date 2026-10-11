@@ -32,7 +32,12 @@ afterEach(() => SetPgm(null));
 const DATA = resolve(__dirname, '../../../data/eeschema');
 const ORACLE = join(DATA, 'erc_oracle');
 
-/** The types only the ERC_TESTER tests still pending produce (erc.ts' RunTests). */
+/**
+ * Types this oracle cannot judge portably, each pinned by its own test instead: kicad-cli
+ * resolves libraries through this machine's global tables (erc_lib_symbol_issues_live,
+ * erc_footprint_link_issues_live), and its simulation messages carry the absolute path it found
+ * a library at (erc_sim_model_issues_live, which maps that path from erc_cases_sim_models.json).
+ */
 const PENDING = new Set([
   'simulation_model_issue',
   'lib_symbol_issues',
@@ -149,7 +154,7 @@ function runErc(aDir: string, aSource: string): Report {
 const FILES = readdirSync(ORACLE).filter((f) => f.endsWith('.json'));
 
 describe('ERC_TESTER against kicad-cli sch erc', () => {
-  it('has the oracle', () => expect(FILES.length).toBe(50));
+  it('has the oracle', () => expect(FILES.length).toBe(51));
 
   for (const f of FILES) {
     it(f, { timeout: 120_000 }, () => {

@@ -1,0 +1,13 @@
+(kicad_sch (version 20250114) (generator "eeschema") (generator_version "10.0")
+(uuid "b1111111-2222-3333-4444-555555555555") (paper "A4")
+(lib_symbols (symbol "T:TWO" (pin_names (offset 0)) (exclude_from_sim no) (in_bom yes) (on_board yes)
+ (property "Reference" "U" (at 0 0 0) (effects (font (size 1.27 1.27))))
+ (property "Value" "TWO" (at 0 0 0) (effects (font (size 1.27 1.27))))
+ (symbol "TWO_1_1"
+  (pin passive line (at 0 3.81 270) (length 1.27) (name "A" (effects (font (size 1.27 1.27)))) (number "1" (effects (font (size 1.27 1.27)))))
+  (pin passive line (at 0 -3.81 90) (length 1.27) (name "B" (effects (font (size 1.27 1.27)))) (number "2" (effects (font (size 1.27 1.27))))))))
+
+(symbol (lib_id "T:TWO") (at 50.8 50.8 0) (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (uuid "00000000-0000-0000-0000-000000000010")
+ (property "Reference" "U9" (at 50.8 45 0) (effects (font (size 1.27 1.27))))
+ (property "Value" "10k" (at 0 0 0) (effects (font (size 1.27 1.27)))) (property "Sim.Device" "R" (at 0 0 0) (effects (font (size 1.27 1.27)) (hide yes))) (property "Sim.Type" "SIN" (at 0 0 0) (effects (font (size 1.27 1.27)) (hide yes)))
+ (instances (project "sim_models" (path "/91111111-2222-3333-4444-555555555555/a1111111-2222-3333-4444-555555555555" (reference "U9") (unit 1))))))
