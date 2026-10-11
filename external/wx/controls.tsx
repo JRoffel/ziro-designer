@@ -11,6 +11,7 @@ import type { JSX, MouseEvent, ReactNode, Ref } from 'react';
 
 /** wxChoice and wxComboBox, part of the wx layer like the controls below. */
 import { Combo } from './combobox.js';
+import { type wxColour, wxColourToCss } from './colour.js';
 
 export { Combo, TextCombo } from './combobox.js';
 
@@ -156,6 +157,50 @@ export function RadioButton({
 }
 
 /**
+ * `wxRadioBox( …, label, …, choices, majorDimension, wxRA_SPECIFY_COLS )`: a static box whose
+ * radio buttons fill `majorDimension` columns, row by row. `selection` is GetSelection().
+ */
+export function RadioBox({
+  label,
+  choices,
+  selection,
+  onChange,
+  majorDimension = 1,
+  disabled,
+}: {
+  label: string;
+  choices: readonly string[];
+  selection: number;
+  /** wxEVT_RADIOBOX, with the new selection. */
+  onChange: (aSelection: number) => void;
+  majorDimension?: number;
+  disabled?: boolean;
+}): JSX.Element {
+  return (
+    <StaticBox label={label}>
+      <div
+        className="ze-radiobox"
+        role="radiogroup"
+        aria-label={label}
+        style={{ gridTemplateColumns: `repeat(${majorDimension}, max-content)` }}
+      >
+        {choices.map((choice, i) => (
+          <RadioButton
+            // A wxRadioBox's items are its choices in order.
+            // biome-ignore lint/suspicious/noArrayIndexKey: the choice index is the item's identity
+            key={i}
+            label={choice}
+            checked={selection === i}
+            disabled={disabled}
+            onChange={() => onChange(i)}
+          />
+        ))}
+      </div>
+    </StaticBox>
+  );
+}
+
+/**
  * `wxTextCtrl`. Its fill, border, radius, padding, font and height are the GTK entry's
  * (`.ze-app input`, `--ctl-height`), so a call site states none of them. `onEnter` is
  * `wxTE_PROCESS_ENTER`: the entry takes Enter itself; without it Enter goes on to the dialog's
@@ -179,6 +224,7 @@ export function TextCtrl({
   ariaLabel,
   autoFocus,
   maxLength,
+  foregroundColour,
 }: {
   value: string;
   onChange?: (aValue: string) => void;
@@ -199,9 +245,12 @@ export function TextCtrl({
   autoFocus?: boolean;
   /** `SetMaxLength( n )`. */
   maxLength?: number;
+  /** `SetForegroundColour( c )`: the entry's text colour; absent, the theme's. */
+  foregroundColour?: wxColour;
 }): JSX.Element {
   const common = {
     maxLength,
+    style: foregroundColour ? { color: wxColourToCss(foregroundColour) } : undefined,
     id,
     value,
     readOnly,

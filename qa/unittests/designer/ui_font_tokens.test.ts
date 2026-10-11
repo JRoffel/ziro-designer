@@ -302,7 +302,7 @@ const BASELINE: Record<string, number> = {
   // RESCANNED from this tree.
   // 8 -> 39 (09-28): the scan now reads pcbnew/ and 3d-viewer/. The drop to 8
   // was the file-structure move carrying sites out of view, not removing them.
-  'editors/pcb': 23, // -3 (10-11): Filter Selection's inline font sizes, gone with its _base pair; -5 (10-11): DIALOG_PLOT on its _base deleted the old panel's inline legend/label sizes; -1 (10-05): the old Footprint Editor window's placeholder; +1: the Footprint Editor window moved into pcbnew/; -1 (10-01): b7f7835f deleted Filter Selection's invented "N items kept" line; -7 (10-01): 860a063c deleted the legacy Position Relative dialog
+  'editors/pcb': 11, // -12 (10-11): the old Move Exact and Outset Items forms' inline sizes, gone with their _base pairs; -3 (10-11): Filter Selection's inline font sizes, gone with its _base pair; -5 (10-11): DIALOG_PLOT on its _base deleted the old panel's inline legend/label sizes; -1 (10-05): the old Footprint Editor window's placeholder; +1: the Footprint Editor window moved into pcbnew/; -1 (10-01): b7f7835f deleted Filter Selection's invented "N items kept" line; -7 (10-01): 860a063c deleted the legacy Position Relative dialog
   // 55 -> 50: the COLOR_SWATCH sweep's second half. Seven Clear buttons and
   // one `(using Schematic Editor colors)` hint each carried an inline
   // `fontSize: 11`, and none of them exists upstream - the swatch clears
@@ -747,7 +747,8 @@ describe('hardcoded font sizes do not grow', () => {
     // 83 -> 80: the editors/schematic row above.
     // 80 -> 75: the editors/schematic row above.
     // 75 -> 72 (10-11): the editors/pcb row above.
-    expect(sites.length).toBe(72);
+    // 72 -> 60 (10-11): the editors/pcb row above, again.
+    expect(sites.length).toBe(60);
   });
 });
 

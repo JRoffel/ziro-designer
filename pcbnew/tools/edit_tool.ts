@@ -17,6 +17,11 @@
  * vertex editor - is the frame's, through EDIT_TOOL_FRAME (the frame's hooks).
 
  */
+import {
+  DIALOG_MOVE_EXACT,
+  type MOVE_EXACT_VALUES,
+  ROTATION_ANCHOR,
+} from '../dialogs/dialog_move_exact.js';
 import { ADVANCED_CFG } from '@ziroeda/common/advanced_config.js';
 import { SaveClipboard } from '@ziroeda/common/clipboard.js';
 import { type EDA_ITEM, RECURSE_MODE } from '@ziroeda/common/eda_item.js';
@@ -112,21 +117,6 @@ const ID_END_LIST = 10557;
 export const ID_POPUP_PCB_SWAP_UNIT_BASE = ID_END_LIST + 39;
 export const ID_POPUP_PCB_SWAP_UNIT_LAST = ID_POPUP_PCB_SWAP_UNIT_BASE + 63;
 
-/** `ROTATION_ANCHOR` (dialogs/dialog_move_exact.h). */
-export enum ROTATION_ANCHOR {
-  ROTATE_AROUND_ITEM_ANCHOR,
-  ROTATE_AROUND_SEL_CENTER,
-  ROTATE_AROUND_USER_ORIGIN,
-  ROTATE_AROUND_AUX_ORIGIN,
-}
-
-/** What `DIALOG_MOVE_EXACT` edits in place: the translation, the rotation and its anchor. */
-export interface MOVE_EXACT_VALUES {
-  translation: VECTOR2I;
-  rotation: EDA_ANGLE;
-  rotationAnchor: ROTATION_ANCHOR;
-}
-
 /**
  * The window half of the tool: the modal dialogs `EDIT_TOOL` shows and the
  * infobar, answered by the frame's hooks. Each dialog answers a promise; a
@@ -137,11 +127,8 @@ export interface EDIT_TOOL_FRAME {
   ShowUnitEntryDialog(aTitle: string, aLabel: string, aValue: number): Promise<number | null>;
   /** `GetDogboneParams`' WX_MULTI_ENTRY_DIALOG, "Dogbone Corner Settings". */
   ShowDogboneDialog(aParams: DOGBONE_PARAMETERS): Promise<DOGBONE_PARAMETERS | null>;
-  /** `DIALOG_MOVE_EXACT( frame, translation, rotation, rotationAnchor, sel_box ).ShowModal()`. */
-  ShowMoveExactDialog(
-    aValues: MOVE_EXACT_VALUES,
-    aSelectionBox: BOX2I,
-  ): Promise<MOVE_EXACT_VALUES | null>;
+  /** `DIALOG_MOVE_EXACT( frame, translation, rotation, rotationAnchor, sel_box ).ShowModal() == wxID_OK`. */
+  ShowMoveExactDialog(aDialog: DIALOG_MOVE_EXACT): Promise<boolean>;
   /** `DIALOG_TRACK_VIA_PROPERTIES( frame, selection ).ShowQuasiModal()`. */
   ShowTrackViaPropertiesDialog(aSelection: PCB_SELECTION): Promise<void>;
   /**
@@ -2790,8 +2777,12 @@ export class EDIT_TOOL extends PCB_TOOL_BASE {
     const items = selection.GetItems();
     const isHover = selection.IsHover();
 
-    void editFrame.ShowMoveExactDialog(values, sel_box).then((aValues) => {
-      if (!aValues) return;
+    const dialog = new DIALOG_MOVE_EXACT(editFrame, values, sel_box);
+
+    void editFrame.ShowMoveExactDialog(dialog).then((aOk) => {
+      if (!aOk) return;
+
+      const aValues = values;
 
       const commit = new BOARD_COMMIT(this);
       const translation = aValues.translation;

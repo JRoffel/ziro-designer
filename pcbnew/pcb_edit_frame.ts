@@ -165,7 +165,8 @@ import type { EDA_BASE_FRAME } from '@ziroeda/common/eda_base_frame.js';
 import type { SelectionFilter } from './dialogs/dialog_filter_selection.js';
 import { PCB_POINT_EDITOR } from './tools/pcb_point_editor.js';
 import { PCB_SELECTION_TOOL } from './tools/pcb_selection_tool.js';
-import { EDIT_TOOL, type MOVE_EXACT_VALUES } from './tools/edit_tool.js';
+import { EDIT_TOOL } from './tools/edit_tool.js';
+import type { DIALOG_MOVE_EXACT } from './dialogs/dialog_move_exact.js';
 import { PCB_EDIT_TABLE_TOOL } from './tools/pcb_edit_table_tool.js';
 import type { DOGBONE_PARAMETERS } from './tools/item_modification_routine.js';
 import { ALIGN_DISTRIBUTE_TOOL } from './tools/align_distribute_tool.js';
@@ -198,7 +199,7 @@ import {
 import type { DIALOG_ENUM_PADS } from './dialogs/dialog_enum_pads.js';
 import type { DIALOG_FP_EDIT_PAD_TABLE } from './dialogs/dialog_fp_edit_pad_table.js';
 import { CONVERT_TOOL } from './tools/convert_tool.js';
-import type { OUTSET_PARAMETERS } from './tools/item_modification_routine.js';
+import type { DIALOG_OUTSET_ITEMS } from './dialogs/dialog_outset_items.js';
 import type { CONVERT_SETTINGS } from './pcbnew_settings.js';
 import type { ZONE_SETTINGS } from './zone_settings.js';
 import { PCB_GROUP_TOOL } from './tools/pcb_group_tool.js';
@@ -872,10 +873,7 @@ export interface PCB_EDIT_FRAME_HOOKS extends PCB_BASE_EDIT_FRAME_DIALOG_HOOKS {
   /** EDIT_TOOL's `GetDogboneParams` WX_MULTI_ENTRY_DIALOG. */
   showDogboneDialog?(aParams: DOGBONE_PARAMETERS): Promise<DOGBONE_PARAMETERS | null>;
   /** `DIALOG_MOVE_EXACT( frame, translation, rotation, anchor, bbox ).ShowModal()`. */
-  showMoveExactDialog?(
-    aValues: MOVE_EXACT_VALUES,
-    aSelectionBox: BOX2I,
-  ): Promise<MOVE_EXACT_VALUES | null>;
+  showMoveExactDialog?(aDialog: DIALOG_MOVE_EXACT): Promise<boolean>;
   /** `DIALOG_TRACK_VIA_PROPERTIES( frame, selection ).ShowQuasiModal()`. */
   showTrackViaPropertiesDialog?(aSelection: PCB_SELECTION): Promise<void>;
   /** `DIALOG_GET_FOOTPRINT_BY_NAME( frame, fplist ).ShowModal()`: the value, null on cancel. */
@@ -895,8 +893,8 @@ export interface PCB_EDIT_FRAME_HOOKS extends PCB_BASE_EDIT_FRAME_DIALOG_HOOKS {
   ): Promise<boolean>;
   /** `PCB_BASE_FRAME::SelectOneLayer`: UNDEFINED_LAYER on cancel. */
   selectOneLayer?(aDefaultLayer: PCB_LAYER_ID, aNotAllowedLayersMask: LSET): Promise<PCB_LAYER_ID>;
-  /** `DIALOG_OUTSET_ITEMS( frame, aParams ).ShowModal() != wxID_CANCEL`. */
-  showOutsetItemsDialog?(aParams: OUTSET_PARAMETERS): Promise<boolean>;
+  /** `DIALOG_OUTSET_ITEMS::ShowModal() != wxID_CANCEL`. */
+  showOutsetItemsDialog?(aDialog: DIALOG_OUTSET_ITEMS): Promise<boolean>;
   /** POSITION_RELATIVE_TOOL's modeless DIALOG_POSITION_RELATIVE, drawn while it lives. */
   attachPositionRelativeDialog?(aDialog: DIALOG_POSITION_RELATIVE): void;
   /** POSITION_RELATIVE_TOOL's `DIALOG_OFFSET_ITEM( ... ).ShowModal() == wxID_OK`. */
@@ -1249,11 +1247,8 @@ export class PCB_EDIT_FRAME extends PCB_BASE_EDIT_FRAME {
     return this.hooks.showDogboneDialog?.(aParams) ?? Promise.resolve(null);
   }
 
-  ShowMoveExactDialog(
-    aValues: MOVE_EXACT_VALUES,
-    aSelectionBox: BOX2I,
-  ): Promise<MOVE_EXACT_VALUES | null> {
-    return this.hooks.showMoveExactDialog?.(aValues, aSelectionBox) ?? Promise.resolve(null);
+  ShowMoveExactDialog(aDialog: DIALOG_MOVE_EXACT): Promise<boolean> {
+    return this.hooks.showMoveExactDialog?.(aDialog) ?? Promise.resolve(false);
   }
 
   ShowTrackViaPropertiesDialog(aSelection: PCB_SELECTION): Promise<void> {
@@ -1539,8 +1534,8 @@ export class PCB_EDIT_FRAME extends PCB_BASE_EDIT_FRAME {
     );
   }
 
-  ShowOutsetItemsDialog(aParams: OUTSET_PARAMETERS): Promise<boolean> {
-    return this.hooks.showOutsetItemsDialog?.(aParams) ?? Promise.resolve(false);
+  ShowOutsetItemsDialog(aDialog: DIALOG_OUTSET_ITEMS): Promise<boolean> {
+    return this.hooks.showOutsetItemsDialog?.(aDialog) ?? Promise.resolve(false);
   }
 
   // ---- POSITION_RELATIVE_TOOL's window half (POSITION_RELATIVE_TOOL_FRAME) --

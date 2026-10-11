@@ -271,6 +271,8 @@ export class UNIT_BINDER {
   private m_value = '';
   private m_shown = true;
   private m_enabled = true;
+  /** The wxComboBox's option values, IU (SetOptionsList). */
+  private m_options: number[] = [];
   /** `m_precision`, 0 to 6; 0 or 1 leaves values untruncated. */
   private m_precision = 0;
   private m_errorMessage = '';
@@ -346,12 +348,31 @@ export class UNIT_BINDER {
    * through the display origin (`getTextForDoubleValue`), no unit label.
    */
   SetDoubleValue(aValue: number): void {
-    this.m_value = iuStringFromValue(
+    this.m_value = this.getTextForDoubleValue(aValue);
+  }
+
+  /** `getTextForDoubleValue( aValue )` (`:495-505`): IU to the field's text, no unit label. */
+  private getTextForDoubleValue(aValue: number): string {
+    return iuStringFromValue(
       this.m_unitsProvider.GetIuScale(),
       this.GetUnits(),
       this.setPrecision(this.toDisplay(aValue)),
       false,
     );
+  }
+
+  /**
+   * `SetOptionsList( aOptions )` (`:640-649`): a wxComboBox's list, each value through
+   * getTextForValue. The values are kept and formatted when asked, which is the re-fill
+   * `onUnitsChanged` does (`:205-214`) when the frame's units change.
+   */
+  SetOptionsList(aOptions: readonly number[]): void {
+    this.m_options = [...aOptions];
+  }
+
+  /** The combo's strings, in the current units. */
+  GetOptionsList(): string[] {
+    return this.m_options.map((v) => this.getTextForDoubleValue(v));
   }
 
   /** `SetValue( long long )`. */

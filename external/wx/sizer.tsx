@@ -508,8 +508,11 @@ export function GridBagSizer({
  * Enter activate it.
  */
 export interface StdDialogButtonSizerProps {
-  /** `wxID_CANCEL`'s handler. Also what Esc runs, via `useModalEscape`. */
-  onCancel: () => void;
+  /**
+   * `wxID_CANCEL`'s handler. Absent, no Cancel button: wx's sizer draws only the buttons the
+   * base `AddButton`s (DIALOG_FOOTPRINT_ASSOCIATIONS has wxID_OK alone).
+   */
+  onCancel?: () => void;
   /** `wxID_OK`'s handler — the affirmative, and the dialog's default button. */
   onOk: () => void;
   /**
@@ -552,7 +555,7 @@ export function StdDialogButtonSizer({
     <div className="ze-modal-footer">
       {children}
       {children ? <span className="ze-sdb-spacer" /> : null}
-      <Button label={cancelLabel} title={cancelTitle} onClick={onCancel} />
+      {onCancel ? <Button label={cancelLabel} title={cancelTitle} onClick={onCancel} /> : null}
       {onApply ? <Button label={applyLabel} onClick={onApply} /> : null}
       <Button label={okLabel} isDefault disabled={okDisabled} onClick={onOk} />
     </div>

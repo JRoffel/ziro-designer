@@ -334,7 +334,7 @@ const BASELINE: Record<string, { colours: number; metrics: number }> = {
   // (`pcb_draw_panel_gal_ui.tsx`) went; they draw on PCB_DRAW_PANEL_GAL.
   // 10-10: colours 20 -> 19, metrics 114 -> 88 - DIALOG_PLOT's inline box/legend/row styles, gone
   // with the dialog transcribed onto the sizers (dialog_plot_base.tsx).
-  'editors/pcb': { colours: 18, metrics: 75 },
+  'editors/pcb': { colours: 14, metrics: 45 }, // -4 colours, -30 metrics (10-11): the old Move Exact and Outset Items forms' inline styles, gone with their _base pairs
   // At zero, and listed rather than absent: `prefs/` is the settings store, and
   // the one literal it had - the 3D viewer's `rgb(0,255,0)` selection colour -
   // is `PARAM<COLOR4D>( "render.opengl_selection_color", …, COLOR4D( 0, 1, 0, 1 ) )`
@@ -1454,7 +1454,8 @@ describe('the scan totals, so the numbers in the PR stay true', () => {
     // 275 -> 274 (10-10): DIALOG_PLOT's browse popup shadow, gone with its inline styles.
     // 274 -> 273: .ze-lp-syntax's #6fa8ff (Text Properties' pair).
     // 273 -> 272 (10-11): Filter Selection's inline rgba shadow, gone with its _base pair.
-    expect(SITES.filter((s) => s.kind === 'colours').length).toBe(272);
+    // 272 -> 268 (10-11): the old Move Exact and Outset Items forms, gone with their _base pairs.
+    expect(SITES.filter((s) => s.kind === 'colours').length).toBe(268);
     // 1657 -> 1649: the same sweep. A native colour input has no useful
     // default size, so eight of the sixteen sites gave theirs an inline
     // width and height; the shared swatch takes --swatch-*-w/h. Rescanned.
@@ -1685,7 +1686,8 @@ describe('the scan totals, so the numbers in the PR stay true', () => {
     // 953 -> 940 (10-11): editors/pcb 88 -> 75, Filter Selection's inline layout and the other
     // dialogs of the pcbnew pairs batch; 940 -> 932: the last .ze-lp-* rules (Global Edit's
     // pair); 932 -> 931: Change Symbols' .ze-chsym-* rules.
-    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(931);
+    // 931 -> 901 (10-11): the old Move Exact and Outset Items forms, gone with their _base pairs.
+    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(901);
   });
 
   it('and the two agree with the per-area table, which is where they come from', () => {

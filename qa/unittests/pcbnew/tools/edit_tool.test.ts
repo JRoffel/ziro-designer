@@ -21,11 +21,8 @@ import { PCB_SHAPE } from '@ziroeda/pcbnew/pcb_shape.js';
 import { SHAPE_T } from '@ziroeda/common/eda_shape.js';
 import type { PCB_TEXT } from '@ziroeda/pcbnew/pcb_text.js';
 import type { PCB_TRACK } from '@ziroeda/pcbnew/pcb_track.js';
-import {
-  EDIT_TOOL,
-  type EDIT_TOOL_FRAME,
-  type MOVE_EXACT_VALUES,
-} from '@ziroeda/pcbnew/tools/edit_tool.js';
+import type { DIALOG_MOVE_EXACT } from '@ziroeda/pcbnew/dialogs/dialog_move_exact.js';
+import { EDIT_TOOL, type EDIT_TOOL_FRAME } from '@ziroeda/pcbnew/tools/edit_tool.js';
 import { PCB_ACTIONS } from '@ziroeda/pcbnew/tools/pcb_actions.js';
 import { PCB_PICKER_TOOL } from '@ziroeda/pcbnew/tools/pcb_picker_tool.js';
 import { PCB_POINT_EDITOR } from '@ziroeda/pcbnew/tools/pcb_point_editor.js';
@@ -93,7 +90,8 @@ class EDIT_FRAME extends TEST_PCB_FRAME implements EDIT_TOOL_FRAME {
   infobar: string[] = [];
   unitEntryAnswer: number | null = null;
   unitEntryAsked: string[] = [];
-  moveExactAnswer: ((v: MOVE_EXACT_VALUES) => MOVE_EXACT_VALUES | null) | null = null;
+  /** What the user types into DIALOG_MOVE_EXACT before OK; null, or a null answer, is Cancel. */
+  moveExactAnswer: ((d: DIALOG_MOVE_EXACT) => boolean) | null = null;
   connectedPadAnswer: 'ignore' | 'all' | null = 'ignore';
   edited: BOARD_ITEM[] = [];
 
@@ -104,8 +102,10 @@ class EDIT_FRAME extends TEST_PCB_FRAME implements EDIT_TOOL_FRAME {
   ShowDogboneDialog(): Promise<null> {
     return Promise.resolve(null);
   }
-  ShowMoveExactDialog(aValues: MOVE_EXACT_VALUES): Promise<MOVE_EXACT_VALUES | null> {
-    return Promise.resolve(this.moveExactAnswer ? this.moveExactAnswer(aValues) : null);
+  ShowMoveExactDialog(aDialog: DIALOG_MOVE_EXACT): Promise<boolean> {
+    aDialog.TransferDataToWindow();
+    const ok = this.moveExactAnswer?.(aDialog) ?? false;
+    return Promise.resolve(ok && aDialog.TransferDataFromWindow());
   }
   ShowTrackViaPropertiesDialog(): Promise<void> {
     return Promise.resolve();
@@ -329,7 +329,10 @@ describe('EDIT_TOOL::Duplicate (edit_tool.cpp:3090)', () => {
 
 describe('EDIT_TOOL::MoveExact (edit_tool.cpp:3000)', () => {
   it('moves by the dialog translation in one "Move Exactly" entry', async () => {
-    h.frame.moveExactAnswer = (v) => ({ ...v, translation: mm(5, 0) });
+    h.frame.moveExactAnswer = (d) => {
+      d.m_moveX.SetText('5');
+      return true;
+    };
     select(h, 21);
     h.mgr.RunAction(PCB_ACTIONS.moveExact);
     await flush();
@@ -338,7 +341,7 @@ describe('EDIT_TOOL::MoveExact (edit_tool.cpp:3000)', () => {
   });
 
   it('a cancelled dialog changes nothing', async () => {
-    h.frame.moveExactAnswer = () => null;
+    h.frame.moveExactAnswer = () => false;
     select(h, 21);
     h.mgr.RunAction(PCB_ACTIONS.moveExact);
     await flush();
@@ -346,7 +349,10 @@ describe('EDIT_TOOL::MoveExact (edit_tool.cpp:3000)', () => {
   });
 
   it('rotates about each item anchor with one item selected', async () => {
-    h.frame.moveExactAnswer = (v) => ({ ...v, rotation: ANGLE_90 });
+    h.frame.moveExactAnswer = (d) => {
+      d.m_rotate.SetText('90');
+      return true;
+    };
     select(h, 21);
     h.mgr.RunAction(PCB_ACTIONS.moveExact);
     await flush();

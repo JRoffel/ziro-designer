@@ -70,6 +70,7 @@ import { PCB_SELECTION_CONDITIONS as P_S_C } from './pcb_selection_conditions.js
 import type { PCB_SELECTION_TOOL } from './pcb_selection_tool.js';
 import { PCB_TOOL_BASE } from './pcb_tool_base.js';
 import { GetBoardItemWidth } from './pcb_tool_utils.js';
+import { DIALOG_OUTSET_ITEMS } from '../dialogs/dialog_outset_items.js';
 
 const { BOUNDING_HULL, CENTERLINE, COPY_LINEWIDTH } = CONVERT_STRATEGY;
 
@@ -98,8 +99,8 @@ export interface CONVERT_TOOL_FRAME {
   ): Promise<boolean>;
   /** `PCB_BASE_FRAME::SelectOneLayer( aDefaultLayer, aNotAllowedLayersMask )`: UNDEFINED_LAYER on cancel. */
   SelectOneLayer(aDefaultLayer: PCB_LAYER_ID, aNotAllowedLayersMask: LSET): Promise<PCB_LAYER_ID>;
-  /** `DIALOG_OUTSET_ITEMS( frame, aParams ).ShowModal() != wxID_CANCEL`: on OK it wrote `aParams`. */
-  ShowOutsetItemsDialog(aParams: OUTSET_PARAMETERS): Promise<boolean>;
+  /** `dlg.ShowModal() != wxID_CANCEL`: on OK the dialog wrote its OUTSET_ROUTINE::PARAMETERS. */
+  ShowOutsetItemsDialog(aDialog: DIALOG_OUTSET_ITEMS): Promise<boolean>;
   /** `EDA_BASE_FRAME::ShowInfoBarMsg`. */
   ShowInfoBarMsg(aMsg: string): void;
 }
@@ -1327,7 +1328,9 @@ export class CONVERT_TOOL extends PCB_TOOL_BASE {
 
     const items = [...selection.GetItems()];
 
-    void frame.ShowOutsetItemsDialog(outset_params).then((ok) => {
+    const dlg = new DIALOG_OUTSET_ITEMS(frame, outset_params);
+
+    void frame.ShowOutsetItemsDialog(dlg).then((ok) => {
       if (!ok) return;
 
       const outset_routine = new OUTSET_ROUTINE(

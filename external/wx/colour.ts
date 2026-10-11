@@ -16,6 +16,9 @@ export interface wxColour {
 /** `*wxBLACK`. */
 export const wxBLACK: wxColour = { r: 0, g: 0, b: 0, a: 1 };
 
+/** `*wxRED`: wxStockGDI's `wxColour( 255, 0, 0 )`. */
+export const wxRED: wxColour = { r: 1, g: 0, b: 0, a: 1 };
+
 const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v);
 
 /** The CSS colour of a wxColour: each channel to a byte, alpha to three decimals. */

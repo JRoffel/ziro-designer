@@ -47,7 +47,8 @@ const BASELINE: Record<string, number> = {
   // 463 -> 448 (10-11): Push Pad, Swap Layers, Enumerate Pads and Target Properties pairs.
   // 448 -> 434 (10-11): Unused Pad Layers, Filter Selection, Offset Item, Track/Via Size and
   // Diff Pair Dimensions pairs.
-  pcbnew: 434,
+  // 434 -> 427 (10-11): Move Exact, Footprint Associations, Global Deletion and Outset Items pairs.
+  pcbnew: 427,
 };
 
 const git = (...aSpecs: string[]): string[] =>

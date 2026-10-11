@@ -5,7 +5,7 @@
  * `DIALOG_GLOBAL_DELETION` (pcbnew/dialogs/dialog_global_deletion.cpp), and
  * GLOBAL_EDIT_TOOL::GlobalDeletions, which upstream defines in the same file:
  * the item kinds to delete, the lock filters, the layer filter, then one
- * "Global Delete" commit. The window is dialog_global_deletion_ui.tsx.
+ * "Global Delete" commit. `DialogGlobalDeletion` below is the window.
  *
  * A destructive dialog: upstream opts out of DIALOG_SHIM's control memory so
  * it always comes up benign, which is also what a fresh model here gives.
@@ -14,6 +14,8 @@
  * outlines") means "Text" deletes nothing, and a drawing that is not a
  * PCB_SHAPE is never removed by "Graphics".
  */
+import { type JSX, useState } from 'react';
+import type { CHECK } from '@ziroeda/wx/controls.js';
 import { LSET } from '@ziroeda/common/lset.js';
 import { PCB_LAYER_ID, ToLAYER_ID } from '@ziroeda/common/layer_id.js';
 import { ACTIONS } from '@ziroeda/common/tool/actions.js';
@@ -22,6 +24,7 @@ import { BOARD_COMMIT } from '../board_commit.js';
 import type { BOARD_ITEM } from '../board_item.js';
 import { PCB_TUNING_PATTERN } from '../generators/pcb_tuning_pattern.js';
 import type { PCB_BASE_EDIT_FRAME } from '../pcb_base_edit_frame.js';
+import { DIALOG_GLOBAL_DELETION_BASE } from './dialog_global_deletion_base.js';
 
 /** `m_rbLayersOptionChoices[]`; row 1 is formatted with the current layer's name. */
 const LAYER_OPTION_TEMPLATES = ['All layers', 'Current layer (%s) only'] as const;
@@ -198,4 +201,65 @@ export class DIALOG_GLOBAL_DELETION {
     // from scratch.
     this.m_Parent.GetCanvas()?.Refresh();
   }
+}
+
+type FLAG = {
+  [K in keyof DIALOG_GLOBAL_DELETION]: DIALOG_GLOBAL_DELETION[K] extends boolean ? K : never;
+}[keyof DIALOG_GLOBAL_DELETION];
+
+/** `ShowModal()` of DIALOG_GLOBAL_DELETION: `onResult( true )` is wxID_OK. */
+export function DialogGlobalDeletion({
+  dialog,
+  onResult,
+}: {
+  dialog: DIALOG_GLOBAL_DELETION;
+  onResult: (aOk: boolean) => void;
+}): JSX.Element {
+  const [, redraw] = useState(0);
+  const check = (aKey: FLAG, aEnabled = true): CHECK => ({
+    value: dialog[aKey] as boolean,
+    enabled: aEnabled,
+    onChange: (aOn) => {
+      (dialog as unknown as Record<string, boolean>)[aKey] = aOn;
+      redraw((n) => n + 1);
+    },
+  });
+
+  // onCheckDeleteDrawings / onCheckDeleteBoardOutlines / onCheckDeleteFootprints /
+  // onCheckDeleteTracks: each lock filter follows its item box.
+  const drawings = dialog.DrawingFiltersEnabled();
+  const footprints = dialog.FootprintFiltersEnabled();
+  const tracks = dialog.TrackFiltersEnabled();
+
+  return (
+    <DIALOG_GLOBAL_DELETION_BASE
+      m_delZones={check('m_delZones')}
+      m_delTexts={check('m_delTexts')}
+      m_delBoardEdges={check('m_delBoardEdges')}
+      m_delDrawings={check('m_delDrawings')}
+      m_delFootprints={check('m_delFootprints')}
+      m_delTracks={check('m_delTracks')}
+      m_delTeardrops={check('m_delTeardrops')}
+      m_delMarkers={check('m_delMarkers')}
+      m_delAll={check('m_delAll')}
+      m_drawingFilterLocked={check('m_drawingFilterLocked', drawings)}
+      m_drawingFilterUnlocked={check('m_drawingFilterUnlocked', drawings)}
+      m_footprintFilterLocked={check('m_footprintFilterLocked', footprints)}
+      m_footprintFilterUnlocked={check('m_footprintFilterUnlocked', footprints)}
+      m_trackFilterLocked={check('m_trackFilterLocked', tracks)}
+      m_trackFilterUnlocked={check('m_trackFilterUnlocked', tracks)}
+      m_viaFilterLocked={check('m_viaFilterLocked', tracks)}
+      m_viaFilterUnlocked={check('m_viaFilterUnlocked', tracks)}
+      m_rbLayersOption={{
+        choices: dialog.m_layerOptionLabels,
+        selection: dialog.m_rbLayersOption,
+        onChange: (aRow) => {
+          dialog.m_rbLayersOption = aRow;
+          redraw((n) => n + 1);
+        },
+      }}
+      onOK={() => onResult(true)}
+      onCancel={() => onResult(false)}
+    />
+  );
 }

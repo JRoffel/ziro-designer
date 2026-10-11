@@ -320,6 +320,7 @@ export function TextCombo({
   autoFocus,
   ariaLabel,
   menuText,
+  disabled,
 }: {
   value: string;
   /** The suggestions; picking one replaces the entry's text. */
@@ -340,6 +341,8 @@ export function TextCombo({
   autoFocus?: boolean;
   /** The entry's accessible name: its wxStaticText label. */
   ariaLabel?: string;
+  /** `Enable( false )`: the entry and its button. */
+  disabled?: boolean;
 }): JSX.Element {
   const [open, setOpen] = useState(false);
   const [box, setBox] = useState<{ left: number; top: number; width: number } | null>(null);
@@ -374,6 +377,7 @@ export function TextCombo({
           ref={inputRef}
           value={value}
           title={title}
+          disabled={disabled}
           aria-label={ariaLabel}
           // biome-ignore lint/a11y/noAutofocus: wxDialog focuses its first control.
           autoFocus={autoFocus}
@@ -403,7 +407,7 @@ export function TextCombo({
           tabIndex={-1}
           aria-haspopup="listbox"
           aria-expanded={open}
-          disabled={options.length === 0}
+          disabled={disabled || options.length === 0}
           onClick={() => setOpen((v) => !v)}
         >
           <span className="twisty expandable ze-combo-arrow" />

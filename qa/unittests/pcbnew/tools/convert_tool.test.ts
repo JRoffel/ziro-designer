@@ -115,7 +115,8 @@ class CONVERT_FRAME extends TEST_PCB_FRAME implements CONVERT_TOOL_FRAME {
   convertAnswer: ((s: CONVERT_SETTINGS) => void) | false = () => {};
   zoneAnswer: ((z: ZONE_SETTINGS, c: CONVERT_SETTINGS) => void) | false = () => {};
   layerAnswer: PCB_LAYER_ID = PCB_LAYER_ID.B_Cu;
-  outsetAnswer: ((p: OUTSET_PARAMETERS) => void) | false = () => {};
+  /** Types into the dialog, as a user would, before OK. */
+  outsetAnswer: ((d: DIALOG_OUTSET_ITEMS) => void) | false = () => {};
 
   ShowConvertSettingsDialog(
     aSettings: CONVERT_SETTINGS,
@@ -142,11 +143,12 @@ class CONVERT_FRAME extends TEST_PCB_FRAME implements CONVERT_TOOL_FRAME {
     this.asked.push('layer');
     return Promise.resolve(this.layerAnswer);
   }
-  ShowOutsetItemsDialog(aParams: OUTSET_PARAMETERS): Promise<boolean> {
-    this.asked.push(`outset ${aParams.outsetDistance}`);
+  ShowOutsetItemsDialog(aDialog: DIALOG_OUTSET_ITEMS): Promise<boolean> {
+    aDialog.TransferDataToWindow();
+    this.asked.push(`outset ${aDialog.m_outset.GetIntValue()}`);
     if (this.outsetAnswer === false) return Promise.resolve(false);
-    this.outsetAnswer(aParams);
-    return Promise.resolve(true);
+    this.outsetAnswer(aDialog);
+    return Promise.resolve(aDialog.TransferDataFromWindow());
   }
   override ShowInfoBarMsg(aMsg: string): void {
     this.infobar.push(aMsg);
@@ -547,8 +549,8 @@ describe('CONVERT_TOOL::OutsetItems and OUTSET_ROUTINE', () => {
   });
 
   it('the tool reports a total failure on the infobar (:1530-1531)', async () => {
-    h.frame.outsetAnswer = (p) => {
-      p.outsetDistance = -6 * MM;
+    h.frame.outsetAnswer = (d) => {
+      d.m_outset.SetValue(-6 * MM);
     };
     select(h, 8);
     h.mgr.RunAction(PCB_ACTIONS.outsetItems);
@@ -696,7 +698,7 @@ describe('the dialogs and helpers', () => {
     ]);
   });
 
-  it('DIALOG_OUTSET_ITEMS: no grid rounding shows the persisted pitch; a zero width is refused', () => {
+  it('DIALOG_OUTSET_ITEMS: no grid rounding shows the persisted pitch, greyed; a zero width is refused', () => {
     const p: OUTSET_PARAMETERS = {
       outsetDistance: MM,
       roundCorners: true,
@@ -707,19 +709,111 @@ describe('the dialogs and helpers', () => {
       gridRounding: null,
       deleteSourceItems: false,
     };
-    const d = new DIALOG_OUTSET_ITEMS(p);
-    const v = d.TransferDataToWindow();
-    expect(v.roundToGrid).toBe(false);
-    expect(v.gridPitchIU).toBe(0.01 * MM);
-    expect(v.layer).toBe('Edge.Cuts');
-    expect(d.TransferDataFromWindow({ ...v, lineWidthIU: 0 })).toEqual({
-      ok: false,
-      message: 'Line width must be a positive value.',
-    });
-    expect(
-      d.TransferDataFromWindow({ ...v, roundToGrid: true, gridPitchIU: 5, layer: 'F.CrtYd' }).ok,
-    ).toBe(true);
-    expect([p.gridRounding, p.layer]).toEqual([5, PCB_LAYER_ID.F_CrtYd]);
+    const d = new DIALOG_OUTSET_ITEMS(h.frame, p);
+    d.TransferDataToWindow();
+    expect(d.m_roundToGrid).toBe(false);
+    expect(d.m_roundingGrid.GetIntValue()).toBe(0.01 * MM);
+    expect(d.m_roundingGrid.IsEnabled()).toBe(false);
+    expect(d.m_layerSelectionEnabled).toBe(false);
+    expect(d.m_LayerSelectionCtrl.GetLayerSelection()).toBe(PCB_LAYER_ID.Edge_Cuts);
+
+    d.m_lineWidth.SetValue(0);
+    expect(d.TransferDataFromWindow()).toBe(false);
+    expect(d.m_error).toBe('Line width must be a positive value.');
+
+    d.m_lineWidth.SetValue(0.2 * MM);
+    d.m_roundToGrid = true;
+    d.OnRoundToGridChecked();
+    expect(d.m_roundingGrid.IsEnabled()).toBe(true);
+    d.m_roundingGrid.SetValue(5);
+    d.m_roundToGrid = false;
+    d.OnRoundToGridChecked();
+    expect(d.m_roundingGrid.IsEnabled()).toBe(false);
+    d.m_roundToGrid = true;
+    d.OnRoundToGridChecked();
+    d.m_copyLayers = false;
+    d.OnCopyLayersChecked();
+    expect(d.m_layerSelectionEnabled).toBe(true);
+    d.m_LayerSelectionCtrl.SetLayerSelection(PCB_LAYER_ID.F_CrtYd);
+    expect(d.TransferDataFromWindow()).toBe(true);
+    expect([p.gridRounding, p.layer, p.lineWidth, p.useSourceLayers]).toEqual([
+      5,
+      PCB_LAYER_ID.F_CrtYd,
+      0.2 * MM,
+      false,
+    ]);
+  });
+
+  it('DIALOG_OUTSET_ITEMS: the lists are the presets plus recent values, sorted and unique', () => {
+    const p: OUTSET_PARAMETERS = {
+      outsetDistance: 0.3 * MM,
+      roundCorners: false,
+      useSourceLayers: false,
+      useSourceWidths: false,
+      layer: PCB_LAYER_ID.F_CrtYd,
+      lineWidth: 0.1 * MM,
+      gridRounding: null,
+      deleteSourceItems: false,
+    };
+    const first = new DIALOG_OUTSET_ITEMS(h.frame, p);
+    // The recent lists are statics, so earlier tests' outsets may already be there; the
+    // presets (s_outsetPresetValue, in the frame's millimetres) always are.
+    const before = first.m_outset.GetOptionsList().map(parseFloat);
+    for (const preset of [0.1, 0.11, 0.15, 0.25, 0.26, 0.5, 1, 2]) expect(before).toContain(preset);
+    expect(before).toEqual([...new Set(before)].sort((x, y) => x - y));
+    expect(before).not.toContain(0.3);
+    first.TransferDataToWindow();
+    expect(first.TransferDataFromWindow()).toBe(true);
+
+    // 0.3 mm was used, so the next dialog lists it too, in order.
+    const second = new DIALOG_OUTSET_ITEMS(h.frame, p);
+    expect(second.m_outset.GetOptionsList().map(parseFloat)).toEqual(
+      [...before, 0.3].sort((x, y) => x - y),
+    );
+    for (const preset of [0.05, 0.1, 0.12, 0.15, 0.2])
+      expect(second.m_lineWidth.GetOptionsList().map(parseFloat)).toContain(preset);
+  });
+
+  it('DIALOG_OUTSET_ITEMS: the grid pitch persists for the session even while rounding is off', () => {
+    const p: OUTSET_PARAMETERS = {
+      outsetDistance: MM,
+      roundCorners: false,
+      useSourceLayers: false,
+      useSourceWidths: false,
+      layer: PCB_LAYER_ID.F_CrtYd,
+      lineWidth: 0.1 * MM,
+      gridRounding: null,
+      deleteSourceItems: false,
+    };
+    const first = new DIALOG_OUTSET_ITEMS(h.frame, p);
+    first.TransferDataToWindow();
+    first.m_roundingGrid.SetValue(0.07 * MM);
+    expect(first.TransferDataFromWindow()).toBe(true);
+    expect(p.gridRounding).toBe(null);
+
+    const second = new DIALOG_OUTSET_ITEMS(h.frame, p);
+    second.TransferDataToWindow();
+    expect(second.m_roundingGrid.GetIntValue()).toBe(0.07 * MM);
+  });
+
+  it("DIALOG_OUTSET_ITEMS: Layer Default is the selected layer's line thickness", () => {
+    const p: OUTSET_PARAMETERS = {
+      outsetDistance: MM,
+      roundCorners: false,
+      useSourceLayers: false,
+      useSourceWidths: false,
+      layer: PCB_LAYER_ID.F_SilkS,
+      lineWidth: 0.05 * MM,
+      gridRounding: null,
+      deleteSourceItems: false,
+    };
+    const d = new DIALOG_OUTSET_ITEMS(h.frame, p);
+    d.TransferDataToWindow();
+    d.OnLayerDefaultClick();
+    expect(d.m_lineWidth.GetIntValue()).toBe(
+      h.board.GetDesignSettings().GetLineThickness(PCB_LAYER_ID.F_SilkS),
+    );
+    expect(d.m_lineWidth.GetIntValue()).not.toBe(0.05 * MM);
   });
 
   it('PCB_SELECTION_CONDITIONS::SameLayer / SameNet (pcb_selection_conditions.cpp)', () => {

@@ -229,13 +229,10 @@ import {
   DIALOG_FILTER_SELECTION,
   DialogFilterSelection,
 } from './dialogs/dialog_filter_selection.js';
-import type { MOVE_EXACT_VALUES, ROTATION_ANCHOR } from './tools/edit_tool.js';
 import type { DOGBONE_PARAMETERS } from './tools/item_modification_routine.js';
 import type { TOOL_ACTION } from '@ziroeda/common/tool/tool_action.js';
 import type { BOX2I as KBOX2I } from '@ziroeda/kimath/src/math/box2.js';
 
-/** `ROTATION_ANCHOR` in DIALOG_MOVE_EXACT's order, as the dialog names them. */
-const ROTATION_ANCHOR_NAMES = ['itemAnchor', 'selectionCenter', 'userOrigin', 'auxOrigin'] as const;
 import type { GATED_DISPATCHER, WINDOW_ACTION_HANDLER } from './tools/window_action_bridge.js';
 import type { ACTION_MENU } from '@ziroeda/common/tool/action_menu.js';
 import { actionMenuItems } from '@ziroeda/common/tool/action_menu_popup.js';
@@ -251,7 +248,7 @@ import {
   wxMouseEvent,
 } from '@ziroeda/wx/wx_event.js';
 import { WXK } from '@ziroeda/wx/wx_keycodes.js';
-import { DialogMoveExact, type MoveExactValues } from './dialogs/dialog_move_exact_ui.js';
+import { type DIALOG_MOVE_EXACT, DialogMoveExact } from './dialogs/dialog_move_exact.js';
 import { WX_UNIT_ENTRY_DIALOG } from '@ziroeda/common/dialogs/dialog_unit_entry.js';
 import { WX_MULTI_ENTRY_DIALOG } from '@ziroeda/common/dialogs/dialog_multi_unit_entry.js';
 import { DialogCreateArray } from './dialogs/dialog_create_array_ui.js';
@@ -260,8 +257,7 @@ import {
   arraySpecFrom,
   type ArraySettings,
 } from './dialogs/dialog_create_array.js';
-import { DialogOutsetItems } from './dialogs/dialog_outset_items_ui.js';
-import { DIALOG_OUTSET_ITEMS } from './dialogs/dialog_outset_items.js';
+import { DIALOG_OUTSET_ITEMS, DialogOutsetItems } from './dialogs/dialog_outset_items.js';
 import { CONVERT_SETTINGS_DIALOG } from './tools/convert_settings_dialog.js';
 import { ConvertSettingsDialog } from './tools/convert_settings_dialog_ui.js';
 import type { OUTSET_PARAMETERS } from './tools/item_modification_routine.js';
@@ -282,7 +278,7 @@ import { choiceOf } from './grid_layer_box_helpers.js';
 import { DialogCleanupTracksAndVias } from './dialogs/dialog_cleanup_tracks_and_vias_ui.js';
 import { DialogCleanupGraphics } from './dialogs/dialog_cleanup_graphics_ui.js';
 import { DialogUnusedPadLayers } from './dialogs/dialog_unused_pad_layers.js';
-import { DialogGlobalDeletion } from './dialogs/dialog_global_deletion_ui.js';
+import { DialogGlobalDeletion } from './dialogs/dialog_global_deletion.js';
 import { DialogGlobalEditTracksAndVias } from './dialogs/dialog_global_edit_tracks_and_vias_ui.js';
 import { DialogExchangeFootprints } from './dialogs/dialog_exchange_footprints_ui.js';
 import { DialogNonCopperZonesProperties } from './dialogs/dialog_non_copper_zones_properties_ui.js';
@@ -345,7 +341,10 @@ import { BOX2I } from '@ziroeda/kimath/src/math/box2.js';
 import { DialogTrackViaProperties } from './dialogs/dialog_track_via_properties.js';
 import { DialogCopperZones } from './dialogs/dialog_copper_zones.js';
 import { PcbOneLayerSelector, SelectCopperLayerPairDialog } from './sel_layer.js';
-import { DialogFootprintAssociations } from './dialogs/dialog_footprint_associations_ui.js';
+import {
+  DIALOG_FOOTPRINT_ASSOCIATIONS,
+  DialogFootprintAssociations,
+} from './dialogs/dialog_footprint_associations.js';
 import { DialogMapLayers } from './dialogs/dialog_map_layers.js';
 import type {
   PANEL_3D_MODEL_HOST,
@@ -1569,9 +1568,8 @@ export function PcbEditor({
   } | null>(null);
   /** EDIT_TOOL's `DIALOG_MOVE_EXACT`. */
   const [moveExactDlg, setMoveExactDlg] = useState<{
-    values: MOVE_EXACT_VALUES;
-    box: KBOX2I;
-    resolve: (aValues: MOVE_EXACT_VALUES | null) => void;
+    dialog: DIALOG_MOVE_EXACT;
+    resolve: (aOk: boolean) => void;
   } | null>(null);
   const [filterDlg, setFilterDlg] = useState<{
     dialog: DIALOG_FILTER_SELECTION;
@@ -1642,7 +1640,7 @@ export function PcbEditor({
   const [targetDlg, setTargetDlg] = useState<DIALOG_TARGET_PROPERTIES | null>(null);
   /** CONVERT_TOOL's modal dialogs, each with the promise the tool waits on. */
   const [outsetDlg, setOutsetDlg] = useState<{
-    params: OUTSET_PARAMETERS;
+    dialog: DIALOG_OUTSET_ITEMS;
     resolve: (aOk: boolean) => void;
   } | null>(null);
   const [convertDlg, setConvertDlg] = useState<{
@@ -2235,10 +2233,7 @@ export function PcbEditor({
     dismissInfoBar: () => void;
     showUnitEntryDialog: (aTitle: string, aLabel: string, aValue: number) => Promise<number | null>;
     showDogboneDialog: (aParams: DOGBONE_PARAMETERS) => Promise<DOGBONE_PARAMETERS | null>;
-    showMoveExactDialog: (
-      aValues: MOVE_EXACT_VALUES,
-      aBox: KBOX2I,
-    ) => Promise<MOVE_EXACT_VALUES | null>;
+    showMoveExactDialog: (aDialog: DIALOG_MOVE_EXACT) => Promise<boolean>;
     showTrackViaPropertiesDialog: (aSelection: PCB_SELECTION) => Promise<void>;
     showGetFootprintByNameDialog: (aList: string[]) => Promise<string | null>;
     showConnectedPadDialog: (
@@ -2260,7 +2255,9 @@ export function PcbEditor({
       settings: () => Pgm().GetSettingsManager().GetAppSettings<PCBNEW_SETTINGS>('pcbnew')!,
       storeSettings: () => storePcbnewSettingsRef.current(),
       updateDisplayOptions: () => updateDisplayOptionsRef.current(),
-      showFootprintAssociationsDialog: (aFootprint) => setFootprintAssociations(aFootprint),
+      // `DIALOG_FOOTPRINT_ASSOCIATIONS dlg( frame, fp ); dlg.ShowModal()`
+      showFootprintAssociationsDialog: (aFootprint) =>
+        setFootprintAssociations(new DIALOG_FOOTPRINT_ASSOCIATIONS(frameRef.current!, aFootprint)),
       showAssignNetclassDialog: (aNames, aCandidates, aPreview) =>
         new Promise<boolean>((resolve) =>
           setNetclassDlg({ names: aNames, candidates: aCandidates, preview: aPreview, resolve }),
@@ -2384,8 +2381,8 @@ export function PcbEditor({
         editWindowRef.current?.showUnitEntryDialog(aTitle, aLabel, aValue) ?? Promise.resolve(null),
       showDogboneDialog: (aParams) =>
         editWindowRef.current?.showDogboneDialog(aParams) ?? Promise.resolve(null),
-      showMoveExactDialog: (aValues, aBox) =>
-        editWindowRef.current?.showMoveExactDialog(aValues, aBox) ?? Promise.resolve(null),
+      showMoveExactDialog: (aDialog) =>
+        editWindowRef.current?.showMoveExactDialog(aDialog) ?? Promise.resolve(false),
       showTrackViaPropertiesDialog: (aSelection) =>
         editWindowRef.current?.showTrackViaPropertiesDialog(aSelection) ?? Promise.resolve(),
       showGetFootprintByNameDialog: (aList) =>
@@ -2419,8 +2416,8 @@ export function PcbEditor({
         new Promise<PCB_LAYER_ID>((resolve) =>
           setOneLayerDlg({ notAllowed: aNotAllowedLayersMask, resolve }),
         ),
-      showOutsetItemsDialog: (aParams) =>
-        new Promise<boolean>((resolve) => setOutsetDlg({ params: aParams, resolve })),
+      showOutsetItemsDialog: (aDialog) =>
+        new Promise<boolean>((resolve) => setOutsetDlg({ dialog: aDialog, resolve })),
       // POSITION_RELATIVE_TOOL's window half.
       attachPositionRelativeDialog: (aDialog) => setPosRelDialog(aDialog),
       showOffsetItemDialog: (aDialog) =>
@@ -2673,7 +2670,8 @@ export function PcbEditor({
   // Footprint Properties (DIALOG_FOOTPRINT_PROPERTIES), board side.
   const [fpPropsDlg, setFpPropsDlg] = useState<DIALOG_FOOTPRINT_PROPERTIES | null>(null);
   // Footprint Associations (DIALOG_FOOTPRINT_ASSOCIATIONS), on the selected footprint.
-  const [footprintAssociations, setFootprintAssociations] = useState<FOOTPRINT | null>(null);
+  const [footprintAssociations, setFootprintAssociations] =
+    useState<DIALOG_FOOTPRINT_ASSOCIATIONS | null>(null);
   // Update PCB from Schematic (DIALOG_UPDATE_PCB). The netlist is fetched from the
   // project's schematic before the dialog opens, together with every footprint it
   // names, the updater itself is synchronous, exactly like upstream, so the
@@ -4414,8 +4412,8 @@ export function PcbEditor({
       ),
     showDogboneDialog: (aParams) =>
       new Promise((resolve) => setDogboneDlg({ params: aParams, resolve })),
-    showMoveExactDialog: (aValues, aBox) =>
-      new Promise((resolve) => setMoveExactDlg({ values: aValues, box: aBox, resolve })),
+    showMoveExactDialog: (aDialog) =>
+      new Promise((resolve) => setMoveExactDlg({ dialog: aDialog, resolve })),
     showTrackViaPropertiesDialog: (aSelection) => {
       setTrackViaItems([...aSelection.GetItems()]);
       return Promise.resolve();
@@ -7773,10 +7771,9 @@ export function PcbEditor({
           }}
         />
       )}
-      {footprintAssociations && frameRef.current && (
+      {footprintAssociations && (
         <DialogFootprintAssociations
-          footprint={footprintAssociations}
-          adapter={frameRef.current.GetBoard()?.GetFootprintLibAdapter() ?? null}
+          dialog={footprintAssociations}
           onClose={() => setFootprintAssociations(null)}
         />
       )}
@@ -7883,21 +7880,10 @@ export function PcbEditor({
           persistent OUTSET_ROUTINE::PARAMETERS. */}
       {outsetDlg && board && (
         <DialogOutsetItems
-          units={unitLabel}
-          layers={enabledLayerNames(frameRef.current?.GetBoard())}
-          initial={new DIALOG_OUTSET_ITEMS(outsetDlg.params).TransferDataToWindow()}
-          onApply={(values) => {
-            const res = new DIALOG_OUTSET_ITEMS(outsetDlg.params).TransferDataFromWindow(values);
-            if (!res.ok) {
-              if (res.message) setInfoBarError(res.message);
-              return;
-            }
+          dialog={outsetDlg.dialog}
+          onClose={(aOk) => {
             setOutsetDlg(null);
-            outsetDlg.resolve(true);
-          }}
-          onClose={() => {
-            setOutsetDlg(null);
-            outsetDlg.resolve(false);
+            outsetDlg.resolve(aOk);
           }}
         />
       )}
@@ -8063,23 +8049,9 @@ export function PcbEditor({
       )}
       {moveExactDlg && (
         <DialogMoveExact
-          bbox={{
-            minX: moveExactDlg.box.GetLeft(),
-            minY: moveExactDlg.box.GetTop(),
-            maxX: moveExactDlg.box.GetRight(),
-            maxY: moveExactDlg.box.GetBottom(),
-          }}
-          defaultAnchor={ROTATION_ANCHOR_NAMES[moveExactDlg.values.rotationAnchor]}
-          onApply={(v: MoveExactValues) => {
-            moveExactDlg.resolve({
-              translation: v.translation,
-              rotation: new EDA_ANGLE(v.rotation, EDA_ANGLE_T.DEGREES_T),
-              rotationAnchor: ROTATION_ANCHOR_NAMES.indexOf(v.anchor) as ROTATION_ANCHOR,
-            });
-            setMoveExactDlg(null);
-          }}
-          onClose={() => {
-            moveExactDlg.resolve(null);
+          dialog={moveExactDlg.dialog}
+          onClose={(aOk) => {
+            moveExactDlg.resolve(aOk);
             setMoveExactDlg(null);
           }}
         />

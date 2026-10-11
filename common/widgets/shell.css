@@ -12298,6 +12298,10 @@ fieldset.ze-sbox-sizer > .ze-sizer {
 .ze-statictext.italic {
   font-style: italic;
 }
+/* wxRadioBox (external/wx/controls.tsx RadioBox): the buttons in majorDimension columns. */
+.ze-radiobox {
+  display: grid;
+}
 /* wxStaticBitmap (external/wx/controls.tsx): Enable( false ) is GTK's insensitive image. */
 .ze-staticbitmap {
   display: block;
@@ -16824,34 +16828,6 @@ fieldset.ze-import-netlist-options {
   height: 16px; /* [px] the same icon, square. */
 }
 
-/* ---------------------------------------------------------------------------
-   Footprint Associations (dialog_footprint_associations_base.cpp).
-
-   bMainBoxSizer is one vertical run: label / 5px spacer / grid (each border
-   below is that item's OWN Add() border; wx sums a lower item's bottom border
-   with the next item's top border rather than collapsing them, which is why
-   this is `display:flex; flex-direction:column` rather than block margins). */
-.ze-modal.ze-footprint-associations .ze-modal-body {
-  flex-direction: column;
-  padding: 0;
-}
-.ze-footprint-associations .assoc-label:first-child {
-  /* [data] m_libraryAssociationLabel: wxTOP|wxRIGHT|wxLEFT, 10. */
-  margin: 10px 10px 0 10px;
-}
-.ze-footprint-associations .assoc-label {
-  /* [data] m_symbolAssociationLabel: the 5px spacer (prop 1) before it, plus its own
-     wxTOP|wxRIGHT|wxLEFT, 10 -- 15 total above; a first-child has no spacer
-     before it so its own rule above states 10, not 15. */
-  margin: 15px 10px 0 10px;
-}
-.ze-footprint-associations .assoc-label + table.ze-grid {
-  /* [data] The 5px spacer between a label and its grid (neither label nor grid
-     states a border on that shared edge), plus m_gridLibrary / m_gridSymbol's
-     own wxBOTTOM|wxEXPAND|wxLEFT|wxRIGHT, 10. */
-  margin: 5px 10px 10px 10px;
-}
-
 /* MWAVE_POLYGONAL_SHAPE_DLG (pcbnew/microwave/microwave_polygon_ui.tsx): the
    dialog is hand-built in microwave_polygon.cpp:60-243, each border an Add(). */
 .ze-mwave-top {
@@ -17377,37 +17353,6 @@ fieldset.ze-import-netlist-options {
   flex-direction: column;
   margin: 5px 5px 0; /* [data] `bSizerMain->Add( bLowerSizer, 1, wxEXPAND|wxTOP|wxRIGHT|wxLEFT, 5 )`. */
   min-height: 0;
-}
-
-/* DIALOG_GLOBAL_DELETION (dialog_global_deletion_base.cpp). */
-.ze-globaldel-upper {
-  display: flex;
-  margin: 5px; /* [data] `bSizerMain->Add( bSizerUpper, 1, wxEXPAND|wxALL, 5 )`. */
-}
-.ze-globaldel-items {
-  margin: 5px; /* [data] `bSizerUpper->Add( sbSizerLeft, 0, wxEXPAND|wxALL, 5 )`. */
-  display: flex;
-  flex-direction: column;
-}
-.ze-globaldel-filter {
-  margin: 5px 0 5px 10px; /* [data] `sbFilter` `wxTOP|wxBOTTOM|wxLEFT, 5` inside `bSizerRight` `wxLEFT, 5`. */
-}
-.ze-globaldel-filter-grid {
-  display: flex;
-  flex-direction: column;
-  row-gap: 3px; /* [data] `wxFlexGridSizer( 0, 1, 3, 0 )`'s vgap. */
-}
-.ze-globaldel .ze-check.brl5 {
-  margin: 0 5px 5px; /* [data] `wxBOTTOM|wxRIGHT|wxLEFT, 5`. */
-}
-.ze-globaldel .ze-check.rl5 {
-  margin: 0 5px; /* [data] `wxRIGHT|wxLEFT, 5`. */
-}
-.ze-globaldel .ze-check.trl5 {
-  margin: 5px 5px 0; /* [data] `wxTOP|wxRIGHT|wxLEFT, 5`. */
-}
-.ze-globaldel-layers {
-  margin: 0 10px; /* [data] `bSizerMain->Add( m_rbLayersOption, 0, wxEXPAND|wxRIGHT|wxLEFT, 10 )`. */
 }
 
 /* DIALOG_GLOBAL_EDIT_TRACKS_AND_VIAS (dialog_global_edit_tracks_and_vias_base.cpp). */
