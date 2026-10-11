@@ -22,7 +22,12 @@ import { LoadSchematic } from '@ziroeda/eeschema/eeschema_helpers.js';
 import { ERC_TESTER } from '@ziroeda/eeschema/erc/erc.js';
 import { ERC_REPORT } from '@ziroeda/eeschema/erc/erc_report.js';
 import { SHEETLIST_ERC_ITEMS_PROVIDER } from '@ziroeda/eeschema/erc/erc_settings.js';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { PGM_BASE, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
+
+// ERC_TESTER asks Pgm() for the library manager, as KiCad's always-present PGM_BASE answers.
+beforeEach(() => SetPgm(new PGM_BASE(null, new SETTINGS_MANAGER())));
+afterEach(() => SetPgm(null));
 
 const DATA = resolve(__dirname, '../../../data/eeschema');
 const ORACLE = join(DATA, 'erc_oracle');

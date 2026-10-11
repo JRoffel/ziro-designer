@@ -28,7 +28,12 @@ import { ERCE_T, SHEETLIST_ERC_ITEMS_PROVIDER } from '@ziroeda/eeschema/erc/erc_
 import { SCH_MARKER as SCH_MARKER_CLASS, type SCH_MARKER } from '@ziroeda/eeschema/sch_marker.js';
 import { ERC_ITEM } from '@ziroeda/eeschema/erc/erc_item.js';
 import type { SCH_SHEET } from '@ziroeda/eeschema/sch_sheet.js';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { PGM_BASE, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
+
+// ERC_TESTER asks Pgm() for the library manager, as KiCad's always-present PGM_BASE answers.
+beforeEach(() => SetPgm(new PGM_BASE(null, new SETTINGS_MANAGER())));
+afterEach(() => SetPgm(null));
 
 const DATA = resolve(__dirname, '../../../data/eeschema');
 

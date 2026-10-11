@@ -2156,7 +2156,13 @@ import { SCH_SHEET_PATH as SCH_SHEET_PATH_LIVE } from '../sch_sheet_path.js';
 import type { SCH_TEXT } from '../sch_text.js';
 import type { SCH_TEXTBOX } from '../sch_textbox.js';
 import { RECURSE_MODE } from '@ziroeda/common/eda_item.js';
-import type { SCH_ITEM as SCH_ITEM_LIVE } from '../sch_item.js';
+import { type SCH_ITEM as SCH_ITEM_LIVE, SCH_ITEM as SCH_ITEM_LIVE_CLASS } from '../sch_item.js';
+import { Pgm } from '@ziroeda/common/pgm_base.js';
+import { LIBRARY_TABLE_TYPE } from '@ziroeda/common/libraries/library_table.js';
+import { UNITS_PROVIDER } from '@ziroeda/common/units_provider.js';
+import { schIUScale } from '@ziroeda/common/eda_units.js';
+import { SymbolLibAdapter } from '../project_sch.js';
+import { CheckDuplicatePins } from '../symbol_checker.js';
 import type { VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
 import type { SCH_SCREEN } from '../sch_screen.js';
 import { ElectricalPinTypeGetText } from '../pin_type.js';
@@ -3168,6 +3174,98 @@ export class ERC_TESTER {
   }
 
   /**
+   * `TestLibSymbolIssues()` (erc.cpp): each placed symbol's library is configured, loaded, and
+   * holds the symbol (ERCE_LIB_SYMBOL_ISSUES), and the schematic's cached copy still matches the
+   * flattened library symbol (ERCE_LIB_SYMBOL_MISMATCH, skipped while the copy has duplicate pin
+   * numbers that TestDuplicatePinNets judges instead).
+   *
+   * @return the marker count
+   */
+  TestLibSymbolIssues(): number {
+    const manager = Pgm().GetLibraryManager();
+    const adapter = SymbolLibAdapter(this.m_schematic.Project());
+    let err_count = 0;
+
+    for (let screen = this.m_screens.GetFirst(); screen; screen = this.m_screens.GetNext()) {
+      const markers: SCH_MARKER_LIVE[] = [];
+
+      for (const item of screen.Items().OfType(KICAD_T_LIVE.SCH_SYMBOL_T)) {
+        const symbol = item as SCH_SYMBOL;
+        const libSymbolInSchematic = symbol.GetLibSymbolRef();
+
+        if (!libSymbolInSchematic) continue;
+
+        const libName = symbol.GetLibId().GetLibNickname();
+        const row = manager.GetRow(LIBRARY_TABLE_TYPE.SYMBOL, libName);
+
+        const issue = (aMessage: string): void => {
+          const ercItem = ERC_ITEM.Create(ERCE.ERCE_LIB_SYMBOL_ISSUES)!;
+          ercItem.SetItems(symbol);
+          ercItem.SetErrorMessage(aMessage);
+          markers.push(new SCH_MARKER_LIVE(ercItem, symbol.GetPosition()));
+        };
+
+        if (!row || row.Disabled()) {
+          if (this.m_settings.IsTestEnabled(ERCE.ERCE_LIB_SYMBOL_ISSUES))
+            issue(
+              `The current configuration does not include the symbol library '${unescapeString(libName)}'`,
+            );
+          continue;
+        } else if (!adapter.IsLibraryLoaded(libName)) {
+          if (this.m_settings.IsTestEnabled(ERCE.ERCE_LIB_SYMBOL_ISSUES))
+            issue(
+              `The symbol library '${unescapeString(libName)}' was not found at '${manager.GetFullURI(row, true)}'`,
+            );
+          continue;
+        }
+
+        const symbolName = symbol.GetLibId().GetLibItemName();
+        const libSymbol = adapter.LoadSymbol(symbol.GetLibId());
+
+        if (!libSymbol) {
+          if (this.m_settings.IsTestEnabled(ERCE.ERCE_LIB_SYMBOL_ISSUES))
+            issue(
+              `Symbol '${unescapeString(symbolName)}' not found in symbol library '${unescapeString(libName)}'`,
+            );
+          continue;
+        }
+
+        const flattenedSymbol = libSymbol.Flatten();
+        const flags =
+          SCH_ITEM_LIVE_CLASS.COMPARE_FLAGS.EQUALITY | SCH_ITEM_LIVE_CLASS.COMPARE_FLAGS.ERC;
+
+        if (this.m_settings.IsTestEnabled(ERCE.ERCE_LIB_SYMBOL_MISMATCH)) {
+          // Duplicate pins make Compare() fail; TestDuplicatePinNets judges those instead.
+          const messages: string[] = [];
+
+          if (!libSymbolInSchematic.GetDuplicatePinNumbersAreJumpers())
+            CheckDuplicatePins(
+              libSymbolInSchematic,
+              messages,
+              new UNITS_PROVIDER(schIUScale, 'mils'),
+            );
+
+          if (messages.length === 0 && flattenedSymbol.Compare(libSymbolInSchematic, flags) !== 0) {
+            const ercItem = ERC_ITEM.Create(ERCE.ERCE_LIB_SYMBOL_MISMATCH)!;
+            ercItem.SetItems(symbol);
+            ercItem.SetErrorMessage(
+              `Symbol '${unescapeString(symbolName)}' doesn't match copy in library '${unescapeString(libName)}'`,
+            );
+            markers.push(new SCH_MARKER_LIVE(ercItem, symbol.GetPosition()));
+          }
+        }
+      }
+
+      for (const marker of markers) {
+        screen.Append(marker);
+        err_count += 1;
+      }
+    }
+
+    return err_count;
+  }
+
+  /**
    * Check for field names with leading or trailing whitespace, on symbols and sheets.
    *
    * @return the warning count
@@ -3747,7 +3845,14 @@ export class ERC_TESTER {
 
     if (this.m_settings.IsTestEnabled(ERCE.ERCE_NOCONNECT_CONNECTED)) this.TestNoConnectPins();
 
-    // Pending: TestLibSymbolIssues, TestFootprintLinkIssues.
+    if (
+      this.m_settings.IsTestEnabled(ERCE.ERCE_LIB_SYMBOL_ISSUES) ||
+      this.m_settings.IsTestEnabled(ERCE.ERCE_LIB_SYMBOL_MISMATCH)
+    ) {
+      this.TestLibSymbolIssues();
+    }
+
+    // Pending: TestFootprintLinkIssues.
 
     if (this.m_settings.IsTestEnabled(ERCE.ERCE_FOOTPRINT_FILTERS)) this.TestFootprintFilters();
 
