@@ -10,14 +10,12 @@
  * Like upstream the dialog is modeless: annotating leaves it open so the
  * messages it just produced can be read.
  */
-import { Button, RadioButton } from '@ziroeda/wx/controls.js';
 import { useState, type JSX } from 'react';
 import type { AnnotateOptions } from '../sch_reference_list.js';
 import type { ReportLine, Severity } from '@ziroeda/common';
-import { HtmlReportPanel, RPT_SEVERITY_ALL } from '@ziroeda/common/widgets/wx_html_report_panel.js';
-import { toolbarIconUrl } from '@ziroeda/common/bitmap_store.js';
+import { RPT_SEVERITY_ALL } from '@ziroeda/common/widgets/wx_html_report_panel.js';
 import type { EESCHEMA_SETTINGS_STORE } from '../browser/eeschema_app.js';
-import { DialogShim } from '@ziroeda/common/dialog_shim.js';
+import { DIALOG_ANNOTATE_BASE } from './dialog_annotate_base.js';
 
 /** The project-persisted slice of the dialog (SCHEMATIC_SETTINGS: sort order,
  *  numbering method, start number, DIALOG_ANNOTATE reads them on open and
@@ -35,7 +33,6 @@ export interface AnnotateRun extends AnnotateOptions {
 }
 
 interface Props {
-  hasSelection: boolean;
   /** Seed from the project's Schematic Setup > Annotation (TransferDataToWindow). */
   initial: AnnotateProjectSettings;
   /** Messages of the last run, shown in the report panel. */
@@ -61,7 +58,6 @@ const SCOPES: { id: AnnotateOptions['scope']; label: string }[] = [
 
 export function DialogAnnotate({
   settings,
-  hasSelection,
   initial,
   messages,
   infoBarMessage,
@@ -72,18 +68,20 @@ export function DialogAnnotate({
   // EESCHEMA_SETTINGS m_AnnotatePanel: scope / options / recursive /
   // regroup_units / messages_filter are app preferences (TransferDataToWindow).
   const cfg = settings.eeschema.annotation;
-  const [scope, setScope] = useState<AnnotateOptions['scope']>(() => {
-    if (infoBarMessage) return 'all';
-    const saved = SCOPES[cfg.scope]?.id ?? 'all';
-    // A remembered Selection scope is meaningless with nothing selected.
-    return saved === 'selection' && !hasSelection ? 'all' : saved;
-  });
-  const [recursive, setRecursive] = useState(cfg.recursive);
+  // TransferDataToWindow: with an info-bar message m_rbScope_Schematic is set and disabled, and
+  // the saved scope and recursion are not read (`if( m_rbScope_Schematic->IsEnabled() )`).
+  const [scope, setScope] = useState<AnnotateOptions['scope']>(() =>
+    infoBarMessage ? 'all' : (SCOPES[cfg.scope]?.id ?? 'all'),
+  );
+  const [recursive, setRecursive] = useState(infoBarMessage ? true : cfg.recursive);
   const [order, setOrder] = useState<AnnotateOptions['order']>(initial.order);
   const [reset, setReset] = useState(cfg.options >= 1);
   const [regroupUnits, setRegroupUnits] = useState(cfg.regroup_units);
   const [algo, setAlgo] = useState<AnnotateOptions['algo']>(initial.algo);
-  const [startNumber, setStartNumber] = useState(initial.startNumber);
+  // m_textNumberAfter: wxString::Format( "%d", m_AnnotateStartNum ).
+  const [startText, setStartText] = useState(String(initial.startNumber));
+  // GetStartNumber(): ToLong, 0 when it does not parse.
+  const startNumber = Number.isInteger(Number(startText.trim())) ? Number(startText.trim()) : 0;
   const [severities, setSeverities] = useState<Severity>(() =>
     cfg.messages_filter < 0 ? RPT_SEVERITY_ALL : cfg.messages_filter,
   );
@@ -118,154 +116,41 @@ export function DialogAnnotate({
     recursive,
   };
 
-  const orderIcon = (name: string): JSX.Element | null => {
-    const url = toolbarIconUrl(name);
-    return url ? <img className="ze-order-bitmap" src={url} alt="" /> : null;
-  };
+  const ORDERS: AnnotateOptions['order'][] = ['x', 'y'];
+  const ALGOS: AnnotateOptions['algo'][] = ['incremental', 'sheet_100', 'sheet_1000'];
 
   return (
-    <DialogShim title="Annotate Schematic" onClose={close} className="ze-annotate-dialog">
-      {/* WX_INFOBAR: shown when annotation was demanded by another action. */}
-      {infoBarMessage && <div className="ze-infobar">{infoBarMessage}</div>}
-      <div className="ze-modal-body ze-annotate-body">
-        <div className="ze-annotate-grid">
-          <fieldset>
-            <legend>Scope</legend>
-            {SCOPES.map((s) => (
-              <label
-                key={s.id}
-                className={(s.id === 'selection' && !hasSelection) || scopeLocked ? 'disabled' : ''}
-              >
-                <input
-                  type="radio"
-                  name="ze-annotate-scope"
-                  checked={scope === s.id}
-                  disabled={(s.id === 'selection' && !hasSelection) || scopeLocked}
-                  onChange={() => setScope(s.id)}
-                />
-                {s.label}
-              </label>
-            ))}
-            <label className={scopeLocked ? 'disabled' : ''}>
-              <input
-                type="checkbox"
-                checked={recursive}
-                disabled={scopeLocked}
-                onChange={(e) => setRecursive(e.target.checked)}
-              />
-              Recurse into subsheets
-            </label>
-          </fieldset>
-
-          <fieldset>
-            <legend>Order</legend>
-            <label>
-              <input
-                type="radio"
-                name="ze-annotate-order"
-                checked={order === 'x'}
-                onChange={() => setOrder('x')}
-              />
-              Sort symbols by X position
-              {orderIcon('annotateDownRight')}
-            </label>
-            <label>
-              <input
-                type="radio"
-                name="ze-annotate-order"
-                checked={order === 'y'}
-                onChange={() => setOrder('y')}
-              />
-              Sort symbols by Y position
-              {orderIcon('annotateRightDown')}
-            </label>
-          </fieldset>
-
-          <fieldset>
-            <legend>Options</legend>
-            <RadioButton
-              label="Keep existing annotations"
-              name="ze-annotate-reset"
-              checked={!reset}
-              onChange={() => setReset(false)}
-            />
-            <RadioButton
-              label="Reset existing annotations"
-              name="ze-annotate-reset"
-              checked={reset}
-              onChange={() => setReset(true)}
-            />
-            {/* OnOptionChanged: only meaningful when resetting. */}
-            <label className={reset ? '' : 'disabled'}>
-              <input
-                type="checkbox"
-                checked={regroupUnits}
-                disabled={!reset}
-                onChange={(e) => setRegroupUnits(e.target.checked)}
-              />
-              Regroup symbol units
-            </label>
-          </fieldset>
-
-          <fieldset>
-            <legend>Numbering</legend>
-            <label>
-              <input
-                type="radio"
-                name="ze-annotate-algo"
-                checked={algo === 'incremental'}
-                onChange={() => setAlgo('incremental')}
-              />
-              Use first free number after:
-              <input
-                type="number"
-                className="ze-search start-num"
-                value={startNumber}
-                min={0}
-                onChange={(e) => setStartNumber(Number(e.target.value) || 0)}
-                onFocus={() => setAlgo('incremental')}
-              />
-            </label>
-            <RadioButton
-              label="First free after sheet number X 100"
-              name="ze-annotate-algo"
-              checked={algo === 'sheet_100'}
-              onChange={() => setAlgo('sheet_100')}
-            />
-            <RadioButton
-              label="First free after sheet number X 1000"
-              name="ze-annotate-algo"
-              checked={algo === 'sheet_1000'}
-              onChange={() => setAlgo('sheet_1000')}
-            />
-          </fieldset>
-        </div>
-
-        <HtmlReportPanel
-          label="Annotation Messages:"
-          lines={messages}
-          fileName="report.txt"
-          visibleSeverities={severities}
-          onVisibleSeveritiesChange={setSeverities}
-          // [data] `m_MessageWindow->SetMinSize( wxSize( -1, 120 ) )`,
-          // dialog_annotate_base.cpp:136. This said 160, which is why the
-          // message box was taller than KiCad's.
-          minHeight={120}
-          sorted
-        />
-      </div>
-      {/* `m_buttonsSizer`, horizontal (base.cpp:143-160): m_btnClear, then a
-        proportion-1 spacer, then the wxStdDialogButtonSizer. All three are
-        wxButtons, so all three take `.ze-btn` — these carried no class at
-        all and were rendering as bare user-agent buttons, which is why they
-        did not match while the report panel's Save (which does wear it)
-        did. */}
-      <div className="ze-modal-footer">
-        <Button label="Clear Annotation" onClick={() => onClear(scope, recursive)} />
-        <span className="ze-annotate-footgap" />
-        <Button label="Close" onClick={close} />
-        <Button label="Annotate" isDefault onClick={() => onAnnotate(run)} />
-      </div>
-    </DialogShim>
+    <DIALOG_ANNOTATE_BASE
+      m_infoBar={infoBarMessage ?? null}
+      scope={{
+        value: SCOPES.findIndex((sc) => sc.id === scope),
+        onChange: (i) => setScope(SCOPES[i]!.id),
+        // m_rbScope_Schematic->Enable( false ) - the only one upstream disables.
+        disabled: [scopeLocked, false, false],
+      }}
+      m_checkRecursive={{ value: recursive, onChange: setRecursive }}
+      order={{
+        value: Math.max(0, ORDERS.indexOf(order)),
+        onChange: (i) => setOrder(ORDERS[i]!),
+      }}
+      keepReset={{ value: reset ? 1 : 0, onChange: (i) => setReset(i === 1) }}
+      // OnOptionChanged: m_checkRegroupUnits->Enable( m_rbReset_Annotations->GetValue() ).
+      m_checkRegroupUnits={{ value: regroupUnits, enabled: reset, onChange: setRegroupUnits }}
+      numbering={{ value: Math.max(0, ALGOS.indexOf(algo)), onChange: (i) => setAlgo(ALGOS[i]!) }}
+      m_textNumberAfter={startText}
+      onNumberAfter={setStartText}
+      m_MessageWindow={{
+        label: 'Annotation Messages:',
+        fileName: 'report.txt',
+        lines: messages,
+        visibleSeverities: severities,
+        onVisibleSeveritiesChange: setSeverities,
+        // [data] The constructor's MsgPanelSetMinSize( wxSize( -1, 160 ) ), over the base's 120.
+        minHeight: 160,
+      }}
+      onClearAnnotationClick={() => onClear(scope, recursive)}
+      onAnnotateClick={() => onAnnotate(run)}
+      onCancel={close}
+    />
   );
 }

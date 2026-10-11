@@ -836,7 +836,8 @@ const BASELINE: Record<string, { colours: number; metrics: number }> = {
   // that briefly put this at 684, now carries its [px] like the width beside it:
   // GRID_CELL_STATUS_ICON_RENDERER's wxART_BUTTON bitmap, 16 x 16.) Rescanned.
   // metrics 643 -> 642: .ze-help-label's margins went with it (StaticText states the label).
-  'common/widgets': { colours: 127, metrics: 642 },
+  // metrics 642 -> 631: Annotate's .ze-annotate-* block went with its _base pair.
+  'common/widgets': { colours: 127, metrics: 631 },
   // 10-10: metrics 1 -> 0, the menu drawing's one literal went to external/wx with it.
   'common/tool': { colours: 0, metrics: 0 },
   // metrics 0 -> 15 on 09-26: the stage-1 moves, 8 from `dialogs` and 7 from
@@ -1671,7 +1672,8 @@ describe('the scan totals, so the numbers in the PR stay true', () => {
     // 1009 -> 1001: Import Settings, the same row.
     // 1001 -> 1000: Image Properties, the same row.
     // 1000 -> 996: the stroke dialogs (the two rows above).
-    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(996);
+    // 996 -> 985: the common/widgets row above.
+    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(985);
   });
 
   it('and the two agree with the per-area table, which is where they come from', () => {

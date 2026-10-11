@@ -6736,7 +6736,6 @@ export function SchematicEditor({
             {annotateOpen && (
               <DialogAnnotate
                 settings={app.settings}
-                hasSelection={selection.size > 0}
                 // Sort order, numbering method and start number are project
                 // settings (SCHEMATIC_SETTINGS), seed from Schematic Setup >
                 // Annotation like DIALOG_ANNOTATE::TransferDataToWindow.
