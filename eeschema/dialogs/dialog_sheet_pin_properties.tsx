@@ -2,31 +2,20 @@
 // Copyright (C) 2026 ZiroEDA and contributors.
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
 /**
- * `DIALOG_SHEET_PIN_PROPERTIES` (eeschema/dialogs/dialog_sheet_pin_properties.cpp, with its
- * layout from dialog_sheet_pin_properties_base.cpp) on a live SCH_SHEET_PIN.
- *
- * The model half is the class: TransferDataToWindow reads the pin and the hierarchical labels of
- * the sheet it belongs to (the name combo's suggestions), TransferDataFromWindow applies one
- * SCH_COMMIT. The form below is the base sizer tree: Name (a wxComboBox) with Syntax help, then
- * the Shape radio box beside the Formatting box (font, bold, italic, text size, colour).
+ * `DIALOG_SHEET_PIN_PROPERTIES` (eeschema/dialogs/dialog_sheet_pin_properties.cpp) over
+ * DIALOG_SHEET_PIN_PROPERTIES_BASE, on a live SCH_SHEET_PIN: the name (a wxComboBox of the sheet's
+ * hierarchical labels, SCH_NETNAME_VALIDATOR on OK), the text size through `m_textSize`, a
+ * UNIT_BINDER in the frame's units, the font, colour and shape; picking a hierarchical label's
+ * name takes its shape (`onComboBox`); Syntax help is SCH_TEXT::ShowSyntaxHelp's window.
  */
-import { Button, RadioButton } from '@ziroeda/wx/controls.js';
-import { useState, type JSX } from 'react';
-import { iuToMM, mmToIU } from '@ziroeda/common';
-import { DialogShim } from '@ziroeda/common/dialog_shim.js';
+import { type JSX, useState } from 'react';
+import { MessageDialogOk } from '@ziroeda/common/dialogs/dialog_message.js';
+import { DisplayErrorMessage } from '@ziroeda/common/confirm.js';
 import { FONT } from '@ziroeda/common/font/font.js';
 import type { Color4d } from '@ziroeda/common/gal/color4d.js';
 import { ESCAPE_CONTEXT, EscapeString, unescapeString } from '@ziroeda/common/string_utils.js';
-import { BitmapButton, BitmapButtonSeparator } from '@ziroeda/common/widgets/bitmap_button.js';
-import { ColorSwatch } from '@ziroeda/common/widgets/color_swatch.js';
-import { FontChoice } from '@ziroeda/common/widgets/font_choice.js';
 import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
-import {
-  parseUnitValueDouble,
-  stringFromValue,
-  unitLabel,
-} from '@ziroeda/common/widgets/unit_binder.js';
-import { TextCombo } from '@ziroeda/wx/combobox.js';
+import { UNIT_BINDER, unitLabel } from '@ziroeda/common/widgets/unit_binder.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { SCH_COMMIT } from '../sch_commit.js';
 import type { SCH_EDIT_FRAME } from '../sch_edit_frame.js';
@@ -34,6 +23,8 @@ import type { SCH_HIERLABEL } from '../sch_label.js';
 import { LABEL_FLAG_SHAPE } from '../sch_label.js';
 import type { SCH_SHEET } from '../sch_sheet.js';
 import type { SCH_SHEET_PIN } from '../sch_sheet_pin.js';
+import { SCH_NETNAME_VALIDATOR } from '../sch_validators.js';
+import { DIALOG_SHEET_PIN_PROPERTIES_BASE } from './dialog_sheet_pin_properties_base.js';
 
 /** The Shape radio buttons, in the base dialog's order. */
 const SHAPES: { shape: LABEL_FLAG_SHAPE; label: string }[] = [
@@ -52,7 +43,8 @@ export interface SHEET_PIN_DIALOG_VALUES {
   face: string;
   bold: boolean;
   italic: boolean;
-  textSize: number;
+  /** `m_textSizeCtrl`'s text. */
+  textSize: string;
   color: Color4d;
   shape: LABEL_FLAG_SHAPE;
 }
@@ -60,10 +52,43 @@ export interface SHEET_PIN_DIALOG_VALUES {
 export class DIALOG_SHEET_PIN_PROPERTIES {
   private readonly m_frame: SCH_EDIT_FRAME;
   private readonly m_sheetPin: SCH_SHEET_PIN;
+  private readonly m_textSize: UNIT_BINDER;
 
   constructor(aParent: SCH_EDIT_FRAME, aPin: SCH_SHEET_PIN) {
     this.m_frame = aParent;
     this.m_sheetPin = aPin;
+    this.m_textSize = new UNIT_BINDER(aParent, 'Text size:', (m) => DisplayErrorMessage(m));
+  }
+
+  /** `SetSwatchBackground( schematicBackground )`. */
+  SwatchBackground(): Color4d {
+    return this.m_frame.GetDrawBgColor();
+  }
+
+  /** `OnSyntaxHelp()`: SCH_LABEL_BASE::ShowSyntaxHelp, the frame's syntax help window. */
+  ShowSyntaxHelp(): void {
+    this.m_frame.ShowBusSyntaxHelp();
+  }
+
+  /**
+   * `onComboBox()`: the shape of the first hierarchical label on the pin's sheet whose text
+   * matches \a aName, case-insensitively (`CmpNoCase`); null when none does.
+   */
+  ShapeOfHierLabel(aName: string): LABEL_FLAG_SHAPE | null {
+    const screen = (this.m_sheetPin.GetParent() as SCH_SHEET).GetScreen();
+    const want = aName.toLowerCase();
+
+    for (const item of screen?.Items().OfType(KICAD_T.SCH_HIER_LABEL_T) ?? []) {
+      const label = item as SCH_HIERLABEL;
+      if (label.GetText().toLowerCase() === want) return label.GetShape();
+    }
+
+    return null;
+  }
+
+  /** The SCH_NETNAME_VALIDATOR's verdict on the name: the message, or '' when it is valid. */
+  ValidateName(aName: string): string {
+    return new SCH_NETNAME_VALIDATOR(true).IsValid(aName);
   }
 
   /** `TransferDataToWindow()`. */
@@ -85,7 +110,10 @@ export class DIALOG_SHEET_PIN_PROPERTIES {
       italic: this.m_sheetPin.IsItalic(),
       // Currently, eeschema uses only the text width as text size
       // (only the text width is saved in files), and expects text width = text height
-      textSize: this.m_sheetPin.GetTextWidth(),
+      textSize: ((): string => {
+        this.m_textSize.SetValue(this.m_sheetPin.GetTextWidth());
+        return this.m_textSize.GetText();
+      })(),
       color: this.m_sheetPin.GetTextColor(),
       shape: this.m_sheetPin.GetShape(),
     };
@@ -106,7 +134,11 @@ export class DIALOG_SHEET_PIN_PROPERTIES {
 
     // Currently, eeschema uses only the text width as text size,
     // and expects text width = text height
-    this.m_sheetPin.SetTextSize({ x: aValues.textSize, y: aValues.textSize });
+    this.m_textSize.SetText(aValues.textSize);
+    this.m_sheetPin.SetTextSize({
+      x: this.m_textSize.GetIntValue(),
+      y: this.m_textSize.GetIntValue(),
+    });
 
     // Must come after SetTextSize()
     this.m_sheetPin.SetBold(aValues.bold);
@@ -121,138 +153,72 @@ export class DIALOG_SHEET_PIN_PROPERTIES {
   }
 }
 
-/** The form over DIALOG_SHEET_PIN_PROPERTIES' values. */
 export function DialogSheetPinProperties({
+  dlg,
   initial,
   units,
   onOk,
   onCancel,
 }: {
+  dlg: DIALOG_SHEET_PIN_PROPERTIES;
   initial: SHEET_PIN_DIALOG_VALUES;
+  /** The frame's units, which `m_textSize` labels its entry with. */
   units: StatusUnits;
   onOk: (aValues: SHEET_PIN_DIALOG_VALUES) => void;
   onCancel: () => void;
 }): JSX.Element {
-  const [name, setName] = useState(initial.name);
-  const [face, setFace] = useState(initial.face);
-  const [bold, setBold] = useState(initial.bold);
-  const [italic, setItalic] = useState(initial.italic);
-  const [sizeText, setSizeText] = useState(stringFromValue(iuToMM(initial.textSize), units, false));
-  const [color, setColor] = useState(initial.color);
-  const [shape, setShape] = useState(initial.shape);
+  const [v, setV] = useState(initial);
+  const [invalid, setInvalid] = useState<string | null>(null);
+  const set = (patch: Partial<SHEET_PIN_DIALOG_VALUES>): void => setV((p) => ({ ...p, ...patch }));
+  const shapeIndex = Math.max(
+    0,
+    SHAPES.findIndex((s) => s.shape === v.shape),
+  );
 
-  const submit = (): void => {
-    const mm = parseUnitValueDouble(sizeText, units);
-    onOk({
-      ...initial,
-      name,
-      face,
-      bold,
-      italic,
-      textSize: Number.isFinite(mm) ? Math.round(mmToIU(mm)) : initial.textSize,
-      color,
-      shape,
-    });
+  /** wxDialog's OK: the validator first (NETNAME_VALIDATOR::Validate), then the caller. */
+  const ok = (): void => {
+    const msg = dlg.ValidateName(v.name);
+    if (msg) setInvalid(msg);
+    else onOk(v);
   };
 
   return (
-    <DialogShim title="Sheet Pin Properties" onClose={onCancel} className="ze-label-props">
-      <div className="ze-modal-body ze-lp-body">
-        {/* fgSizer2: Name: and its wxComboBox, Syntax help under it. */}
-        <div className="ze-lp-entry">
-          <span className="ze-lp-caption">Name:</span>
-          <TextCombo
-            className="ze-lp-value"
-            value={name}
-            options={initial.names}
-            onChange={setName}
-            onEnter={submit}
-            autoFocus
-          />
-        </div>
-        <div className="ze-lp-entry-row2">
-          <a
-            className="ze-lp-syntax"
-            href="https://docs.kicad.org/GetStarted#labels"
-            target="_blank"
-            rel="noreferrer"
-            title="Show syntax help window"
-          >
-            Syntax help
-          </a>
-        </div>
-
-        {/* optionsSizer: the Shape radio box beside the Formatting box. */}
-        <div className="ze-lp-options">
-          <fieldset className="ze-lp-shape">
-            <legend>Shape</legend>
-            {SHAPES.map((s) => (
-              <RadioButton
-                key={s.shape}
-                label={s.label}
-                name="ze-spp-shape"
-                checked={shape === s.shape}
-                onChange={() => setShape(s.shape)}
-              />
-            ))}
-          </fieldset>
-
-          <fieldset className="ze-lp-formatting">
-            <legend>Formatting</legend>
-            <div className="ze-lp-fmt-grid">
-              <span className="ze-lp-fmt-label">Font:</span>
-              <FontChoice face={face} onChange={setFace} />
-              <div className="ze-lp-iconbar">
-                <BitmapButtonSeparator />
-                <BitmapButton
-                  bitmap="text_bold"
-                  tooltip="Bold"
-                  checked={bold}
-                  onClick={() => setBold(!bold)}
-                />
-                <BitmapButton
-                  bitmap="text_italic"
-                  tooltip="Italic"
-                  checked={italic}
-                  onClick={() => setItalic(!italic)}
-                />
-                <BitmapButtonSeparator />
-              </div>
-
-              <span className="ze-lp-fmt-label">Text size:</span>
-              <div className="ze-lp-sizerow">
-                <input
-                  className="ze-lp-size"
-                  value={sizeText}
-                  onChange={(e) => setSizeText(e.target.value)}
-                  onKeyDown={(e) => {
-                    e.stopPropagation();
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      submit();
-                    }
-                  }}
-                />
-                <span className="ze-lp-units">{unitLabel(units)}</span>
-                <span className="ze-lp-colorlabel">Color:</span>
-                <span className="ze-lp-swatch-frame">
-                  <ColorSwatch
-                    className="ze-lp-swatch"
-                    label="Text color"
-                    color={color}
-                    onChange={setColor}
-                  />
-                </span>
-              </div>
-            </div>
-          </fieldset>
-        </div>
-      </div>
-
-      <div className="ze-modal-footer">
-        <Button label="Cancel" onClick={onCancel} />
-        <Button label="OK" isDefault onClick={submit} />
-      </div>
-    </DialogShim>
+    <>
+      <DIALOG_SHEET_PIN_PROPERTIES_BASE
+        m_comboName={v.name}
+        comboNameChoices={v.names}
+        onComboName={(t) => set({ name: t })}
+        onComboBox={(t) => {
+          const shape = dlg.ShapeOfHierLabel(t);
+          if (shape !== null) set({ name: t, shape });
+        }}
+        onSyntaxHelp={() => dlg.ShowSyntaxHelp()}
+        shape={shapeIndex}
+        onShape={(i) => set({ shape: SHAPES[i]!.shape })}
+        font={v.face}
+        onFont={(f) => set({ face: f })}
+        m_bold={v.bold}
+        onBold={() => set({ bold: !v.bold })}
+        m_italic={v.italic}
+        onItalic={() => set({ italic: !v.italic })}
+        m_textSizeCtrl={v.textSize}
+        onTextSize={(t) => set({ textSize: t })}
+        units={unitLabel(units)}
+        m_textColorSwatch={v.color}
+        swatchBackground={dlg.SwatchBackground()}
+        onTextColor={(c) => set({ color: c })}
+        onOK={ok}
+        onCancel={onCancel}
+      />
+      {invalid && (
+        // wxMessageBox( errormsg, _( "Invalid signal name" ), wxOK | wxICON_EXCLAMATION ).
+        <MessageDialogOk
+          caption="Invalid signal name"
+          icon="warning"
+          message={invalid}
+          onClose={() => setInvalid(null)}
+        />
+      )}
+    </>
   );
 }

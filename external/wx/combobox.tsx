@@ -310,6 +310,7 @@ export function TextCombo({
   value,
   options,
   onChange,
+  onSelect,
   onEnter,
   className,
   title,
@@ -320,6 +321,8 @@ export function TextCombo({
   /** The suggestions; picking one replaces the entry's text. */
   options: readonly string[];
   onChange: (value: string) => void;
+  /** `wxEVT_COMBOBOX`: a suggestion picked from the list (after `onChange`), never typing. */
+  onSelect?: (value: string) => void;
   /** Enter in the entry: the dialog's default button. */
   onEnter?: () => void;
   className?: string;
@@ -412,6 +415,7 @@ export function TextCombo({
               onMouseDown={(e) => {
                 e.preventDefault();
                 onChange(o);
+                onSelect?.(o);
                 setOpen(false);
                 inputRef.current?.focus();
               }}

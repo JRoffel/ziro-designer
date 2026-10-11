@@ -47,7 +47,9 @@ describe('DIALOG_SHEET_PIN_PROPERTIES', () => {
     // Each name once, in screen order.
     expect(shown.names.filter((n) => n === 'IN1')).toHaveLength(1);
     expect(shown.names).toContain('OUT2');
-    expect(shown.textSize).toBe(pin.GetTextWidth());
+    // m_textSize, a UNIT_BINDER: DEFAULT_SIZE_TEXT is 50 mils, 1.27 mm.
+    expect(pin.GetTextWidth()).toBe(12700);
+    expect(shown.textSize).toBe('1.27');
     expect(shown.shape).toBe(pin.GetShape());
   });
 
@@ -59,7 +61,7 @@ describe('DIALOG_SHEET_PIN_PROPERTIES', () => {
     dlg.TransferDataFromWindow({
       ...dlg.TransferDataToWindow(),
       name: 'A/B',
-      textSize: 2000,
+      textSize: '0.2',
       bold: true,
       italic: true,
       color: red,
@@ -72,5 +74,32 @@ describe('DIALOG_SHEET_PIN_PROPERTIES', () => {
     expect(pin.GetTextColor()).toEqual(red);
     expect(pin.GetShape()).toBe(LABEL_FLAG_SHAPE.L_TRISTATE);
     expect(h.frame.GetUndoCommandCount()).toBe(undo + 1);
+  });
+
+  it("onComboBox: a picked hierarchical label's name brings its shape, case-insensitively", () => {
+    const { sheet, dlg } = setUp();
+    const out = [...sheet.GetScreen()!.Items().OfType(KICAD_T.SCH_HIER_LABEL_T)].find(
+      (l) => (l as SCH_HIERLABEL).GetText() === 'OUT2',
+    ) as SCH_HIERLABEL;
+    out.SetShape(LABEL_FLAG_SHAPE.L_OUTPUT);
+    expect(dlg.ShapeOfHierLabel('out2')).toBe(LABEL_FLAG_SHAPE.L_OUTPUT);
+    expect(dlg.ShapeOfHierLabel('NOPE')).toBeNull();
+  });
+
+  it('SCH_NETNAME_VALIDATOR refuses a malformed bus name', () => {
+    const { dlg } = setUp();
+    expect(dlg.ValidateName('IN1')).toBe('');
+    expect(dlg.ValidateName('A[7..')).toBe(
+      "Signal name contains '[' or ']' but is not a valid bus name.",
+    );
+  });
+
+  it('the text size follows the frame units', () => {
+    const { h, pin, dlg } = setUp();
+    h.frame.SetUserUnits('mils');
+    const shown = dlg.TransferDataToWindow();
+    expect(shown.textSize).toBe('50');
+    dlg.TransferDataFromWindow({ ...shown, textSize: '60' });
+    expect(pin.GetTextWidth()).toBe(15240);
   });
 });

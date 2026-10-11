@@ -7382,6 +7382,7 @@ export function SchematicEditor({
       {/* DIALOG_SHEET_PIN_PROPERTIES on a live sheet pin. */}
       {sheetPinDialog && (
         <DialogSheetPinProperties
+          dlg={sheetPinDialog.dlg}
           initial={sheetPinDialog.shown}
           units={units}
           onOk={(values) => {
