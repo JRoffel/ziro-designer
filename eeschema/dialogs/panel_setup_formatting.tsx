@@ -20,8 +20,8 @@
  * reference presentation, and simulator operating-point overlay precision/range.
  */
 
-import { Combo } from '@ziroeda/wx/controls.js';
 import type { JSX } from 'react';
+import { PANEL_SETUP_FORMATTING_BASE } from './panel_setup_formatting_base.js';
 import {
   JUNCTION_DOT_SIZES,
   HOP_OVER_SIZES,
@@ -46,241 +46,72 @@ interface Props {
   onChange: (next: FormattingSettings) => void;
 }
 
-const column: React.CSSProperties = {
-  flex: 1,
-  minWidth: 0,
-  display: 'flex',
-  flexDirection: 'column',
-};
-const box: React.CSSProperties = {
-  border: '1px solid var(--chrome-border)',
-  borderRadius: 4,
-  padding: '4px 10px 8px',
-  margin: '0 0 10px',
-};
-const legend: React.CSSProperties = { fontSize: 11.5, padding: '0 4px', fontWeight: 600 };
-/** A group body laid out as label | control | units, all rows aligned (fgSizer). */
-const grid: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'max-content 1fr max-content',
-  alignItems: 'center',
-  gap: '6px 8px',
-  margin: '4px 0 2px',
-  fontSize: 12.5,
-};
-const lab: React.CSSProperties = { fontSize: 12 };
-const fill: React.CSSProperties = { width: '100%', boxSizing: 'border-box' };
-const unit: React.CSSProperties = { fontSize: 11 };
-
 export function PanelSetupFormatting({ value, onChange }: Props): JSX.Element {
-  const set = <K extends keyof FormattingSettings>(k: K, v: FormattingSettings[K]): void =>
-    onChange({ ...value, [k]: v });
+  const set = (patch: Partial<FormattingSettings>): void => onChange({ ...value, ...patch });
 
-  const isr = value.intersheetRefsShow;
+  type NUMBER_KEY = {
+    [K in keyof FormattingSettings]: FormattingSettings[K] extends number ? K : never;
+  }[keyof FormattingSettings];
 
-  // A grid row: label, a growing value control, and a units cell (blank if none).
-  const numRow = (
-    label: string,
-    key: keyof FormattingSettings,
-    unitStr: string,
-    tip?: string,
-  ): JSX.Element => (
-    <>
-      <span style={lab} title={tip}>
-        {label}
-      </span>
-      <input
-        className="ze-search"
-        type="number"
-        style={fill}
-        value={value[key] as number}
-        title={tip}
-        onChange={(e) => set(key, Number(e.target.value) as never)}
-      />
-      <span className="ze-muted" style={unit}>
-        {unitStr}
-      </span>
-    </>
-  );
-
-  // A choice row: label then a growing select spanning the value+units columns.
-  const choiceRow = (
-    label: string,
-    key: keyof FormattingSettings,
-    choices: string[],
-    byIndex: boolean,
-  ): JSX.Element => (
-    <>
-      <span style={lab}>{label}</span>
-      <Combo
-        value={String(byIndex ? (value[key] as number) : (value[key] as string))}
-        options={choices.map((c, i) => ({ value: String(byIndex ? i : c), label: c }))}
-        className="ze-select"
-        style={{ ...fill, gridColumn: '2 / 4' }}
-        onChange={(aValue) => set(key, (byIndex ? Number(aValue) : aValue) as never)}
-      />
-    </>
-  );
+  /** A wxTextCtrl over a number: the text a wxTextCtrl would show, read back as a number. */
+  const num = (k: NUMBER_KEY) => ({
+    value: String(value[k]),
+    onChange: (t: string) => {
+      const n = Number(t);
+      if (Number.isFinite(n)) set({ [k]: n });
+    },
+  });
+  const text = (k: 'intersheetRefsPrefix' | 'intersheetRefsSuffix') => ({
+    value: value[k],
+    onChange: (t: string) => set({ [k]: t }),
+  });
+  const byName = (k: 'opoVRange' | 'opoIRange', aChoices: readonly string[]) => ({
+    value: Math.max(0, aChoices.indexOf(value[k])),
+    onChange: (i: number) => set({ [k]: aChoices[i]! }),
+  });
 
   return (
-    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-      {/* Left column: Text, Symbols, Connections */}
-      <div style={column}>
-        <fieldset style={box}>
-          <legend style={legend}>Text</legend>
-          <div style={grid}>
-            {numRow('Default text size:', 'defaultTextSizeMils', 'mils')}
-            {numRow('Overbar offset ratio:', 'overbarOffsetRatio', '%')}
-            {numRow(
-              'Label offset ratio:',
-              'labelOffsetRatio',
-              '%',
-              'Percentage of the text size to offset labels above (or below) a wire, bus, or pin',
-            )}
-            {numRow(
-              'Global label margin ratio:',
-              'labelSizeRatio',
-              '%',
-              'Percentage of the text size to use as space around a global label',
-            )}
-          </div>
-        </fieldset>
-
-        <fieldset style={box}>
-          <legend style={legend}>Symbols</legend>
-          <div style={grid}>
-            {numRow('Default line width:', 'defaultLineWidthMils', 'mils')}
-            {numRow('Pin symbol size:', 'pinSymbolSizeMils', 'mils')}
-          </div>
-        </fieldset>
-
-        <fieldset style={box}>
-          <legend style={legend}>Connections</legend>
-          <div style={grid}>
-            {choiceRow('Junction dot size:', 'junctionDotChoice', JUNCTION_DOT_SIZES, true)}
-            {choiceRow('Hop-over size:', 'hopOverChoice', HOP_OVER_SIZES, true)}
-            {numRow('Connection grid:', 'connectionGridMils', 'mils')}
-          </div>
-        </fieldset>
-      </div>
-
-      {/* Right column: Inter-sheet References, Dashed Lines, Operating-point Overlay */}
-      <div style={column}>
-        <fieldset style={box}>
-          <legend style={legend}>Inter-sheet References</legend>
-          <label style={{ display: 'block', margin: '4px 0', fontSize: 12.5 }}>
-            <input
-              type="checkbox"
-              checked={isr}
-              onChange={(e) => set('intersheetRefsShow', e.target.checked)}
-            />{' '}
-            Show inter-sheet references
-          </label>
-          <div style={{ paddingLeft: 15 }}>
-            <label style={{ display: 'block', margin: '4px 0', fontSize: 12.5 }}>
-              <input
-                type="checkbox"
-                checked={value.intersheetRefsOwnPage}
-                disabled={!isr}
-                onChange={(e) => set('intersheetRefsOwnPage', e.target.checked)}
-              />{' '}
-              Show own page reference
-            </label>
-            <label style={{ display: 'block', margin: '4px 0', fontSize: 12.5 }}>
-              <input
-                type="radio"
-                name="isrfmt"
-                checked={!value.intersheetRefsAbbreviated}
-                disabled={!isr}
-                onChange={() => set('intersheetRefsAbbreviated', false)}
-              />{' '}
-              Standard (1,2,3)
-            </label>
-            <label style={{ display: 'block', margin: '4px 0', fontSize: 12.5 }}>
-              <input
-                type="radio"
-                name="isrfmt"
-                checked={value.intersheetRefsAbbreviated}
-                disabled={!isr}
-                onChange={() => set('intersheetRefsAbbreviated', true)}
-              />{' '}
-              Abbreviated (1..3)
-            </label>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'max-content 1fr',
-                alignItems: 'center',
-                gap: '6px 8px',
-                margin: '6px 0 2px',
-                fontSize: 12.5,
-              }}
-            >
-              <span style={lab}>Prefix:</span>
-              <input
-                className="ze-search"
-                style={{ ...fill, minWidth: 160 }}
-                value={value.intersheetRefsPrefix}
-                disabled={!isr}
-                onChange={(e) => set('intersheetRefsPrefix', e.target.value)}
-              />
-              <span style={lab}>Suffix:</span>
-              <input
-                className="ze-search"
-                style={{ ...fill, minWidth: 160 }}
-                value={value.intersheetRefsSuffix}
-                disabled={!isr}
-                onChange={(e) => set('intersheetRefsSuffix', e.target.value)}
-              />
-            </div>
-          </div>
-        </fieldset>
-
-        <fieldset style={box}>
-          <legend style={legend}>Dashed Lines</legend>
-          {/* Dash/gap ctrls are fixed ~"XXX.XXX" wide (no grow) in KiCad. */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'max-content max-content',
-              alignItems: 'center',
-              gap: '6px 8px',
-              margin: '4px 0 2px',
-              fontSize: 12.5,
-            }}
-          >
-            <span style={lab}>Dash length:</span>
-            <input
-              className="ze-search"
-              type="number"
-              style={{ width: 68 }}
-              value={value.dashLengthRatio}
-              onChange={(e) => set('dashLengthRatio', Number(e.target.value))}
-            />
-            <span style={lab}>Gap length:</span>
-            <input
-              className="ze-search"
-              type="number"
-              style={{ width: 68 }}
-              value={value.gapLengthRatio}
-              onChange={(e) => set('gapLengthRatio', Number(e.target.value))}
-            />
-          </div>
-          <div className="ze-muted" style={{ fontSize: 11, fontStyle: 'italic', marginTop: 6 }}>
-            Dash and dot lengths are ratios of the line width.
-          </div>
-        </fieldset>
-
-        <fieldset style={box}>
-          <legend style={legend}>Operating-point Overlay</legend>
-          <div style={grid}>
-            {numRow('Significant digits (voltages):', 'opoVPrecision', '')}
-            {choiceRow('Range (voltages):', 'opoVRange', OPO_V_RANGES, false)}
-            {numRow('Significant digits (currents):', 'opoIPrecision', '')}
-            {choiceRow('Range (currents):', 'opoIRange', OPO_I_RANGES, false)}
-          </div>
-        </fieldset>
-      </div>
-    </div>
+    <PANEL_SETUP_FORMATTING_BASE
+      m_textSizeCtrl={num('defaultTextSizeMils')}
+      m_overbarHeightCtrl={num('overbarOffsetRatio')}
+      m_textOffsetRatioCtrl={num('labelOffsetRatio')}
+      m_labelSizeRatioCtrl={num('labelSizeRatio')}
+      m_lineWidthCtrl={num('defaultLineWidthMils')}
+      m_pinSymbolSizeCtrl={num('pinSymbolSizeMils')}
+      // [data] The slice stores mils; upstream's UNIT_BINDERs show the frame's units.
+      units="mils"
+      junctionDotChoices={JUNCTION_DOT_SIZES}
+      m_choiceJunctionDotSize={{
+        value: value.junctionDotChoice,
+        onChange: (i) => set({ junctionDotChoice: i }),
+      }}
+      hopOverChoices={HOP_OVER_SIZES}
+      m_choiceHopOverSize={{
+        value: value.hopOverChoice,
+        onChange: (i) => set({ hopOverChoice: i }),
+      }}
+      m_connectionGridCtrl={num('connectionGridMils')}
+      m_showIntersheetsReferences={{
+        value: value.intersheetRefsShow,
+        onChange: (on) => set({ intersheetRefsShow: on }),
+      }}
+      intersheetRefsEnabled={value.intersheetRefsShow}
+      m_listOwnPage={{
+        value: value.intersheetRefsOwnPage,
+        onChange: (on) => set({ intersheetRefsOwnPage: on }),
+      }}
+      abbreviated={value.intersheetRefsAbbreviated}
+      onAbbreviated={(on) => set({ intersheetRefsAbbreviated: on })}
+      m_prefixCtrl={text('intersheetRefsPrefix')}
+      m_suffixCtrl={text('intersheetRefsSuffix')}
+      m_dashLengthCtrl={num('dashLengthRatio')}
+      m_gapLengthCtrl={num('gapLengthRatio')}
+      m_vPrecisionCtrl={{ value: value.opoVPrecision, onChange: (n) => set({ opoVPrecision: n }) }}
+      vRangeChoices={OPO_V_RANGES}
+      m_vRangeCtrl={byName('opoVRange', OPO_V_RANGES)}
+      m_iPrecisionCtrl={{ value: value.opoIPrecision, onChange: (n) => set({ opoIPrecision: n }) }}
+      iRangeChoices={OPO_I_RANGES}
+      m_iRangeCtrl={byName('opoIRange', OPO_I_RANGES)}
+    />
   );
 }

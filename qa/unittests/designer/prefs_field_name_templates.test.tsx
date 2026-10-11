@@ -122,7 +122,7 @@ describe('one panel, two titles', () => {
 describe('the button row is the four STD_BITMAP_BUTTONs the base file builds', () => {
   it('carries KiCad’s own small_* bitmaps, in upstream’s order', () => {
     mount(true);
-    const btns = Array.from(document.querySelectorAll('.ze-grid-btns .ze-gridbtn'));
+    const btns = Array.from(document.querySelectorAll('.ze-gridbtn'));
     expect(btns.map((b) => b.querySelector('img')?.getAttribute('src') ?? '')).toEqual([
       expect.stringContaining('small_plus'),
       expect.stringContaining('small_up'),
@@ -204,17 +204,24 @@ describe('the grid is the size the base file gives it', () => {
   });
 
   it('is at least 180 tall and fills the page', () => {
-    // `m_grid->SetMinSize( wxSize( -1, 180 ) )`, added at proportion 1.
-    expect(rule('.ze-fieldnames-grid')).toMatch(/min-height:\s*180px/);
-    expect(rule('.ze-fieldnames-grid')).toMatch(/flex:\s*1/);
-    // `Add( m_grid, 1, wxEXPAND|wxRIGHT, 5 )` — a right border and no left one.
-    expect(rule('.ze-fieldnames-grid')).toMatch(/margin-right:\s*5px/);
+    // `m_grid->SetMinSize( wxSize( -1, 180 ) )`, added at proportion 1, wxEXPAND|wxRIGHT, 5:
+    // the sizer item the base wraps the grid in.
+    mount(true);
+    const item = document.querySelector('table')!.closest('.ze-szi') as HTMLElement;
+    expect(item.style.minHeight).toBe('180px');
+    expect(item.style.flexGrow).toBe('1');
+    expect(item.style.marginRight).toBe('5px');
+    expect(item.style.marginLeft).toBe('0px');
   });
 
   it('gives the title the borders its Add() states', () => {
     // `Add( m_title, 0, wxTOP|wxLEFT|wxEXPAND, 8 )`, then a 3 px spacer.
-    expect(rule('.ze-fieldnames-title')).toMatch(/padding:\s*8px 0 0 8px/);
-    expect(rule('.ze-fieldnames-title')).toMatch(/margin-bottom:\s*3px/);
+    mount(true);
+    const item = screen.getByText('Global Field Name Templates').closest('.ze-szi') as HTMLElement;
+    expect([item.style.marginTop, item.style.marginLeft]).toEqual(['8px', '8px']);
+    const spacer = item.nextElementSibling as HTMLElement;
+    expect(spacer.className).toBe('ze-szspacer');
+    expect(spacer.getAttribute('style')).toMatch(/\b3px\b/);
   });
 
   it('lets the header size to its own text, as wxGRID_AUTOSIZE does', () => {

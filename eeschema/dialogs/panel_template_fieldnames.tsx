@@ -31,7 +31,7 @@
  */
 
 import type { JSX } from 'react';
-import { StdBitmapButton } from '@ziroeda/common/widgets/std_bitmap_button.js';
+import { PANEL_TEMPLATE_FIELDNAMES_BASE } from './panel_template_fieldnames_base.js';
 import type { WX_GRID } from '@ziroeda/common/widgets/wx_grid.js';
 import { wxGridCellBoolRenderer, wxGridSelectionModes } from '@ziroeda/wx/grid.js';
 import { WxGridView } from '@ziroeda/wx/grid_ui.js';
@@ -89,13 +89,9 @@ export function PanelTemplateFieldnames({ templates, onChange, global }: Props):
   });
 
   return (
-    <div className="ze-fieldnames">
-      {/* `m_title`, a plain wxStaticText added `wxTOP|wxLEFT|wxEXPAND, 8` — not a
-          group box, and with no rule under it. */}
-      <div className="ze-fieldnames-title">
-        {global ? 'Global Field Name Templates' : 'Project Field Name Templates'}
-      </div>
-      <div className="ze-grid-pane ze-fieldnames-grid">
+    <PANEL_TEMPLATE_FIELDNAMES_BASE
+      title={global ? 'Global Field Name Templates' : 'Project Field Name Templates'}
+      m_grid={
         <WxGridView
           grid={grid}
           tricks={tricks}
@@ -104,36 +100,11 @@ export function PanelTemplateFieldnames({ templates, onChange, global }: Props):
           onUpdate={onUpdate}
           ariaLabel="Field name templates"
         />
-      </div>
-      {/* `bSizer10`: add, up, down, a fixed 20 px gap, delete. Four
-          STD_BITMAP_BUTTONs carrying KiCad's own small_* bitmaps — the tooltips
-          are on up and down alone, which is where the base file sets them. */}
-      <div className="ze-grid-btns">
-        <StdBitmapButton
-          bitmap="small_plus"
-          title="Add field"
-          tooltip={null}
-          onClick={() => onAddButtonClick(grid)}
-        />
-        <StdBitmapButton
-          bitmap="small_up"
-          title="Move up"
-          onClick={() => grid.OnMoveRowUp((row) => grid.SwapRows(row, row - 1))}
-        />
-        <StdBitmapButton
-          bitmap="small_down"
-          title="Move down"
-          onClick={() => grid.OnMoveRowDown((row) => grid.SwapRows(row, row + 1))}
-        />
-        {/* `bSizer10->Add( 20, 0, 0, wxEXPAND, 5 )`. [px] wxFormBuilder's own 20. */}
-        <span className="ze-fieldnames-gap" />
-        <StdBitmapButton
-          bitmap="small_trash"
-          title="Delete field"
-          tooltip={null}
-          onClick={() => grid.OnDeleteRows((row) => grid.DeleteRows(row, 1))}
-        />
-      </div>
-    </div>
+      }
+      onAddField={() => onAddButtonClick(grid)}
+      onMoveUp={() => grid.OnMoveRowUp((row) => grid.SwapRows(row, row - 1))}
+      onMoveDown={() => grid.OnMoveRowDown((row) => grid.SwapRows(row, row + 1))}
+      onDeleteField={() => grid.OnDeleteRows((row) => grid.DeleteRows(row, 1))}
+    />
   );
 }

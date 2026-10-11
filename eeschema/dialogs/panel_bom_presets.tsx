@@ -12,7 +12,7 @@
  * copy, paste or context menu either.
  */
 import { type JSX, useLayoutEffect, useState } from 'react';
-import { StdBitmapButton } from '@ziroeda/common/widgets/std_bitmap_button.js';
+import { PANEL_BOM_PRESETS_BASE } from './panel_bom_presets_base.js';
 import { WX_GRID } from '@ziroeda/common/widgets/wx_grid.js';
 import { wxGridStringTable } from '@ziroeda/wx/grid.js';
 import { WxGridView } from '@ziroeda/wx/grid_ui.js';
@@ -70,31 +70,15 @@ export function PanelBomPresets({ value, onChange }: Props): JSX.Element {
   };
 
   return (
-    <div className="ze-bompresets">
-      <div className="ze-bompresets-title">Bill of Materials Presets</div>
-      <div className="ze-grid-pane ze-bompresets-grid">
+    <PANEL_BOM_PRESETS_BASE
+      m_bomPresetsGrid={
         <WxGridView grid={bomGrid} columns={[{ width: 420 }]} ariaLabel="BOM presets" />
-      </div>
-      <div className="ze-bompresets-btn">
-        <StdBitmapButton
-          bitmap="small_trash"
-          title="Delete preset"
-          tooltip={null}
-          onClick={() => onDelete(bomGrid, 'presets')}
-        />
-      </div>
-      <div className="ze-bompresets-title">Bill of Materials Formatting Presets</div>
-      <div className="ze-grid-pane ze-bompresets-grid">
+      }
+      onDeleteBomPreset={() => onDelete(bomGrid, 'presets')}
+      m_bomFmtPresetsGrid={
         <WxGridView grid={fmtGrid} columns={[{ width: 420 }]} ariaLabel="BOM formatting presets" />
-      </div>
-      <div className="ze-bompresets-btn">
-        <StdBitmapButton
-          bitmap="small_trash"
-          title="Delete formatting preset"
-          tooltip={null}
-          onClick={() => onDelete(fmtGrid, 'fmtPresets')}
-        />
-      </div>
-    </div>
+      }
+      onDeleteBomFmtPreset={() => onDelete(fmtGrid, 'fmtPresets')}
+    />
   );
 }

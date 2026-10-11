@@ -18,7 +18,7 @@ import { type JSX, useEffect, useLayoutEffect, useReducer, useRef, useState } fr
 import { GetClipboardText } from '@ziroeda/common/clipboard.js';
 import { DisplayErrorMessage } from '@ziroeda/common/confirm.js';
 import { GRID_TRICKS } from '@ziroeda/common/grid_tricks.js';
-import { StdBitmapButton } from '@ziroeda/common/widgets/std_bitmap_button.js';
+import { PANEL_SETUP_BUSES_BASE } from './panel_setup_buses_base.js';
 import { WX_GRID } from '@ziroeda/common/widgets/wx_grid.js';
 import {
   wxEVT_GRID_CELL_CHANGED,
@@ -315,67 +315,32 @@ export function PanelSetupBuses({ aliases, onChange }: Props): JSX.Element {
   };
 
   return (
-    <div className="ze-busdefs">
-      <div className="ze-busdefs-col">
-        <div className="ze-busdefs-label">Bus Definitions</div>
-        <div className="ze-grid-pane ze-busdefs-grid">
-          <WxGridView
-            grid={aliasesGrid}
-            tricks={aliasTricks}
-            columns={[{ width: 300 }]}
-            onUpdate={onUpdateUI}
-            ariaLabel="Bus aliases"
-          />
-        </div>
-        <div className="ze-grid-btns">
-          <StdBitmapButton
-            bitmap="small_plus"
-            title="Add alias"
-            tooltip={null}
-            onClick={onAddAlias}
-          />
-          <span className="ze-busdefs-gap" />
-          <StdBitmapButton
-            bitmap="small_trash"
-            title="Delete alias"
-            tooltip={null}
-            onClick={onDeleteAlias}
-          />
-          <span className="ze-busdefs-stretch" />
-          <span className="ze-busdefs-source">{source}</span>
-        </div>
-      </div>
-      <div className="ze-busdefs-col">
-        {membersPage === 0 && (
-          <>
-            <div className="ze-busdefs-label">{`Members of '${lastAliasName.current}'`}</div>
-            <div className="ze-grid-pane ze-busdefs-grid">
-              <WxGridView
-                grid={membersGrid}
-                tricks={memberTricks}
-                columns={[{ width: 300 }]}
-                onUpdate={onUpdateUI}
-                ariaLabel="Bus members"
-              />
-            </div>
-            <div className="ze-grid-btns">
-              <StdBitmapButton
-                bitmap="small_plus"
-                title="Add member"
-                tooltip={null}
-                onClick={onAddMember}
-              />
-              <span className="ze-busdefs-gap" />
-              <StdBitmapButton
-                bitmap="small_trash"
-                title="Remove member"
-                tooltip={null}
-                onClick={onRemoveMember}
-              />
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+    <PANEL_SETUP_BUSES_BASE
+      m_aliasesGrid={
+        <WxGridView
+          grid={aliasesGrid}
+          tricks={aliasTricks}
+          columns={[{ width: 300 }]}
+          onUpdate={onUpdateUI}
+          ariaLabel="Bus aliases"
+        />
+      }
+      onAddAlias={onAddAlias}
+      onDeleteAlias={onDeleteAlias}
+      m_source={source}
+      membersPage={membersPage}
+      m_membersLabel={`Members of '${lastAliasName.current}'`}
+      m_membersGrid={
+        <WxGridView
+          grid={membersGrid}
+          tricks={memberTricks}
+          columns={[{ width: 300 }]}
+          onUpdate={onUpdateUI}
+          ariaLabel="Bus members"
+        />
+      }
+      onAddMember={onAddMember}
+      onRemoveMember={onRemoveMember}
+    />
   );
 }

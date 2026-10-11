@@ -14,6 +14,8 @@
  */
 
 import type { JSX } from 'react';
+import { bitmapUrl } from '@ziroeda/common/bitmap_store.js';
+import { PANEL_SETUP_PINMAP_BASE } from './panel_setup_pinmap_base.js';
 import { PIN_TYPES, type ErcSettings, type PinError } from '../index.js';
 
 interface Props {
@@ -44,32 +46,8 @@ const STEPY = CELL + 6;
 const LINE_H = 15;
 const TOP = 42; // headroom for the highest column label
 
-/** The OK / Warning / Error mark for a cell (erc_green / ercwarn / ercerr). */
-function Mark({ state }: { state: number }): JSX.Element {
-  if (state === 1) {
-    return (
-      <span
-        style={{
-          width: 0,
-          height: 0,
-          borderLeft: '7px solid transparent',
-          borderRight: '7px solid transparent',
-          borderBottom: '12px solid rgb(209, 146, 0)',
-        }}
-      />
-    );
-  }
-  return (
-    <span
-      style={{
-        width: 14,
-        height: 14,
-        background: state === 2 ? 'rgb(230, 9, 13)' : 'rgb(34, 157, 42)',
-        borderRadius: state === 2 ? '50%' : 2,
-      }}
-    />
-  );
-}
+/** setDRCMatrixButtonState: each state's bitmap and tooltip. */
+const STATE_BITMAP = ['erc_green', 'ercwarn', 'ercerr'];
 
 export function PanelSetupPinmap({ settings, onChange }: Props): JSX.Element {
   const n = PIN_TYPES.length - 1; // exclude NC
@@ -87,9 +65,8 @@ export function PanelSetupPinmap({ settings, onChange }: Props): JSX.Element {
   const height = TOP + n * STEPY + CELL + 6;
 
   return (
-    <div style={{ padding: '2px 2px' }}>
-      <div style={{ fontSize: 12.5, marginBottom: 6 }}>Pin Conflicts Map</div>
-      <div style={{ overflow: 'auto' }}>
+    <PANEL_SETUP_PINMAP_BASE
+      m_matrixPanel={
         <div style={{ position: 'relative', width, height, fontSize: 11 }}>
           {Array.from({ length: n }, (_, r) => {
             const top = TOP + r * STEPY;
@@ -140,7 +117,9 @@ export function PanelSetupPinmap({ settings, onChange }: Props): JSX.Element {
                     <button
                       key={c}
                       onClick={() => cycle(r, c)}
-                      title={`${PIN_LABELS[r]} / ${PIN_LABELS[c]}: ${title[v]}`}
+                      // setDRCMatrixButtonState's tooltip is the state alone.
+                      title={title[v]}
+                      aria-label={`${PIN_LABELS[r]} / ${PIN_LABELS[c]}`}
                       style={{
                         position: 'absolute',
                         left: LABEL_W + c * STEPX,
@@ -157,7 +136,7 @@ export function PanelSetupPinmap({ settings, onChange }: Props): JSX.Element {
                         cursor: 'default',
                       }}
                     >
-                      <Mark state={v} />
+                      <img src={bitmapUrl(STATE_BITMAP[v]!)} alt="" />
                     </button>
                   );
                 })}
@@ -165,7 +144,7 @@ export function PanelSetupPinmap({ settings, onChange }: Props): JSX.Element {
             );
           })}
         </div>
-      </div>
-    </div>
+      }
+    />
   );
 }

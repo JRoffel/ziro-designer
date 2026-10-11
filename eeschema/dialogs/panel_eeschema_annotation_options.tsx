@@ -2,21 +2,18 @@
 // Copyright (C) 2026 ZiroEDA and contributors.
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
 /**
- * Schematic Setup > Annotation. Counterpart:
- * `eeschema/dialogs/panel_eeschema_annotation_options_base.cpp`
- * (PANEL_EESCHEMA_ANNOTATION_OPTIONS), the annotation defaults, laid out as
- * three underlined sections in a single left column:
- *   Units     : Symbol unit notation dropdown.
- *   Order     : sort symbols by X or Y position (mutually exclusive).
- *   Numbering : first-free / sheet x100 / sheet x1000, plus "Allow reference reuse".
- *
- * These map to eeschema's annotation settings (m_choiceSeparatorRefId, sort
- * order, numbering start method, and refdes reuse).
+ * Schematic Setup > Annotation: `PANEL_EESCHEMA_ANNOTATION_OPTIONS`
+ * (eeschema/dialogs/panel_eeschema_annotation_options.cpp) over its _base. loadEEschemaSettings and
+ * TransferDataFromWindow map the settings onto the controls and back; here they read and write
+ * the draft Schematic Setup hands the page, so Cancel discards them.
  */
-
-import { Combo } from '@ziroeda/wx/controls.js';
 import type { JSX } from 'react';
-import { SYMBOL_UNIT_NOTATIONS, type AnnotationSettings } from '../schematic_settings.js';
+import type {
+  AnnotateNumbering,
+  AnnotateSortOrder,
+  AnnotationSettings,
+} from '../schematic_settings.js';
+import { PANEL_EESCHEMA_ANNOTATION_OPTIONS_BASE } from './panel_eeschema_annotation_options_base.js';
 
 // The data model lives in schematic_settings.ts (KiCad's data/UI split);
 // re-exported here so the panel stays the import site for its slice.
@@ -28,113 +25,34 @@ export {
   type AnnotationSettings,
 } from '../schematic_settings.js';
 
-interface Props {
+/** m_rbSortBy_X_Position, m_rbSortBy_Y_Position. */
+const SORT_ORDERS: readonly AnnotateSortOrder[] = ['x', 'y'];
+/** m_rbFirstFree, m_rbSheetX100, m_rbSheetX1000. */
+const NUMBERINGS: readonly AnnotateNumbering[] = ['firstFree', 'sheetX100', 'sheetX1000'];
+
+export function PanelEeschemaAnnotationOptions({
+  value,
+  onChange,
+}: {
   value: AnnotationSettings;
   onChange: (next: AnnotationSettings) => void;
-}
-
-const sectionLabel: React.CSSProperties = { fontSize: 12.5, fontWeight: 600, margin: '2px 0 0' };
-const rule: React.CSSProperties = {
-  border: 'none',
-  borderTop: '1px solid var(--chrome-border)',
-  margin: '2px 0 6px',
-};
-const radioRow: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 6,
-  margin: '4px 0',
-  fontSize: 12.5,
-};
-
-export function PanelEeschemaAnnotationOptions({ value, onChange }: Props): JSX.Element {
-  const set = <K extends keyof AnnotationSettings>(k: K, v: AnnotationSettings[K]): void =>
-    onChange({ ...value, [k]: v });
+}): JSX.Element {
+  const set = (patch: Partial<AnnotationSettings>): void => onChange({ ...value, ...patch });
 
   return (
-    <div style={{ maxWidth: 460 }}>
-      {/* Units */}
-      <div style={sectionLabel}>Units</div>
-      <hr style={rule} />
-      <div style={{ ...radioRow, gap: 10 }}>
-        <span>Symbol unit notation:</span>
-        <span style={{ flex: 1 }} />
-        <Combo
-          value={String(value.symbolUnitNotation)}
-          options={SYMBOL_UNIT_NOTATIONS.map((s, i) => ({ value: String(i), label: s }))}
-          className="ze-select"
-          style={{ minWidth: 90 }}
-          onChange={(aValue) => set('symbolUnitNotation', Number(aValue))}
-        />
-      </div>
-
-      {/* Order */}
-      <div style={{ ...sectionLabel, marginTop: 15 }}>Order</div>
-      <hr style={rule} />
-      <label style={radioRow}>
-        <input
-          type="radio"
-          name="annSort"
-          checked={value.sortOrder === 'x'}
-          onChange={() => set('sortOrder', 'x')}
-        />
-        Sort symbols by X position
-      </label>
-      <label style={radioRow}>
-        <input
-          type="radio"
-          name="annSort"
-          checked={value.sortOrder === 'y'}
-          onChange={() => set('sortOrder', 'y')}
-        />
-        Sort symbols by Y position
-      </label>
-
-      {/* Numbering */}
-      <div style={{ ...sectionLabel, marginTop: 15 }}>Numbering</div>
-      <hr style={rule} />
-      <div style={radioRow}>
-        <input
-          type="radio"
-          name="annNum"
-          checked={value.numbering === 'firstFree'}
-          onChange={() => set('numbering', 'firstFree')}
-        />
-        <span>Use first free number after:</span>
-        <input
-          className="ze-search"
-          type="number"
-          style={{ width: 60 }}
-          value={value.firstFreeAfter}
-          onChange={(e) => set('firstFreeAfter', Number(e.target.value))}
-        />
-      </div>
-      <label style={radioRow}>
-        <input
-          type="radio"
-          name="annNum"
-          checked={value.numbering === 'sheetX100'}
-          onChange={() => set('numbering', 'sheetX100')}
-        />
-        First free after sheet number X 100
-      </label>
-      <label style={radioRow}>
-        <input
-          type="radio"
-          name="annNum"
-          checked={value.numbering === 'sheetX1000'}
-          onChange={() => set('numbering', 'sheetX1000')}
-        />
-        First free after sheet number X 1000
-      </label>
-      <label style={radioRow}>
-        <input
-          type="checkbox"
-          checked={value.allowReuse}
-          onChange={(e) => set('allowReuse', e.target.checked)}
-        />
-        Allow reference reuse
-      </label>
-    </div>
+    <PANEL_EESCHEMA_ANNOTATION_OPTIONS_BASE
+      m_choiceSeparatorRefId={{
+        value: value.symbolUnitNotation,
+        onChange: (i) => set({ symbolUnitNotation: i }),
+      }}
+      sortOrder={Math.max(0, SORT_ORDERS.indexOf(value.sortOrder))}
+      onSortOrder={(i) => set({ sortOrder: SORT_ORDERS[i]! })}
+      numbering={Math.max(0, NUMBERINGS.indexOf(value.numbering))}
+      onNumbering={(i) => set({ numbering: NUMBERINGS[i]! })}
+      m_textNumberAfter={String(value.firstFreeAfter)}
+      // EDA_UNIT_UTILS::UI::ValueFromString: digits only, anything else reads as 0.
+      onNumberAfter={(t) => set({ firstFreeAfter: Number.parseInt(t, 10) || 0 })}
+      m_checkReuseRefdes={{ value: value.allowReuse, onChange: (on) => set({ allowReuse: on }) }}
+    />
   );
 }
