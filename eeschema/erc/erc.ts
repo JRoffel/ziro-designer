@@ -2163,6 +2163,12 @@ import { UNITS_PROVIDER } from '@ziroeda/common/units_provider.js';
 import { schIUScale } from '@ziroeda/common/eda_units.js';
 import { SymbolLibAdapter } from '../project_sch.js';
 import { CheckDuplicatePins } from '../symbol_checker.js';
+import type { KIFACE } from '@ziroeda/common/kiway.js';
+import type { PROJECT } from '@ziroeda/common/project.js';
+import { KIFACE_ADDR_ID } from '@ziroeda/include/kiface_ids.js';
+
+/** `typedef int (*TESTER_FN_PTR)( const wxString&, PROJECT* )` (erc.cpp, TestFootprintLinkIssues). */
+type TESTER_FN_PTR = (aFootprint: string, aProject: PROJECT | null) => number;
 import type { VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
 import type { SCH_SCREEN } from '../sch_screen.js';
 import { ElectricalPinTypeGetText } from '../pin_type.js';
@@ -3266,6 +3272,67 @@ export class ERC_TESTER {
   }
 
   /**
+   * `TestFootprintLinkIssues( aCvPcb, aProject )` (erc.cpp:1816): each placed symbol's resolved
+   * Footprint field must parse as a LIB_ID, name a library the configuration includes and
+   * enables, and a footprint that library holds - CvPcb's KIFACE_TEST_FOOTPRINT_LINK judges the
+   * last three. Upstream's BlockUntilLoaded is the caller's: the dialog loads the footprint
+   * libraries before it runs the tests.
+   *
+   * @return the marker count
+   */
+  TestFootprintLinkIssues(aCvPcb: KIFACE, aProject: PROJECT | null): number {
+    let err_count = 0;
+
+    const linkTester = aCvPcb.IfaceOrAddress(
+      KIFACE_ADDR_ID.KIFACE_TEST_FOOTPRINT_LINK,
+    ) as TESTER_FN_PTR;
+
+    for (const sheet of this.m_sheetList) {
+      const markers: SCH_MARKER_LIVE[] = [];
+
+      for (const item of sheet.LastScreen()!.Items().OfType(KICAD_T_LIVE.SCH_SYMBOL_T)) {
+        const symbol = item as SCH_SYMBOL;
+        const footprint = symbol.GetFootprintFieldText(true, sheet, false);
+
+        if (footprint === '') continue;
+
+        const issue = (aMessage: string): void => {
+          const ercItem = ERC_ITEM.Create(ERCE.ERCE_FOOTPRINT_LINK_ISSUES)!;
+          ercItem.SetErrorMessage(aMessage);
+          ercItem.SetItems(symbol);
+          markers.push(new SCH_MARKER_LIVE(ercItem, symbol.GetPosition()));
+        };
+
+        const fpID = new LIB_ID_LIVE();
+
+        if (fpID.Parse(footprint, true) >= 0) {
+          issue(`'${footprint}' is not a valid footprint identifier`);
+          continue;
+        }
+
+        const libName = fpID.GetLibNickname();
+        const fpName = fpID.GetLibItemName();
+        const ret = linkTester(footprint, aProject);
+
+        if (ret === KIFACE_ADDR_ID.KIFACE_TEST_FOOTPRINT_LINK_NO_LIBRARY) {
+          issue(`The current configuration does not include the footprint library '${libName}'`);
+        } else if (ret === KIFACE_ADDR_ID.KIFACE_TEST_FOOTPRINT_LINK_LIBRARY_NOT_ENABLED) {
+          issue(`The footprint library '${libName}' is not enabled in the current configuration`);
+        } else if (ret === KIFACE_ADDR_ID.KIFACE_TEST_FOOTPRINT_LINK_NO_FOOTPRINT) {
+          issue(`Footprint '${fpName}' not found in library '${libName}'`);
+        }
+      }
+
+      for (const marker of markers) {
+        sheet.LastScreen()!.Append(marker);
+        err_count += 1;
+      }
+    }
+
+    return err_count;
+  }
+
+  /**
    * Check for field names with leading or trailing whitespace, on symbols and sheets.
    *
    * @return the warning count
@@ -3779,7 +3846,11 @@ export class ERC_TESTER {
    * first. Not here: the drawing sheet (TestTextVars), CvPcb (TestFootprintLinkIssues) and
    * the progress reporter.
    */
-  RunTests(aEditFrame: SCH_EDIT_FRAME | null = null): void {
+  RunTests(
+    aEditFrame: SCH_EDIT_FRAME | null = null,
+    aCvPcb: KIFACE | null = null,
+    aProject: PROJECT | null = null,
+  ): void {
     this.m_sheetList.AnnotatePowerSymbols();
 
     // Test duplicate sheet names inside a given sheet.  While one can have multiple references
@@ -3852,7 +3923,8 @@ export class ERC_TESTER {
       this.TestLibSymbolIssues();
     }
 
-    // Pending: TestFootprintLinkIssues.
+    if (this.m_settings.IsTestEnabled(ERCE.ERCE_FOOTPRINT_LINK_ISSUES) && aCvPcb)
+      this.TestFootprintLinkIssues(aCvPcb, aProject);
 
     if (this.m_settings.IsTestEnabled(ERCE.ERCE_FOOTPRINT_FILTERS)) this.TestFootprintFilters();
 

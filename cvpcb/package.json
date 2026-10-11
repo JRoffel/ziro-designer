@@ -13,6 +13,7 @@
     "@ziroeda/common": "workspace:*",
     "@ziroeda/core": "workspace:*",
     "@ziroeda/eeschema": "workspace:*",
+    "@ziroeda/include": "workspace:*",
     "@ziroeda/kimath": "workspace:*",
     "@ziroeda/pcbnew": "workspace:*",
     "@ziroeda/wx": "workspace:*",

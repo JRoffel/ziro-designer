@@ -23,6 +23,20 @@ import type { KIWAY_PLAYER } from './kiway_player.js';
 import { KIWAY_MAIL_EVENT, type MAIL_PAYLOAD } from './kiway_mail.js';
 import type { MAIL_T } from './mail_type.js';
 import type { wxEvent } from '@ziroeda/wx/wx_event.js';
+import type { KIFACE_ADDR_ID } from '@ziroeda/include/kiface_ids.js';
+
+/**
+ * `struct KIFACE` (kiway.h:155): what one kiface offers the others. Here only
+ * `IfaceOrAddress` - the program mounts the frames itself, so `CreateKiWindow`
+ * and `OnKifaceStart` live in each kiface's own module.
+ */
+export interface KIFACE {
+  /**
+   * `IfaceOrAddress( aDataId )`: the object or function a KIFACE_ADDR_ID names,
+   * cast by the caller into its known type; null for an id the face does not serve.
+   */
+  IfaceOrAddress(aDataId: KIFACE_ADDR_ID): unknown;
+}
 
 /** `KIWAY::FACE_T`: the kiface DSOs a frame type belongs to. */
 export enum FACE_T {
@@ -64,6 +78,13 @@ export interface KIWAY_PROGRAM {
    * kiface is not available, which upstream also swallows.
    */
   CreateKiWindow(aClassId: FRAME_T): boolean;
+
+  /**
+   * `KIWAY::KiFACE( aFaceId )`: the kiface of that FACE_T, or null where the
+   * program has none (upstream's failed DSO load). Optional: a program with no
+   * kiface to offer leaves it out.
+   */
+  KiFACE?(aFaceId: FACE_T): KIFACE | null;
 }
 
 export class KIWAY {
@@ -126,6 +147,11 @@ export class KIWAY {
 
   OnKiCadExit(): void {
     this.m_program.OnKiCadExit();
+  }
+
+  /** `KiFACE( aFaceId, aDoLoad )` (kiway.cpp:213): null when that kiface is not available. */
+  KiFACE(aFaceId: FACE_T): KIFACE | null {
+    return this.m_program.KiFACE?.(aFaceId) ?? null;
   }
 
   /**

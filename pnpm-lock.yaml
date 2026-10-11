@@ -210,6 +210,9 @@ importers:
       '@ziroeda/eeschema':
         specifier: workspace:*
         version: link:../eeschema
+      '@ziroeda/include':
+        specifier: workspace:*
+        version: link:../include
       '@ziroeda/kimath':
         specifier: workspace:*
         version: link:../libs/kimath
