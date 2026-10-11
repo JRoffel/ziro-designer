@@ -38,13 +38,27 @@
  *     body padding sitting outside them cannot be there.
  *
  * happy-dom implements no layout, so every assertion here is on the stated
- * declaration, never on a measured box.
+ * declaration, never on a measured box. Since the dialog became its _base.cpp pair the
+ * sizer numbers live in dialog_change_symbols_base.tsx as Add() flags and borders, so the
+ * layout half of this file reads them there; the colour and font half reads shell.css.
  */
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const SHELL = readFileSync(join(__dirname, '../../../common/widgets/shell.css'), 'utf8');
+const BASE = readFileSync(
+  join(__dirname, '../../../eeschema/dialogs/dialog_change_symbols_base.tsx'),
+  'utf8',
+);
+
+/** The `<SizerItem ...>` opening tag that encloses the first line containing `marker`. */
+function itemAround(marker: string): string {
+  const at = BASE.indexOf(marker);
+  if (at < 0) throw new Error(`no ${marker} in the base`);
+  const open = BASE.lastIndexOf('<SizerItem', at);
+  return BASE.slice(open, BASE.indexOf('>', BASE.indexOf('border=', open)) + 1);
+}
 
 /** The declarations of one rule, by exact selector, comments stripped. */
 function rule(selector: string): string {
@@ -76,8 +90,11 @@ describe('the inset surfaces take the listbox/window colour, not the button face
   });
 
   it('m_fieldsBox, a wxCheckListBox, is wxSYS_COLOUR_LISTBOX', () => {
-    // The shared wxCheckListBox rule since 09-26; m_fieldsBox carries it.
-    expect(decl('.ze-checklistbox', 'background')).toBe('var(--chrome-bg2)');
+    // m_fieldsBox is external/wx/checklst's CheckListBox, drawn as `.ze-gridlist`; its ground
+    // is the view's #272727 under the --panel-bg name.
+    const bg = decl('.ze-gridlist', 'background');
+    expect(bg).toBe('var(--panel-bg)');
+    expect(token('--panel-bg')).toBe('#272727');
   });
 
   it('the report panel’s message view is wxSYS_COLOUR_WINDOW', () => {
@@ -87,85 +104,50 @@ describe('the inset surfaces take the listbox/window colour, not the button face
   });
 
   it('and neither one is the button face', () => {
-    for (const sel of ['.ze-checklistbox', '.ze-report-view'])
+    for (const sel of ['.ze-gridlist', '.ze-report-view'])
       expect(decl(sel, 'background')).not.toBe('var(--ctl-face)');
   });
 });
 
 describe('the five match rows keep wx’s uneven pitch', () => {
   it('the row gap is the wxGridBagSizer’s vgap alone', () => {
-    // `new wxGridBagSizer( 3, 0 )`. It said 5, the bottom border folded in.
-    expect(decl('.ze-chsym-match', 'row-gap')).toBe('3px');
-    expect(decl('.ze-chsym-match', 'column-gap')).toBe('0');
+    // `new wxGridBagSizer( 3, 0 )`, and the derived SetEmptyCellSize( wxSize( 0, 0 ) ).
+    expect(BASE).toMatch(/<GridBagSizer\s+vgap=\{3\}\s+hgap=\{0\}\s+emptyCellSize=\{\[0, 0\]\}/);
   });
 
   it('and only the two rows that carry wxBOTTOM 5 add anything to it', () => {
-    // m_matchAll (:29) and m_matchBySelection (:32) — nothing else in the grid
-    // states a vertical border.
-    expect(decl('.ze-chsym-mspan', 'margin-bottom')).toBe('5px');
-    expect(decl('.ze-chsym-mrad', 'margin-bottom')).toBeUndefined();
-  });
-
-  it('a radio-only row is a radio tall, so it is shorter than an entry row', () => {
-    // 22 against --ctl-height's 34: the probe reports both.
-    expect(decl('.ze-chsym-mrad', 'min-height')).toBe('var(--check-row)');
-    expect(token('--check-row')).toBe('22px');
-    expect(token('--ctl-height')).toBe('34px');
-  });
-
-  it('the radios state no trailing border, because wx applies none', () => {
-    // The 2 / 5 / 6 on rows 2-4 go with wxALIGN_CENTER_VERTICAL and no
-    // direction flag, so wx ignores them; hgap is 0.
-    expect(decl('.ze-chsym-mrad', 'padding-right')).toBeUndefined();
+    // m_matchAll (:29) and m_matchBySelection (:32); rows 2-4 state no vertical border.
+    for (const r of ['{radio(0)}', '{radio(1)}']) {
+      expect(itemAround(r)).toContain('wxALIGN_CENTER_VERTICAL | wxBOTTOM');
+      expect(itemAround(r)).toContain('border={5}');
+    }
+    for (const r of ['{radio(2)}', '{radio(3)}', '{radio(4)}'])
+      expect(itemAround(r)).not.toContain('wxBOTTOM');
   });
 });
 
 describe('the width is bSizerUpdate’s minimum, so its borders must be exact', () => {
-  it('m_mainSizer puts nothing between its children and no inset around them', () => {
-    // The shared `.ze-label-dialog-body` states 14px 16px and a 12px gap; both
-    // have to be off here or the boxes' own 10 sits inside another 16.
-    expect(decl('.ze-chsym-body', 'padding')).toBe('0');
-    expect(decl('.ze-chsym-body', 'gap')).toBe('0');
-  });
-
-  it('the two boxes carry the proportions 2 and 4, not a width', () => {
-    // As grid tracks — see the grid block at the foot of this file for why
-    // flexbox could not hold them.
-    expect(decl('.ze-chsym-update', 'grid-template-columns')).toBe('2fr 4fr');
-    for (const sel of ['.ze-chsym-fields', '.ze-chsym-options', '.ze-chsym-update'])
-      expect(decl(sel, 'width')).toBeUndefined();
-  });
-
-  it('with wxTOP|wxRIGHT|wxLEFT 10 on the fields box and no wxLEFT on the options box', () => {
-    // `bSizerUpdate->Add( m_updateFieldsSizer, 2, ...|wxTOP|wxRIGHT|wxLEFT, 10 )`
-    // and `Add( m_updateOptionsSizer, 4, ...|wxTOP|wxRIGHT, 10 )`.
-    expect(decl('.ze-chsym-fields', 'margin')).toBe('10px 10px 0');
-    expect(decl('.ze-chsym-options', 'margin')).toBe('10px 10px 0 0');
+  it('the two boxes carry the proportions 2 and 4, with wxTOP|wxRIGHT|wxLEFT 10 and wxTOP|wxRIGHT 10', () => {
+    const fields = itemAround('{/* m_updateFieldsSizer */}');
+    expect(fields).toContain('proportion={2}');
+    expect(fields).toContain('wxEXPAND | wxTOP | wxRIGHT | wxLEFT');
+    expect(fields).toContain('border={10}');
+    const options = itemAround('{/* m_updateOptionsSizer, wxHORIZONTAL */}');
+    expect(options).toContain('proportion={4}');
+    expect(options).toContain('wxEXPAND | wxTOP | wxRIGHT}');
+    expect(options).toContain('border={10}');
   });
 
   it('and the 5 px spacer between them', () => {
     // `bSizerUpdate->Add( 5, 0, 0, wxEXPAND, 5 )`.
-    expect(decl('.ze-chsym-update', 'gap')).toBe('5px');
+    expect(BASE).toContain('<Spacer width={5} height={0} flag={wxEXPAND} border={5} />');
   });
 
   it('the wxRIGHT 10 is on the left option column only', () => {
-    // `Add( bSizer8, 1, wxEXPAND|wxRIGHT, 10 )`; bSizer9 is added with none.
-    expect(decl('.ze-chsym-optcol', 'padding-right')).toBeUndefined();
-    expect(decl('.ze-chsym-optcol:nth-of-type(1)', 'padding-right')).toBe('10px');
-  });
-
-  it('and no rule in the block may shrink a control below its label', () => {
-    // A wxSizer never takes a child below its minimum, and a wxCheckBox's
-    // minimum is its whole label. `min-width: 0` is how the option columns
-    // collapsed until they overlapped each other.
-    // Comments first: this block explains at length why `min-width: 0` is
-    // wrong, and the prose must not read as the declaration.
-    const block = SHELL.slice(SHELL.indexOf('/* DIALOG_CHANGE_SYMBOLS,')).replace(
-      /\/\*[\s\S]*?\*\//g,
-      '',
-    );
-    const offenders = [...block.matchAll(/(\.ze-chsym-[\w-]+)[^{}]*\{[^}]*min-width:\s*0/g)];
-    expect(offenders.map((m) => m[1])).toStrictEqual([]);
+    // `Add( bSizer8, 1, wxEXPAND|wxRIGHT, 10 )`; bSizer9 is added wxEXPAND, 5.
+    expect(itemAround('{/* bSizer8 */}')).toContain('wxEXPAND | wxRIGHT}');
+    expect(itemAround('{/* bSizer8 */}')).toContain('border={10}');
+    expect(itemAround('{/* bSizer9 */}')).not.toContain('wxRIGHT');
   });
 });
 
@@ -208,49 +190,12 @@ describe('a control that carries its own label is never given a label column', (
     for (const sel of rules) expect(sel).toContain(':first-child');
   });
 
-  it('and the option labels state nowrap, so a column is as wide as its widest', () => {
-    expect(
-      decl(
-        '.ze-chsym-opt > span,\n.ze-chsym-fieldbox .row > span,\n.ze-chsym-mrad > span',
-        'white-space',
-      ),
-    ).toBe('nowrap');
-  });
-
   it('the indicator-to-label gap beats the shared .row rule that states 10px', () => {
     // `.ze-label-dialog-body .row { gap: 10px }` is (0,2,0) and outranks both
     // `.ze-chsym-opt` (0,1,0) and `.ze-props-group label` (0,1,1), so the fix
     // has to match its specificity — and still consume the token, not restate
     // a number.
-    expect(decl('.ze-label-dialog-body .ze-chsym-opt', 'gap')).toBe('var(--check-inset)');
     expect(decl('.ze-props-group label', 'gap')).toBe('var(--check-inset)');
-  });
-});
-
-/**
- * wxBoxSizer's proportion is CSS Grid's `fr`, not flexbox's `flex-grow`.
- *
- * A flex item's automatic minimum size is its min-content, and every label in
- * these boxes is `nowrap`, so with `display: flex` both boxes were floored at
- * their own text: the row came out as the SUM of two minimums and the 2:4 was
- * never applied. The fields box measured 236 px against wx's 297.
- *
- * Grid resolves `fr` by taking the largest base-size-over-flex-factor and
- * scaling every track back up by it (css-grid-1 §12.7) — the same arithmetic
- * as wxBoxSizer::CalcMin. Measured, the two now agree: the fields box is
- * 0.476 of the options box in ours and in wx alike.
- */
-describe('the 2:4 proportion is a grid track, because flexbox cannot express it', () => {
-  it('the update row is a grid of 2fr and 4fr', () => {
-    expect(decl('.ze-chsym-update', 'display')).toBe('grid');
-    expect(decl('.ze-chsym-update', 'grid-template-columns')).toBe('2fr 4fr');
-  });
-
-  it('and the boxes state no flex-grow of their own, which would re-introduce it', () => {
-    // `flex: 2` / `flex: 4` on a grid item does nothing, and leaving them in
-    // would say the proportion lives somewhere it does not.
-    expect(decl('.ze-chsym-fields', 'flex')).toBeUndefined();
-    expect(decl('.ze-chsym-options', 'flex')).toBeUndefined();
   });
 });
 
@@ -318,26 +263,9 @@ describe('the report panel has one font size, and names its one exception', () =
   });
 });
 
-/**
- * The output box was 200 px tall with the message view 10 px tall inside it —
- * the Show: strip sitting under a sliver, and 130 px of dead space below.
- *
- * `.ze-report-panel` is a <fieldset>, and a fieldset lays its children out in
- * an anonymous box that a flex item's stretched height does not reach. Nor can
- * `height: 100%` help: the wrapper's height comes from `min-height`, which a
- * percentage cannot resolve against. A GRID item's stretch is definite, so the
- * wrapper is a grid and the fieldset's own flex column can divide it.
- */
-describe('the output box fills the 200 px upstream reserves for it', () => {
-  it('the wrapper is a grid and carries the panel’s minimum', () => {
-    expect(decl('.ze-chsym-msgs', 'display')).toBe('grid');
-    expect(decl('.ze-chsym-msgs', 'min-height')).toBe('200px');
-  });
-
-  it('and nothing sizes the fieldset directly, which is what collapsed it', () => {
-    // Both attempts are gone: `min-height: 200px` on the fieldset never
-    // reached its anonymous content box, and `height: 100%` resolved against
-    // a min-height-derived height, i.e. to the content's own 82 px.
-    expect(SHELL).not.toContain('.ze-chsym-msgs > .ze-report-panel');
+/** `m_messagePanel->SetMinSize( wxSize( -1,200 ) )`: the report panel's 200 px floor. */
+describe('the output box keeps the 200 px upstream reserves for it', () => {
+  it('as the sizer item’s minimum', () => {
+    expect(itemAround('<HtmlReportPanel')).toContain('minSize={[-1, 200]}');
   });
 });

@@ -841,7 +841,8 @@ const BASELINE: Record<string, { colours: number; metrics: number }> = {
   // colours 127 -> 126, metrics 629 -> 619: Text Properties' .ze-tp-* / .ze-lp-entry / -syntax rules.
   // metrics 619 -> 599: the .ze-lp-* fields / options / grid rules Sheet Properties' pair retired.
   // metrics 599 -> 591: the last .ze-lp-* rules (Global Edit's pair).
-  'common/widgets': { colours: 126, metrics: 591 },
+  // metrics 591 -> 590: Change Symbols' .ze-chsym-* rules.
+  'common/widgets': { colours: 126, metrics: 590 },
   // 10-10: metrics 1 -> 0, the menu drawing's one literal went to external/wx with it.
   'common/tool': { colours: 0, metrics: 0 },
   // metrics 0 -> 15 on 09-26: the stage-1 moves, 8 from `dialogs` and 7 from
@@ -1682,8 +1683,9 @@ describe('the scan totals, so the numbers in the PR stay true', () => {
     // 985 -> 973: the common/widgets row above.
     // 973 -> 953: the same.
     // 953 -> 940 (10-11): editors/pcb 88 -> 75, Filter Selection's inline layout and the other
-    // dialogs of the pcbnew pairs batch; 940 -> 932: the last .ze-lp-* rules (Global Edit's pair).
-    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(932);
+    // dialogs of the pcbnew pairs batch; 940 -> 932: the last .ze-lp-* rules (Global Edit's
+    // pair); 932 -> 931: Change Symbols' .ze-chsym-* rules.
+    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(931);
   });
 
   it('and the two agree with the per-area table, which is where they come from', () => {
