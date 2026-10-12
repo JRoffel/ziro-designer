@@ -371,21 +371,25 @@ export function StaticBitmap({
   bitmap,
   size,
   disabled,
+  title,
 }: {
   bitmap: string | null | undefined;
   /** The constructor's `wxSize( w, h )` / `SetMinSize`; absent, the bitmap's own. */
   size?: readonly [number, number];
   disabled?: boolean;
+  /** `SetToolTip()`. */
+  title?: string;
 }): JSX.Element {
   const style = size ? { width: size[0], height: size[1] } : undefined;
 
-  if (!bitmap) return <span className="ze-staticbitmap" style={style} />;
+  if (!bitmap) return <span className="ze-staticbitmap" style={style} title={title} />;
 
   return (
     <img
       className={`ze-staticbitmap${disabled ? ' disabled' : ''}`}
       src={bitmap}
       alt=""
+      title={title}
       style={style}
     />
   );

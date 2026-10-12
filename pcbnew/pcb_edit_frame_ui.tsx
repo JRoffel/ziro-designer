@@ -224,6 +224,7 @@ import { DialogDrc } from './dialogs/dialog_drc.js';
 import { DialogUpdatePcb, type UpdatePcbOptions } from './dialogs/dialog_update_pcb.js';
 import { DialogGlobalEditTeardrops } from './dialogs/dialog_global_edit_teardrops.js';
 import { BuildBomTextFromBoard } from './build_BOM_from_board.js';
+import { DialogBoardReannotate } from './dialogs/dialog_board_reannotate.js';
 import { DialogBoardStatistics } from './dialogs/dialog_board_statistics.js';
 import {
   DIALOG_FILTER_SELECTION,
@@ -1580,6 +1581,7 @@ export function PcbEditor({
     resolve: (aOk: boolean) => void;
   } | null>(null);
   const [statsOpen, setStatsOpen] = useState(false);
+  const [reannotateOpen, setReannotateOpen] = useState(false);
 
   /**
    * `DIALOG_BOARD_STATISTICS::saveReportClicked`: the report is a generated
@@ -6364,6 +6366,10 @@ export function PcbEditor({
       case 'zoneUnfillAll':
         runAction(PCB_ACTIONS.zoneUnfillAll);
         break;
+      // `PCB_ACTIONS::boardReannotate` -> `BOARD_REANNOTATE_TOOL::ShowReannotateDialog`.
+      case 'boardReannotate':
+        setReannotateOpen(true);
+        break;
       // `PCB_ACTIONS::zonesManager` -> `GLOBAL_EDIT_TOOL::ZonesManager`.
       case 'zonesManager':
         runAction(PCB_ACTIONS.zonesManager);
@@ -8041,6 +8047,9 @@ export function PcbEditor({
             />
           );
         })()}
+      {reannotateOpen && frameRef.current?.GetBoard() && (
+        <DialogBoardReannotate frame={frameRef.current} onClose={() => setReannotateOpen(false)} />
+      )}
       {statsOpen && frameRef.current?.GetBoard() && (
         <DialogBoardStatistics
           board={frameRef.current.GetBoard()!}

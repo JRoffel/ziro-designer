@@ -16,6 +16,11 @@ import type { EDA_ITEM } from '@ziroeda/common/eda_item.js';
 import type { PICKED_ITEMS_LIST, UNDO_REDO } from '@ziroeda/common/undo_redo_container.js';
 import type { GAL_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import type { DIALOG_TEXT_PROPERTIES } from './dialogs/dialog_text_properties.js';
+import type { PCB_TABLECELL } from './pcb_tablecell.js';
+import {
+  DIALOG_TABLECELL_PROPERTIES,
+  TABLECELL_PROPS_RETVALUE,
+} from './dialogs/dialog_tablecell_properties.js';
 import { DIALOG_TABLE_PROPERTIES } from './dialogs/dialog_table_properties.js';
 import { DIALOG_TEXTBOX_PROPERTIES } from './dialogs/dialog_textbox_properties.js';
 import { DIALOG_BARCODE_PROPERTIES } from './dialogs/dialog_barcode_properties.js';
@@ -139,6 +144,8 @@ export interface PCB_BASE_EDIT_FRAME_DIALOG_HOOKS {
   showImageFileDialog?(): Promise<Uint8Array | null>;
   /** DIALOG_TABLE_PROPERTIES on a live table, new or not; true when OK closed it. */
   showTablePropertiesDialog?(aDialog: DIALOG_TABLE_PROPERTIES): Promise<boolean>;
+  /** `DIALOG_TABLECELL_PROPERTIES::ShowQuasiModal()`: resolves when it closes. */
+  showTableCellPropertiesDialog?(aDialog: DIALOG_TABLECELL_PROPERTIES): Promise<void>;
   /** A zone's properties dialog on a ZONE_SETTINGS alone; true when OK closed it. */
   showZoneSettingsDialog?(
     aDialog: DIALOG_COPPER_ZONE | DIALOG_NON_COPPER_ZONES_EDITOR | DIALOG_RULE_AREA_PROPERTIES,
@@ -244,6 +251,16 @@ export abstract class PCB_BASE_EDIT_FRAME extends PCB_BASE_FRAME {
     aDialog: DIALOG_COPPER_ZONE | DIALOG_NON_COPPER_ZONES_EDITOR | DIALOG_RULE_AREA_PROPERTIES,
   ): Promise<boolean> {
     return this.dialogHooks().showZoneSettingsDialog?.(aDialog) ?? Promise.resolve(false);
+  }
+
+  /**
+   * EDIT_TOOL's `DIALOG_TABLECELL_PROPERTIES( editFrame, cells ).ShowQuasiModal()`: true when it
+   * closed on Edit Table... (TABLECELL_PROPS_EDIT_TABLE).
+   */
+  async ShowTableCellPropertiesDialog(aCells: PCB_TABLECELL[]): Promise<boolean> {
+    const dlg = new DIALOG_TABLECELL_PROPERTIES(this, aCells);
+    await this.dialogHooks().showTableCellPropertiesDialog?.(dlg);
+    return dlg.GetReturnValue() === TABLECELL_PROPS_RETVALUE.TABLECELL_PROPS_EDIT_TABLE;
   }
 
   /** `DIALOG_TABLE_PROPERTIES( frame, table ).ShowQuasiModal() == wxID_OK`, on the live table. */

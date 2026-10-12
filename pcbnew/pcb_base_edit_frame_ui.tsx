@@ -24,6 +24,10 @@
  * Closing it destroys the pane (`~PCB_VERTEX_EDITOR_PANE` ->
  * `OnVertexEditorPaneClosed`), so the owner drops its reference in `onClose`.
  */
+import {
+  type DIALOG_TABLECELL_PROPERTIES,
+  DialogTableCellProperties,
+} from './dialogs/dialog_tablecell_properties.js';
 import { type JSX, type ReactNode, useCallback, useState, useSyncExternalStore } from 'react';
 import type { PCB_VERTEX_EDITOR_PANE } from './widgets/vertex_editor_pane.js';
 import { PcbVertexEditorPane } from './widgets/vertex_editor_pane.js';
@@ -192,6 +196,7 @@ export function usePcbItemDialogs(aEnv: PCB_ITEM_DIALOGS_ENV): {
       | 'showTextBoxPropertiesDialog'
       | 'showReferenceImagePropertiesDialog'
       | 'showTablePropertiesDialog'
+      | 'showTableCellPropertiesDialog'
       | 'showBarcodePropertiesDialog'
       | 'showZoneSettingsDialog'
       | 'showImageFileDialog'
@@ -220,6 +225,10 @@ export function usePcbItemDialogs(aEnv: PCB_ITEM_DIALOGS_ENV): {
     table: PCB_TABLE;
     resolve: Resolve;
   } | null>(null);
+  const [cells, setCells] = useState<{
+    dialog: DIALOG_TABLECELL_PROPERTIES;
+    resolve: () => void;
+  } | null>(null);
   const [barcode, setBarcode] = useState<{
     dialog: DIALOG_BARCODE_PROPERTIES;
     preview: (v: BarcodeValues) => BarcodePreview;
@@ -245,6 +254,8 @@ export function usePcbItemDialogs(aEnv: PCB_ITEM_DIALOGS_ENV): {
       new Promise<boolean>((resolve) =>
         setTable({ dialog: aDialog, table: aDialog.GetTable(), resolve }),
       ),
+    showTableCellPropertiesDialog: (aDialog: DIALOG_TABLECELL_PROPERTIES) =>
+      new Promise<void>((resolve) => setCells({ dialog: aDialog, resolve })),
     showBarcodePropertiesDialog: (aDialog: DIALOG_BARCODE_PROPERTIES) =>
       new Promise<boolean>((resolve) =>
         setBarcode({
@@ -362,6 +373,15 @@ export function usePcbItemDialogs(aEnv: PCB_ITEM_DIALOGS_ENV): {
           layerColor={layerColor}
           onApplied={() => setShape(null)}
           onClose={() => setShape(null)}
+        />
+      )}
+      {cells && (
+        <DialogTableCellProperties
+          dialog={cells.dialog}
+          onClose={() => {
+            cells.resolve();
+            setCells(null);
+          }}
         />
       )}
       {table && (

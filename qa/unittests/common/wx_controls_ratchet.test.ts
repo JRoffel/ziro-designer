@@ -104,7 +104,8 @@ const BASELINE: Record<(typeof AREAS)[number], Record<Kind, number>> = {
   // then Barcode, Layer Selection, GenCAD, Print, Text, Text Box, Dimension.
   // then Shape, Import Graphics, Convert Settings, Complex Shape: no raw select or radio left.
   // then Create Array, 3D Models panel, footprint editor properties, Zone Manager.
-  pcbnew: { button: 26, checkbox: 10, select: 0, frame: 1, radio: 0, entry: 7, sbox: 4 },
+  // then Board Statistics; Table Cell and Reannotate are new pairs.
+  pcbnew: { button: 22, checkbox: 10, select: 0, frame: 1, radio: 0, entry: 7, sbox: 0 },
 };
 
 function tsxFiles(aDir: string, aOut: string[] = []): string[] {

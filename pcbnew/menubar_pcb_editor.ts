@@ -808,7 +808,7 @@ export function buildPcbMenus(
         { sep: true },
         { label: 'Collect And Embed 3D Models', disabled: dis },
         { sep: true },
-        { label: 'Geographical Reannotate...', disabled: dis },
+        { label: 'Geographical Reannotate...', action: () => h.action('boardReannotate') },
         { label: 'Update Schematic from PCB...', disabled: dis },
         {
           label: 'Multi-Channel',

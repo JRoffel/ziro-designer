@@ -72,10 +72,25 @@
  * prefix is added or removed — so with a front prefix of `F_`, an excluded `R3`
  * does not reserve 3 under `F_R`.
  */
+import { type JSX, useState } from 'react';
+import { IsOK } from '@ziroeda/common/confirm.js';
+import { pcbIUScale, pcbMmToIU } from '@ziroeda/common/eda_units.js';
 import { PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
+import {
+  RPT_SEVERITY_ACTION,
+  RPT_SEVERITY_ERROR,
+  RPT_SEVERITY_INFO,
+  RPT_SEVERITY_WARNING,
+  type ReportLine,
+  type Severity,
+} from '@ziroeda/common/reporter.js';
+import { GRID_MENU } from '@ziroeda/common/tool/grid_menu.js';
+import { parseUnitValue } from '@ziroeda/common/widgets/unit_binder.js';
+import type { PCB_EDIT_FRAME } from '../pcb_edit_frame.js';
+import { DIALOG_BOARD_REANNOTATE_BASE } from './dialog_board_reannotate_base.js';
 import { strNumCmp, wildCompareString } from '@ziroeda/common/string_utils.js';
 import type { BOARD } from '../board.js';
-import type { BOARD_COMMIT } from '../board_commit.js';
+import { BOARD_COMMIT } from '../board_commit.js';
 import type { FOOTPRINT } from '../footprint.js';
 
 /** `MINGRID`, the grid `RoundToGrid` falls back to when it is handed 0. */
@@ -645,4 +660,226 @@ export function applyBoardReannotate(
 
   aCommit.Push('Annotation');
   return true;
+}
+
+/** `empty_str()` / `unknown_str()`. */
+const empty_str = '<empty>';
+
+/** `ShowReport`: the message's lines, the HTML breaks KiCad's panel renders split out. */
+function reportLines(aMessage: string, aSeverity: Severity): ReportLine[] {
+  return aMessage
+    .split(/\n|<br\/>/)
+    .map((l) => l.replace(/<\/?i>/g, ''))
+    .filter((l) => l !== '')
+    .map((message) => ({ message, severity: aSeverity, location: 'body' as const }));
+}
+
+/** `LogChangePlan` and `LogFootprints`, the report ReannotateBoard writes before it commits. */
+function planReport(
+  aPlan: ReannotatePlan,
+  aUseFootprintLocation: boolean,
+  aCoord: (x: number, y: number) => string,
+): ReportLine[] {
+  const lines: ReportLine[] = [];
+
+  for (const list of [aPlan.front, aPlan.back]) {
+    if (list.length === 0) continue;
+
+    let message = list[0]!.front ? 'Front Footprints' : 'Back Footprints';
+    message += ' ';
+    message += aUseFootprintLocation
+      ? '(sorted by footprint location)'
+      : '(sorted by reference designator location)';
+    message += '<br/>-------------------------------------------------------------';
+    list.forEach((fp, i) => {
+      message += `<br/>${i + 1} ${fp.refDesString || empty_str} at ${aCoord(fp.x, fp.y)} (rounded to ${aCoord(fp.roundedX, fp.roundedY)})`;
+    });
+    lines.push(...reportLines(`${message}<br/>`, RPT_SEVERITY_INFO));
+  }
+
+  let message = 'Reference Designator Prefixes in Use';
+  message += '<br/>-------------------------------------------------------------<br/>';
+  aPlan.prefixes.forEach((info, i) => {
+    message += info.refDesPrefix + ((i + 1) % 16 === 0 ? '<br/>' : ' ');
+  });
+  message += '<br/>';
+  if (aPlan.excludes.length > 0)
+    message += `(Excluding ${aPlan.excludes.map((e) => `${e} `).join('')} from reannotation.)`;
+  lines.push(...reportLines(`${message}<br/>`, RPT_SEVERITY_INFO));
+
+  message = 'Change Log';
+  message += '<br/>-------------------------------------------------------------<br/>';
+  for (const change of aPlan.changes) {
+    message +=
+      change.action !== 'update'
+        ? `${change.oldRefDesString || empty_str}  ${REANNOTATE_ACTION_MESSAGE[change.action]}<br/>`
+        : `${change.oldRefDesString || empty_str} -> ${change.newRefDes || empty_str}<br/>`;
+  }
+  lines.push(...reportLines(message, RPT_SEVERITY_ACTION));
+
+  return lines;
+}
+
+/** `ShowModal()` of DIALOG_BOARD_REANNOTATE, on BOARD_REANNOTATE_TOOL::ShowReannotateDialog. */
+export function DialogBoardReannotate({
+  frame,
+  onClose,
+}: {
+  frame: PCB_EDIT_FRAME;
+  onClose: () => void;
+}): JSX.Element {
+  // GRID_MENU::BuildChoiceList, the frame's grids in its units; the last size the frame used.
+  const [grids] = useState(() => {
+    const cfg = frame.config();
+    const list: string[] = [];
+    const window = cfg ? frame.GetWindowSettings(cfg) : null;
+    if (window) GRID_MENU.BuildChoiceList(list, window, frame);
+    const idx = window?.grid.last_size_idx ?? 0;
+    return {
+      list,
+      settings: window?.grid.grids ?? [],
+      selection: idx >= 0 && idx < list.length ? idx : 0,
+    };
+  });
+
+  const [opts, setOpts] = useState(() => ({
+    ...DEFAULT_REANNOTATE_OPTIONS,
+    // TransferDataToWindow: a selection makes Selection the scope.
+    scope: frame.GetSelectionTool().GetSelection().Empty()
+      ? DEFAULT_REANNOTATE_OPTIONS.scope
+      : ('selection' as const),
+  }));
+  const [gridIndex, setGridIndex] = useState(grids.selection);
+  const [locationIndex, setLocationIndex] = useState(0);
+  const [frontStart, setFrontStart] = useState('1');
+  const [backStart, setBackStart] = useState('');
+  const [messages, setMessages] = useState<ReportLine[]>([]);
+  const [severities, setSeverities] = useState<Severity>(
+    RPT_SEVERITY_ERROR | RPT_SEVERITY_WARNING | RPT_SEVERITY_INFO | RPT_SEVERITY_ACTION,
+  );
+
+  const set = (patch: Partial<ReannotateOptions>): void => setOpts((o) => ({ ...o, ...patch }));
+  const scopes: ReannotateScope[] = ['all', 'front', 'back', 'selection'];
+  // wxTextValidator( wxFILTER_DIGITS ) on both starts.
+  const digits = (aText: string): string => aText.replace(/[^0-9]/g, '');
+  const coord = (x: number, y: number): string =>
+    `${frame.GetUnitsProvider().MessageTextFromValue(x)}, ${frame.GetUnitsProvider().MessageTextFromValue(y)}`;
+
+  // FilterPrefix: a last character that is neither alphanumeric nor VALIDPREFIX is dropped.
+  const filterPrefix = (aText: string): string => {
+    const last = aText.at(-1);
+    if (
+      last === undefined ||
+      /[A-Za-z0-9]/.test(last) ||
+      REANNOTATE_VALID_PREFIX_CHARS.includes(last)
+    )
+      return aText;
+    return aText.slice(0, -1);
+  };
+
+  /** OnApplyClick, ReannotateBoard. */
+  const apply = async (): Promise<void> => {
+    const grid = grids.settings[gridIndex];
+    // `ValueFromString( pcbIUScale, EDA_UNITS::MILS, grid.x )`: the grid strings carry their unit.
+    const gridIU = (aText: string | undefined): number =>
+      aText ? Math.trunc(pcbMmToIU(parseUnitValue(aText, 'mils', pcbIUScale))) : 0;
+    const plan = planBoardReannotate(frame.GetBoard()!, {
+      ...opts,
+      useFootprintLocation: locationIndex === 0,
+      sortGridX: gridIU(grid?.x),
+      sortGridY: gridIU(grid?.y),
+      frontStart: Number(frontStart || '1'),
+      backStart: Number(backStart || '0'),
+    });
+
+    const out: ReportLine[] = [];
+    const done = (): void => setMessages((m) => [...m, ...out]);
+
+    if (!plan.ok) {
+      out.push(
+        ...reportLines(
+          'Selected options resulted in errors! Change them and try again.',
+          RPT_SEVERITY_ERROR,
+        ),
+      );
+      done();
+      return;
+    }
+
+    if (plan.badRefDes.length > 0) {
+      const message1 = `PCB has ${plan.badRefDes.length} empty or invalid reference designations.`;
+      const message2 =
+        "You may wish to run DRC with 'Test for parity between PCB and schematic' checked.";
+      const badrefdes = plan.badRefDes
+        .map(
+          (mod) =>
+            `<br/>    RefDes: ${mod.refDesString || empty_str}; footprint: ${mod.fpid || '<unknown>'} at ${coord(mod.x, mod.y)} on PCB.`,
+        )
+        .join('');
+      out.push(
+        ...reportLines(`${message1}<br/>${message2}${badrefdes}<br/>`, RPT_SEVERITY_WARNING),
+      );
+
+      if (!(await IsOK(`${message1}\n${message2}\n \nReannotate anyway?`))) {
+        done();
+        return;
+      }
+    }
+
+    if (!applyBoardReannotate(frame.GetBoard()!, plan, new BOARD_COMMIT(frame))) {
+      done();
+      return;
+    }
+
+    out.push(...planReport(plan, locationIndex === 0, coord));
+    out.push(...reportLines('PCB successfully reannotated', RPT_SEVERITY_ACTION));
+    out.push(
+      ...reportLines(
+        'PCB annotation changes should be synchronized with schematic using "Update Schematic from PCB".',
+        RPT_SEVERITY_WARNING,
+      ),
+    );
+    done();
+    frame.OnModify(); // Need to save file on exit.
+  };
+
+  return (
+    <DIALOG_BOARD_REANNOTATE_BASE
+      sortCode={opts.sortCode}
+      onSortCode={(aCode) => set({ sortCode: aCode })}
+      m_locationChoice={{ value: locationIndex, onChange: setLocationIndex }}
+      m_GridChoice={{ choices: grids.list, value: gridIndex, onChange: setGridIndex }}
+      scope={scopes.indexOf(opts.scope)}
+      onScope={(aIndex) => set({ scope: scopes[aIndex]! })}
+      m_ExcludeLocked={{
+        value: opts.excludeLocked,
+        onChange: (aOn) => set({ excludeLocked: aOn }),
+      }}
+      m_ExcludeList={{ value: opts.excludeList, onChange: (aText) => set({ excludeList: aText }) }}
+      m_FrontRefDesStart={{ value: frontStart, onChange: (aText) => setFrontStart(digits(aText)) }}
+      m_BackRefDesStart={{ value: backStart, onChange: (aText) => setBackStart(digits(aText)) }}
+      m_FrontPrefix={{
+        value: opts.frontPrefix,
+        onChange: (aText) => set({ frontPrefix: filterPrefix(aText) }),
+      }}
+      m_BackPrefix={{
+        value: opts.backPrefix,
+        onChange: (aText) => set({ backPrefix: filterPrefix(aText) }),
+      }}
+      m_RemoveFrontPrefix={{
+        value: opts.removeFrontPrefix,
+        onChange: (aOn) => set({ removeFrontPrefix: aOn }),
+      }}
+      m_RemoveBackPrefix={{
+        value: opts.removeBackPrefix,
+        onChange: (aOn) => set({ removeBackPrefix: aOn }),
+      }}
+      messages={messages}
+      visibleSeverities={severities}
+      onVisibleSeveritiesChange={setSeverities}
+      onOK={() => void apply()}
+      // OnCloseClick: EndDialog( wxID_OK ).
+      onCancel={onClose}
+    />
+  );
 }

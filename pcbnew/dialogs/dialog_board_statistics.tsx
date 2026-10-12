@@ -24,8 +24,7 @@
  * `wxEVT_GRID_COL_SORT` -> `drillGridSort`); the four General grids are plain
  * `wxGrid`s and stay tables here.
  */
-import { CheckBox } from '@ziroeda/wx/controls.js';
-import { type JSX, type Ref, useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { type JSX, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import {
   type BoardStatisticsData,
   type BoardStatisticsOptions,
@@ -40,28 +39,27 @@ import { WX_GRID } from '@ziroeda/common/widgets/wx_grid.js';
 import {
   wxALIGN_CENTER,
   wxEVT_GRID_COL_SORT,
+  wxGridCellAttr,
   type wxGridEvent,
   wxGridStringTable,
 } from '@ziroeda/wx/grid.js';
 import { WxGridView } from '@ziroeda/wx/grid_ui.js';
+import { wxALIGN_LEFT, wxALIGN_RIGHT } from '@ziroeda/wx/defs.js';
+import { DIALOG_BOARD_STATISTICS_BASE } from './dialog_board_statistics_base.js';
 import { PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import type { UNITS_PROVIDER } from '@ziroeda/common/units_provider.js';
-import { useModalEscape } from '@ziroeda/common/dialog_shim.js';
 
 interface Props {
   board: BOARD;
   unitsProvider: UNITS_PROVIDER;
   projectName: string;
+  /** The board's file name, which the report's suggested name is made from. */
   boardName: string;
-  /** Hands the caller the finished report text to save. */
+  /** Hands the caller the finished report text to save, and the name it suggests. */
   onGenerateReport: (text: string, suggestedName: string) => void;
   onClose: () => void;
-  rootRef?: Ref<HTMLDivElement>;
 }
 
-type Tab = 'general' | 'drills';
-
-/** `m_gridDrills->SetColLabelValue` (`_base.cpp:240-247`). */
 const DRILL_COL_LABELS = [
   'Count',
   'Shape',
@@ -73,23 +71,62 @@ const DRILL_COL_LABELS = [
   'Stop Layer',
 ];
 
-// No metrics here: `.ze-grid` is the shared wxGrid port and carries the
-// padding, the font and the rules. Only the alignment is this dialog's, and
-// it is a class too.
+/** `s_savedDialogState`: the three checkboxes, remembered for the session. */
+const s_savedDialogState = {
+  excludeNoPins: false,
+  subtractHoles: false,
+  subtractHolesFromCopper: false,
+};
 
-function Grid({ rows }: { rows: [string, string][] }): JSX.Element {
-  return (
-    <table className="ze-grid">
-      <tbody>
-        {rows.map(([label, value]) => (
-          <tr key={label}>
-            <td className="ze-stats-label">{label}</td>
-            <td className="ze-stats-value">{value}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
+/** For a test: a session that has not opened the dialog yet. */
+export function ResetBoardStatisticsState(): void {
+  s_savedDialogState.excludeNoPins = false;
+  s_savedDialogState.subtractHoles = false;
+  s_savedDialogState.subtractHolesFromCopper = false;
+}
+
+/** `formatCount`. */
+const formatCount = (aCount: number): string => `${aCount}`;
+
+/**
+ * One of the General page's wxGrids: no labels, the label column left-aligned and the amounts
+ * right-aligned (the constructor's SetCellAlignment loop), the cells `aCells`.
+ */
+function InfoGrid({
+  cells,
+  ariaLabel,
+}: {
+  cells: readonly (readonly string[])[];
+  ariaLabel: string;
+}): JSX.Element {
+  const cols = cells[0]?.length ?? 0;
+  const [grid] = useState(() => {
+    const g = new WX_GRID();
+    g.SetTable(new wxGridStringTable(0, cols), true);
+    g.EnableEditing(false);
+
+    for (let col = 0; col < cols; col++) {
+      const attr = new wxGridCellAttr();
+      attr.SetAlignment(col === 0 ? wxALIGN_LEFT : wxALIGN_RIGHT, wxALIGN_CENTER);
+      g.SetColAttr(col, attr);
+    }
+
+    return g;
+  });
+
+  useLayoutEffect(() => {
+    grid.BeginBatch();
+    grid.ClearRows();
+    grid.AppendRows(cells.length);
+    cells.forEach((row, r) => {
+      row.forEach((value, c) => {
+        grid.SetCellValue(r, c, value);
+      });
+    });
+    grid.EndBatch();
+  }, [grid, cells]);
+
+  return <WxGridView grid={grid} colLabels={false} ariaLabel={ariaLabel} />;
 }
 
 export function DialogBoardStatistics({
@@ -99,25 +136,62 @@ export function DialogBoardStatistics({
   boardName,
   onGenerateReport,
   onClose,
-  rootRef,
 }: Props): JSX.Element {
-  useModalEscape(onClose);
+  const [page, setPage] = useState(0);
+  const [options, setOptions] = useState<BoardStatisticsOptions>(() => ({
+    excludeFootprintsWithoutPads: s_savedDialogState.excludeNoPins,
+    subtractHolesFromBoardArea: s_savedDialogState.subtractHoles,
+    subtractHolesFromCopperAreas: s_savedDialogState.subtractHolesFromCopper,
+  }));
 
-  const [tab, setTab] = useState<Tab>('general');
-  const [options, setOptions] = useState<BoardStatisticsOptions>(DEFAULT_BOARD_STATISTICS_OPTIONS);
-
-  // Each checkbox changes what is counted, so the whole computation re-runs.
+  // checkboxClicked: remember the box, then getDataFromPCB() and updateWidgets() again.
   const data: BoardStatisticsData = useMemo(
     () => ComputeBoardStatistics(board, options),
     [board, options],
   );
 
+  const check = (aKey: keyof BoardStatisticsOptions, aSaved: keyof typeof s_savedDialogState) => ({
+    value: options[aKey],
+    onChange: (aOn: boolean) => {
+      s_savedDialogState[aSaved] = aOn;
+      setOptions((o) => ({ ...o, [aKey]: aOn }));
+    },
+  });
+
   const v = (value: number, type: 'distance' | 'area' = 'distance'): string =>
     unitsProvider.MessageTextFromValue(value, true, type);
 
+  // updateWidgets: each grid's rows, as KiCad fills them.
+  const totalPads = data.padEntries.reduce((n, e) => n + e.quantity, 0);
+  const pads = [
+    ...data.padEntries.map((e) => [e.title, formatCount(e.quantity)]),
+    ['Total:', formatCount(totalPads)],
+    ...data.padPropertyEntries.map((e) => [e.title, formatCount(e.quantity)]),
+  ];
+  const totalVias = data.viaEntries.reduce((n, e) => n + e.quantity, 0);
+  const vias = [
+    ...data.viaEntries.map((e) => [e.title, formatCount(e.quantity)]),
+    ['Total:', formatCount(totalVias)],
+  ];
+  const totalFront = data.footprintEntries.reduce((n, e) => n + e.frontCount, 0);
+  const totalBack = data.footprintEntries.reduce((n, e) => n + e.backCount, 0);
+  const components = [
+    ['', 'Front Side', 'Back Side', 'Total'],
+    ...data.footprintEntries.map((e) => [
+      e.title,
+      formatCount(e.frontCount),
+      formatCount(e.backCount),
+      formatCount(e.frontCount + e.backCount),
+    ]),
+    [
+      'Total:',
+      formatCount(totalFront),
+      formatCount(totalBack),
+      formatCount(totalFront + totalBack),
+    ],
+  ];
   const unknown = 'unknown';
-
-  const boardRows: [string, string][] = [
+  const boardRows = [
     [
       'Dimensions:',
       data.hasOutline
@@ -134,32 +208,11 @@ export function DialogBoardStatistics({
     ['Front footprint area:', v(data.frontFootprintCourtyardArea, 'area')],
     [
       'Front footprint density:',
-      data.hasOutline ? `${data.frontFootprintDensity.toFixed(2)} %` : unknown,
+      data.hasOutline ? `${data.frontFootprintDensity.toFixed(2)} %` : '',
     ],
     ['Back footprint area:', v(data.backFootprintCourtyardArea, 'area')],
-    [
-      'Back footprint density:',
-      data.hasOutline ? `${data.backFootprintDensity.toFixed(2)} %` : unknown,
-    ],
+    ['Back footprint density:', data.hasOutline ? `${data.backFootprintDensity.toFixed(2)} %` : ''],
   ];
-
-  const padRows: [string, string][] = [
-    ...data.padEntries.map((e): [string, string] => [e.title, `${e.quantity}`]),
-    ...data.padPropertyEntries.map((e): [string, string] => [e.title, `${e.quantity}`]),
-  ];
-
-  const viaRows: [string, string][] = data.viaEntries.map((e) => [e.title, `${e.quantity}`]);
-
-  const frontTotal = data.footprintEntries.reduce((n, e) => n + e.frontCount, 0);
-  const backTotal = data.footprintEntries.reduce((n, e) => n + e.backCount, 0);
-
-  const checkbox = (key: keyof BoardStatisticsOptions, label: string): JSX.Element => (
-    <CheckBox
-      label={label}
-      checked={options[key]}
-      onChange={(aChecked) => setOptions({ ...options, [key]: aChecked })}
-    />
-  );
 
   /** `m_gridDrills` (`dialog_board_statistics_base.cpp:226-256`). */
   const [drillGrid] = useState(() => {
@@ -173,7 +226,7 @@ export function DialogBoardStatistics({
     return g;
   });
 
-  /** `drillGridSort`'s `sort( m_statsData.drillEntries … COMPARE( colId, ascending ) )`. */
+  /** `drillGridSort`'s `sort( m_statsData.drillEntries ... COMPARE( colId, ascending ) )`. */
   const [drillSort, setDrillSort] = useState<{ col: DRILL_LINE_ITEM_COL_ID; asc: boolean } | null>(
     null,
   );
@@ -195,12 +248,11 @@ export function DialogBoardStatistics({
     return () => drillGrid.Disconnect(wxEVT_GRID_COL_SORT, drillGridSort);
   }, [drillGrid]);
 
-  // `updateDrillGrid` (`:370-411`).
+  // `updateDrillGrid`.
   useLayoutEffect(() => {
     drillGrid.BeginBatch();
     drillGrid.ClearRows();
     drillGrid.AppendRows(drills.length);
-
     drills.forEach((d, row) => {
       const shapeStr =
         d.shape === PAD_DRILL_SHAPE.CIRCLE
@@ -220,100 +272,36 @@ export function DialogBoardStatistics({
         layerStr(d.startLayer),
         layerStr(d.stopLayer),
       ];
-      cells.forEach((v, col) => {
-        drillGrid.SetCellValue(row, col, v);
+      cells.forEach((value, col) => {
+        drillGrid.SetCellValue(row, col, value);
       });
     });
-
     drillGrid.EndBatch();
   }, [drillGrid, drills, board, unitsProvider]);
 
   return (
-    <div ref={rootRef} className="ze-dialog" role="dialog" aria-label="Board Statistics">
-      <div className="ze-dialog-body">
-        <div className="ze-notebook-tabs">
-          <button type="button" aria-pressed={tab === 'general'} onClick={() => setTab('general')}>
-            General
-          </button>
-          <button type="button" aria-pressed={tab === 'drills'} onClick={() => setTab('drills')}>
-            Drill Holes
-          </button>
-        </div>
-
-        {tab === 'general' ? (
-          <div className="ze-stats-general">
-            <fieldset>
-              <legend>Components</legend>
-              <table className="ze-grid">
-                <thead>
-                  <tr>
-                    <th className="ze-stats-label" />
-                    <th className="ze-stats-value">Front Side</th>
-                    <th className="ze-stats-value">Back Side</th>
-                    <th className="ze-stats-value">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.footprintEntries.map((e) => (
-                    <tr key={e.title}>
-                      <td className="ze-stats-label">{e.title}</td>
-                      <td className="ze-stats-value">{e.frontCount}</td>
-                      <td className="ze-stats-value">{e.backCount}</td>
-                      <td className="ze-stats-value">{e.frontCount + e.backCount}</td>
-                    </tr>
-                  ))}
-                  <tr>
-                    <td className="ze-stats-label">Total:</td>
-                    <td className="ze-stats-value">{frontTotal}</td>
-                    <td className="ze-stats-value">{backTotal}</td>
-                    <td className="ze-stats-value">{frontTotal + backTotal}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </fieldset>
-
-            <fieldset>
-              <legend>Pads</legend>
-              <Grid rows={padRows} />
-            </fieldset>
-
-            <fieldset>
-              <legend>Board</legend>
-              <Grid rows={boardRows} />
-            </fieldset>
-
-            <fieldset>
-              <legend>Vias</legend>
-              <Grid rows={viaRows} />
-            </fieldset>
-          </div>
-        ) : (
-          <WxGridView grid={drillGrid} ariaLabel="Drill holes" />
-        )}
-
-        <div className="ze-stats-options">
-          {checkbox('subtractHolesFromBoardArea', 'Subtract holes from board area')}
-          {checkbox('subtractHolesFromCopperAreas', 'Subtract holes from copper areas')}
-          {checkbox('excludeFootprintsWithoutPads', 'Exclude footprints with no pads')}
-        </div>
-      </div>
-
-      <div className="ze-dialog-buttons">
-        <button
-          type="button"
-          onClick={() =>
-            onGenerateReport(
-              FormatBoardStatisticsReport(data, board, unitsProvider, projectName, boardName),
-              `${boardName || 'board'}-statistics.txt`,
-            )
-          }
-        >
-          Generate Report File...
-        </button>
-        <button type="button" onClick={onClose}>
-          Close
-        </button>
-      </div>
-    </div>
+    <DIALOG_BOARD_STATISTICS_BASE
+      page={page}
+      onPage={setPage}
+      m_gridComponents={<InfoGrid cells={components} ariaLabel="Components" />}
+      m_gridPads={<InfoGrid cells={pads} ariaLabel="Pads" />}
+      m_gridBoard={<InfoGrid cells={boardRows} ariaLabel="Board" />}
+      m_gridVias={<InfoGrid cells={vias} ariaLabel="Vias" />}
+      m_checkBoxSubtractHoles={check('subtractHolesFromBoardArea', 'subtractHoles')}
+      m_checkBoxSubtractHolesFromCopper={check(
+        'subtractHolesFromCopperAreas',
+        'subtractHolesFromCopper',
+      )}
+      m_checkBoxExcludeComponentsNoPins={check('excludeFootprintsWithoutPads', 'excludeNoPins')}
+      m_gridDrills={<WxGridView grid={drillGrid} ariaLabel="Drill holes" />}
+      onSaveReport={() =>
+        onGenerateReport(
+          FormatBoardStatisticsReport(data, board, unitsProvider, projectName, boardName),
+          // `fn.SetName( fn.GetName() + wxT( "_report" ) ); fn.SetExt( wxT( "txt" ) )`
+          `${(boardName || 'board').replace(/\.kicad_pcb$/, '')}_report.txt`,
+        )
+      }
+      onClose={onClose}
+    />
   );
 }

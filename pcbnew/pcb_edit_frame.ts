@@ -217,7 +217,6 @@ import type { DIALOG_RULE_AREA_PROPERTIES } from './dialogs/dialog_rule_area_pro
 import { PCB_PICKER_TOOL } from './tools/pcb_picker_tool.js';
 import type { PCB_SELECTION } from './tools/pcb_selection.js';
 import type { PCB_TABLE } from './pcb_table.js';
-import type { PCB_TABLECELL } from './pcb_tablecell.js';
 import { BOX2I } from '@ziroeda/kimath/src/math/box2.js';
 import { DIALOG_BOOK_REPORTER } from '@ziroeda/common/dialogs/dialog_book_reporter.js';
 
@@ -1255,14 +1254,6 @@ export class PCB_EDIT_FRAME extends PCB_BASE_EDIT_FRAME {
 
   ShowTrackViaPropertiesDialog(aSelection: PCB_SELECTION): Promise<void> {
     return this.hooks.showTrackViaPropertiesDialog?.(aSelection) ?? Promise.resolve();
-  }
-
-  /**
-   * `DIALOG_TABLECELL_PROPERTIES`. TRANSITIONAL (#636 stage 3): not wired to a
-   * window dialog yet; a table cell's properties open the table's own.
-   */
-  ShowTableCellPropertiesDialog(_aCells: PCB_TABLECELL[]): Promise<boolean> {
-    return Promise.resolve(true);
   }
 
   /**

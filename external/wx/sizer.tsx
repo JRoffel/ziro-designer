@@ -513,8 +513,11 @@ export interface StdDialogButtonSizerProps {
    * base `AddButton`s (DIALOG_FOOTPRINT_ASSOCIATIONS has wxID_OK alone).
    */
   onCancel?: () => void;
-  /** `wxID_OK`'s handler — the affirmative, and the dialog's default button. */
-  onOk: () => void;
+  /**
+   * `wxID_OK`'s handler — the affirmative, and the dialog's default button. Absent, no OK: a
+   * sizer the base gave wxID_CANCEL alone (DIALOG_BOARD_STATISTICS' Close).
+   */
+  onOk?: () => void;
   /**
    * Stock label overrides. wx takes these from the stock ids (`wxID_OK` → "OK",
    * `wxID_CANCEL` → "Cancel"); a dialog that renames one does it deliberately,
@@ -557,7 +560,7 @@ export function StdDialogButtonSizer({
       {children ? <span className="ze-sdb-spacer" /> : null}
       {onCancel ? <Button label={cancelLabel} title={cancelTitle} onClick={onCancel} /> : null}
       {onApply ? <Button label={applyLabel} onClick={onApply} /> : null}
-      <Button label={okLabel} isDefault disabled={okDisabled} onClick={onOk} />
+      {onOk ? <Button label={okLabel} isDefault disabled={okDisabled} onClick={onOk} /> : null}
     </div>
   );
 }
