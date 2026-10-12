@@ -8,17 +8,21 @@
  * `TransferDataFromWindow` validation below were the Constraints page of
  * `dialog_board_setup.tsx` until it was split out to the file KiCad keeps it in.
  */
-import { CheckBox, TextCtrl } from '@ziroeda/wx/controls.js';
 import type { JSX } from 'react';
 import { validateUnitValue, type UnitRange } from '@ziroeda/common/widgets/unit_binder.js';
-import { pcbIUScale } from '@ziroeda/common/eda_units.js';
+import { ARC_HIGH_DEF, pcbIUScale, stringFromValue } from '@ziroeda/common/eda_units.js';
 import type { PagedDialogError } from '@ziroeda/common/widgets/paged_dialog.js';
-import { SpinCtrl } from '@ziroeda/wx/spin_ctrl.js';
 import { svgUrl } from '@ziroeda/bitmaps_png';
 import { pcbUnitTextMM, pcbUnitValueMM, unitLabel } from '../pcb_unit_binder.js';
 import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
 import { KiROUND } from '@ziroeda/kimath/src/math/util.js';
 import type { BOARD } from '../board.js';
+import {
+  type CONSTRAINT_ROW,
+  type FIELD,
+  PANEL_SETUP_CONSTRAINTS_BASE,
+  type PANEL_SETUP_CONSTRAINTS_BASE_PROPS,
+} from './panel_setup_constraints_base.js';
 
 /** The page's fields: BOARD_DESIGN_SETTINGS' minimums, in mm as the binders show them. */
 export interface BoardConstraints {
@@ -32,6 +36,8 @@ export interface BoardConstraints {
   minUViaHoleMM: number;
   copperToHoleMM: number;
   copperToEdgeMM: number;
+  /** m_MinGrooveWidth, the creepage slot width; its row is hidden unless the advanced flag is on. */
+  minGrooveWidthMM: number;
   // Holes
   minThroughHoleMM: number;
   minHoleToHoleMM: number;
@@ -84,6 +90,7 @@ export const PANEL_SETUP_CONSTRAINTS = {
       minUViaHoleMM: mm(bds.m_MicroViasMinDrill),
       copperToHoleMM: mm(bds.m_HoleClearance),
       copperToEdgeMM: mm(bds.m_CopperEdgeClearance),
+      minGrooveWidthMM: mm(bds.m_MinGrooveWidth),
       minThroughHoleMM: mm(bds.m_MinThroughDrill),
       minHoleToHoleMM: mm(bds.m_HoleToHoleMin),
       silkClearanceMM: mm(bds.m_SilkClearance),
@@ -111,6 +118,7 @@ export const PANEL_SETUP_CONSTRAINTS = {
     bds.m_ViasMinSize = iu(c.minViaMM);
     bds.m_HoleClearance = iu(c.copperToHoleMM);
     bds.m_CopperEdgeClearance = iu(c.copperToEdgeMM);
+    bds.m_MinGrooveWidth = iu(c.minGrooveWidthMM);
     bds.m_MinThroughDrill = iu(c.minThroughHoleMM);
     bds.m_HoleToHoleMin = iu(c.minHoleToHoleMM);
     bds.m_MicroViasMinSize = iu(c.minUViaMM);
@@ -119,28 +127,6 @@ export const PANEL_SETUP_CONSTRAINTS = {
     bds.m_MinSilkTextHeight = iu(c.minTextHeightMM);
     bds.m_MinSilkTextThickness = iu(c.minTextThicknessMM);
   },
-};
-
-/**
- * KiCad's own dark-theme constraint icons, vendored under assets/constraints
- * (GPL like this project, same pattern as assets/toolbar). Filenames are the
- * KiCad BITMAPS enum names assigned in panel_setup_constraints.cpp.
- */
-// Constraint row -> KiCad bitmap file (SetBitmap(KiBitmapBundle(BITMAPS::…))).
-const CON_ICON_FILE: Record<string, string> = {
-  clearance: 'ps_diff_pair_gap',
-  track: 'width_track',
-  conn: 'width_conn',
-  annular: 'via_annulus',
-  viaDia: 'via_diameter',
-  uviaDia: 'via_diameter',
-  uviaHole: 'via_hole_diameter',
-  copperHole: 'hole_to_copper_clearance',
-  copperEdge: 'edge_to_copper_clearance',
-  throughHole: 'via_hole_diameter',
-  holeToHole: 'hole_to_hole_clearance',
-  fillet: 'zone_fillet',
-  spoke: 'thermal_spokes',
 };
 
 /**
@@ -170,6 +156,7 @@ const CONSTRAINT_RANGES: readonly (readonly [keyof BoardConstraints, string, Uni
   ['minViaMM', 'Minimum via diameter:', INCH_0_10],
   ['copperToHoleMM', 'Copper to hole clearance:', INCH_0_10],
   ['copperToEdgeMM', 'Copper to edge clearance:', INCH_0_10],
+  ['minGrooveWidthMM', 'Minimum groove for creepage:', INCH_0_10],
   ['minThroughHoleMM', 'Minimum drill size:', MILS_2_1000],
   ['minHoleToHoleMM', 'Hole to hole clearance:', INCH_0_10],
 ];
@@ -189,14 +176,43 @@ export function validateConstraints(c: BoardConstraints): PagedDialogError | nul
   return null;
 }
 
-function ConIcon({ name }: { name: string }): JSX.Element | null {
-  const file = CON_ICON_FILE[name];
-  const url = file ? svgUrl('constraints', file) : undefined;
-  // [data] `KiBitmapBundle( BITMAPS::…, 24 )` — every bitmap on this page is
-  // asked for at 24 (`panel_setup_constraints.cpp:61-73`). This drew them at 20.
-  return url ? <img src={url} width={24} height={24} alt="" aria-hidden="true" /> : null;
-}
+/** The class's SetBitmap( KiBitmapBundle( BITMAPS::…, 24 ) ). */
+const BITMAPS: Partial<Record<CONSTRAINT_ROW | 'fillet' | 'spoke', string>> = {
+  fillet: 'zone_fillet',
+  spoke: 'thermal_spokes',
+  minClearance: 'ps_diff_pair_gap',
+  trackMinWidth: 'width_track',
+  minConn: 'width_conn',
+  viaMinAnnulus: 'via_annulus',
+  viaMinSize: 'via_diameter',
+  throughHoleMin: 'via_hole_diameter',
+  uviaMinSize: 'via_diameter',
+  uviaMinDrill: 'via_hole_diameter',
+  holeClearance: 'hole_to_copper_clearance',
+  holeToHoleMin: 'hole_to_hole_clearance',
+  edgeClearance: 'edge_to_copper_clearance',
+};
 
+/** Each UNIT_BINDER's row, and the field it edits. */
+const ROW_FIELD: Record<CONSTRAINT_ROW, keyof BoardConstraints> = {
+  minClearance: 'minClearanceMM',
+  trackMinWidth: 'minTrackMM',
+  minConn: 'minConnectionMM',
+  viaMinAnnulus: 'minAnnularMM',
+  viaMinSize: 'minViaMM',
+  holeClearance: 'copperToHoleMM',
+  edgeClearance: 'copperToEdgeMM',
+  minGrooveWidth: 'minGrooveWidthMM',
+  throughHoleMin: 'minThroughHoleMM',
+  holeToHoleMin: 'minHoleToHoleMM',
+  uviaMinSize: 'minUViaMM',
+  uviaMinDrill: 'minUViaHoleMM',
+  silkClearance: 'silkClearanceMM',
+  minTextHeight: 'minTextHeightMM',
+  minTextThickness: 'minTextThicknessMM',
+};
+
+/** PANEL_SETUP_CONSTRAINTS's window: its base over the board's minimums, in the frame's units. */
 export function PanelSetupConstraints({
   value,
   units,
@@ -208,149 +224,50 @@ export function PanelSetupConstraints({
   onChange: (next: BoardConstraints) => void;
 }): JSX.Element {
   /**
-   * `UNIT_BINDER::GetValue()` for a field the model holds in millimetres.
-   *
-   * Not `Number()`: the field shows the FRAME's unit, so on a mils board this
-   * read 5.906 as 5.906 millimetres. It also honours a trailing designator, so
-   * `0.15mm` typed into a mils field means 0.15 mm.
+   * `UNIT_BINDER::GetValue()` for a field the model holds in millimetres: the field shows the
+   * frame's unit, and a trailing designator (`0.15mm` in a mils field) is honoured.
    */
   const num = (s: string): number => {
     const mm = pcbUnitValueMM(s, units);
     return Number.isFinite(mm) ? mm : 0;
   };
-
   const setCon = (key: keyof BoardConstraints, next: number | boolean): void =>
     onChange({ ...value, [key]: next });
+  const field = (aKey: keyof BoardConstraints): FIELD => ({
+    value: pcbUnitTextMM(value[aKey] as number, units),
+    onChange: (aText) => setCon(aKey, num(aText)),
+    id: constraintFieldId(aKey),
+  });
 
-  // A numeric constraint row of `fgFeatureConstraints`, the 4-column
-  // `wxFlexGridSizer( 0, 4, 0, 0 )` the whole left half of the page is built
-  // from (`panel_setup_constraints_base.cpp:26`): bitmap | label | wxTextCtrl |
-  // units. Pass icon='' for the rows KiCad leaves un-iconed (Silk); the empty
-  // cell keeps the column.
-  const conRow = (icon: string, label: string, key: keyof BoardConstraints): JSX.Element => (
-    <div className="ze-con-row" key={key}>
-      <span className="ze-con-icon">{icon ? <ConIcon name={icon} /> : null}</span>
-      <span className="lbl">{label}</span>
-      <TextCtrl
-        value={pcbUnitTextMM(value[key] as number, units)}
-        onChange={(aValue) => setCon(key, num(aValue))}
-        id={constraintFieldId(key)}
-        className="ze-search"
-      />
-      <span className="unit">{unitLabel(units)}</span>
-    </div>
-  );
-
-  // A section heading of `fgFeatureConstraints`: the `wxStaticText` occupies
-  // the FIRST column only (`Add( m_staticText23, 0, wxTOP|wxLEFT, 13 )`), and
-  // the four `wxStaticLine`s under it fill the row. Making the heading span
-  // instead left the bitmap column as narrow as a bitmap; in KiCad it is as
-  // wide as "Copper", which is what indents the icons.
-  const conHead = (title: string): JSX.Element[] => [
-    <div className="ze-con-head" key={`h:${title}`}>
-      {title}
-    </div>,
-    <hr className="ze-hr ze-con-hr" key={`r:${title}`} />,
-  ];
+  const fields = Object.fromEntries(
+    (Object.keys(ROW_FIELD) as CONSTRAINT_ROW[]).map((row) => [row, field(ROW_FIELD[row])]),
+  ) as Record<CONSTRAINT_ROW, FIELD>;
+  const bitmaps = Object.fromEntries(
+    Object.entries(BITMAPS).map(([k, file]) => [k, svgUrl('constraints', file!)]),
+  ) as PANEL_SETUP_CONSTRAINTS_BASE_PROPS['bitmaps'];
 
   return (
-    // `bScrolledSizer`, a horizontal box: `sbFeatureConstraints` on the left
-    // and `sbFeatureRules` on the right (`:20-23`, `:379`).
-    <div className="ze-con-cols">
-      <div className="ze-con-grid">
-        {conHead('Copper')}
-        {conRow('clearance', 'Minimum clearance:', 'minClearanceMM')}
-        {conRow('track', 'Minimum track width:', 'minTrackMM')}
-        {conRow('conn', 'Minimum connection width:', 'minConnectionMM')}
-        {conRow('annular', 'Minimum annular width:', 'minAnnularMM')}
-        {conRow('viaDia', 'Minimum via diameter:', 'minViaMM')}
-        {conRow('copperHole', 'Copper to hole clearance:', 'copperToHoleMM')}
-        {conRow('copperEdge', 'Copper to edge clearance:', 'copperToEdgeMM')}
-        {/* `m_minGrooveWidth*`, "Minimum groove for creepage:" (`:172-190`), is
-            built and then `Show( false )` unless
-            `ADVANCED_CFG::m_EnableCreepageSlot` — an advanced-config flag that
-            is off by default, so a stock KiCad does not draw this row. */}
-
-        {conHead('Holes')}
-        {/* [data] `m_MinDrillTitle`, "Minimum drill size:" (`:214`). This read
-            "Minimum through hole:", which is the v7 string. */}
-        {conRow('throughHole', 'Minimum drill size:', 'minThroughHoleMM')}
-        {conRow('holeToHole', 'Hole to hole clearance:', 'minHoleToHoleMM')}
-
-        {conHead('uVias')}
-        {conRow('uviaDia', 'Minimum uVia diameter:', 'minUViaMM')}
-        {conRow('uviaHole', 'Minimum uVia hole:', 'minUViaHoleMM')}
-
-        {conHead('Silk')}
-        {conRow('', 'Minimum item clearance:', 'silkClearanceMM')}
-        {conRow('', 'Minimum text height:', 'minTextHeightMM')}
-        {conRow('', 'Minimum text thickness:', 'minTextThicknessMM')}
-      </div>
-
-      <div className="ze-con-rules">
-        {/* [data] `m_stCircleToPolyOpt`, "Arc/Circle Approximations" (`:384`).
-            This read "Arc/Circle Approximated by Segments", the v6 string. */}
-        <div className="ze-pref-group-title">Arc/Circle Approximations</div>
-        {/* `fgSizer2` (`:400`) is label | entry | units and has no bitmap
-            column, so this row is NOT one of the left grid's. */}
-        <div className="ze-con-dev">
-          <span className="lbl">Maximum allowed deviation:</span>
-          <TextCtrl
-            value={pcbUnitTextMM(value.maxDeviationMM, units)}
-            onChange={(aValue) => setCon('maxDeviationMM', num(aValue))}
-            className="ze-search"
-          />
-          <span className="unit">{unitLabel(units)}</span>
-        </div>
-        {/* `KIUI::GetSmallInfoFont( this ).Italic()`
-            (`panel_setup_constraints.cpp:74`) — the info font TWO points down,
-            which is `.ze-pref-hint`, not a grey 11px caption. */}
-        <div className="ze-pref-hint">Note: zone filling can be slow when &lt; 0.005 mm.</div>
-
-        <div className="ze-con-fill">
-          <div className="ze-pref-group-title">Zone Fill Strategy</div>
-          {/* `bSizer9` (`:437-445`): the bitmap and the checkbox are SIBLINGS in
-              a horizontal box, so the icon sits outside the label. Inside it,
-              the box-to-text gap stays the shared checkbox's. */}
-          <div className="ze-con-check">
-            <span className="ze-con-icon">
-              <ConIcon name="fillet" />
-            </span>
-            <CheckBox
-              label="Allow fillets/chamfers outside zone outline"
-              checked={value.allowFilletsOutside}
-              className="ze-pref-check"
-              onChange={(aChecked) => setCon('allowFilletsOutside', aChecked)}
-            />
-          </div>
-          <div className="ze-con-spoke">
-            <span className="ze-con-icon">
-              <ConIcon name="spoke" />
-            </span>
-            <span className="lbl">Minimum thermal relief spoke count:</span>
-            {/* [data] `new wxSpinCtrl( …, wxSP_ARROW_KEYS, 0, 10, 0 )` (`:452`)
-                — a spin control with the theme's two arrow buttons, which this
-                drew as a plain 210 px text field. It carries no width: KiCad's
-                one `SetSize` on it (`panel_setup_constraints.cpp:77-79`) is
-                overridden by the sizer, which lays it out at its best size. */}
-            <SpinCtrl
-              value={value.minThermalSpokes}
-              onChange={(n) => setCon('minThermalSpokes', n)}
-              min={0}
-              max={10}
-              ariaLabel="Minimum thermal relief spoke count"
-            />
-          </div>
-        </div>
-
-        <div className="ze-pref-group-title">Length Tuning</div>
-        <CheckBox
-          label="Include stackup height in track length calculations"
-          checked={value.includeStackupHeight}
-          className="ze-pref-check"
-          onChange={(aChecked) => setCon('includeStackupHeight', aChecked)}
-        />
-      </div>
-    </div>
+    <PANEL_SETUP_CONSTRAINTS_BASE
+      fields={fields}
+      units={unitLabel(units)}
+      bitmaps={bitmaps}
+      // ADVANCED_CFG::m_EnableCreepageSlot, off by default.
+      grooveShown={false}
+      m_maxError={field('maxDeviationMM')}
+      // TransferDataToWindow: Printf( label, m_Frame->StringFromValue( ARC_HIGH_DEF, true ) ).
+      m_stCircleToPolyWarning={`Note: zone filling can be slow when < ${stringFromValue(pcbIUScale, units, ARC_HIGH_DEF, true)}.`}
+      m_allowExternalFilletsOpt={{
+        value: value.allowFilletsOutside,
+        onChange: (aOn) => setCon('allowFilletsOutside', aOn),
+      }}
+      m_minResolvedSpokeCountCtrl={{
+        value: value.minThermalSpokes,
+        onChange: (n) => setCon('minThermalSpokes', n),
+      }}
+      m_useHeightForLengthCalcs={{
+        value: value.includeStackupHeight,
+        onChange: (aOn) => setCon('includeStackupHeight', aOn),
+      }}
+    />
   );
 }

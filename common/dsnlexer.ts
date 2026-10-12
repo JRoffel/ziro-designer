@@ -49,6 +49,14 @@ export class PARSE_ERROR extends Error {
   ) {
     super(`${message} in '${source}', line ${lineNumber}, offset ${byteIndex}`);
     this.name = 'PARSE_ERROR';
+    this.problem = message;
+  }
+
+  private readonly problem: string;
+
+  /** `ParseProblem()`: the problem alone, without where it was. */
+  ParseProblem(): string {
+    return this.problem;
   }
 }
 

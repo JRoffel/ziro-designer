@@ -98,7 +98,7 @@ const comboOptions = (root: ParentNode = document): string[] =>
 const gfxCell = (rowLabel: string, col: number): HTMLElement => {
   const row = GRAPHICS_ROWS.findIndex((r) => r.label === rowLabel);
   const cell = document.querySelector<HTMLElement>(
-    `.ze-fp-gfxgrid tbody tr:nth-child(${row + 1}) td[data-col="${col}"]`,
+    `table[aria-label="Default properties for new graphic items"] tbody tr:nth-child(${row + 1}) td[data-col="${col}"]`,
   );
   if (!cell) throw new Error(`no cell ${rowLabel}/${col}`);
   return cell;
@@ -471,9 +471,11 @@ describe('Footprint Editor > Graphics Defaults', () => {
       // `PANEL_SETUP_TEXT_AND_GRAPHICS` has six columns and this one five
       // (`panel_fp_editor_graphics_defaults_base.cpp:28`, `CreateGrid( 6, 5 )`).
       expect(panelText()).not.toContain('Keep Upright');
-      const headers = Array.from(document.querySelectorAll('.ze-fp-gfxgrid thead th')).filter(
-        (h) => h.className !== 'ze-grid-filler',
-      );
+      const headers = Array.from(
+        document.querySelectorAll(
+          'table[aria-label="Default properties for new graphic items"] thead th',
+        ),
+      ).filter((h) => h.className !== 'ze-grid-filler');
       // Five columns plus the row-label column.
       expect(headers).toHaveLength(6);
     },
@@ -493,9 +495,11 @@ describe('Footprint Editor > Graphics Defaults', () => {
       expect(cell('Copper Layers', 3)).toBe('0.3 mm');
       expect(cell('Edge Cuts', 0)).toBe('0.05 mm');
       // The header states the quantity, never the unit.
-      const headers = Array.from(document.querySelectorAll('.ze-fp-gfxgrid thead th')).map(
-        (h) => h.textContent ?? '',
-      );
+      const headers = Array.from(
+        document.querySelectorAll(
+          'table[aria-label="Default properties for new graphic items"] thead th',
+        ),
+      ).map((h) => h.textContent ?? '');
       expect(headers).not.toContain('Line Thickness (mm)');
       for (const h of headers) expect(h).not.toMatch(/mm|mils|\bin\b/);
     },
@@ -556,7 +560,11 @@ describe('Footprint Editor > Graphics Defaults', () => {
     'blanks the four text cells of Edge Cuts and Courtyards',
     async () => {
       await openPage('fp-graphics');
-      const rows = Array.from(document.querySelectorAll('.ze-fp-gfxgrid tbody tr'));
+      const rows = Array.from(
+        document.querySelectorAll(
+          'table[aria-label="Default properties for new graphic items"] tbody tr',
+        ),
+      );
       for (const [i, r] of GRAPHICS_ROWS.entries()) {
         const cells = Array.from(rows[i]?.querySelectorAll<HTMLElement>('td[data-col]') ?? []);
         // Column 0 is the line width, which every row has.
@@ -571,7 +579,7 @@ describe('Footprint Editor > Graphics Defaults', () => {
     SLOW,
   );
 
-  it('floors its columns at the stated widths and gives the slack to the filler', () => {
+  it('floors its columns at the stated widths and gives the slack to the filler', async () => {
     // `SetRowLabelSize( 125 )` and `SetColSize` 110/100/100/100/60
     // (`panel_fp_editor_graphics_defaults_base.cpp:45-49, 68`), each of them a
     // FLOOR because `loadFPSettings` re-measures with `GetVisibleWidth( col,
@@ -584,13 +592,22 @@ describe('Footprint Editor > Graphics Defaults', () => {
         if ((m[1] ?? '').split(',').some((sel) => sel.trim() === selector)) return m[2] ?? '';
       return '';
     };
-    expect(rule('.ze-fp-gfxgrid th:first-child')).toMatch(/min-width:\s*125px/);
-    expect(rule('.ze-fp-gfxgrid th:nth-child(2)')).toMatch(/min-width:\s*110px/);
-    expect(rule('.ze-fp-gfxgrid th:nth-child(3)')).toMatch(/min-width:\s*100px/);
-    expect(rule('.ze-fp-gfxgrid th:last-child')).toMatch(/min-width:\s*60px/);
-    // A stated width would CAP the column instead of flooring it, which is the
-    // one thing `aKeep = true` says it must not do.
-    expect(rule('.ze-fp-gfxgrid th:nth-child(2)')).not.toMatch(/[^-]width:\s*110px/);
+    // The grid's own SetRowLabelSize / SetColSize, stated on the label cells: a table cell's
+    // width is a floor, the aKeep = true that loadFPSettings asks for.
+    await openPage('fp-graphics');
+    const heads = Array.from(
+      document.querySelectorAll<HTMLElement>(
+        'table[aria-label="Default properties for new graphic items"] thead th',
+      ),
+    ).filter((h) => !h.classList.contains('ze-grid-filler'));
+    expect(heads.map((h) => h.style.width)).toEqual([
+      '125px',
+      '110px',
+      '100px',
+      '100px',
+      '100px',
+      '60px',
+    ]);
     // The strip past the last column: it takes the slack so the real columns
     // do not, and it is NOT painted by a selected row.
     expect(rule('.ze-grid th.ze-grid-filler')).toMatch(/width:\s*100%/);
@@ -607,9 +624,15 @@ describe('Footprint Editor > Graphics Defaults', () => {
     'gives the slack to a filler cell rather than to a column',
     async () => {
       await openPage('fp-graphics');
-      const head = Array.from(document.querySelectorAll('.ze-fp-gfxgrid thead th'));
+      const head = Array.from(
+        document.querySelectorAll(
+          'table[aria-label="Default properties for new graphic items"] thead th',
+        ),
+      );
       expect(head.at(-1)?.className).toBe('ze-grid-filler');
-      for (const tr of document.querySelectorAll('.ze-fp-gfxgrid tbody tr'))
+      for (const tr of document.querySelectorAll(
+        'table[aria-label="Default properties for new graphic items"] tbody tr',
+      ))
         expect(tr.lastElementChild?.className).toBe('ze-grid-filler');
     },
     SLOW,
@@ -622,9 +645,9 @@ describe('Footprint Editor > Graphics Defaults', () => {
       // `m_staticline1` (`panel_fp_editor_graphics_defaults_base.cpp:31`).
       // Footprint Defaults' and User Layer Names' headings have none, which is
       // what `.ze-fp-defaults-title` is for.
-      const heading = screen.getByText('Default Properties for New Graphic Items');
-      expect(heading.className).toContain('ze-pref-group-title');
-      expect(heading.className).not.toContain('ze-fp-defaults-title');
+      expect(screen.getByText('Default Properties for New Graphic Items')).toBeTruthy();
+      // This heading's line and the embedded PANEL_SETUP_DIMENSIONS' own.
+      expect(document.querySelectorAll('.ze-staticline')).toHaveLength(2);
     },
     SLOW,
   );

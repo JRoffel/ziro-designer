@@ -14,8 +14,11 @@ import { UNITS_PROVIDER } from '@ziroeda/common/units_provider.js';
 import { WX_GRID } from '@ziroeda/common/widgets/wx_grid.js';
 import { wxGridSelectionModes, wxGridStringTable } from '@ziroeda/wx/grid.js';
 import { WxGridView } from '@ziroeda/wx/grid_ui.js';
+import {
+  PANEL_SETUP_TRACKS_AND_VIAS_BASE,
+  type SIZE_GRID,
+} from './panel_setup_tracks_and_vias_base.js';
 import { pcbIUScale, pcbMmToIU } from '@ziroeda/common/eda_units.js';
-import { Icon } from '@ziroeda/common/widgets/icons.js';
 import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
 import { PCB_VIA, VIA_PARAMETER_ERROR_FIELD } from '../pcb_track.js';
 import type { BOARD } from '../board.js';
@@ -173,7 +176,7 @@ export const SIZE_GRID_KEYS: Record<string, string[]> = {
  * `> 0` (`:446-472`) — that empty cell is what `<= 0 means use Netclass`
  * looks like to the user.
  */
-function SizeGrid<T extends object>({
+function useSizeGrid<T extends object>({
   title,
   cols,
   rows,
@@ -187,7 +190,7 @@ function SizeGrid<T extends object>({
   setRows: (next: T[]) => void;
   units: StatusUnits;
   gridRef: (g: WX_GRID) => void;
-}): JSX.Element {
+}): SIZE_GRID {
   const [{ grid, tricks, provider }] = useState(() => {
     const g = new WX_GRID();
     g.SetTable(new wxGridStringTable(0, cols.length), true, wxGridSelectionModes.wxGridSelectRows);
@@ -269,59 +272,29 @@ function SizeGrid<T extends object>({
     grid.EndBatch();
   };
 
-  return (
-    <div className="ze-sizes-col">
-      {/* [data] `bSizerTracks->Add( stTracksLabel, 0, wxALL, 5 )`. */}
-      <div className="ze-sizes-title">{title}</div>
-      <div className="ze-grid-pane ze-sizes-pane">
-        <WxGridView
-          grid={grid}
-          tricks={tricks}
-          // [data] `SetColSize( n, 120 )` (`panel_setup_tracks_and_vias_base.cpp:38`, `:92-93`, `:151-153`).
-          columns={cols.map(() => ({ width: 120 }))}
-          onUpdate={transfer}
-          ariaLabel={title}
-        />
-      </div>
-      <div className="ze-grid-btns">
-        {/* `OnAddRow` appends a row of ZEROS and puts the cursor in its first
-            column. It does not invent a size. */}
-        <button
-          type="button"
-          className="ze-gridbtn ze-gridbtn-add"
-          title="Add"
-          onClick={() =>
-            grid.OnAddRow(() => {
-              appendRow({} as T);
-              return [grid.GetNumberRows() - 1, 0];
-            })
-          }
-        >
-          <Icon name="plus" />
-        </button>
-        {/* `std::sort` over the whole struct — `VIA_DIMENSION::operator<`
-            compares diameter then drill, `DIFF_PAIR_DIMENSION::operator<`
-            width then gap then via gap (`board_design_settings.h:144`, `:187`). */}
-        <button
-          type="button"
-          className="ze-gridbtn ze-gridbtn-sort"
-          title="Sort ascending"
-          onClick={onSort}
-        >
-          <Icon name="arrowDown" />
-        </button>
-        {/* `WX_GRID::OnDeleteRows` deletes the SELECTED rows. */}
-        <button
-          type="button"
-          className="ze-gridbtn ze-gridbtn-remove"
-          title="Remove"
-          onClick={() => grid.OnDeleteRows((row) => grid.DeleteRows(row, 1))}
-        >
-          <Icon name="delete" />
-        </button>
-      </div>
-    </div>
-  );
+  return {
+    grid: (
+      <WxGridView
+        grid={grid}
+        tricks={tricks}
+        // [data] `SetColSize( n, 120 )` (`panel_setup_tracks_and_vias_base.cpp`).
+        columns={cols.map(() => ({ width: 120 }))}
+        onUpdate={transfer}
+        ariaLabel={title}
+      />
+    ),
+    // `OnAddRow` appends a row of ZEROS and puts the cursor in its first column.
+    onAdd: () =>
+      grid.OnAddRow(() => {
+        appendRow({} as T);
+        return [grid.GetNumberRows() - 1, 0];
+      }),
+    // `std::sort` over the whole struct: VIA_DIMENSION::operator< compares diameter then drill,
+    // DIFF_PAIR_DIMENSION::operator< width then gap then via gap.
+    onSort,
+    // `WX_GRID::OnDeleteRows` deletes the SELECTED rows.
+    onRemove: () => grid.OnDeleteRows((row) => grid.DeleteRows(row, 1)),
+  };
 }
 
 export function PanelSetupTracksAndVias({
@@ -344,45 +317,43 @@ export function PanelSetupTracksAndVias({
   /** The three grids by title, for `SetError( …, grid, row, col )`. */
   gridRefs: Record<string, WX_GRID | undefined>;
 }): JSX.Element {
+  const tracks = useSizeGrid<{ width: number }>({
+    title: 'Tracks',
+    cols: [{ label: 'Width', key: 'width' }],
+    rows: trackWidthsMM.map((width) => ({ width })),
+    setRows: (rows) => onChange({ trackWidthsMM: rows.map((r) => r.width) }),
+    units,
+    gridRef: (g) => (gridRefs.Tracks = g),
+  });
+  const vias = useSizeGrid<ViaSize>({
+    title: 'Vias',
+    cols: [
+      { label: 'Diameter', key: 'diameter' },
+      { label: 'Hole', key: 'drill' },
+    ],
+    rows: viaSizesMM,
+    setRows: (rows) => onChange({ viaSizesMM: rows }),
+    units,
+    gridRef: (g) => (gridRefs.Vias = g),
+  });
+  const diffPairs = useSizeGrid<DiffPairSize>({
+    title: 'Differential Pairs',
+    cols: [
+      { label: 'Width', key: 'width' },
+      { label: 'Gap', key: 'gap' },
+      { label: 'Via Gap', key: 'viaGap' },
+    ],
+    rows: diffPairsMM,
+    setRows: (rows) => onChange({ diffPairsMM: rows }),
+    units,
+    gridRef: (g) => (gridRefs['Differential Pairs'] = g),
+  });
+
   return (
-    // `bMainSizer`, horizontal: three columns at proportion 1
-    // (`panel_setup_tracks_and_vias_base.cpp:71`, `:130`, `:198`), so they
-    // split the page in thirds whatever their grids need.
-    <div className="ze-sizes-cols">
-      {/* [data] the column labels, which carry no unit: `SetColLabelValue( 0,
-          _("Width") )` and friends (`_base.cpp:41`, `:96-97`, `:165-167`).
-          These read "Width (mm)" — the unit is in the CELL, not the header. */}
-      <SizeGrid<{ width: number }>
-        title="Tracks"
-        cols={[{ label: 'Width', key: 'width' }]}
-        rows={trackWidthsMM.map((width) => ({ width }))}
-        setRows={(rows) => onChange({ trackWidthsMM: rows.map((r) => r.width) })}
-        units={units}
-        gridRef={(g) => (gridRefs.Tracks = g)}
-      />
-      <SizeGrid<ViaSize>
-        title="Vias"
-        cols={[
-          { label: 'Diameter', key: 'diameter' },
-          { label: 'Hole', key: 'drill' },
-        ]}
-        rows={viaSizesMM}
-        setRows={(rows) => onChange({ viaSizesMM: rows })}
-        units={units}
-        gridRef={(g) => (gridRefs.Vias = g)}
-      />
-      <SizeGrid<DiffPairSize>
-        title="Differential Pairs"
-        cols={[
-          { label: 'Width', key: 'width' },
-          { label: 'Gap', key: 'gap' },
-          { label: 'Via Gap', key: 'viaGap' },
-        ]}
-        rows={diffPairsMM}
-        setRows={(rows) => onChange({ diffPairsMM: rows })}
-        units={units}
-        gridRef={(g) => (gridRefs['Differential Pairs'] = g)}
-      />
-    </div>
+    <PANEL_SETUP_TRACKS_AND_VIAS_BASE
+      m_trackWidths={tracks}
+      m_viaSizes={vias}
+      m_diffPairs={diffPairs}
+    />
   );
 }

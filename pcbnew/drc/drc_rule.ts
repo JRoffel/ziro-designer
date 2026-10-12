@@ -80,6 +80,11 @@ export enum DRC_IMPLICIT_SOURCE {
   TUNING_PROFILE,
 }
 
+/** `IsComponentClassSelector`: a `${CLASS:...}` token, which ExpandTextVars must leave alone. */
+export function IsComponentClassSelector(aToken: string): boolean {
+  return aToken.toUpperCase().startsWith('CLASS:');
+}
+
 export const DRC_DISALLOW_VIAS = DRC_DISALLOW_T.DRC_DISALLOW_THROUGH_VIAS;
 export const DRC_DISALLOW_BB_VIAS =
   DRC_DISALLOW_T.DRC_DISALLOW_BLIND_VIAS | DRC_DISALLOW_T.DRC_DISALLOW_BURIED_VIAS;

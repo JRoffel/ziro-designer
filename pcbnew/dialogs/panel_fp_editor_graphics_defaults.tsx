@@ -55,6 +55,7 @@
  * `editors/footprint/graphics_defaults.ts` is that lookup.
  */
 import { type JSX, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { PANEL_FP_EDITOR_GRAPHICS_DEFAULTS_BASE } from './panel_fp_editor_graphics_defaults_base.js';
 import { PanelSetupDimensions, type DimensionDefaults } from './panel_setup_dimensions.js';
 import { PCB_IU_PER_MM, pcbIUScale } from '@ziroeda/common/eda_units.js';
 import { GRID_TRICKS } from '@ziroeda/common/grid_tricks.js';
@@ -235,35 +236,30 @@ export function PanelFpGraphicsDefaults({
   }, [grid]);
 
   return (
-    <div className="ze-fp-gfxdefaults">
-      {/* `defaultPropertiesLabel` followed by `m_staticline1`
-          (`panel_fp_editor_graphics_defaults_base.cpp:25-31`) — this heading
-          DOES carry a rule, unlike Footprint Defaults' and User Layer Names',
-          so it is a `.ze-pref-group-title` and not a `.ze-fp-defaults-title`. */}
-      <div className="ze-pref-group-title ze-fp-gfx-title">
-        Default Properties for New Graphic Items
-      </div>
-      {/* No `.ze-grid-pane`: the grid is added straight to the sizer, and a
-          wxGrid's own gridlines are its only border. */}
-      <WxGridView
-        grid={grid}
-        tricks={tricks}
-        rowLabels
-        className="ze-fp-gfxgrid"
-        ariaLabel="Default properties for new graphic items"
-      />
-      {/* `PAGED_DIALOG::SetError` puts its message in the dialog's own error
-          bar; ours is beside the grid it belongs to. */}
-      {error && <div className="ze-prefs-error">{error}</div>}
-
-      {/* `GetSizer()->Add( m_dimensionsPanel.get(), 0, wxEXPAND, 5 )` (`:86`) —
-          the shared class, not a copy of its controls. */}
-      <PanelSetupDimensions
-        value={ds.dimensions}
-        update={(fn) => upFp((s) => fn(s.design_settings.dimensions))}
-        units={units}
-        iuPerMM={PCB_IU_PER_MM}
-      />
-    </div>
+    <PANEL_FP_EDITOR_GRAPHICS_DEFAULTS_BASE
+      m_graphicsGrid={
+        <WxGridView
+          grid={grid}
+          tricks={tricks}
+          rowLabels
+          // [data] SetRowLabelSize( 125 ), SetColSize 110 / 100 / 100 / 100 / 60.
+          rowLabelSize={125}
+          columns={[110, 100, 100, 100, 60].map((width) => ({ width }))}
+          ariaLabel="Default properties for new graphic items"
+        />
+      }
+      m_dimensionsPanel={
+        <>
+          {/* PAGED_DIALOG::SetError's message, beside the grid it belongs to. */}
+          {error && <div className="ze-prefs-error">{error}</div>}
+          <PanelSetupDimensions
+            value={ds.dimensions}
+            update={(fn) => upFp((s) => fn(s.design_settings.dimensions))}
+            units={units}
+            iuPerMM={PCB_IU_PER_MM}
+          />
+        </>
+      }
+    />
   );
 }

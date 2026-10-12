@@ -56,6 +56,8 @@ export interface SpinCtrlProps {
   disabled?: boolean;
   id?: string;
   ariaLabel?: string;
+  /** `SetToolTip()`. */
+  title?: string;
 }
 
 export function SpinCtrl({
@@ -69,6 +71,7 @@ export function SpinCtrl({
   disabled,
   id,
   ariaLabel,
+  title,
 }: SpinCtrlProps): JSX.Element {
   /** `wxSpinCtrl::SetValue` clamps to the range rather than refusing. */
   const clamp = (v: number): number => {
@@ -93,7 +96,7 @@ export function SpinCtrl({
   const shown = digits === undefined ? String(value) : (draft ?? value.toFixed(digits));
 
   return (
-    <div className="ze-spinctrl">
+    <div className="ze-spinctrl" title={title}>
       <input
         id={id}
         aria-label={ariaLabel}

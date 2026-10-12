@@ -75,7 +75,7 @@ describe('the page', () => {
   it('is a caption, a rule and the shared grid', () => {
     render(<Harness layers={AllCuMask(2).map(LSET_Name)} />);
     expect(screen.getByText('Zone Hatched Fill Offsets')).toBeTruthy();
-    expect(document.querySelector('.ze-zone-hatch-rule')).not.toBeNull();
+    expect(document.querySelector('.ze-staticline')).not.toBeNull();
     expect(document.querySelector('.ze-zone-layer-grid')).not.toBeNull();
   });
 

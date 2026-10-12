@@ -63,93 +63,60 @@ function open(over: Partial<BoardSetupValues> = {}): { ok: () => BoardSetupValue
   };
 }
 
-const q = (sel: string): HTMLElement[] => Array.from(document.querySelectorAll<HTMLElement>(sel));
+/** The fourteen UNIT_BINDER rows of fgFeatureConstraints, in Add() order (the groove row hidden). */
+const ROWS = [
+  'Minimum clearance',
+  'Minimum track width',
+  'Minimum connection width',
+  'Minimum annular width',
+  'Minimum via diameter',
+  'Copper to hole clearance',
+  'Copper to edge clearance',
+  'Minimum drill size',
+  'Hole to hole clearance',
+  'Minimum uVia diameter',
+  'Minimum uVia hole',
+  'Minimum item clearance',
+  'Minimum text height',
+  'Minimum text thickness',
+];
 
 describe('the Constraints page structure', () => {
-  it('gives each section heading the first column, with the rule as its own row', () => {
+  it('heads the four sections Copper, Holes, uVias, Silk, in that order', () => {
     open();
-
-    // `m_staticText23` / `24` / `25` / `28` — Copper, Holes, uVias, Silk.
-    expect(q('.ze-con-grid > .ze-con-head').map((e) => e.textContent)).toEqual([
-      'Copper',
-      'Holes',
-      'uVias',
-      'Silk',
-    ]);
-    // One rule row per heading: the four `wxStaticLine`s that follow it.
-    expect(q('.ze-con-grid > .ze-con-hr')).toHaveLength(4);
-    // A heading that SPANS contributes nothing to the bitmap column, which is
-    // how that column collapsed to the width of a bitmap.
-    expect(q('.ze-con-grid > .ze-pref-group-title')).toHaveLength(0);
+    const text = document.body.textContent ?? '';
+    const at = ['Copper', 'Holes', 'uVias', 'Silk'].map((h) => text.indexOf(h));
+    expect(at.every((i) => i >= 0)).toBe(true);
+    expect([...at].sort((x, y) => x - y)).toEqual(at);
   });
 
-  it('builds every constraint as a four-cell row of the flex grid', () => {
+  it('builds every constraint as a binder in the frame units', () => {
     open();
-
-    const rows = q('.ze-con-grid > .ze-con-row');
-    // Seven Copper rows, two Holes, two uVias, three Silk. "Minimum groove for
-    // creepage:" is `Show( false )` without `ADVANCED_CFG::m_EnableCreepageSlot`.
-    expect(rows).toHaveLength(14);
-    for (const row of rows) {
-      expect(row.querySelectorAll(':scope > .ze-con-icon')).toHaveLength(1);
-      expect(row.querySelectorAll(':scope > .lbl')).toHaveLength(1);
-      expect(row.querySelectorAll(':scope > input.ze-search')).toHaveLength(1);
-      expect(row.querySelectorAll(':scope > .unit')).toHaveLength(1);
-    }
-    // The three Silk rows are the un-iconed ones; their cell still holds the
-    // column open (`fgFeatureConstraints->Add( 0, 0, 1, wxEXPAND, 5 )`).
-    const iconed = rows.filter((r) => r.querySelector('.ze-con-icon img'));
-    expect(iconed).toHaveLength(11);
+    for (const name of ROWS) expect(screen.getByRole('textbox', { name })).toBeTruthy();
+    // Every row's units label, and the deviation's.
+    expect(screen.getAllByText('mm')).toHaveLength(ROWS.length + 1);
   });
 
-  it('asks for every bitmap at 24, the size KiBitmapBundle is given', () => {
+  it('hides the creepage groove row, as a stock KiCad does', () => {
+    // Show( false ) unless ADVANCED_CFG::m_EnableCreepageSlot.
     open();
-
-    const imgs = q('.ze-con-icon img') as HTMLImageElement[];
-    expect(imgs.length).toBeGreaterThan(0);
-    for (const img of imgs) {
-      expect([img.getAttribute('width'), img.getAttribute('height')]).toEqual(['24', '24']);
-    }
+    expect(screen.queryByText('Minimum groove for creepage:')).toBeNull();
   });
 
-  it('keeps the Maximum allowed deviation row out of the four-column grid', () => {
+  it('draws the eleven row bitmaps and the two zone-fill ones', () => {
     open();
+    expect(document.querySelectorAll('img.ze-staticbitmap')).toHaveLength(13);
+  });
 
-    // `fgSizer2` has no bitmap column, so this row must not be a `.ze-con-row`
-    // — rendering it as one indented the label by an empty icon cell.
-    const dev = q('.ze-con-rules .ze-con-dev');
-    expect(dev).toHaveLength(1);
-    expect(dev[0]!.querySelector('.ze-con-icon')).toBeNull();
-    expect(dev[0]!.querySelector('.lbl')!.textContent).toBe('Maximum allowed deviation:');
-    expect(dev[0]!.querySelector('.unit')!.textContent).toBe('mm');
-    expect(q('.ze-con-rules .ze-con-grid')).toHaveLength(0);
+  it('formats the zone filling note in the frame units', () => {
+    open();
+    expect(screen.getByText('Note: zone filling can be slow when < 0.005 mm.')).toBeTruthy();
   });
 
   it('draws the thermal spoke count as a spin control, not a text field', () => {
     open();
-
-    const spoke = q('.ze-con-spoke');
-    expect(spoke).toHaveLength(1);
-    // `wxSpinCtrl( …, wxSP_ARROW_KEYS, 0, 10, 0 )` — GTK's two arrow buttons.
-    const spin = spoke[0]!.querySelector('.ze-spinctrl');
-    expect(spin).not.toBeNull();
-    expect(spin!.querySelectorAll('button')).toHaveLength(2);
-    // And it carries no width of its own: the sizer lays it out at its best
-    // size, which is the shared widget's.
-    expect(spin!.querySelector<HTMLInputElement>('input')!.style.width).toBe('');
-  });
-
-  it('puts the fillet bitmap beside the checkbox, not inside its label', () => {
-    open();
-
-    // `bSizer9` is a horizontal box holding two siblings, so the icon is not
-    // part of the checkbox's own label — where it would pick up the shared
-    // checkbox's 8 px box-to-text gap instead of the two 5 px borders.
-    const row = q('.ze-con-check');
-    expect(row).toHaveLength(1);
-    expect(row[0]!.querySelectorAll(':scope > .ze-con-icon')).toHaveLength(1);
-    expect(row[0]!.querySelectorAll(':scope > label.ze-pref-check')).toHaveLength(1);
-    expect(row[0]!.querySelector('label')!.querySelector('.ze-con-icon')).toBeNull();
+    const input = screen.getByLabelText('Minimum thermal relief spoke count');
+    expect(input.closest('.ze-spinctrl')!.querySelectorAll('button')).toHaveLength(2);
   });
 });
 
@@ -157,9 +124,10 @@ describe('the spoke count spin control', () => {
   it('clamps to the wxSpinCtrl range rather than refusing', () => {
     const { ok } = open();
 
-    const spin = document.querySelector<HTMLInputElement>('.ze-con-spoke .ze-spinctrl input')!;
-    fireEvent.change(spin, { target: { value: '99' } });
-    // [data] `wxSpinCtrl( …, wxSP_ARROW_KEYS, 0, 10, 0 )` (`:452`).
+    fireEvent.change(screen.getByLabelText('Minimum thermal relief spoke count'), {
+      target: { value: '99' },
+    });
+    // [data] `wxSpinCtrl( …, wxSP_ARROW_KEYS, 0, 10, 0 )`.
     expect(ok()!.constraints.minThermalSpokes).toBe(10);
   });
 });
@@ -185,8 +153,9 @@ describe('m_MaxError is clamped on the way out', () => {
   it('leaves an in-range value exactly as typed', () => {
     const { ok } = open();
 
-    const dev = document.querySelector<HTMLInputElement>('.ze-con-dev input.ze-search')!;
-    fireEvent.change(dev, { target: { value: '0.02' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Maximum allowed deviation' }), {
+      target: { value: '0.02' },
+    });
     expect(ok()!.constraints.maxDeviationMM).toBe(0.02);
   });
 });

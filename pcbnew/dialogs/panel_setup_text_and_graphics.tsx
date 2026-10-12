@@ -42,6 +42,8 @@ import {
   wxGridStringTable,
 } from '@ziroeda/wx/grid.js';
 import { WxGridView } from '@ziroeda/wx/grid_ui.js';
+import { PANEL_SETUP_TEXT_AND_GRAPHICS_BASE } from './panel_setup_text_and_graphics_base.js';
+import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
 import type { BOARD } from '../board.js';
 import { LAYER_CLASS } from '../board_design_settings.js';
 import {
@@ -61,20 +63,8 @@ export interface TextGfxRow {
 }
 
 /** PANEL_SETUP_DIMENSIONS's choices, as labels, beside the grid. */
-export interface DimensionDefaults {
-  units: string;
-  format: string;
-  precision: string;
-  suppressTrailingZeroes: boolean;
-  textPosition: string;
-  keepTextAligned: boolean;
-  arrowLengthMM: number;
-  extLineOffsetMM: number;
-}
-
 export interface TextGfxDefaults {
   rows: TextGfxRow[];
-  dimensions: DimensionDefaults;
 }
 
 /** The grid's rows, LAYER_CLASS order. */
@@ -109,16 +99,6 @@ export const PANEL_SETUP_TEXT_AND_GRAPHICS = {
         italic: bds.m_TextItalic[cls]!,
         keepUpright: bds.m_TextUpright[cls]!,
       })),
-      dimensions: {
-        units: DIM_UNITS[bds.m_DimensionUnitsMode] ?? 'Automatic',
-        format: DIM_FORMATS[bds.m_DimensionUnitsFormat] ?? '1234',
-        precision: DIM_PRECISIONS[bds.m_DimensionPrecision] ?? '0.0000',
-        suppressTrailingZeroes: bds.m_DimensionSuppressZeroes,
-        textPosition: DIM_POSITION[bds.m_DimensionTextPosition] ?? 'Outside',
-        keepTextAligned: bds.m_DimensionKeepTextAligned,
-        arrowLengthMM: mm(bds.m_DimensionArrowLength),
-        extLineOffsetMM: mm(bds.m_DimensionExtensionOffset),
-      },
     };
   },
 
@@ -134,33 +114,6 @@ export const PANEL_SETUP_TEXT_AND_GRAPHICS = {
       bds.m_TextItalic[cls] = row.italic;
       bds.m_TextUpright[cls] = row.keepUpright;
     });
-
-    // PANEL_SETUP_DIMENSIONS::TransferDataFromWindow
-    const d = v.dimensions;
-    bds.m_DimensionUnitsMode = selectionOf(
-      DIM_UNITS,
-      d.units,
-      DIM_UNITS_MODE.AUTOMATIC,
-    ) as DIM_UNITS_MODE;
-    bds.m_DimensionUnitsFormat = selectionOf(
-      DIM_FORMATS,
-      d.format,
-      DIM_UNITS_FORMAT.NO_SUFFIX,
-    ) as DIM_UNITS_FORMAT;
-    bds.m_DimensionPrecision = selectionOf(
-      DIM_PRECISIONS,
-      d.precision,
-      DIM_PRECISION.X_XXXX,
-    ) as DIM_PRECISION;
-    bds.m_DimensionSuppressZeroes = d.suppressTrailingZeroes;
-    bds.m_DimensionTextPosition = selectionOf(
-      DIM_POSITION,
-      d.textPosition,
-      DIM_TEXT_POSITION.OUTSIDE,
-    ) as DIM_TEXT_POSITION;
-    bds.m_DimensionKeepTextAligned = d.keepTextAligned;
-    bds.m_DimensionArrowLength = iu(d.arrowLengthMM);
-    bds.m_DimensionExtensionOffset = iu(d.extLineOffsetMM);
   },
 };
 
@@ -174,15 +127,11 @@ const ROWS: { label: string; text: boolean }[] = [
   { label: 'Other Layers', text: true },
 ];
 
-// Dimension choice lists (panel_setup_dimensions_base.cpp).
-const DIM_UNITS = ['Inches', 'Mils', 'Millimeters', 'Automatic'];
-const DIM_FORMATS = ['1234', '1234 mm', '1234 (mm)'];
-const DIM_PRECISIONS = ['0', '0.0', '0.00', '0.000', '0.0000', '0.00000'];
-const DIM_POSITION = ['Outside', 'Inline'];
-
 interface Props {
   value: TextGfxDefaults;
   onChange: (next: TextGfxDefaults) => void;
+  /** The frame's units: `m_grid->SetUnitsProvider( m_Frame )`. */
+  units: StatusUnits;
 }
 
 /** `COL_*` (`panel_setup_text_and_graphics.cpp:36-44`). */
@@ -211,11 +160,7 @@ const DISABLED_COLOUR = 'var(--grid-label-bg)';
 
 const toIU = (mm: number): number => Math.round(mm * pcbIUScale.IU_PER_MM);
 
-export function PanelPcbTextGraphics({ value, onChange }: Props): JSX.Element {
-  const num = (s: string): number => parseUnitValueDouble(s, 'mm');
-  const setDim = <K extends keyof DimensionDefaults>(k: K, val: DimensionDefaults[K]): void =>
-    onChange({ ...value, dimensions: { ...value.dimensions, [k]: val } });
-  const d = value.dimensions;
+export function PanelPcbTextGraphics({ value, onChange, units }: Props): JSX.Element {
   const valueRef = useRef(value);
   valueRef.current = value;
   const onChangeRef = useRef(onChange);
@@ -231,8 +176,7 @@ export function PanelPcbTextGraphics({ value, onChange }: Props): JSX.Element {
       g.SetRowLabelValue(i, r.label);
     });
     g.SetRowLabelAlignment(wxALIGN_LEFT);
-    // `SetUnitsProvider( m_Frame )`; this panel's frame reads millimetres.
-    g.SetUnitsProvider(new UNITS_PROVIDER(pcbIUScale, 'mm'));
+    g.SetUnitsProvider(new UNITS_PROVIDER(pcbIUScale, units));
     g.SetAutoEvalCols([COL_LINE_THICKNESS, COL_TEXT_WIDTH, COL_TEXT_HEIGHT, COL_TEXT_THICKNESS]);
     return { grid: g, tricks: new GRID_TRICKS(g) };
   });
@@ -307,10 +251,8 @@ export function PanelPcbTextGraphics({ value, onChange }: Props): JSX.Element {
   };
 
   return (
-    <div className="ze-pref-page-natural">
-      {/* PANEL_SETUP_TEXT_AND_GRAPHICS */}
-      <div className="ze-pref-group-title">Default Properties for New Graphics and Text</div>
-      <div className="ze-grid-pane ze-tg-grid-pane" style={{ maxHeight: '48vh' }}>
+    <PANEL_SETUP_TEXT_AND_GRAPHICS_BASE
+      m_grid={
         <WxGridView
           grid={grid}
           tricks={tricks}
@@ -319,83 +261,7 @@ export function PanelPcbTextGraphics({ value, onChange }: Props): JSX.Element {
           onUpdate={transfer}
           ariaLabel="Default properties for new graphics and text"
         />
-      </div>
-
-      {/* PANEL_SETUP_DIMENSIONS — one `wxGridBagSizer( 0, 5 )`, six columns
-          wide, whose right half starts at column 3. */}
-      <div className="ze-pref-group-title ze-tg-dimtitle">
-        Default Properties for New Dimension Objects
-      </div>
-      <div className="ze-tg-dimgrid">
-        {/* Row 0 */}
-        <span>Units:</span>
-        <Combo
-          value={d.units}
-          ariaLabel="Dimension units"
-          options={DIM_UNITS.map((u) => ({ value: u, label: u }))}
-          onChange={(u) => setDim('units', u)}
-        />
-        {/* (0,2) is an empty spacer cell upstream. */}
-        <span />
-        <span className="ze-tg-dimright">Text position:</span>
-        <Combo
-          value={d.textPosition}
-          ariaLabel="Dimension text position"
-          options={DIM_POSITION.map((x) => ({ value: x, label: x }))}
-          onChange={(x) => setDim('textPosition', x)}
-        />
-        <span />
-
-        {/* Row 1 */}
-        <span>Units format:</span>
-        <Combo
-          value={d.format}
-          ariaLabel="Dimension units format"
-          options={DIM_FORMATS.map((f) => ({ value: f, label: f }))}
-          onChange={(f) => setDim('format', f)}
-        />
-        <span />
-        <CheckBox
-          label="Keep text aligned"
-          checked={d.keepTextAligned}
-          className="ze-pref-check ze-tg-dimright ze-tg-span2"
-          onChange={(aChecked) => setDim('keepTextAligned', aChecked)}
-        />
-        <span />
-
-        {/* Row 2 */}
-        <span>Precision:</span>
-        <Combo
-          value={d.precision}
-          ariaLabel="Dimension precision"
-          options={DIM_PRECISIONS.map((x) => ({ value: x, label: x }))}
-          onChange={(x) => setDim('precision', x)}
-        />
-        <span />
-        <span className="ze-tg-dimright">Arrow length:</span>
-        <TextCtrl
-          value={String(d.arrowLengthMM)}
-          onChange={(aValue) => setDim('arrowLengthMM', num(aValue))}
-          className="ze-search"
-        />
-        <span className="unit">mm</span>
-
-        {/* Row 3 */}
-        <CheckBox
-          label="Suppress trailing zeroes"
-          checked={d.suppressTrailingZeroes}
-          className="ze-pref-check ze-tg-span2"
-          onChange={(aChecked) => setDim('suppressTrailingZeroes', aChecked)}
-        />
-        <span />
-        <span className="ze-tg-dimright">Extension line offset:</span>
-        <TextCtrl
-          value={String(d.extLineOffsetMM)}
-          onChange={(aValue) => setDim('extLineOffsetMM', num(aValue))}
-          className="ze-search"
-        />
-        <span className="unit">mm</span>
-      </div>
-    </div>
+      }
+    />
   );
 }

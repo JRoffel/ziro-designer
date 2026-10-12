@@ -18,8 +18,9 @@
  * `KIUI::GetInfoFont( this ).Italic()` (`panel_setup_formatting.cpp:41`).
  */
 
-import type { JSX } from 'react';
-import { Check, Group, Num } from '@ziroeda/common/dialogs/pref_controls.js';
+import { type JSX, useState } from 'react';
+import { DoubleValueFromString, stringFromValue, unityScale } from '@ziroeda/common/eda_units.js';
+import { PANEL_SETUP_FORMATTING_BASE } from './panel_setup_formatting_base.js';
 import type { BOARD } from '../board.js';
 
 export interface PcbFormatting {
@@ -72,50 +73,39 @@ interface Props {
   onChange: (next: PcbFormatting) => void;
 }
 
-const APPLY: { key: keyof PcbFormatting; label: string }[] = [
-  { key: 'applyFields', label: 'Apply board defaults to footprint fields' },
-  { key: 'applyText', label: 'Apply board defaults to footprint text' },
-  { key: 'applyShapes', label: 'Apply board defaults to non-copper footprint shapes' },
-  { key: 'applyDimensions', label: 'Apply board defaults to footprint dimensions' },
-  { key: 'applyBarcodes', label: 'Apply board defaults to footprint barcodes' },
-];
-
+/** PANEL_SETUP_FORMATTING's window: its base over the board's values. */
 export function PanelPcbFormatting({ value, onChange }: Props): JSX.Element {
+  // `StringFromValue( unityScale, EDA_UNITS::UNSCALED, ratio )`, held as typed until it reads.
+  const [texts, setTexts] = useState<{ dash?: string; gap?: string }>({});
   const set = <K extends keyof PcbFormatting>(k: K, val: PcbFormatting[K]): void =>
     onChange({ ...value, [k]: val });
 
-  return (
-    <div className="ze-pref-page-natural">
-      <Group title="Dashed Lines">
-        {/* `wxTextCtrl`s, not spin controls (`panel_setup_formatting_base.cpp:36, 43`). */}
-        <Num
-          label="Dash length:"
-          spin={false}
-          value={value.dashLengthRatio}
-          onChange={(n) => set('dashLengthRatio', n)}
-        />
-        <Num
-          label="Gap length:"
-          spin={false}
-          value={value.gapLengthRatio}
-          onChange={(n) => set('gapLengthRatio', n)}
-        />
-        {/* `KIUI::GetInfoFont( this ).Italic()`, added `wxALL, 10`. */}
-        <div className="ze-pref-infotext ze-pcb-fmt-help">
-          Dash and dot lengths are ratios of the line width.
-        </div>
-      </Group>
+  const ratio = (aKey: 'dash' | 'gap', aField: 'dashLengthRatio' | 'gapLengthRatio') => ({
+    value: texts[aKey] ?? stringFromValue(unityScale, 'unscaled', value[aField]),
+    onChange: (aText: string) => {
+      setTexts((t) => ({ ...t, [aKey]: aText }));
+      // `DoubleValueFromString`
+      const n = DoubleValueFromString(aText);
+      if (Number.isFinite(n)) set(aField, n);
+    },
+  });
 
-      <Group title="When Adding Footprints to Board">
-        {APPLY.map((a) => (
-          <Check
-            key={a.key}
-            label={a.label}
-            checked={value[a.key] as boolean}
-            onChange={(b) => set(a.key, b as PcbFormatting[typeof a.key])}
-          />
-        ))}
-      </Group>
-    </div>
+  const check = (
+    aKey: 'applyFields' | 'applyText' | 'applyShapes' | 'applyDimensions' | 'applyBarcodes',
+  ) => ({
+    value: value[aKey],
+    onChange: (aOn: boolean) => set(aKey, aOn),
+  });
+
+  return (
+    <PANEL_SETUP_FORMATTING_BASE
+      m_dashLengthCtrl={ratio('dash', 'dashLengthRatio')}
+      m_gapLengthCtrl={ratio('gap', 'gapLengthRatio')}
+      m_styleFields={check('applyFields')}
+      m_styleText={check('applyText')}
+      m_styleShapes={check('applyShapes')}
+      m_styleDimensions={check('applyDimensions')}
+      m_styleBarcodes={check('applyBarcodes')}
+    />
   );
 }

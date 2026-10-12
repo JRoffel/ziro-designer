@@ -7,6 +7,7 @@
  * TUNING_PROFILES / text_variables, and the file SaveProject() writes.
  */
 import { describe, it, expect } from 'vitest';
+import { pcbMmToIU } from '@ziroeda/common/eda_units.js';
 import { findProjectPro } from '@ziroeda/pcbnew/pcb_edit_frame.js';
 import { EMPTY_PCB, projectJson } from '@ziroeda/designer/src/home/new_project.js';
 import { readSetup, writeProject } from './board_setup_test_utils.js';
@@ -36,6 +37,7 @@ function customSetup(): BoardSetupValues {
     minUViaHoleMM: 0.11,
     copperToHoleMM: 0.3,
     copperToEdgeMM: 0.4,
+    minGrooveWidthMM: 0.3,
     minThroughHoleMM: 0.35,
     minHoleToHoleMM: 0.3,
     silkClearanceMM: 0.05,
@@ -80,33 +82,38 @@ function customSetup(): BoardSetupValues {
     keepUpright: false,
   };
   s.textGraphics.rows[2]!.lineThickness = 0.09; // Edge Cuts, graphics-only
-  s.textGraphics.dimensions = {
-    units: 'Mils',
-    format: '1234 (mm)',
-    precision: '0.00',
-    suppressTrailingZeroes: false,
-    textPosition: 'Inline',
-    keepTextAligned: false,
-    arrowLengthMM: 2,
-    extLineOffsetMM: 0.75,
+  // PANEL_SETUP_DIMENSIONS: DIM_UNITS_MODE::MILS, DIM_UNITS_FORMAT::PAREN, DIM_PRECISION::X_XX,
+  // DIM_TEXT_POSITION::INLINE, the lengths in IU.
+  s.dimensions = {
+    units: 1,
+    units_format: 2,
+    precision: 2,
+    suppress_zeroes: false,
+    text_position: 1,
+    keep_text_aligned: false,
+    arrow_length: pcbMmToIU(2),
+    extension_offset: pcbMmToIU(0.75),
   };
   s.formatting.applyFields = true;
   s.formatting.applyDimensions = true;
+  // PANEL_ZONE_PROPERTIES's values, distances in IU.
   s.zones = {
+    ...s.zones,
     name: '',
-    clearanceMM: 0.6,
-    minWidthMM: 0.3,
-    padConnection: 'Reliefs for PTH',
-    thermalGapMM: 0.6,
-    thermalSpokeMM: 0.4,
-    outlineDisplay: 'Fully hatched',
-    outlineHatchPitchMM: 0.7,
-    cornerSmoothing: 'Fillet',
-    smoothingRadiusMM: 1.5,
-    removeIslands: 'Below area limit',
-    areaLimitMM2: 12,
+    clearance: pcbMmToIU(0.6),
+    minThickness: pcbMmToIU(0.3),
+    padConnection: 'thru_hole_only',
+    thermalGap: pcbMmToIU(0.6),
+    thermalBridgeWidth: pcbMmToIU(0.4),
+    hatchStyle: 'full',
+    hatchPitch: pcbMmToIU(0.7),
+    cornerSmoothing: 'fillet',
+    cornerRadius: pcbMmToIU(1.5),
+    islandRemovalMode: 'area',
+    islandAreaMin: 12,
     locked: false,
   };
+
   s.componentClasses.assignPerSheet = true;
   s.componentClasses.assignments = [
     {
@@ -275,15 +282,16 @@ describe('Board Setup, the .kicad_pro side', () => {
     expect(s.teardrops.round.curvedEdges).toBe(true);
     expect(s.teardrops.round.preferZoneConnection).toBe(false);
     expect(s.textGraphics.rows[0]!.lineThickness).toBe(0.18);
-    expect(s.textGraphics.dimensions.units).toBe('Mils');
-    expect(s.textGraphics.dimensions.precision).toBe('0.00');
-    expect(s.textGraphics.dimensions.format).toBe('1234 (mm)');
+    expect(s.dimensions.units).toBe(1); // Mils
+    expect(s.dimensions.precision).toBe(2); // 0.00
+    expect(s.dimensions.units_format).toBe(2); // 1234 (mm)
     // Raw nanometre integers -> mm.
-    expect(s.textGraphics.dimensions.arrowLengthMM).toBeCloseTo(1.27);
-    expect(s.textGraphics.dimensions.extLineOffsetMM).toBeCloseTo(0.5);
-    expect(s.zones.padConnection).toBe('Reliefs for PTH');
-    expect(s.zones.outlineDisplay).toBe('Fully hatched');
-    expect(s.zones.areaLimitMM2).toBe(8);
+    expect(s.dimensions.arrow_length).toBe(pcbMmToIU(1.27));
+    expect(s.dimensions.extension_offset).toBe(pcbMmToIU(0.5));
+    // pad_connection 3 is THT_THERMAL, border_display_style 1 DIAGONAL_FULL.
+    expect(s.zones.padConnection).toBe('thru_hole_only');
+    expect(s.zones.hatchStyle).toBe('full');
+    expect(s.zones.islandAreaMin).toBe(8);
   });
 
   it('preserves keys it does not own', () => {

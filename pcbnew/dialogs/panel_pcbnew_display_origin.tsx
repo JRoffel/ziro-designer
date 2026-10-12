@@ -33,7 +33,7 @@
  * m_yIncreasesUp->GetValue()`, the button ABOVE the default one.
  */
 import type { JSX } from 'react';
-import { Group, Radio } from '@ziroeda/common/dialogs/pref_controls.js';
+import { PANEL_PCBNEW_DISPLAY_ORIGIN_BASE } from './panel_pcbnew_display_origin_base.js';
 
 /**
  * `m_pageOrigin` / `m_drillPlaceOrigin` / `m_gridOrigin`
@@ -52,16 +52,8 @@ export const DISPLAY_ORIGIN_CHOICES: readonly (readonly [number, string])[] = [
 ];
 
 /** `m_xIncreasesRight` / `m_xIncreasesLeft`, in the base file's order. */
-const X_AXIS_CHOICES = [
-  [0, 'Increases right'],
-  [1, 'Increases left'],
-] as const;
 
 /** `m_yIncreasesUp` / `m_yIncreasesDown`, in the base file's order. */
-const Y_AXIS_CHOICES = [
-  [1, 'Increases up'],
-  [0, 'Increases down'],
-] as const;
 
 /** The three values this panel edits, whichever settings object holds them. */
 export interface DisplayOriginValue {
@@ -84,36 +76,23 @@ export function PanelDisplayOrigin({
   idPrefix: string;
   showDisplayOrigin?: boolean;
 }): JSX.Element {
+  const mode = value.origin_mode ?? 0;
+  const r = (aOn: boolean, aPatch: Partial<DisplayOriginValue>) => ({
+    checked: aOn,
+    onSelect: () => onChange(aPatch),
+  });
+
   return (
-    <div>
-      {showDisplayOrigin && (
-        <Group title="Display Origin">
-          {/* `wxGridSizer( 0, 1, 4, 0 )` — a 4 px vgap, `wxEXPAND|wxALL, 10`
-              around the run. */}
-          <Radio
-            name={`${idPrefix}-display-origin`}
-            value={value.origin_mode ?? 0}
-            options={DISPLAY_ORIGIN_CHOICES.map((c) => [c[0], c[1]] as const)}
-            onChange={(v) => onChange({ origin_mode: v })}
-          />
-        </Group>
-      )}
-      <Group title="X Axis">
-        <Radio
-          name={`${idPrefix}-x-axis`}
-          value={value.origin_invert_x_axis ? 1 : 0}
-          options={X_AXIS_CHOICES}
-          onChange={(v) => onChange({ origin_invert_x_axis: v === 1 })}
-        />
-      </Group>
-      <Group title="Y Axis">
-        <Radio
-          name={`${idPrefix}-y-axis`}
-          value={value.origin_invert_y_axis ? 1 : 0}
-          options={Y_AXIS_CHOICES}
-          onChange={(v) => onChange({ origin_invert_y_axis: v === 1 })}
-        />
-      </Group>
-    </div>
+    <PANEL_PCBNEW_DISPLAY_ORIGIN_BASE
+      groupName={idPrefix}
+      displayOriginShown={showDisplayOrigin === true}
+      m_pageOrigin={r(mode === 0, { origin_mode: 0 })}
+      m_drillPlaceOrigin={r(mode === 1, { origin_mode: 1 })}
+      m_gridOrigin={r(mode === 2, { origin_mode: 2 })}
+      m_xIncreasesRight={r(!value.origin_invert_x_axis, { origin_invert_x_axis: false })}
+      m_xIncreasesLeft={r(value.origin_invert_x_axis, { origin_invert_x_axis: true })}
+      m_yIncreasesUp={r(value.origin_invert_y_axis, { origin_invert_y_axis: true })}
+      m_yIncreasesDown={r(!value.origin_invert_y_axis, { origin_invert_y_axis: false })}
+    />
   );
 }

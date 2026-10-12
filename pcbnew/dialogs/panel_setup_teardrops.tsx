@@ -23,14 +23,13 @@
  *    (`:66`, `:108`, `:159`) — not one grey 11px "%(d)".
  */
 
-import { CheckBox, TextCtrl } from '@ziroeda/wx/controls.js';
-import type { JSX } from 'react';
-import { SpinCtrl } from '@ziroeda/wx/spin_ctrl.js';
-
-const icon = (name: string): string | undefined => svgUrl('teardrops', name);
+import { type JSX, useState } from 'react';
 
 import { svgUrl } from '@ziroeda/bitmaps_png';
-import { pcbIUScale } from '@ziroeda/common/eda_units.js';
+import { pcbIUScale, pcbIuToMM, pcbMmToIU } from '@ziroeda/common/eda_units.js';
+import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
+import { UNIT_BINDER, unitLabel } from '@ziroeda/common/widgets/unit_binder.js';
+import { PANEL_SETUP_TEARDROPS_BASE, type TEARDROP_GROUP } from './panel_setup_teardrops_base.js';
 import type { BOARD } from '../board.js';
 import { TARGET_TD } from '../teardrop/teardrop_parameters.js';
 
@@ -134,144 +133,78 @@ export const PANEL_SETUP_TEARDROPS = {
 interface Props {
   value: TeardropsSetup;
   onChange: (next: TeardropsSetup) => void;
+  /** The frame's units, which the six length UNIT_BINDERs show. */
+  units: StatusUnits;
 }
 
-const SPAN_TIP =
-  'Allows a teardrop to extend over the first 2 connected track segments if the first track ' +
-  'segment is too short to accommodate the best length.';
+type LengthKey = 'maxLengthMM' | 'maxWidthMM';
 
-export function PanelPcbTeardrops({ value, onChange }: Props): JSX.Element {
-  const num = (s: string): number => (Number.isFinite(Number(s)) ? Number(s) : 0);
+/** PANEL_SETUP_TEARDROPS's window: its base over the three TEARDROP_PARAMETERS. */
+export function PanelPcbTeardrops({ value, onChange, units }: Props): JSX.Element {
+  const [, setTick] = useState(0);
+  // m_teardropMaxLenRound, m_teardropMaxWidthRound and the Rect / T2T ones: UNIT_BINDERs on the
+  // frame; TransferDataToWindow's SetValue.
+  const [binders] = useState(() => {
+    const provider = { GetUserUnits: () => units, GetIuScale: () => pcbIUScale };
+    const make = (aKey: TeardropShapeKey) => {
+      const one = (aLength: LengthKey) => {
+        const b = new UNIT_BINDER(provider, '');
+        b.SetValue(pcbMmToIU(value[aKey][aLength]));
+        return b;
+      };
+      return { maxLengthMM: one('maxLengthMM'), maxWidthMM: one('maxWidthMM') };
+    };
+    return { round: make('round'), rect: make('rect'), trackToTrack: make('trackToTrack') };
+  });
 
-  const group = (
-    title: string,
-    key: TeardropShapeKey,
-    opts: { img: string; ref: 'd' | 'w'; preferZone: boolean; spanLabel: string; note?: string },
-  ): JSX.Element => {
-    const s = value[key];
-    const set = <K extends keyof TeardropShape>(k: K, v: TeardropShape[K]): void =>
-      onChange({ ...value, [key]: { ...s, [k]: v } });
-
-    // `%(` + the italic hint + ` )`, as three wxStaticTexts.
-    const pct = (
-      <span className="unit">
-        {'%('}
-        <i className="ze-td-hint">{opts.ref}</i>
-        {' )'}
-      </span>
-    );
-    // A `wxSpinCtrlDouble`: range and increment are the base file's own.
-    const spin = (k: keyof TeardropShape, min: number): JSX.Element => (
-      <SpinCtrl
-        value={s[k] as number}
-        min={min}
-        max={100}
-        step={10}
-        onChange={(n) => set(k, n as never)}
-      />
-    );
-    const entry = (k: keyof TeardropShape): JSX.Element => (
-      <TextCtrl
-        value={String(s[k] as number)}
-        onChange={(aValue) => set(k, num(aValue) as never)}
-        className="ze-search"
-      />
-    );
-    const src = icon(opts.img);
-
-    return (
-      <div className="ze-pref-group" key={key}>
-        <div className="ze-pref-group-title">{title}</div>
-        {/* `bSizerShapeColumns`, horizontal: the bitmap column
-            (`wxEXPAND|wxRIGHT, 10`), a 10 px spacer, then the gridbag
-            (`wxEXPAND|wxLEFT, 20`). */}
-        <div className="ze-td-body">
-          {src && <img className="ze-td-legend" src={src} alt="" aria-hidden="true" />}
-          <div className="ze-td-grid">
-            {/* Row 0 */}
-            <span>Best length (L):</span>
-            {spin('bestLengthPct', 20)}
-            {pct}
-            <CheckBox
-              label={opts.spanLabel}
-              checked={s.allowSpanTwoSegments}
-              title={SPAN_TIP}
-              className="ze-pref-check ze-td-right"
-              onChange={(aChecked) => set('allowSpanTwoSegments', aChecked)}
-            />
-
-            {/* Row 1 */}
-            <span>Maximum length (L):</span>
-            {entry('maxLengthMM')}
-            <span className="unit">mm</span>
-            {opts.preferZone ? (
-              <CheckBox
-                label="Prefer zone connection"
-                checked={s.preferZoneConnection}
-                className="ze-pref-check ze-td-right"
-                onChange={(aChecked) => set('preferZoneConnection', aChecked)}
-              />
-            ) : (
-              <span className="ze-td-right" />
-            )}
-
-            {/* Row 2 — `SetEmptyCellSize( wxSize( 10, 7 ) )`. */}
-            <div className="ze-td-emptyrow" />
-
-            {/* Row 3 */}
-            <span>Best width (W):</span>
-            {spin('bestWidthPct', 60)}
-            {pct}
-            <span className="ze-td-right">Track width limit:</span>
-            {spin('trackWidthLimitPct', 0)}
-            {pct}
-
-            {/* Row 4 */}
-            <span>Maximum width (W):</span>
-            {entry('maxWidthMM')}
-            <span className="unit">mm</span>
-            <span />
-            <span />
-            <span />
-
-            {/* Row 5 — the second empty row. */}
-            <div className="ze-td-emptyrow" />
-
-            {/* Row 6 */}
-            <CheckBox
-              label="Curved edges"
-              checked={s.curvedEdges}
-              className="ze-pref-check"
-              onChange={(aChecked) => set('curvedEdges', aChecked)}
-            />
-          </div>
-        </div>
-        {opts.note && <div className="ze-pref-infotext ze-td-note">{opts.note}</div>}
-      </div>
-    );
+  const group = (aKey: TeardropShapeKey, aBitmap: string, aPreferZone: boolean): TEARDROP_GROUP => {
+    const s = value[aKey];
+    const set = (aPatch: Partial<TeardropShape>): void =>
+      onChange({ ...value, [aKey]: { ...s, ...aPatch } });
+    const length = (aLength: LengthKey) => {
+      const b = binders[aKey][aLength];
+      return {
+        value: b.GetText(),
+        onChange: (aText: string) => {
+          b.SetText(aText);
+          // GetIntValue
+          set({ [aLength]: pcbIuToMM(b.GetIntValue()) });
+          setTick((t) => t + 1);
+        },
+        onBlur: () => {
+          b.ChangeValue(b.GetValue());
+          setTick((t) => t + 1);
+        },
+        units: unitLabel(units),
+      };
+    };
+    const pct = (aField: 'bestLengthPct' | 'bestWidthPct' | 'trackWidthLimitPct') => ({
+      value: s[aField],
+      onChange: (aValue: number) => set({ [aField]: aValue }),
+    });
+    const check = (aField: 'preferZoneConnection' | 'allowSpanTwoSegments' | 'curvedEdges') => ({
+      value: s[aField],
+      onChange: (aOn: boolean) => set({ [aField]: aOn }),
+    });
+    return {
+      bitmap: svgUrl('teardrops', aBitmap),
+      m_spLenPercent: pct('bestLengthPct'),
+      m_tcTdMaxLen: length('maxLengthMM'),
+      m_spWidthPercent: pct('bestWidthPct'),
+      m_tcMaxWidth: length('maxWidthMM'),
+      m_cbPreferZoneConnection: aPreferZone ? check('preferZoneConnection') : undefined,
+      m_spTeardropHDPercent: pct('trackWidthLimitPct'),
+      m_cbTeardropsUseNextTrack: check('allowSpanTwoSegments'),
+      m_cbCurvedEdges: check('curvedEdges'),
+    };
   };
 
   return (
-    <div className="ze-pref-page-natural">
-      {group('Default Properties for Round Shapes', 'round', {
-        img: 'teardrop_sizes',
-        ref: 'd',
-        preferZone: true,
-        spanLabel: 'Allow teardrop to span two track segments',
-      })}
-      {group('Default Properties for Rectangular Shapes', 'rect', {
-        img: 'teardrop_rect_sizes',
-        ref: 'w',
-        preferZone: true,
-        spanLabel: 'Allow teardrop to span track segments',
-      })}
-      {group('Properties for Track-to-Track Teardrops', 'trackToTrack', {
-        img: 'teardrop_track_sizes',
-        ref: 'w',
-        preferZone: false,
-        spanLabel: 'Allow teardrop to span track segments',
-        note: 'Tracks which are similar in size do not need teardrops.',
-      })}
-    </div>
+    <PANEL_SETUP_TEARDROPS_BASE
+      // The constructor's SetBitmap( KiBitmapBundle( BITMAPS::teardrop_*sizes ) ).
+      round={group('round', 'teardrop_sizes', true)}
+      rect={group('rect', 'teardrop_rect_sizes', true)}
+      track={group('trackToTrack', 'teardrop_track_sizes', false)}
+    />
   );
 }

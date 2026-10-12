@@ -2,35 +2,18 @@
 // Copyright (C) 2026 ZiroEDA and contributors.
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
 /**
- * Board Setup > Board Stackup > Solder Mask/Paste. Counterpart:
- * `pcbnew/dialogs/panel_setup_mask_and_paste_base.cpp` (PANEL_SETUP_MASK_AND_PASTE),
- * two groups: Solder Mask Settings (expansion, minimum web width, mask-to-copper
- * clearance, tent vias front/back) and Solder Paste Settings (clearance, relative
- * clearance %). Board-wide defaults applied to pads unless overridden.
- *
- * NO FONT SIZES AND NO COLOURS HERE, and no locally-built rows either — the
- * page is `Group` / `Num` / `Check` out of `dialogs/prefs/widgets.tsx`, which is
- * where a labelled row, a group heading and a checkbox are stated once for the
- * whole app.
- *
- * This page calls `SetFont` in exactly two places, and neither of them is a
- * size: the two group headings ask for `wxNORMAL_FONT->GetPointSize()` at
- * `wxFONTWEIGHT_NORMAL` (the dialog font at the dialog's own weight — no change
- * at all), and `m_staticTextInfoPaste` takes
- * `KIUI::GetInfoFont( this ).Italic()` (`panel_setup_mask_and_paste.cpp:43`),
- * which is `.ze-pref-help`. The 12.5px grids, the 11px units and the
- * `font-weight: 600` headings that used to be here were all invented, and they
- * are why this page read smaller and heavier than the rest of the dialog.
+ * `PANEL_SETUP_MASK_AND_PASTE` (pcbnew/dialogs/panel_setup_mask_and_paste.cpp), Board Setup >
+ * Board Stackup > Solder Mask/Paste, on PANEL_SETUP_MASK_AND_PASTE_BASE: the three mask lengths
+ * as UNIT_BINDERs in the frame's units, the tenting checks, and KiCad 10's single paste field, a
+ * MARGIN_OFFSET_BINDER taking an offset, a percentage or both, with the old ratio row hidden.
  */
 
 import { useState, type JSX } from 'react';
-// Yaru's own `dialog-warning.png`, vendored — `wxArtProvider::GetBitmap` asks
-// the desktop icon theme, not KiCad's bitmaps. See `common/widgets/wx_infobar.tsx` for
-// the measurement that settled that.
-import warningIcon from '@ziroeda/bitmaps_png/sources/theme/dialog-warning.png';
-import { Check, Group, Num } from '@ziroeda/common/dialogs/pref_controls.js';
 import { pcbIUScale, pcbIuToMM, pcbMmToIU } from '@ziroeda/common/eda_units.js';
 import { MARGIN_OFFSET_BINDER } from '@ziroeda/common/widgets/margin_offset_binder.js';
+import { UNIT_BINDER, unitLabel } from '@ziroeda/common/widgets/unit_binder.js';
+import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
+import { type FIELD, PANEL_SETUP_MASK_AND_PASTE_BASE } from './panel_setup_mask_and_paste_base.js';
 import type { BOARD } from '../board.js';
 
 export interface MaskPaste {
@@ -84,31 +67,62 @@ export const PANEL_SETUP_MASK_AND_PASTE = {
   },
 };
 
-/** `m_pasteMarginLabel->SetToolTip( … )` (panel_setup_mask_and_paste.cpp:47-51). */
-const PASTE_MARGIN_TOOLTIP =
-  'Solder paste clearance relative to pad size.\n' +
-  'Enter an absolute value (e.g., -0.1mm), a percentage (e.g., -5%), or both (e.g., -0.1mm - 5%).\n' +
-  'This value can be superseded by local values for a footprint or a pad.';
+/** The base's tooltips (panel_setup_mask_and_paste_base.cpp), and the class's for the paste row. */
+const TIP = {
+  maskMargin:
+    'Global clearance between pads and the solder mask.\nThis value can be superseded by local values for a footprint or a pad.\nPositive clearance means a solder mask opening bigger than the pad (typical for solder mask clearance).',
+  maskMinWidth:
+    'Minimum distance between openings in the solder mask.\nPad openings closer than this distance will be plotted as a single opening.',
+  maskToCopper:
+    "Minimum distance between a solder mask opening and a copper item with a different net than the solder mask opening's parent.\nDistances smaller than this minimum will create a DRC error.",
+  pasteMargin:
+    'Solder paste clearance relative to pad size.\nEnter an absolute value (e.g., -0.1mm), a percentage (e.g., -5%), or both (e.g., -0.1mm - 5%).\nThis value can be superseded by local values for a footprint or a pad.',
+  pasteRatio:
+    'Global clearance ratio between pads and the solder paste as a percentage of the pad size.\nA value of 10 means the clearance value is 10 percent of the pad size.\nThis value can be superseded by local values for a footprint or a pad.\nFinal clearance value is the sum of this value and the absolute clearance value.',
+};
 
 interface Props {
   value: MaskPaste;
   onChange: (next: MaskPaste) => void;
+  /** The frame's units, which the UNIT_BINDERs show. */
+  units: StatusUnits;
 }
 
-export function PanelPcbMaskPaste({ value, onChange }: Props): JSX.Element {
+type MaskKey = 'maskExpansionMM' | 'maskMinWebMM' | 'maskToCopperMM';
+
+/** PANEL_SETUP_MASK_AND_PASTE's window: its base over the board's values. */
+export function PanelPcbMaskPaste({ value, onChange, units }: Props): JSX.Element {
   const set = <K extends keyof MaskPaste>(k: K, v: MaskPaste[K]): void =>
     onChange({ ...value, [k]: v });
+  const [, setTick] = useState(0);
+  const rerender = (): void => setTick((t) => t + 1);
 
-  // TransferDataToWindow: `m_pasteMargin.SetOffsetValue( m_SolderPasteMargin )`
-  // and `SetRatioValue( m_SolderPasteMarginRatio )`.
+  // m_maskExpansion, m_maskMinWidth, m_maskToCopperClearance: UNIT_BINDERs on the frame;
+  // TransferDataToWindow's SetValue.
+  const [binders] = useState(() => {
+    const provider = { GetUserUnits: () => units, GetIuScale: () => pcbIUScale };
+    const make = (aLabel: string, aKey: MaskKey): UNIT_BINDER => {
+      const b = new UNIT_BINDER(provider, aLabel);
+      b.SetValue(pcbMmToIU(value[aKey]));
+      return b;
+    };
+    return {
+      maskExpansionMM: make('Solder mask expansion:', 'maskExpansionMM'),
+      maskMinWebMM: make('Solder mask minimum web width:', 'maskMinWebMM'),
+      maskToCopperMM: make('Solder mask to copper clearance:', 'maskToCopperMM'),
+    };
+  });
+
+  // m_pasteMargin: TransferDataToWindow's SetOffsetValue( m_SolderPasteMargin ) and
+  // SetRatioValue( m_SolderPasteMarginRatio ).
   const [pasteBinder] = useState(() => {
-    const binder = new MARGIN_OFFSET_BINDER(pcbIUScale, 'mm');
+    const binder = new MARGIN_OFFSET_BINDER(pcbIUScale, units);
     binder.SetOffsetValue(pcbMmToIU(value.pasteClearanceMM));
     binder.SetRatioValue(value.pasteRelativePct / 100);
     return binder;
   });
   const [pasteText, setPasteText] = useState(() => pasteBinder.GetText());
-  // TransferDataFromWindow: `GetOffsetValue().value_or( 0 )`, and the ratio.
+  // TransferDataFromWindow: GetOffsetValue().value_or( 0 ), and the ratio.
   const commitPaste = (): void =>
     onChange({
       ...value,
@@ -116,111 +130,67 @@ export function PanelPcbMaskPaste({ value, onChange }: Props): JSX.Element {
       pasteRelativePct: (pasteBinder.GetRatioValue() ?? 0) * 100,
     });
 
+  const field = (aKey: MaskKey, aTitle: string): FIELD => {
+    const b = binders[aKey];
+    return {
+      label: b.GetLabel(),
+      value: b.GetText(),
+      onChange: (aText) => {
+        b.SetText(aText);
+        set(aKey, pcbIuToMM(b.GetValue()));
+        rerender();
+      },
+      // UNIT_BINDER::onKillFocus: the text is evaluated and shown in the binder's format.
+      onBlur: () => {
+        b.ChangeValue(b.GetValue());
+        rerender();
+      },
+      units: unitLabel(units),
+      title: aTitle,
+    };
+  };
+  const check = (aKey: 'allowBridged' | 'tentFront' | 'tentBack') => ({
+    value: value[aKey],
+    onChange: (aOn: boolean) => set(aKey, aOn),
+  });
+
   return (
-    <div className="ze-pref-page-natural">
-      {/* `bMessages`: the wxART_WARNING bitmap beside two STACKED
-          wxStaticTexts. The second line was missing here entirely. */}
-      <div className="ze-pcb-mask-messages">
-        <img src={warningIcon} width={16} height={16} alt="" aria-hidden="true" />
-        <div>
-          <div>
-            Consult your PCB manufacturer&rsquo;s specifications for solder mask expansion, web
-            width, and clearance settings.
-          </div>
-          <div>If no specifications are provided, setting these values to zero is recommended.</div>
-        </div>
-      </div>
-
-      <Group title="Solder Mask Settings">
-        {/* `spin={false}`: every one of these is a `wxTextCtrl` behind a
-            UNIT_BINDER, not a wxSpinCtrl, so it carries no stepper buttons. */}
-        <Num
-          label="Solder mask expansion:"
-          unit="mm"
-          spin={false}
-          value={value.maskExpansionMM}
-          onChange={(n) => set('maskExpansionMM', n)}
-        />
-        <Num
-          label="Solder mask minimum web width:"
-          unit="mm"
-          spin={false}
-          value={value.maskMinWebMM}
-          onChange={(n) => set('maskMinWebMM', n)}
-        />
-        <Num
-          label="Solder mask to copper clearance:"
-          unit="mm"
-          spin={false}
-          value={value.maskToCopperMM}
-          onChange={(n) => set('maskToCopperMM', n)}
-        />
-        {/* [data] `gbSizer1->Add( m_allowBridges, …, wxTOP|wxLEFT, 5 )` — a
-            wxTOP with no wxBOTTOM, which is `['top']` with no `'bottom'`. */}
-        <Check
-          label="Allow bridged solder mask apertures between pads within footprints"
-          title="Disable DRC error checking for solder mask aperture bridging between pads in the same footprint."
-          borders={['top']}
-          checked={value.allowBridged}
-          onChange={(b) => set('allowBridged', b)}
-        />
-        {/* `bSizer6`, a bare horizontal box: the label then the two
-            checkboxes, each Add() carrying its own wxLEFT/wxRIGHT 5. Not a
-            `.ze-pref-row` — that would push "Tent vias:" into the group's
-            shared label column, which this sizer never had. */}
-        <div className="ze-pref-radiorow">
-          <span>Tent vias:</span>
-          <Check
-            label="Front"
-            title={
-              'Tented: vias are covered with solder mask.\nNot tented: vias are not covered with solder mask.'
-            }
-            checked={value.tentFront}
-            onChange={(b) => set('tentFront', b)}
-          />
-          <Check
-            label="Back"
-            title={
-              'Tented: vias are covered with solder mask.\nNot tented: vias are not covered with solder mask.'
-            }
-            checked={value.tentBack}
-            onChange={(b) => set('tentBack', b)}
-          />
-        </div>
-      </Group>
-
-      <Group title="Solder Paste Settings">
-        {/* KiCad 10 enters both halves in ONE field through a
-            MARGIN_OFFSET_BINDER and hides the old ratio row
-            (panel_setup_mask_and_paste.cpp:38-56); the binder blanks the
-            unit label, since the text carries its own. */}
-        <label className="ze-pref-row" title={PASTE_MARGIN_TOOLTIP}>
-          <span className="lbl">Solder paste clearance:</span>
-          <input
-            type="text"
-            className="ze-search"
-            value={pasteText}
-            onChange={(e) => {
-              pasteBinder.onTextChanged(e.target.value);
-              setPasteText(e.target.value);
-              commitPaste();
-            }}
-            onBlur={() => {
-              pasteBinder.onKillFocus();
-              setPasteText(pasteBinder.GetText());
-              commitPaste();
-            }}
-            onKeyDown={(e) => e.stopPropagation()}
-          />
-        </label>
-      </Group>
-
-      {/* The one SetFont on the page that changes anything:
-          `KIUI::GetInfoFont( this ).Italic()`. */}
-      {/* `m_staticTextInfoPaste`: wxEmptyString in 10.0.5's base, and
-          nothing sets it. The "Note: ... are added" line was 9.x's, when
-          the two halves were separate fields. */}
-      <div className="ze-pref-help" />
-    </div>
+    <PANEL_SETUP_MASK_AND_PASTE_BASE
+      m_maskMargin={field('maskExpansionMM', TIP.maskMargin)}
+      m_maskMinWidth={field('maskMinWebMM', TIP.maskMinWidth)}
+      m_maskToCopperClearance={field('maskToCopperMM', TIP.maskToCopper)}
+      m_allowBridges={check('allowBridged')}
+      m_tentViasFront={check('tentFront')}
+      m_tentViasBack={check('tentBack')}
+      m_pasteMargin={{
+        // The constructor's SetLabel / SetToolTip for the combined field.
+        label: 'Solder paste clearance:',
+        value: pasteText,
+        onChange: (aText) => {
+          pasteBinder.onTextChanged(aText);
+          setPasteText(aText);
+          commitPaste();
+        },
+        onBlur: () => {
+          pasteBinder.onKillFocus();
+          setPasteText(pasteBinder.GetText());
+          commitPaste();
+        },
+        // The binder blanks the units label: the text carries its own.
+        units: '',
+        title: TIP.pasteMargin,
+      }}
+      // "Hide the old ratio controls - they're no longer needed."
+      m_pasteMarginRatio={{
+        label: 'Solder paste relative clearance:',
+        value: '',
+        onChange: () => {},
+        onBlur: () => {},
+        units: '%',
+        title: TIP.pasteRatio,
+        shown: false,
+      }}
+      m_staticTextInfoPaste=""
+    />
   );
 }

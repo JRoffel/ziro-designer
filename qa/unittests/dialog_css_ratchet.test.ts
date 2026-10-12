@@ -20,7 +20,9 @@ const BASELINE: Record<string, number> = {
   '3d-viewer': 6,
   // 183 -> 162 (10-11): the shared Page Settings pair; the .ze-pgs-* block and ze-btn-bitmap.
   // 162 -> 151 (10-12): DIALOG_PRINT_GENERIC_BASE pair.
-  common: 151, // -11 (10-11): the shared Table Properties form, replaced by one pair per editor
+  // 151 -> 152 (10-12): not new CSS. ze-border-top was also Mask & Paste's; with that page on its
+  // _base pair, pref_controls is its only user.
+  common: 152, // -11 (10-11): the shared Table Properties form, replaced by one pair per editor
   cvpcb: 8,
   designer: 138,
   // 114 -> 122 (10-11): not new CSS. ze-lp-* classes the old Table Cell and Label forms shared
@@ -44,7 +46,9 @@ const BASELINE: Record<string, number> = {
   // 32 -> 21 (10-11): ERC's pair; the .ze-erc-* block it held since DRC converted.
   eeschema: 21,
   // 31 -> 27 (10-12): Print on DIALOG_PRINT_GENERIC_BASE.
-  gerbview: 27,
+  // 27 -> 28 (10-12): not new CSS. ze-pref-help was also named in Mask & Paste; with that page on
+  // its _base pair, the Excellon panel is its only user.
+  gerbview: 28,
   pagelayout_editor: 14,
   // 477 -> 465 (10-10): the drill and position-file dialogs on the sizers.
   // 465 -> 466 (10-11): not new CSS. `span2` was shared with eeschema's Find dialog; with Find a
@@ -68,7 +72,11 @@ const BASELINE: Record<string, number> = {
   // 188 -> 182 (10-12): Shape, Import Graphics, Convert Settings, Complex Shape.
   // 182 -> 143 (10-12): Create Array, 3D Models panel, footprint editor properties, Zone Manager.
   // 143 -> 141 (10-12): Board Statistics.
-  pcbnew: 141,
+  // 141 -> 131 (10-12): Board Setup's Formatting, Defaults, Rules, Hatch Offsets; Display Origin.
+  // 131 -> 124 (10-12): Mask & Paste, Zones, Dimensions and Text & Graphics pairs.
+  // 124 -> 93 (10-12): Tuning Patterns, Teardrops, Pre-defined Sizes and Constraints pairs.
+  // 93 -> 90 (10-12): the footprint editor's Default Values pair.
+  pcbnew: 90,
 };
 
 const git = (...aSpecs: string[]): string[] =>

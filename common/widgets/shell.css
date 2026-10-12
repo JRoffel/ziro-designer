@@ -6962,27 +6962,14 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
 }
 /* A WX_GRID pane: a bordered, filled scroll area so an empty grid reads as a
    spreadsheet (header + empty rows) instead of a header floating over a gap. */
-/* The scrolled pane a WX_GRID lives in.
-   NOTE: this must NOT carry `contain: inline-size`. It looks like the right
-   place for it — a wxGrid scrolls and should not push its dialog wider — but
-   the panes divide into two kinds, and containment is only correct for one:
-   a pane the layout STRETCHES takes its width from outside and may be
-   contained, while a pane that is content-sized (`align-self: flex-start`, as
-   Zone Hatch Offsets' grid is, because upstream adds it with proportion 0)
-   takes its width from its content and collapses to nothing when contained.
-   Containment therefore belongs on the stretched panes individually —
-   `.ze-tg-grid-pane` below. */
+/* The scrolled pane a WX_GRID lives in. It carries no `contain: inline-size`: a pane that is
+   content-sized (Zone Hatch Offsets' grid, added with proportion 0) would collapse. A grid that
+   must not widen its dialog sits in a wxScrolledWindow, as upstream's do. */
 .ze-grid-pane {
   border: 1px solid var(--chrome-border);
   border-radius: 3px;
   background: var(--chrome-bg2);
   overflow: auto;
-}
-/* Text & Graphics > Defaults' grid pane: stretched to the page width, scrolls,
-   and states its own column widths, so its contents must not reach the dialog.
-   See `panel_setup_text_and_graphics_base.cpp:46-51`. */
-.ze-tg-grid-pane {
-  contain: inline-size;
 }
 .ze-grid-pane .ze-grid {
   border: none;
@@ -13310,61 +13297,6 @@ fieldset.ze-sbox > legend {
   gap: 5px; /* [data] the label's `wxRIGHT, 5`. */
 }
 
-/* `defaultPropertiesLabel` is added `wxEXPAND|wxRIGHT|wxLEFT, 8` inside a sizer
-   that is itself added `wxEXPAND|wxTOP, 5`; `m_staticline1` follows it
-   `wxBOTTOM|wxEXPAND|wxTOP, 2`, and then an `Add( 0, 7 )` spacer separates the
-   rule from the grid (`panel_fp_editor_graphics_defaults_base.cpp:25-36`).
-
-   Different numbers from `Group`'s 13/2/5, which is the only reason they are
-   restated: these are per-`Add()` sizer borders, which is data, not chrome. */
-.ze-fp-gfx-title {
-  /* [data] the outer sizer's wxTOP 5, the label's own wxLEFT/wxRIGHT 8, and
-     the rule's wxTOP 2. */
-  padding: 5px 8px 2px;
-  /* [data] the rule's wxBOTTOM 2 plus the `Add( 0, 7 )` under it. */
-  margin-bottom: 9px;
-}
-
-/* `SetRowLabelSize( 125 )` and `SetColSize( 0, 110 )` then 100/100/100/60
-   (`panel_fp_editor_graphics_defaults_base.cpp:45-49, 68`) — and then
-   `loadFPSettings` (`panel_fp_editor_graphics_defaults.cpp:139-148`) runs
-
-       SetColMinimalWidth( col, GetVisibleWidth( col, true, false ) );
-       SetColSize( col, GetVisibleWidth( col, true, true, true ) );
-       …
-       SetRowLabelSize( GetVisibleWidth( -1, true, true, true ) );
-
-   over every one of them. `aKeep = true` starts that measurement AT the stated
-   width, so a `_base.cpp` size is a FLOOR and the widest of (header + "M") and
-   (cell text + "M") is the width — which is `min-width` plus auto table
-   layout, never `width`.
-
-   [px] measured off the live footprint editor beside ours: the gridlines fall
-   at x = 776, 887, 987, 1087, 1193, 1253, i.e. a 125 px row-label gutter and
-   then 110 / 100 / 100 / **105** / 59. Only Text Thickness moved, and it moved
-   because its header needs 105 — which is the autosize doing exactly what
-   `min-width` plus content sizing does, and the reason none of these is a
-   stated `width`.
-
-   The slack goes to `.ze-grid-filler`, not to the columns. `.ze-grid`'s
-   `width: 100%` with no filler handed it all to the one auto column — the
-   row-label gutter — and left "Silk Layers" some 350 px from the 0.1 it
-   labels, which is the divergence these rules exist to stop. */
-.ze-fp-gfxgrid th:first-child {
-  min-width: 125px; /* [px] SetRowLabelSize( 125 ) */
-}
-.ze-fp-gfxgrid th:nth-child(2) {
-  min-width: 110px; /* [px] SetColSize( 0, 110 ) */
-}
-.ze-fp-gfxgrid th:nth-child(3),
-.ze-fp-gfxgrid th:nth-child(4),
-.ze-fp-gfxgrid th:nth-child(5) {
-  min-width: 100px; /* [px] SetColSize( 1..3, 100 ) */
-}
-.ze-fp-gfxgrid th:last-child {
-  min-width: 60px; /* [px] SetColSize( 4, 60 ) */
-}
-
 /* `SetCellAlignment( row, col, wxALIGN_CENTER, wxALIGN_CENTER )` on a
    `wxGridCellBoolRenderer` column — the Show column of Footprint Defaults and
    the Italic column of Graphics Defaults are both that
@@ -13420,24 +13352,6 @@ td.ze-grid-bool {
    `Group` / `Num` / `Sel` / `Check` every Preferences page uses — so their
    spacing, their label columns and their controls come from `.ze-pref-*` and
    are not restated here. */
-
-/* PANEL_SETUP_MASK_AND_PASTE's `bMessages`: the wxART_WARNING bitmap beside two
-   stacked wxStaticTexts (`panel_setup_mask_and_paste_base.cpp:20-42`). */
-.ze-pcb-mask-messages {
-  display: flex;
-  align-items: center;
-  /* [data] `bSizer3->Add( bMessages, 0, wxEXPAND|wxTOP|wxBOTTOM, 10 )`, plus
-     the `Add( 0, 5 )` spacer that follows it. */
-  margin: 10px 0 15px;
-  /* [data] the bitmap's `wxLEFT|wxRIGHT, 5` meeting the text block's
-     `wxLEFT, 5`. */
-  gap: 10px;
-  /* [data] the bitmap's own `wxLEFT, 5`. */
-  padding-left: 5px;
-}
-.ze-pcb-mask-messages img {
-  flex: 0 0 auto;
-}
 
 /* PANEL_SETUP_BOARD_FINISH's `fgSizer2`, added `wxEXPAND|wxTOP, 10` under the
    Plated-board-edge checkbox (`panel_board_finish_base.cpp:50`). */
@@ -13556,56 +13470,9 @@ td.ze-grid-bool {
   margin-right: 5px; /* [data] the choice's own `wxRIGHT, 5`. */
 }
 
-/* PANEL_SETUP_FORMATTING's `m_dashedLineHelp`, added `wxALL, 10` —
-   `panel_setup_formatting_base.cpp:51`. `.ze-pref-infotext` carries its font
-   (`KIUI::GetInfoFont( this ).Italic()`); only the border is local, because 10
-   is this Add()'s and `.ze-pref-help`'s 5 is the gerbview page's. */
-.ze-pcb-fmt-help {
-  padding: 10px; /* [data] `Add( m_dashedLineHelp, 0, wxALL, 10 )`. */
-}
-
 /* PANEL_SETUP_TUNING_PATTERNS (`panel_setup_tuning_patterns_base.cpp`), three
    times over — one group per meander kind, all from the same wxFormBuilder
    block, so one set of rules. */
-/* `singleTrackSizer`, a horizontal box: the legend bitmap then the field grid. */
-.ze-tune-body {
-  display: flex;
-  align-items: flex-start;
-  /* [data] the bitmap's `wxEXPAND|wxRIGHT|wxLEFT, 15` meeting the grid's
-     `wxEXPAND|wxTOP|wxRIGHT|wxLEFT, 5`. */
-  gap: 20px;
-  padding: 5px 5px 0 15px; /* [data] the grid's `wxEXPAND|wxTOP|wxRIGHT|wxLEFT, 5` and the bitmap's wxLEFT 15. */
-}
-.ze-tune-legend {
-  flex: 0 0 auto;
-}
-/* `wxFlexGridSizer( 0, 5, 5, 5 )` with `AddGrowableCol( 1 )`. */
-.ze-tune-grid {
-  display: grid;
-  grid-template-columns: max-content 1fr max-content max-content max-content;
-  align-items: center;
-  /* [data] the sizer's vgap 5 and hgap 5. */
-  gap: 5px;
-  flex: 1;
-}
-/* [data] `wxALIGN_CENTER_VERTICAL|wxLEFT, 15` on the third column's labels
-   (`m_track_maxALabel`, `m_track_rLabel`). */
-.ze-tune-col3 {
-  margin-left: 15px; /* [data] that `wxLEFT, 15`. */
-}
-/* Column 1 is a `wxBoxSizer( wxHORIZONTAL )` — the control at proportion 1 and
-   its unit `wxLEFT, 5` — so the entry stretches and the unit does not. */
-.ze-tune-entrybox {
-  display: flex;
-  align-items: center;
-  gap: 5px; /* [data] the same vgap 5 / hgap 5. */
-}
-/* [data] `fgSizer3->Add( 0, 5, 1, wxEXPAND )`, the one spacer row with a
-   height. Five spacer cells upstream, which is one full row here. */
-.ze-tune-gap {
-  grid-column: 1 / -1;
-  height: 5px; /* [data] the 5 of `Add( 0, 5, 1, wxEXPAND )`. */
-}
 
 /* `wxHyperlinkCtrl` — the clickable text KiCad puts beside a heading ("Syntax
    help" on Custom Rules, `panel_setup_rules_base.cpp:30`). One rule, because wx
@@ -13660,51 +13527,30 @@ td.ze-grid-bool {
 
 /* PANEL_SETUP_RULES (`pcbnew/dialogs/panel_setup_rules_base.cpp`): a title row
    with the Syntax-help link at its right, then the rule editor. */
-.ze-pcb-rules {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-.ze-pcb-rules-head {
-  display: flex;
-  align-items: center;
-  /* [data] `m_title`'s `wxBOTTOM|wxLEFT|wxTOP, 5` and the link's
-     `wxRIGHT|wxLEFT, 5`. */
-  padding: 5px;
-}
-.ze-pcb-rules-head .ze-hyperlink {
-  /* [data] `bSizer4->Add( 0, 0, 1, wxEXPAND )` — the spacer that pushes the
-     link to the right edge. */
-  margin-left: auto;
-}
-/* `m_textEditor`, a wxStyledTextCtrl added `wxEXPAND|wxBOTTOM|wxRIGHT, 5`. */
-.ze-pcb-rules-editor {
+/* wxStyledTextCtrl with a line-number margin (external/wx/stc.tsx), the code-editor form. */
+.ze-stc {
   flex: 1;
-  min-height: 240px; /* [px] the editor's own floor, so a page with no rules still shows a box. */
   display: flex;
-  border: 1px solid var(--chrome-border); /* [css] Yaru's `entry { border-width: 1px }` — `wxBORDER_SIMPLE` on the STC. */
+  border: 1px solid var(--chrome-border); /* [css] Yaru's `entry { border-width: 1px }`. */
   border-radius: 3px; /* [css] the same rule's `border-radius`, which every field here takes. */
   background: var(--field-bg);
   overflow: hidden;
-  margin: 0 5px 5px 0; /* [data] `m_topMargin->Add( m_textEditor, 3, wxEXPAND|wxBOTTOM|wxRIGHT, 5 )`. */
 }
-/* `SetMarginType( 0, wxSTC_MARGIN_NUMBER )` with
-   `SetMarginWidth( 0, TextWidth( wxSTC_STYLE_LINENUMBER, "_99999" ) )` — six
-   characters of the line-number style, which is what `6ch` is. */
-.ze-pcb-rules-gutter {
+/* `SetMarginWidth( 0, TextWidth( wxSTC_STYLE_LINENUMBER, "_99999" ) )`: six characters. */
+.ze-stc-margin {
   flex: 0 0 auto;
   box-sizing: content-box;
   width: 6ch;
-  padding: 6px 4px; /* [css] the entry padding Yaru gives a text view; the gutter is inside it. */
+  padding: 6px 4px; /* [css] the entry padding Yaru gives a text view; the margin is inside it. */
   text-align: right;
   color: var(--ctl-fg-disabled);
   background: var(--chrome-bg);
-  border-right: 1px solid var(--chrome-border); /* [css] the same 1px separator between the margin and the text. */
+  border-right: 1px solid var(--chrome-border); /* [css] the 1px separator between margin and text. */
   overflow: hidden;
   user-select: none;
   white-space: pre;
 }
-.ze-pcb-rules-text {
+.ze-stc-text {
   flex: 1;
   border: none;
   outline: none;
@@ -13715,13 +13561,9 @@ td.ze-grid-bool {
   white-space: pre;
   overflow: auto;
 }
-/* A Scintilla control, so a fixed-pitch face and a 4-space tab
-   (`SetUseTabs( true )`, `SetTabWidth( 4 )`, `SetIndent( 4 )`). No SIZE:
-   neither `panel_setup_rules_base.cpp` nor `panel_setup_rules.cpp` calls
-   `StyleSetFont`, so the editor is left at the control font and the 12.5px
-   this carried was a pick. */
-.ze-pcb-rules-gutter,
-.ze-pcb-rules-text {
+/* Scintilla: a fixed-pitch face and a 4-column tab. */
+.ze-stc-margin,
+.ze-stc-text {
   font-family: monospace;
   font-size: var(--ui-font-size);
   line-height: var(--ui-line-height);
@@ -13730,110 +13572,17 @@ td.ze-grid-bool {
 
 /* PANEL_SETUP_TEARDROPS (`panel_setup_teardrops_base.cpp`), three groups from
    one wxFormBuilder block, so one set of rules. */
-/* `bSizerShapeColumns`: the bitmap column, a 10 px spacer, then the gridbag. */
-.ze-td-body {
-  display: flex;
-  align-items: flex-start;
-  /* [data] the bitmap column's `wxEXPAND|wxRIGHT, 10` plus the explicit
-     `Add( 10, 0 )` spacer beside it. */
-  gap: 20px;
-  /* [data] `m_gridSizer->Add( bSizerShapeColumns, 1, wxEXPAND|wxTOP, 5 )` and
-     the gridbag's own `wxEXPAND|wxLEFT, 20` — carried on the grid below. */
-  margin-top: 5px;
-}
-.ze-td-legend {
-  flex: 0 0 auto;
-  /* [data] `wxALIGN_CENTER_HORIZONTAL|wxRIGHT|wxLEFT, 5`. */
-  margin: 0 5px;
-}
-/* `wxGridBagSizer( 2, 3 )` — SIX columns: label / control / units, then the
-   same three again. This was two independent flex columns, so the right half's
-   rows did not line up with the left half's. */
-.ze-td-grid {
-  display: grid;
-  grid-template-columns: max-content max-content max-content max-content max-content max-content;
-  align-items: center;
-  /* [data] the gridbag's vgap 2 and hgap 3. */
-  row-gap: 2px;
-  column-gap: 3px; /* [data] the gridbag's hgap 3. */
-  /* [data] `bSizerShapeColumns->Add( gbSizer, 0, wxEXPAND|wxLEFT, 20 )`. */
-  margin-left: 20px;
-}
-/* [data] `wxLEFT, 40` on everything in column 3 — the span checkbox, Prefer
-   zone connection and Track width limit. */
-.ze-td-right {
-  margin-left: 40px; /* [data] the `wxLEFT, 40` every column-3 child carries. */
-}
-/* The two checkboxes span columns 3-5 (`wxGBSpan( 1, 3 )`). */
-.ze-pref-check.ze-td-right {
-  grid-column: span 3;
-}
-/* [data] `SetEmptyCellSize( wxSize( 10, 7 ) )` — the height of a row the
-   gridbag leaves unfilled. */
-.ze-td-emptyrow {
-  grid-column: 1 / -1;
-  height: 7px; /* [data] the 7 of `SetEmptyCellSize( wxSize( 10, 7 ) )`. */
-}
-/* The hint letter inside `%(d)`: `wxFONTSTYLE_ITALIC` at
-   `wxNORMAL_FONT->GetPointSize()`, added `wxALIGN_BOTTOM` — italic, the
-   dialog's own size, sitting on the baseline of the parentheses. */
-.ze-td-hint {
-  font-style: italic;
-}
-.ze-td-note {
-  margin-top: 5px; /* [data] `m_gridSizer->Add( bSizerShapeColumns, 1, wxEXPAND|wxTOP, 5 )`. */
-}
 
 /* PANEL_SETUP_DIMENSIONS, the lower half of the Defaults page
    (`panel_setup_dimensions_base.cpp`). */
-/* [data] `mainSizer->Add( m_staticTextDefPropDim, 0, wxTOP|wxRIGHT|wxLEFT, 13 )`
-   coming after the layer-class grid's own `wxBOTTOM, 15`. */
-.ze-tg-dimtitle {
-  margin-top: 13px; /* [data] `Add( m_staticTextDefPropDim, 0, wxTOP|wxRIGHT|wxLEFT, 13 )`. */
-}
-/* `wxGridBagSizer( 0, 5 )` — vgap 0, hgap 5, six columns. Column 2 is the
-   empty spacer that separates the two halves. */
-.ze-tg-dimgrid {
-  display: grid;
-  grid-template-columns: max-content max-content 10px max-content max-content max-content; /* [data] the empty spacer cell at `wxGBPosition( 0, 2 )`. */
-  align-items: center;
-  row-gap: 0;
-  column-gap: 5px; /* [data] the gridbag's hgap 5. */
-  /* [data] `mainSizer->Add( gbSizer1, 1, wxEXPAND|wxALL, 5 )`. */
-  padding: 5px;
-}
-/* Nearly every cell in this sizer carries wxBOTTOM 5; the sizer's own vgap is
-   0, so the row pitch IS that border. */
-.ze-tg-dimgrid > * {
-  margin-bottom: 5px; /* [data] the wxBOTTOM 5 nearly every cell of this gridbag carries. */
-}
-/* [data] `wxLEFT` on the column-3 labels and the Keep-text-aligned checkbox. */
-.ze-tg-dimright {
-  margin-left: 5px; /* [data] the `wxLEFT` on the column-3 children. */
-}
-/* [data] `wxGBSpan( 1, 2 )` on Keep text aligned and Suppress trailing zeroes. */
-.ze-tg-span2 {
-  grid-column: span 2;
-}
 
-/* PANEL_ZONE_PROPERTIES lays its fields out in two columns
-   (`m_clearancesPanel` and `m_displayOverridesPanel`, side by side in
-   `panel_zone_properties_base.cpp`). Each is its own sizer, so each has its own
-   label column — which is `.ze-pref-group-body`'s rule already. */
-.ze-zonedef-cols {
-  display: flex;
-  align-items: flex-start;
-  /* [data] the two panels' facing wxLEFT/wxRIGHT borders. */
-  gap: 10px;
-}
-
-/* PANEL_SETUP_DEFAULTS: three panels in one scrolled window, separated by
-   `m_scrollSizer->AddSpacer( 10 )` (`panel_setup_defaults.cpp:43-48`). */
-.ze-pcb-defaults {
+/* wxScrolledWindow (external/wx/scrolwin.tsx): no minimum of its own, so a sizer item holding
+   it shrinks to the space it is given and the window scrolls the rest. */
+.ze-scrolledwindow {
   display: flex;
   flex-direction: column;
-  /* [data] the two `AddSpacer( 10 )` calls between the three blocks. */
-  gap: 10px;
+  min-width: 0;
+  min-height: 0;
 }
 
 /* PANEL_SETUP_TUNING_PROFILES (`panel_setup_tuning_profiles_base.cpp`): a
@@ -14019,23 +13768,6 @@ td.ze-grid-bool {
 
 /* PANEL_SETUP_BOARD_STACKUP (`panel_board_stackup_base.cpp` /
    `panel_board_stackup.cpp`). */
-/* PANEL_SETUP_ZONE_HATCH_OFFSETS (`panel_setup_zone_hatch_offsets_base.cpp`),
-   whose mainSizer is a caption, a 2px spacer, a rule and the grid. */
-.ze-zone-hatch-offsets {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-.ze-zone-hatch-caption {
-  padding: 13px 13px 0; /* [data] `Add( m_staticTextLabel, 0, wxTOP|wxRIGHT|wxLEFT, 13 )`. */
-}
-.ze-zone-hatch-rule {
-  border: none;
-  border-top: 1px solid var(--chrome-border); /* [css] Yaru's `separator { min-height: 1px }`. */
-  /* [data] `Add( 0, 2, 0, 0 )` above it, then `wxEXPAND|wxBOTTOM, 5`. */
-  margin: 2px 0 5px;
-  width: auto;
-}
 /* [data] `Add( m_layerOffsetsGrid, 0, wxALL, 5 )` — the grid is added with
    proportion 0, so it takes its own height and does not stretch. */
 .ze-zone-layer-grid {
@@ -14179,234 +13911,7 @@ td.ze-grid-bool {
    and no colour: the one SetFont on the page is `m_stCircleToPolyWarning`'s
    `KIUI::GetSmallInfoFont( this ).Italic()` (`panel_setup_constraints.cpp:74`),
    which is `.ze-pref-hint`. */
-/* `bScrolledSizer`, horizontal: the constraint grid, a zero-width spacer, the
-   rules column, and then
 
-     bScrolledSizer->Add( 0, 0, 1, wxEXPAND, 0 );
-
-   which is the ONLY growable thing in the row (`:379-395`). Both halves go in
-   at proportion 0, so NEITHER column stretches: every width on this page is a
-   min width and the slack piles up on the right.
-
-   This said `flex: 1` on both, which is proportion 1 on both — the two columns
-   split the page between them, every entry in them stretched to fill, and the
-   page came out ~115 px wider than KiCad's. */
-.ze-con-cols {
-  display: flex;
-  align-items: flex-start;
-  /* [data] `Add( sbFeatureConstraints, 0, wxEXPAND|wxRIGHT, 5 )` meeting
-     `Add( 0, 0, 0, wxEXPAND|wxRIGHT|wxLEFT, 15 )`: 5 + 15 + 15.
-     [px] the rules column starts 35 px past the grid's right edge
-     (`qa/probes/constraints_layout_probe.cpp`). */
-  gap: 35px;
-}
-.ze-con-cols > * {
-  flex: 0 0 auto;
-}
-/* `fgFeatureConstraints = new wxFlexGridSizer( 0, 4, 0, 0 )` — FOUR columns,
-   bitmap / label / entry / units. vgap and hgap are both 0: the spacing is
-   each control's own border. */
-.ze-con-grid {
-  display: grid;
-  grid-template-columns: max-content max-content max-content max-content;
-  align-items: center;
-}
-/* A section heading is ONE cell in the FIRST column (`Add( m_staticText23, 0,
-   wxTOP|wxLEFT, 13 )`), followed by a row of four `wxStaticLine`s. It does not
-   span, and that is load-bearing: the bitmap column is as wide as the widest
-   heading — "Copper" — which is why KiCad's constraint icons sit indented
-   under it rather than hard against the left edge. A heading that spans
-   contributes nothing to any one track, so ours collapsed to the icon width
-   and the whole grid sat 40 px to the left of KiCad's.
-   [px] column 1 measures 64 = 13 + the width of "Copper"
-   (`qa/probes/constraints_layout_probe.cpp`). */
-.ze-con-head {
-  grid-column: 1;
-  margin-top: 13px; /* [data] the heading's `wxTOP, 13`. */
-  padding-left: 13px; /* [data] the same Add()'s `wxLEFT, 13`. */
-  white-space: nowrap;
-}
-/* The four `wxStaticLine`s under a heading, each `wxEXPAND|wxTOP|wxBOTTOM, 2`.
-   Four abutting lines in a zero-hgap sizer read as one rule, so this is one
-   element; the colour is `.ze-hr`'s and is not restated. */
-.ze-con-hr {
-  grid-column: 1 / -1;
-  margin: 2px 0; /* [data] the staticlines' `wxTOP|wxBOTTOM, 2`. */
-}
-.ze-con-row {
-  display: grid;
-  grid-template-columns: subgrid;
-  grid-column: 1 / -1;
-  align-items: center;
-}
-/* [data] the bitmap's `wxALIGN_CENTER_HORIZONTAL|wxRIGHT|wxLEFT, 5`, and a
-   24 px box so the un-iconed Silk rows keep the column. */
-.ze-con-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  /* [data] `KiBitmapBundle( BITMAPS::…, 24 )` on every bitmap of this page
-     (`panel_setup_constraints.cpp:61-73`). This said 20. */
-  width: 24px;
-  height: 24px; /* [data] the same, so an un-iconed Silk row keeps the column. */
-  margin: 0 5px; /* [data] the bitmap's `wxRIGHT|wxLEFT, 5`. */
-}
-/* [data] the label's `wxRIGHT, 5`. */
-.ze-con-row > .lbl {
-  margin-right: 5px; /* [data] the label's `wxRIGHT, 5`. */
-  white-space: nowrap;
-}
-/* [data] the entry's `wxTOP|wxBOTTOM, 5`, which is this grid's whole row
-   pitch — the sizer's own vgap is 0. */
-.ze-con-row > .ze-search {
-  margin: 5px 0; /* [data] the entry's `wxTOP|wxBOTTOM, 5`, which is this grid's whole row pitch. */
-  /* [data] `m_TrackMinWidthCtrl->SetMinSize( wxSize( 120, -1 ) )` and the same
-     on `m_MinConnCtrl` (`:80`, `:100`). A wxFlexGridSizer column is as wide as
-     its widest cell and this column does not grow, so those two calls set the
-     width of every entry in it.
-     [px] column 3 measures 120 (`qa/probes/constraints_layout_probe.cpp`). */
-  width: 120px;
-}
-/* [data] the units' `wxLEFT, 5`. */
-.ze-con-row > .unit {
-  margin-left: 5px; /* [data] the units' `wxLEFT, 5`. */
-}
-/* The rules column stacks its headings and controls in a plain vertical box,
-   and here the heading and its one `wxStaticLine` ARE the shared pair. */
-.ze-con-rules .ze-pref-group-title {
-  /* [data] `Add( m_stCircleToPolyOpt, 0, wxTOP|wxLEFT, 13 )`. */
-  margin-top: 13px;
-  padding-left: 13px; /* [data] the same `wxTOP|wxLEFT, 13`. */
-}
-.ze-con-rules > .ze-pref-hint {
-  margin: 0 5px 5px; /* [data] `Add( m_stCircleToPolyWarning, 0, wxBOTTOM|wxRIGHT|wxLEFT, 5 )`. */
-}
-/* `fgSizer2 = new wxFlexGridSizer( 0, 4, 3, 0 )` (`:400`) — the Maximum
-   allowed deviation row. THREE cells are filled: label, entry, units. There is
-   no bitmap column here, and rendering this row through the left grid's
-   four-column shape indented the label by an empty 34 px icon cell. */
-.ze-con-dev {
-  display: grid;
-  grid-template-columns: max-content max-content max-content;
-  align-items: center;
-  margin-bottom: 5px; /* [data] `Add( fgSizer2, 0, wxEXPAND|wxBOTTOM, 5 )`. */
-}
-.ze-con-dev > .lbl {
-  margin-left: 5px; /* [data] `m_maxErrorTitle`'s `wxLEFT, 5`. */
-  white-space: nowrap;
-}
-.ze-con-dev > .ze-search {
-  margin: 5px; /* [data] `m_maxErrorCtrl`'s `wxALL|wxLEFT|wxRIGHT, 5`. */
-  /* Nothing sizes this one, so it is a bare wxTextCtrl's own best width — the
-     token, not the left grid's 120, which comes from a SetMinSize this control
-     does not have. */
-  width: var(--ctl-entry-width);
-}
-.ze-con-dev > .unit {
-  margin-right: 5px; /* [data] `m_maxErrorUnits`'s `wxRIGHT, 5`. */
-}
-/* `m_bSizerPolygonFillOption`. Its own heading keeps the 13 above it, so the
-   gap over "Zone Fill Strategy" is 23. */
-.ze-con-fill {
-  margin-top: 10px; /* [data] `Add( m_bSizerPolygonFillOption, 0, wxEXPAND|wxTOP, 10 )` (`:432`). */
-}
-.ze-con-rules > .ze-pref-check {
-  margin: 5px; /* [data] `Add( m_useHeightForLengthCalcs, 0, wxALL, 5 )` (`:474`). */
-}
-/* `bSizer9`: the fillet bitmap then the checkbox, added `wxEXPAND|wxTOP, 7`.
-   The row is a plain horizontal box, so the checkbox keeps its own
-   `.ze-pref-check` — that class's 8 px gap is GTK's box-to-label spacing and
-   is not the gap between the bitmap and the checkbox, which is two 5 px
-   borders meeting. */
-.ze-con-check {
-  display: flex;
-  align-items: center;
-  margin-top: 7px; /* [data] `Add( bSizer9, 0, wxEXPAND|wxTOP, 7 )`. */
-}
-.ze-con-check > .ze-pref-check {
-  margin: 5px; /* [data] the checkbox's `wxALL, 5`. */
-}
-/* `bSizer111`: the spoke bitmap, the label, and a `wxSpinCtrl` — added
-   `wxEXPAND|wxTOP|wxBOTTOM, 5`. The spin control is never sized here; its two
-   arrow buttons are the shared widget's. */
-.ze-con-spoke {
-  display: flex;
-  align-items: center;
-  margin: 5px 0; /* [data] `Add( bSizer111, 1, wxEXPAND|wxTOP|wxBOTTOM, 5 )`. */
-}
-.ze-con-spoke > .lbl {
-  margin-left: 5px; /* [data] the label's `wxLEFT, 5`. */
-  white-space: nowrap;
-}
-.ze-con-spoke > .ze-spinctrl {
-  margin: 5px; /* [data] the spin control's `wxALL, 5`. */
-}
-
-/* PANEL_SETUP_TRACKS_AND_VIAS: three WX_GRIDs side by side, each with its own
-   add / sort / remove buttons under it.
-
-   `bMainSizer->Add( bSizerTracks, 1, wxEXPAND, 5 )`, and the same for Vias and
-   Differential Pairs (`_base.cpp:71`, `:130`, `:198`) — proportion 1 on all
-   three, so the page is in exact thirds and each grid fills its third. There
-   is no gap between the columns: what separates them is each grid's own
-   `wxRIGHT, 5`, which the third one carries too. This said `gap: 14px`, a
-   number no sizer here states. */
-.ze-sizes-cols {
-  height: 100%;
-  display: flex;
-}
-.ze-sizes-col {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-.ze-sizes-title {
-  padding: 5px; /* [data] `bSizerTracks->Add( stTracksLabel, 0, wxALL, 5 )`. */
-}
-.ze-sizes-pane {
-  flex: 1;
-  min-height: 0;
-  /* [data] `Add( m_trackWidthsGrid, 1, wxEXPAND|wxRIGHT, 5 )` — the whole of
-     the space between one column and the next. */
-  margin-right: 5px;
-}
-/* The grid's own table is as wide as its columns and no wider; the pane around
-   it is the wxGrid window, which is wider, and the slack paints as empty grid.
-   [data] `SetColSize( 0, 120 )` on every column of all three grids
-   (`_base.cpp:38`, `:91-92`, `:159-161`).
-   `panel_setup_tracks_and_vias.cpp:106-120` reads as though it replaces that
-   with a text extent and does not: its `GetVisibleWidth( col, true, true,
-   true )` SEEDS itself with `GetColSize( aCol )` (`wx_grid.cpp:GetVisibleWidth`),
-   so the `std::max` keeps the 120.
-   [px] the extent it is compared against, `GetTextExtent( "000.000000 mm " )`,
-   measures 108 and therefore never wins
-   (`qa/probes/tracks_vias_grid_probe.cpp`). */
-.ze-sizes-pane .ze-grid {
-  table-layout: fixed;
-}
-.ze-sizes-col-w {
-  /* [data] `SetColSize( 0, 120 )` (`_base.cpp:38`), which the .cpp's
-     `std::max` keeps rather than replaces — see the note above. */
-  width: 120px;
-}
-/* The buttons carry their own borders below, so the row states no gap. */
-.ze-sizes-col > .ze-grid-btns {
-  margin-top: 3px; /* [data] `Add( bSizer3, 0, wxEXPAND|wxTOP, 3 )`. */
-  gap: 0;
-}
-.ze-sizes-col .ze-gridbtn-add {
-  margin: 0 5px 5px 0; /* [data] `Add( m_trackWidthsAddButton, 0, wxBOTTOM|wxRIGHT, 5 )`. */
-}
-.ze-sizes-col .ze-gridbtn-sort {
-  margin: 0 5px; /* [data] `Add( m_trackWidthsSortButton, 0, wxRIGHT|wxLEFT, 5 )`. */
-}
-.ze-sizes-col .ze-gridbtn-remove {
-  margin: 0 25px; /* [data] `Add( m_trackWidthsRemoveButton, 0, wxLEFT|wxRIGHT, 25 )`. */
-}
-.ze-sizes-pane .ze-grid {
-  width: 100%;
-}
 /* A wxGrid's column labels do not scroll with its rows. */
 .ze-sticky-head {
   position: sticky;

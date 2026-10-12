@@ -2,203 +2,78 @@
 // Copyright (C) 2026 ZiroEDA and contributors.
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
 /**
- * "Default Properties for New Zones". Counterpart:
- * `pcbnew/dialogs/panel_setup_zones_base.cpp` (PANEL_SETUP_ZONES) — a heading, a
- * `wxStaticLine`, and an embedded PANEL_ZONE_PROPERTIES: the settings a newly
- * drawn copper zone starts with (clearance, minimum width, pad connection +
- * thermal relief, outline display, corner smoothing, island removal).
- *
- * In KiCad 10 this is NOT a page of its own. `PANEL_SETUP_DEFAULTS` builds it
- * as the third block of the Text & Graphics > Defaults page, under Text &
- * Graphics and Dimensions (`panel_setup_defaults.cpp:41-48`), which is where
- * `dialog_board_setup.tsx` now renders it; the standalone "Zones" row this used
- * to have exists in no version of the Board Setup tree.
- *
- * NOT PORTED YET: PANEL_ZONE_PROPERTIES' net name, hatched-fill block
- * (orientation, hatch width/gap, smoothing effort and amount) and hatch-offset
- * overrides. See BOARD_SETUP_STATUS.md.
+ * `PANEL_SETUP_ZONES` (pcbnew/dialogs/panel_setup_zones.cpp): Board Setup's default properties for
+ * new zones, the shared PANEL_ZONE_PROPERTIES over the board's default ZONE_SETTINGS with no net
+ * selector, on PANEL_SETUP_ZONES_BASE.
  */
-
-import { CheckBox, TextCtrl } from '@ziroeda/wx/controls.js';
 import type { JSX } from 'react';
-import { Combo } from '@ziroeda/wx/combobox.js';
-import { pcbIUScale } from '@ziroeda/common/eda_units.js';
+import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
 import type { BOARD } from '../board.js';
-import { ISLAND_REMOVAL_MODE, ZONE_BORDER_DISPLAY_STYLE } from '../zone_settings.js';
-import { ZONE_CONNECTION } from '../zones.js';
+import { ORPHANED_NET } from '../netinfo.js';
+import { ZONE_SETTINGS } from '../zone_settings.js';
+import type { TransferResult } from './dialog_text_properties.js';
+import { PANEL_SETUP_ZONES_BASE } from './panel_setup_zones_base.js';
+import {
+  PanelZoneProperties,
+  type ZoneValues,
+  acceptZoneOptions,
+  zoneSettingsToValues,
+} from './panel_zone_properties.js';
 
-export interface ZoneDefaults {
-  name: string;
-  clearanceMM: number;
-  minWidthMM: number;
-  padConnection: string;
-  thermalGapMM: number;
-  thermalSpokeMM: number;
-  outlineDisplay: string;
-  outlineHatchPitchMM: number;
-  cornerSmoothing: string;
-  smoothingRadiusMM: number;
-  removeIslands: string;
-  areaLimitMM2: number;
-  locked: boolean;
-}
+/** What the page edits: PANEL_ZONE_PROPERTIES's values for the default settings. */
+export type ZoneDefaults = ZoneValues;
 
-// The choices' labels indexed by the enum each stores (the combos list them in
-// their own display order below).
-/** ZONE_CONNECTION: NONE=0, THERMAL=1, FULL=2, THT_THERMAL=3. */
-const PAD_CONNECTION_OF: readonly string[] = [
-  'None',
-  'Thermal reliefs',
-  'Solid',
-  'Reliefs for PTH',
-];
-/** ZONE_BORDER_DISPLAY_STYLE: NO_HATCH=0, DIAGONAL_FULL=1, DIAGONAL_EDGE=2. */
-const BORDER_STYLE_OF: readonly string[] = ['Line', 'Fully hatched', 'Hatched'];
-/** ZONE_SETTINGS::SMOOTHING_NONE 0, SMOOTHING_CHAMFER 1, SMOOTHING_FILLET 2. */
-const CORNER_SMOOTHING_OF: readonly string[] = ['None', 'Chamfer', 'Fillet'];
-/** ISLAND_REMOVAL_MODE: ALWAYS=0, NEVER=1, AREA=2. */
-const ISLAND_REMOVAL_OF: readonly string[] = ['Always', 'Never', 'Below area limit'];
-
-/** A choice's selection index, or `aFallback` when the label is not one of them. */
-const selectionOf = (aList: readonly string[], aLabel: string, aFallback: number): number => {
-  const i = aList.indexOf(aLabel);
-  return i < 0 ? aFallback : i;
-};
-
-/**
- * PANEL_SETUP_ZONES's transfers (panel_setup_zones.cpp): the board's default
- * ZONE_SETTINGS through PANEL_ZONE_PROPERTIES.
- */
 export const PANEL_SETUP_ZONES = {
+  /** `m_panelZoneProperties->TransferZoneSettingsToWindow()`, the bag's settings for no zone. */
   TransferDataToWindow(aBoard: BOARD): ZoneDefaults {
-    const zs = aBoard.GetDesignSettings().GetDefaultZoneSettings();
-    const mm = (iu: number): number => pcbIUScale.iuToMM(iu);
-    return {
-      name: zs.m_Name,
-      clearanceMM: mm(zs.m_ZoneClearance),
-      minWidthMM: mm(zs.m_ZoneMinThickness),
-      padConnection: PAD_CONNECTION_OF[zs.GetPadConnection()] ?? 'Thermal reliefs',
-      thermalGapMM: mm(zs.m_ThermalReliefGap),
-      thermalSpokeMM: mm(zs.m_ThermalReliefSpokeWidth),
-      outlineDisplay: BORDER_STYLE_OF[zs.m_ZoneBorderDisplayStyle] ?? 'Hatched',
-      outlineHatchPitchMM: mm(zs.m_BorderHatchPitch),
-      cornerSmoothing: CORNER_SMOOTHING_OF[zs.GetCornerSmoothingType()] ?? 'None',
-      smoothingRadiusMM: mm(zs.GetCornerRadius()),
-      removeIslands: ISLAND_REMOVAL_OF[zs.GetIslandRemovalMode()] ?? 'Always',
-      areaLimitMM2: zs.GetMinIslandArea() / (pcbIUScale.IU_PER_MM * pcbIUScale.IU_PER_MM),
-      locked: zs.m_Locked,
-    };
+    return zoneSettingsToValues(
+      aBoard.GetDesignSettings().GetDefaultZoneSettings(),
+      null,
+      aBoard.GetCopperLayerCount(),
+    );
   },
 
-  /** `PANEL_ZONE_PROPERTIES::TransferZoneSettingsFromWindow`, into the board's defaults. */
-  TransferDataFromWindow(z: ZoneDefaults, aBoard: BOARD): void {
+  /**
+   * `TransferZoneSettingsFromWindow()`, then the settings with `m_Netcode = ORPHANED` become the
+   * board's defaults. False, and nothing changes, where AcceptOptions refuses.
+   */
+  TransferDataFromWindow(z: ZoneDefaults, aBoard: BOARD): TransferResult {
     const bds = aBoard.GetDesignSettings();
-    const iu = (mm: number): number => pcbIUScale.mmToIU(mm);
-    const zs = bds.GetDefaultZoneSettings().clone();
-    zs.m_Name = z.name;
-    zs.m_ZoneClearance = iu(z.clearanceMM);
-    zs.m_ZoneMinThickness = iu(z.minWidthMM);
-    zs.SetPadConnection(
-      selectionOf(PAD_CONNECTION_OF, z.padConnection, ZONE_CONNECTION.THERMAL) as ZONE_CONNECTION,
-    );
-    zs.m_ThermalReliefGap = iu(z.thermalGapMM);
-    zs.m_ThermalReliefSpokeWidth = iu(z.thermalSpokeMM);
-    zs.m_ZoneBorderDisplayStyle = selectionOf(
-      BORDER_STYLE_OF,
-      z.outlineDisplay,
-      ZONE_BORDER_DISPLAY_STYLE.DIAGONAL_EDGE,
-    ) as ZONE_BORDER_DISPLAY_STYLE;
-    zs.m_BorderHatchPitch = iu(z.outlineHatchPitchMM);
-    zs.SetCornerSmoothingType(selectionOf(CORNER_SMOOTHING_OF, z.cornerSmoothing, 0));
-    zs.SetCornerRadius(iu(z.smoothingRadiusMM));
-    zs.SetIslandRemovalMode(
-      selectionOf(
-        ISLAND_REMOVAL_OF,
-        z.removeIslands,
-        ISLAND_REMOVAL_MODE.ALWAYS,
-      ) as ISLAND_REMOVAL_MODE,
-    );
-    zs.SetMinIslandArea(Math.trunc(z.areaLimitMM2 * pcbIUScale.IU_PER_MM * pcbIUScale.IU_PER_MM));
-    zs.m_Locked = z.locked;
-    bds.SetDefaultZoneSettings(zs);
+    const settings = bds.GetDefaultZoneSettings().clone();
+    const result = acceptZoneOptions(settings, z, null, false, aBoard);
+    if (!result.ok) return result;
+    settings.m_Netcode = ORPHANED_NET;
+    bds.SetDefaultZoneSettings(settings);
+    return result;
+  },
+
+  /** What AcceptOptions would say about the window, without a board to write to. */
+  Validate(z: ZoneDefaults): TransferResult {
+    return acceptZoneOptions(new ZONE_SETTINGS(), z, null, false, null);
   },
 };
-
-const PAD_CONNECTIONS = ['Solid', 'Thermal reliefs', 'Reliefs for PTH', 'None'];
-const OUTLINE_DISPLAY = ['Line', 'Hatched', 'Fully hatched'];
-const CORNER_SMOOTHING = ['None', 'Chamfer', 'Fillet'];
-const REMOVE_ISLANDS = ['Always', 'Never', 'Below area limit'];
 
 interface Props {
   value: ZoneDefaults;
   onChange: (next: ZoneDefaults) => void;
+  units: StatusUnits;
 }
 
-export function PanelPcbZones({ value, onChange }: Props): JSX.Element {
-  const num = (s: string): number => (Number.isFinite(Number(s)) ? Number(s) : 0);
-  const set = <K extends keyof ZoneDefaults>(k: K, v: ZoneDefaults[K]): void =>
-    onChange({ ...value, [k]: v });
+const NO_NETS: ReadonlyMap<number, string> = new Map();
 
-  const numRow = (label: string, key: keyof ZoneDefaults, unit: string): JSX.Element => (
-    <div className="ze-pref-row" key={key}>
-      <span className="lbl">{label}</span>
-      <TextCtrl
-        value={String(value[key] as number)}
-        onChange={(aValue) => set(key, num(aValue) as never)}
-        className="ze-search"
-      />
-      <span className="unit">{unit}</span>
-    </div>
-  );
-  const selRow = (label: string, key: keyof ZoneDefaults, options: string[]): JSX.Element => (
-    // Not a <label>: `Combo` is a button, and a button inside a label toggles
-    // the popup open and shut on one click.
-    <div className="ze-pref-row" key={key}>
-      <span className="lbl">{label}</span>
-      <Combo
-        value={value[key] as string}
-        ariaLabel={label}
-        options={options.map((o) => ({ value: o, label: o }))}
-        onChange={(o) => set(key, o as never)}
-      />
-    </div>
-  );
-
+export function PanelPcbZones({ value, onChange, units }: Props): JSX.Element {
   return (
-    <div>
-      <div className="ze-pref-group-title">Default Properties for New Zones</div>
-      <div className="ze-zonedef-cols">
-        <div className="ze-pref-group-body">
-          <div className="ze-pref-row">
-            <span className="lbl">Zone name:</span>
-            <TextCtrl
-              value={value.name}
-              onChange={(aValue) => set('name', aValue)}
-              className="ze-search"
-            />
-          </div>
-          {numRow('Clearance:', 'clearanceMM', 'mm')}
-          {numRow('Minimum width:', 'minWidthMM', 'mm')}
-          {selRow('Pad connections:', 'padConnection', PAD_CONNECTIONS)}
-          {numRow('Thermal relief gap:', 'thermalGapMM', 'mm')}
-          {numRow('Thermal spoke width:', 'thermalSpokeMM', 'mm')}
-        </div>
-
-        <div className="ze-pref-group-body">
-          {selRow('Outline display:', 'outlineDisplay', OUTLINE_DISPLAY)}
-          {numRow('Outline hatch pitch:', 'outlineHatchPitchMM', 'mm')}
-          {selRow('Corner smoothing:', 'cornerSmoothing', CORNER_SMOOTHING)}
-          {numRow('Radius:', 'smoothingRadiusMM', 'mm')}
-          {selRow('Remove islands:', 'removeIslands', REMOVE_ISLANDS)}
-          {numRow('Area limit:', 'areaLimitMM2', 'mm²')}
-          <CheckBox
-            label="Locked"
-            checked={value.locked}
-            className="ze-pref-check ze-border-top"
-            onChange={(aChecked) => set('locked', aChecked)}
-          />
-        </div>
-      </div>
-    </div>
+    <PANEL_SETUP_ZONES_BASE
+      m_panelZoneProperties={
+        // new PANEL_ZONE_PROPERTIES( this, aFrame, m_zoneSettingsBag, false ): no net spec.
+        <PanelZoneProperties
+          values={value}
+          onChange={(aPatch) => onChange({ ...value, ...aPatch })}
+          units={units}
+          nets={NO_NETS}
+          allowNetSpec={false}
+        />
+      }
+    />
   );
 }

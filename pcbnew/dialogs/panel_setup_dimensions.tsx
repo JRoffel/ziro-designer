@@ -45,8 +45,17 @@
  * rather than the stored enum ordinals), so the swap is a data change as well
  * as a component one.
  */
-import type { JSX } from 'react';
-import { Check, Num, Sel } from '@ziroeda/common/dialogs/pref_controls.js';
+import { type JSX, useState } from 'react';
+import { EdaIuScale } from '@ziroeda/common/eda_units.js';
+import { UNIT_BINDER, unitLabel } from '@ziroeda/common/widgets/unit_binder.js';
+import type { BOARD_DESIGN_SETTINGS } from '../board_design_settings.js';
+import type {
+  DIM_PRECISION,
+  DIM_TEXT_POSITION,
+  DIM_UNITS_FORMAT,
+  DIM_UNITS_MODE,
+} from '../pcb_dimension.js';
+import { PANEL_SETUP_DIMENSIONS_BASE } from './panel_setup_dimensions_base.js';
 import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
 
 /**
@@ -113,130 +122,99 @@ export const DIM_POSITION_CHOICES: [number, string][] = [
   [1, 'Inline'],
 ];
 
+/** PANEL_SETUP_DIMENSIONS's transfers over a BOARD_DESIGN_SETTINGS (panel_setup_dimensions.cpp). */
+export const PANEL_SETUP_DIMENSIONS = {
+  TransferDataToWindow(aBrdSettings: BOARD_DESIGN_SETTINGS): DimensionDefaults {
+    return {
+      units: aBrdSettings.m_DimensionUnitsMode,
+      precision: aBrdSettings.m_DimensionPrecision,
+      units_format: aBrdSettings.m_DimensionUnitsFormat,
+      suppress_zeroes: aBrdSettings.m_DimensionSuppressZeroes,
+      text_position: aBrdSettings.m_DimensionTextPosition,
+      keep_text_aligned: aBrdSettings.m_DimensionKeepTextAligned,
+      arrow_length: aBrdSettings.m_DimensionArrowLength,
+      extension_offset: aBrdSettings.m_DimensionExtensionOffset,
+    };
+  },
+
+  TransferDataFromWindow(d: DimensionDefaults, aBrdSettings: BOARD_DESIGN_SETTINGS): void {
+    aBrdSettings.m_DimensionUnitsMode = d.units as DIM_UNITS_MODE;
+    aBrdSettings.m_DimensionUnitsFormat = d.units_format as DIM_UNITS_FORMAT;
+    aBrdSettings.m_DimensionPrecision = d.precision as DIM_PRECISION;
+    aBrdSettings.m_DimensionSuppressZeroes = d.suppress_zeroes;
+    aBrdSettings.m_DimensionTextPosition = d.text_position as DIM_TEXT_POSITION;
+    aBrdSettings.m_DimensionKeepTextAligned = d.keep_text_aligned;
+    aBrdSettings.m_DimensionArrowLength = d.arrow_length;
+    aBrdSettings.m_DimensionExtensionOffset = d.extension_offset;
+  },
+};
+
+/** PANEL_SETUP_DIMENSIONS's window: its base over the values, the two lengths UNIT_BINDERs. */
 export function PanelSetupDimensions({
   value,
   update,
-  /**
-   * `m_arrowLength` and `m_extensionOffset` are `UNIT_BINDER`s over the frame's
-   * `UNITS_PROVIDER`, so both entries and the two "unit" labels beside them
-   * print in whatever unit the frame is on.
-   */
   units,
   iuPerMM,
 }: {
   value: DimensionDefaults;
   update: (fn: (d: DimensionDefaults) => void) => void;
+  /** The frame's units, which m_arrowLength and m_extensionOffset show. */
   units: StatusUnits;
   iuPerMM: number;
 }): JSX.Element {
-  /** IU -> the displayed number, and back. `UNIT_BINDER`'s two halves. */
-  const perUnit =
-    units === 'mm' ? iuPerMM : units === 'in' ? iuPerMM * 25.4 : (iuPerMM * 25.4) / 1000;
-  const show = (iu: number): number => Number((iu / perUnit).toFixed(6));
-  const store = (v: number): number => Math.round(v * perUnit);
-  const unitLabel = units === 'mils' ? 'mils' : units;
+  const [, setTick] = useState(0);
+  // m_arrowLength, m_extensionOffset: UNIT_BINDERs over the frame.
+  const [binders] = useState(() => {
+    const provider = { GetUserUnits: () => units, GetIuScale: () => new EdaIuScale(iuPerMM) };
+    const arrow = new UNIT_BINDER(provider, 'Arrow length:');
+    const offset = new UNIT_BINDER(provider, 'Extension line offset:');
+    arrow.SetValue(value.arrow_length);
+    offset.SetValue(value.extension_offset);
+    return { arrow, offset };
+  });
+
+  const choice = (aKey: 'units' | 'units_format' | 'precision' | 'text_position') => ({
+    value: value[aKey],
+    onChange: (aIndex: number) =>
+      update((d) => {
+        d[aKey] = aIndex;
+      }),
+  });
+  const check = (aKey: 'suppress_zeroes' | 'keep_text_aligned') => ({
+    value: value[aKey],
+    onChange: (aOn: boolean) =>
+      update((d) => {
+        d[aKey] = aOn;
+      }),
+  });
+  const length = (b: UNIT_BINDER, aKey: 'arrow_length' | 'extension_offset') => ({
+    value: b.GetText(),
+    onChange: (aText: string) => {
+      b.SetText(aText);
+      const iu = b.GetIntValue();
+      update((d) => {
+        d[aKey] = iu;
+      });
+      setTick((t) => t + 1);
+    },
+    // UNIT_BINDER::onKillFocus: evaluated and shown in the binder's format.
+    onBlur: () => {
+      b.ChangeValue(b.GetValue());
+      setTick((t) => t + 1);
+    },
+    units: unitLabel(units),
+  });
 
   return (
-    <div className="ze-pref-group">
-      <div className="ze-pref-group-title">Default Properties for New Dimension Objects</div>
-      {/* The `wxGridBagSizer`: two column-pairs side by side, each row of the
-          left pair beside the corresponding row of the right. */}
-      <div className="ze-pref-columns ze-gutter-25">
-        <div className="ze-pref-group-body">
-          <Sel
-            label="Units:"
-            value={value.units}
-            options={DIM_UNITS_CHOICES}
-            title='Default units for dimensions ("automatic" to follow the chosen UI units)'
-            onChange={(v) =>
-              update((d) => {
-                d.units = v;
-              })
-            }
-          />
-          <Sel
-            label="Units format:"
-            value={value.units_format}
-            options={DIM_FORMAT_CHOICES}
-            onChange={(v) =>
-              update((d) => {
-                d.units_format = v;
-              })
-            }
-          />
-          <Sel
-            label="Precision:"
-            value={value.precision}
-            options={DIM_PRECISION_CHOICES}
-            title="How many digits of precision to show"
-            onChange={(v) =>
-              update((d) => {
-                d.precision = v;
-              })
-            }
-          />
-          <Check
-            label="Suppress trailing zeroes"
-            checked={value.suppress_zeroes}
-            title={
-              'When checked, "1.2300" will be rendered as "1.23" even if precision is set to ' +
-              'show more digits'
-            }
-            onChange={(v) =>
-              update((d) => {
-                d.suppress_zeroes = v;
-              })
-            }
-          />
-        </div>
-        <div className="ze-pref-group-body">
-          <Sel
-            label="Text position:"
-            value={value.text_position}
-            options={DIM_POSITION_CHOICES}
-            title="Where to position the dimension text relative to the dimension line"
-            onChange={(v) =>
-              update((d) => {
-                d.text_position = v;
-              })
-            }
-          />
-          <Check
-            label="Keep text aligned"
-            checked={value.keep_text_aligned}
-            title="When checked, dimension text will be kept aligned with dimension lines"
-            onChange={(v) =>
-              update((d) => {
-                d.keep_text_aligned = v;
-              })
-            }
-          />
-          <Num
-            label="Arrow length:"
-            value={show(value.arrow_length)}
-            unit={unitLabel}
-            spin={false}
-            width={80}
-            onChange={(v) =>
-              update((d) => {
-                d.arrow_length = store(v);
-              })
-            }
-          />
-          <Num
-            label="Extension line offset:"
-            value={show(value.extension_offset)}
-            unit={unitLabel}
-            spin={false}
-            width={80}
-            onChange={(v) =>
-              update((d) => {
-                d.extension_offset = store(v);
-              })
-            }
-          />
-        </div>
-      </div>
-    </div>
+    <PANEL_SETUP_DIMENSIONS_BASE
+      m_dimensionUnits={choice('units')}
+      m_dimensionTextPositionMode={choice('text_position')}
+      m_dimensionUnitsFormat={choice('units_format')}
+      m_dimensionTextKeepAligned={check('keep_text_aligned')}
+      m_dimensionPrecision={choice('precision')}
+      m_dimensionArrowLength={length(binders.arrow, 'arrow_length')}
+      m_dimensionSuppressZeroes={check('suppress_zeroes')}
+      m_dimensionExtensionOffset={length(binders.offset, 'extension_offset')}
+    />
   );
 }

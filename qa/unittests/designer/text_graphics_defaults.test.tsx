@@ -32,7 +32,7 @@ afterEach(cleanup);
 
 function Harness(): JSX.Element {
   const [v, setV] = useState<TextGfxDefaults>(freshBoardSetup().textGraphics);
-  return <PanelPcbTextGraphics value={v} onChange={setV} />;
+  return <PanelPcbTextGraphics value={v} onChange={setV} units="mm" />;
 }
 
 const headers = (): string[] =>
@@ -138,20 +138,13 @@ describe('a WX_GRID never dictates the dialog width', () => {
     return css.slice(at, css.indexOf('}', at));
   };
 
-  it('contains THIS pane’s inline size, and not the shared one’s', () => {
-    // Containment is only correct for a pane the layout stretches. The shared
-    // class also serves content-sized panes — Zone Hatch Offsets' grid is
-    // `align-self: flex-start`, because upstream adds it with proportion 0 —
-    // and a content-sized box that may not read its content collapses to zero
-    // width. Putting it on `.ze-grid-pane` blanked that page.
+  it('the shared grid pane is not contained; a content-sized pane would collapse', () => {
     expect(ruleFor('.ze-grid-pane')).not.toMatch(/contain:\s*inline-size/);
-    expect(ruleFor('.ze-grid-pane')).toMatch(/overflow:\s*auto/);
-    expect(ruleFor('.ze-tg-grid-pane')).toMatch(/contain:\s*inline-size/);
   });
 
-  it('puts that class on the grid pane it renders', () => {
-    render(<Harness />);
-    expect(document.querySelector('.ze-grid-pane.ze-tg-grid-pane')).not.toBeNull();
+  it("the Defaults page's wxScrolledWindow has no minimum width of its own", () => {
+    // PANEL_SETUP_DEFAULTS_BASE: m_scrolledWindow, wxHSCROLL|wxVSCROLL, scrolls the grid instead.
+    expect(ruleFor('.ze-scrolledwindow')).toMatch(/min-width:\s*0/);
   });
 
   it('does not let the table stretch to fill instead of using its columns', () => {

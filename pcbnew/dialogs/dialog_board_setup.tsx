@@ -22,7 +22,7 @@
  * Values seed from the project's .kicad_pro and commit on OK.
  */
 import { useLayoutEffect, useRef, useState, type JSX } from 'react';
-import { WX_GRID } from '@ziroeda/common/widgets/wx_grid.js';
+import type { WX_GRID } from '@ziroeda/common/widgets/wx_grid.js';
 import {
   PagedDialog,
   type PagedDialogError,
@@ -99,6 +99,7 @@ import { type MaskPaste, PANEL_SETUP_MASK_AND_PASTE } from './panel_setup_mask_a
 import { type PcbFormatting, PANEL_SETUP_FORMATTING } from './panel_setup_formatting.js';
 import type { CustomRules } from './panel_setup_rules.js';
 import { PANEL_SETUP_ZONES, type ZoneDefaults } from './panel_setup_zones.js';
+import { type DimensionDefaults, PANEL_SETUP_DIMENSIONS } from './panel_setup_dimensions.js';
 import {
   PANEL_SETUP_TEXT_AND_GRAPHICS,
   type TextGfxDefaults,
@@ -141,6 +142,8 @@ export interface BoardSetupValues {
   drcSeverities: DrcSeverities;
   /** Text & Graphics defaults per layer class (PANEL_SETUP_TEXT_AND_GRAPHICS). */
   textGraphics: TextGfxDefaults;
+  /** Default properties for new dimensions (PANEL_SETUP_DIMENSIONS). */
+  dimensions: DimensionDefaults;
   /** PCB formatting: dashed lines + apply-defaults flags (PANEL_SETUP_FORMATTING). */
   formatting: PcbFormatting;
   /** Solder mask / paste settings (PANEL_SETUP_MASK_AND_PASTE). */
@@ -328,6 +331,7 @@ export function BoardSetupToWindow(
     maskPaste: PANEL_SETUP_MASK_AND_PASTE.TransferDataToWindow(aBoard),
     zoneLayerProperties: PANEL_SETUP_ZONE_HATCH_OFFSETS.TransferDataToWindow(aBoard),
     textGraphics: PANEL_SETUP_TEXT_AND_GRAPHICS.TransferDataToWindow(aBoard),
+    dimensions: PANEL_SETUP_DIMENSIONS.TransferDataToWindow(aBoard.GetDesignSettings()),
     formatting: PANEL_SETUP_FORMATTING.TransferDataToWindow(aBoard),
     textVars: PANEL_TEXT_VARIABLES.TransferDataToWindow(aProject),
     constraints: PANEL_SETUP_CONSTRAINTS.TransferDataToWindow(aBoard),
@@ -363,6 +367,7 @@ export function BoardSetupFromWindow(
   modified = PANEL_SETUP_MASK_AND_PASTE.TransferDataFromWindow(v.maskPaste, aBoard) || modified;
   PANEL_SETUP_ZONE_HATCH_OFFSETS.TransferDataFromWindow(v.zoneLayerProperties, aBoard);
   PANEL_SETUP_TEXT_AND_GRAPHICS.TransferDataFromWindow(v.textGraphics, aBoard);
+  PANEL_SETUP_DIMENSIONS.TransferDataFromWindow(v.dimensions, aBoard.GetDesignSettings());
   modified = PANEL_SETUP_FORMATTING.TransferDataFromWindow(v.formatting, aBoard) || modified;
   PANEL_TEXT_VARIABLES.TransferDataFromWindow(v.textVars, aProject);
   PANEL_SETUP_CONSTRAINTS.TransferDataFromWindow(v.constraints, aBoard);
@@ -484,7 +489,11 @@ export function DialogBoardSetup({
       next.layers = structuredClone(other.layers);
       next.boardFinish = structuredClone(other.boardFinish);
     }
-    if (opts.textAndGraphics) next.textGraphics = structuredClone(other.textGraphics);
+    // PANEL_SETUP_DEFAULTS::ImportSettingsFrom: text & graphics and dimensions.
+    if (opts.textAndGraphics) {
+      next.textGraphics = structuredClone(other.textGraphics);
+      next.dimensions = structuredClone(other.dimensions);
+    }
     if (opts.formatting) next.formatting = structuredClone(other.formatting);
     if (opts.constraints) next.constraints = structuredClone(other.constraints);
     if (opts.netclasses) next.netClasses = structuredClone(other.netClasses);
@@ -557,6 +566,7 @@ export function DialogBoardSetup({
           render: () => (
             <PanelPcbMaskPaste
               value={v.maskPaste}
+              units={units}
               onChange={(maskPaste) => setV({ ...v, maskPaste })}
             />
           ),
@@ -593,8 +603,15 @@ export function DialogBoardSetup({
             <PanelSetupDefaults
               textGraphics={v.textGraphics}
               onTextGraphics={(textGraphics) => setV({ ...v, textGraphics })}
+              dimensions={v.dimensions}
+              onDimensions={(fn) => {
+                const dimensions = { ...v.dimensions };
+                fn(dimensions);
+                setV({ ...v, dimensions });
+              }}
               zones={v.zones}
               onZones={(zones) => setV({ ...v, zones })}
+              units={units}
             />
           ),
         },
@@ -655,6 +672,7 @@ export function DialogBoardSetup({
             <PanelPcbTeardrops
               value={v.teardrops}
               onChange={(teardrops) => setV({ ...v, teardrops })}
+              units={units}
             />
           ),
         },
@@ -662,7 +680,11 @@ export function DialogBoardSetup({
           id: 'tuningPatterns',
           label: 'Length-tuning Patterns',
           render: () => (
-            <PanelPcbTuning value={v.tuning} onChange={(tuning) => setV({ ...v, tuning })} />
+            <PanelPcbTuning
+              value={v.tuning}
+              onChange={(tuning) => setV({ ...v, tuning })}
+              units={units}
+            />
           ),
         },
         {
@@ -712,6 +734,7 @@ export function DialogBoardSetup({
           label: 'Custom Rules',
           render: () => (
             <PanelPcbCustomRules
+              board={board}
               value={v.customRules}
               onChange={(customRules) => setV({ ...v, customRules })}
             />
@@ -816,6 +839,10 @@ export function DialogBoardSetup({
                 g.EnableCellEditControl(true);
               },
             };
+
+          // PANEL_SETUP_ZONES::TransferDataFromWindow: AcceptOptions refuses, the dialog stays.
+          const badZone = PANEL_SETUP_ZONES.Validate(v.zones);
+          if (!badZone.ok) return { message: badZone.message ?? '', page: 'defaults' };
 
           // PANEL_SETUP_TUNING_PROFILES::Validate, each page's ValidateProfile.
           const badProfile = validateTuningProfiles(v.tuningProfiles);

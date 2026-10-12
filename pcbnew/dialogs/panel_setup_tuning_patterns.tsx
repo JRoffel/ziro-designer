@@ -16,14 +16,16 @@
  * the 12.5px headings, the 12px grid and the 11px units were all invented.
  */
 
-import { CheckBox, TextCtrl } from '@ziroeda/wx/controls.js';
-import type { JSX } from 'react';
-import { Combo } from '@ziroeda/wx/combobox.js';
-
-const icon = (name: string): string | undefined => svgUrl('tuning', name);
+import { type JSX, useState } from 'react';
 
 import { svgUrl } from '@ziroeda/bitmaps_png';
-import { pcbIUScale } from '@ziroeda/common/eda_units.js';
+import { pcbIUScale, pcbIuToMM, pcbMmToIU } from '@ziroeda/common/eda_units.js';
+import { UNIT_BINDER, unitLabel } from '@ziroeda/common/widgets/unit_binder.js';
+import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
+import {
+  PANEL_SETUP_TUNING_PATTERNS_BASE,
+  type TUNING_BLOCK,
+} from './panel_setup_tuning_patterns_base.js';
 import type { BOARD } from '../board.js';
 import { MeanderStyle, type MeanderSettings } from '../router/pns_meander.js';
 
@@ -84,108 +86,93 @@ export const PANEL_SETUP_TUNING_PATTERNS = {
   },
 };
 
-// [data] `m_track_cornerCtrlChoices` (panel_setup_tuning_patterns_base.cpp:113).
-const CORNER_STYLES: CornerStyle[] = ['Chamfer', 'Fillet'];
-
 interface Props {
   value: TuningSetup;
   onChange: (next: TuningSetup) => void;
+  /** The frame's units, which the amplitude and spacing UNIT_BINDERs show. */
+  units: StatusUnits;
 }
 
-export function PanelPcbTuning({ value, onChange }: Props): JSX.Element {
-  const num = (s: string): number => (Number.isFinite(Number(s)) ? Number(s) : 0);
+type LengthKey = 'minAmplitudeMM' | 'maxAmplitudeMM' | 'spacingMM';
 
-  const group = (title: string, key: keyof TuningSetup, img: string): JSX.Element => {
-    const s = value[key];
-    const set = <K extends keyof TuningPattern>(k: K, v: TuningPattern[K]): void =>
-      onChange({ ...value, [key]: { ...s, [k]: v } });
+/** PANEL_SETUP_TUNING_PATTERNS's window: its base over the three MEANDER_SETTINGS. */
+export function PanelPcbTuning({ value, onChange, units }: Props): JSX.Element {
+  const [, setTick] = useState(0);
+  // m_track_minA, m_track_maxA, m_track_spacing and the dp_ / skew_ ones: UNIT_BINDERs on the
+  // frame; TransferDataToWindow's SetValue.
+  const [binders] = useState(() => {
+    const provider = { GetUserUnits: () => units, GetIuScale: () => pcbIUScale };
+    const make = (aKey: keyof TuningSetup) => {
+      const one = (aLength: LengthKey) => {
+        const b = new UNIT_BINDER(provider, '');
+        b.SetValue(pcbMmToIU(value[aKey][aLength]));
+        return b;
+      };
+      return {
+        minAmplitudeMM: one('minAmplitudeMM'),
+        maxAmplitudeMM: one('maxAmplitudeMM'),
+        spacingMM: one('spacingMM'),
+      };
+    };
+    return {
+      singleTrack: make('singleTrack'),
+      diffPair: make('diffPair'),
+      diffPairSkew: make('diffPairSkew'),
+    };
+  });
+  // m_track_r.SetUnits( EDA_UNITS::PERCENT ): the radii, held as typed.
+  const [radius, setRadius] = useState<Partial<Record<keyof TuningSetup, string>>>({});
 
-    const entry = (k: keyof TuningPattern): JSX.Element => (
-      <TextCtrl
-        value={String(s[k] as number)}
-        onChange={(aValue) => set(k, num(aValue) as never)}
-        className="ze-search"
-      />
-    );
-    // Column 1 of the flexgrid is a `wxBoxSizer( wxHORIZONTAL )` holding the
-    // control (proportion 1) and its unit label (`wxLEFT, 5`), not two cells.
-    const entryWithUnit = (k: keyof TuningPattern, unit: string): JSX.Element => (
-      <div className="ze-tune-entrybox">
-        {entry(k)}
-        <span className="unit">{unit}</span>
-      </div>
-    );
-    const src = icon(img);
-
-    return (
-      <div className="ze-pref-group" key={key}>
-        <div className="ze-pref-group-title">{title}</div>
-        {/* `singleTrackSizer`, horizontal: the legend bitmap
-            (`wxEXPAND|wxRIGHT|wxLEFT, 15`) then the field grid. */}
-        <div className="ze-tune-body">
-          {src && <img className="ze-tune-legend" src={src} alt="" aria-hidden="true" />}
-          <div className="ze-tune-grid">
-            {/* Row 1 */}
-            <span>Minimum amplitude (A):</span>
-            {entryWithUnit('minAmplitudeMM', 'mm')}
-            <span className="ze-tune-col3">Maximum amplitude (A):</span>
-            {entry('maxAmplitudeMM')}
-            <span className="unit">mm</span>
-
-            {/* Row 2 — the last three cells are spacers upstream. */}
-            <span>Spacing (s):</span>
-            {entryWithUnit('spacingMM', 'mm')}
-            <span />
-            <span />
-            <span />
-
-            {/* Row 3 — five spacers, the last of them 5 px tall. */}
-            <div className="ze-tune-gap" />
-
-            {/* Row 4 */}
-            <span>Corner style:</span>
-            <Combo
-              value={s.cornerStyle}
-              ariaLabel={`${title} corner style`}
-              options={CORNER_STYLES.map((c) => ({ value: c, label: c }))}
-              onChange={(c) => set('cornerStyle', c as CornerStyle)}
-            />
-            <span className="ze-tune-col3">Radius (r):</span>
-            {entry('radiusPct')}
-            <span className="unit">%</span>
-
-            {/* Row 5 — the checkbox sits in column 1, under the entries. */}
-            <span />
-            <CheckBox
-              label="Single-sided"
-              checked={s.singleSided}
-              className="ze-pref-check"
-              onChange={(aChecked) => set('singleSided', aChecked)}
-            />
-            <span />
-          </div>
-        </div>
-      </div>
-    );
+  const block = (aKey: keyof TuningSetup, aLegend: string): TUNING_BLOCK => {
+    const s = value[aKey];
+    const set = (aPatch: Partial<TuningPattern>): void =>
+      onChange({ ...value, [aKey]: { ...s, ...aPatch } });
+    const length = (aLength: LengthKey) => {
+      const b = binders[aKey][aLength];
+      return {
+        value: b.GetText(),
+        onChange: (aText: string) => {
+          b.SetText(aText);
+          set({ [aLength]: pcbIuToMM(b.GetValue()) });
+          setTick((t) => t + 1);
+        },
+        // UNIT_BINDER::onKillFocus: evaluated and shown in the binder's format.
+        onBlur: () => {
+          b.ChangeValue(b.GetValue());
+          setTick((t) => t + 1);
+        },
+        units: unitLabel(units),
+      };
+    };
+    return {
+      legend: svgUrl('tuning', aLegend),
+      minA: length('minAmplitudeMM'),
+      maxA: length('maxAmplitudeMM'),
+      spacing: length('spacingMM'),
+      // SetSelection( m_cornerStyle == MEANDER_STYLE_ROUND ? 1 : 0 )
+      corner: {
+        value: s.cornerStyle === 'Fillet' ? 1 : 0,
+        onChange: (aIndex) => set({ cornerStyle: aIndex === 1 ? 'Fillet' : 'Chamfer' }),
+      },
+      r: {
+        value: radius[aKey] ?? String(s.radiusPct),
+        onChange: (aText) => {
+          setRadius((r) => ({ ...r, [aKey]: aText }));
+          const n = Number(aText);
+          if (aText.trim() !== '' && Number.isFinite(n)) set({ radiusPct: n });
+        },
+        onBlur: () => {},
+        units: '%',
+      },
+      singleSided: { value: s.singleSided, onChange: (aOn) => set({ singleSided: aOn }) },
+    };
   };
 
   return (
-    <div className="ze-pref-page-natural">
-      {group(
-        'Default Properties for Single Track Tuning',
-        'singleTrack',
-        'tune_single_track_length_legend',
-      )}
-      {group(
-        'Default Properties for Differential Pairs',
-        'diffPair',
-        'tune_diff_pair_length_legend',
-      )}
-      {group(
-        'Default Properties for Differential Pair Skews',
-        'diffPairSkew',
-        'tune_diff_pair_skew_legend',
-      )}
-    </div>
+    <PANEL_SETUP_TUNING_PATTERNS_BASE
+      track={block('singleTrack', 'tune_single_track_length_legend')}
+      dp={block('diffPair', 'tune_diff_pair_length_legend')}
+      skew={block('diffPairSkew', 'tune_diff_pair_skew_legend')}
+    />
   );
 }

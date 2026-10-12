@@ -120,6 +120,7 @@ export function WxGridView({
   style,
   ariaLabel,
   onUpdate,
+  rowLabelSize,
 }: {
   grid: wxGrid;
   /** The grid's GRID_TRICKS, for the cell tooltips. */
@@ -128,6 +129,8 @@ export function WxGridView({
   /** `SetupColumnAutosizer( aFlexibleCol )`: the column that takes the slack. */
   flexCol?: number;
   rowLabels?: boolean;
+  /** `SetRowLabelSize( n )`: the row-label column's width, a floor as a column's is. */
+  rowLabelSize?: number;
   colLabels?: boolean;
   /** A custom renderer's drawing (a swatch, an icon); null draws the default. */
   renderCell?: (aRow: number, aCol: number, aValue: string) => ReactNode | null;
@@ -457,7 +460,12 @@ export function WxGridView({
         {colLabels && (
           <thead>
             <tr>
-              {rowLabels && <th className="ze-grid-corner ze-grid-rowlabel" />}
+              {rowLabels && (
+                <th
+                  className="ze-grid-corner ze-grid-rowlabel"
+                  style={rowLabelSize ? { width: rowLabelSize } : undefined}
+                />
+              )}
               {shownCols.map((c) => (
                 <th
                   key={c}

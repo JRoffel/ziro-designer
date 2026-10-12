@@ -45,6 +45,7 @@ function panel(value: TeardropsSetup = freshBoardSetup().teardrops): {
   const view = render(
     <PanelPcbTeardrops
       value={value}
+      units="mm"
       onChange={(next) => {
         last = next;
       }}
@@ -56,6 +57,7 @@ function panel(value: TeardropsSetup = freshBoardSetup().teardrops): {
       view.rerender(
         <PanelPcbTeardrops
           value={v}
+          units="mm"
           onChange={(n) => {
             last = n;
           }}
@@ -74,8 +76,10 @@ const GROUPS = [
 describe('the page draws all three groups', () => {
   it('under upstream’s headings, in upstream’s order', () => {
     panel();
-    const titles = [...document.querySelectorAll('.ze-pref-group-title')].map((e) => e.textContent);
-    expect(titles).toEqual([...GROUPS]);
+    const text = document.body.textContent ?? '';
+    const at = GROUPS.map((g) => text.indexOf(g));
+    expect(at.every((i) => i >= 0)).toBe(true);
+    expect([...at].sort((a, b) => a - b)).toEqual(at);
   });
 
   it('and every group carries its whole right-hand column', () => {
@@ -95,7 +99,7 @@ describe('the page draws all three groups', () => {
     // `%(d)` is a fraction of the pad or via DIAMETER; `%(w)` of its width.
     // Three static texts with the middle one italic, not one grey "%(d)".
     panel();
-    const hints = [...document.querySelectorAll('.ze-td-hint')].map((e) => e.textContent);
+    const hints = [...document.querySelectorAll('.ze-statictext.italic')].map((e) => e.textContent);
     // Three per group: best length, best width, track width limit.
     expect(hints).toEqual(['d', 'd', 'd', 'w', 'w', 'w', 'w', 'w', 'w']);
   });
@@ -156,13 +160,11 @@ describe('a control writes its own field', () => {
 
   it('a millimetre entry', () => {
     const p = panel();
-    // A DIRECT child of the grid: a `wxTextCtrl` sits in the cell itself, while
-    // the three `wxSpinCtrlDouble`s wrap theirs in the stepper. Two per group —
-    // maximum length and maximum width — which is also the pair that is in
-    // millimetres rather than a percentage.
-    const entries = [...document.querySelectorAll('.ze-td-grid > input.ze-search')];
-    expect(entries).toHaveLength(6);
-    fireEvent.change(entries[0] as HTMLInputElement, { target: { value: '1.5' } });
+    // Two UNIT_BINDERs per group - maximum length and maximum width - in the frame's units.
+    expect(screen.getAllByRole('textbox', { name: /maximum (length|width)$/ })).toHaveLength(6);
+    fireEvent.change(screen.getByRole('textbox', { name: 'Round shapes maximum length' }), {
+      target: { value: '1.5' },
+    });
     expect(p.latest().round.maxLengthMM).toBe(1.5);
   });
 });

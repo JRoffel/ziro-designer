@@ -32,6 +32,7 @@
 
 import type { JSX } from 'react';
 import { ZoneLayerPropertiesGrid } from '../zone_layer_properties_grid.js';
+import { PANEL_SETUP_ZONE_HATCH_OFFSETS_BASE } from './panel_setup_zone_hatch_offsets_base.js';
 import { pcbIUScale } from '@ziroeda/common/eda_units.js';
 import type { PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import { LSET } from '@ziroeda/common/lset.js';
@@ -97,13 +98,10 @@ interface Props {
 
 export function PanelPcbZoneHatchOffsets({ copperLayers, value, onChange }: Props): JSX.Element {
   return (
-    <div className="ze-zone-hatch-offsets">
-      {/* `m_staticTextLabel`, `wxTOP|wxRIGHT|wxLEFT, 13` — a plain
-          `wxStaticText`, no SetFont, so the dialog's own font. */}
-      <div className="ze-zone-hatch-caption">Zone Hatched Fill Offsets</div>
-      {/* `Add( 0, 2, 0, 0, 5 )` then `m_staticline1`, `wxEXPAND|wxBOTTOM, 5`. */}
-      <hr className="ze-zone-hatch-rule" />
-      <ZoneLayerPropertiesGrid layers={copperLayers} value={value} onChange={onChange} />
-    </div>
+    <PANEL_SETUP_ZONE_HATCH_OFFSETS_BASE
+      m_layerOffsetsGrid={
+        <ZoneLayerPropertiesGrid layers={copperLayers} value={value} onChange={onChange} />
+      }
+    />
   );
 }

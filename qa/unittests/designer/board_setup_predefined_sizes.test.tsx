@@ -77,13 +77,11 @@ function open(over: Partial<BoardSetupValues> = SIZES): {
 /** `WX_GRID::onCellEditorHidden` re-formats after the edit is applied. */
 const settle = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
 
-/** The one grid whose column heading row starts with `first`. */
+/** The grid labelled `title`: the WX_GRID the column holds. */
 function gridOf(title: string): HTMLElement {
-  const col = [...document.querySelectorAll<HTMLElement>('.ze-sizes-col')].find(
-    (c) => c.querySelector('.ze-sizes-title')?.textContent === title,
-  );
-  expect(col, `no ${title} grid`).toBeTruthy();
-  return col!;
+  const grid = document.querySelector<HTMLElement>(`table[aria-label="${title}"]`);
+  expect(grid, `no ${title} grid`).toBeTruthy();
+  return grid!;
 }
 
 const cellsOf = (title: string): HTMLElement[] => [
@@ -101,8 +99,9 @@ function typeIn(cell: HTMLElement, text: string): void {
   fireEvent.blur(input);
 }
 
-const btn = (title: string, name: string): HTMLElement =>
-  gridOf(title).querySelector<HTMLElement>(`[title="${name}"]`)!;
+/** A column's STD_BITMAP_BUTTON: add, sort or remove. */
+const btn = (title: string, name: 'add' | 'sort' | 'remove'): HTMLElement =>
+  screen.getByRole('button', { name: `${title}: ${name}` });
 
 describe('a cell is the text a WX_GRID holds', () => {
   it('shows the value with its unit', () => {
@@ -189,7 +188,7 @@ describe('the buttons under a grid', () => {
   it('adds a row of zeros and does not invent a size', () => {
     open();
 
-    fireEvent.click(btn('Tracks', 'Add'));
+    fireEvent.click(btn('Tracks', 'add'));
 
     // `AppendTrackWidth( 0 )`, which renders as an empty cell.
     expect(textsOf('Tracks')).toEqual(['0.25 mm', '0.5 mm', '']);
@@ -199,7 +198,7 @@ describe('the buttons under a grid', () => {
     open();
 
     fireEvent.mouseDown(cellsOf('Tracks')[0]!, { button: 0 });
-    fireEvent.click(btn('Tracks', 'Remove'));
+    fireEvent.click(btn('Tracks', 'remove'));
 
     expect(textsOf('Tracks')).toEqual(['0.5 mm']);
   });
@@ -218,7 +217,7 @@ describe('the buttons under a grid', () => {
       diffPairsMM: [],
     });
 
-    fireEvent.click(btn('Vias', 'Sort ascending'));
+    fireEvent.click(btn('Vias', 'sort'));
 
     // `VIA_DIMENSION::operator<`: diameter, then drill.
     expect(textsOf('Vias')).toEqual(['0.6 mm', '0.2 mm', '0.8 mm', '0.3 mm', '0.8 mm', '0.5 mm']);
@@ -285,7 +284,7 @@ describe('OK sorts and prunes whether or not Sort was pressed', () => {
   it('drops the rows an Add left empty', () => {
     const { ok } = open({ trackWidthsMM: [0.5], viaSizesMM: [], diffPairsMM: [] });
 
-    fireEvent.click(btn('Tracks', 'Add'));
+    fireEvent.click(btn('Tracks', 'add'));
 
     expect(ok()!.trackWidthsMM).toEqual([0.5]);
   });
