@@ -389,14 +389,16 @@ describe('Footprint Editor > Footprint Defaults', () => {
       await openPage('fp-defaults');
       const [ref, value] = FPEDIT_DEFAULTS.design_settings.default_footprint_text_items;
       const values = Array.from(
-        document.querySelectorAll('.ze-fp-fieldprops tbody td[data-col="0"]'),
+        document.querySelectorAll(
+          'table[aria-label="Default field properties"] tbody td[data-col="0"]',
+        ),
       ).map((c) => c.textContent);
       expect(values[0]).toBe(ref?.text);
       expect(values[1]).toBe(value?.text);
       // The third default item — `${REFERENCE}` on F.Fab — is the lower grid's
       // one row on a fresh install.
       const items = Array.from(
-        document.querySelectorAll('.ze-fp-textitems tbody td[data-col="0"]'),
+        document.querySelectorAll('table[aria-label="Default text items"] tbody td[data-col="0"]'),
       ).map((c) => c.textContent);
       expect(items).toEqual(
         FPEDIT_DEFAULTS.design_settings.default_footprint_text_items.slice(2).map((t) => t.text),
@@ -413,7 +415,9 @@ describe('Footprint Editor > Footprint Defaults', () => {
       // `getEnabledLayers()` is `LSET::AllLayersMask()` and `UIOrder()` yields
       // 95 rows. See `fp_layer_choices.test.ts` for the list itself; this is
       // the assertion that the PAGE reaches it.
-      const cell = document.querySelector('.ze-fp-fieldprops tbody td[data-col="2"]');
+      const cell = document.querySelector(
+        'table[aria-label="Default field properties"] tbody td[data-col="2"]',
+      );
       expect(cell).not.toBeNull();
       // A click opens the cell's editor, and the layer box is that editor.
       fireEvent.mouseDown(cell!, { button: 0 });
@@ -429,22 +433,21 @@ describe('Footprint Editor > Footprint Defaults', () => {
     SLOW,
   );
 
-  it('is two 610 px grids, not two that fill the dialog', () => {
-    // `SetColSize` 240/60/150 with `SetRowLabelSize( 160 )`, and 460/150
-    // (`panel_fp_editor_field_defaults_base.cpp:42-52`, `:93-95`) — every
-    // width stated, so both grids stop at 610 and the page is empty to the
-    // right of them. Column 0 was taking the slack instead, which stretched
-    // Value across the dialog and pushed Layer to the far edge.
-    const css = readFileSync(resolve(process.cwd(), '../common/widgets/shell.css'), 'utf8');
-    const rule = (selector: string): string => {
-      for (const m of css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^{}]*)\}/g))
-        if ((m[1] ?? '').split(',').some((sel) => sel.trim() === selector)) return m[2] ?? '';
-      return '';
-    };
-    expect(rule('.ze-fp-fieldprops')).toMatch(/width:\s*610px/);
-    expect(rule('.ze-fp-fieldprops')).toMatch(/table-layout:\s*fixed/);
-    expect(rule('.ze-fp-fieldprops th:nth-child(2)')).toMatch(/width:\s*240px/);
-    expect(rule('.ze-fp-textitems th:first-child')).toMatch(/width:\s*460px/);
+  it('is two grids whose columns stop at 610 px, not two that fill the dialog', async () => {
+    // `SetColSize` 240/60/150 with `SetRowLabelSize( 160 )`, and 460/150, every width stated and
+    // held (WxGridView fixedColumns), so both grids' columns stop at 610 and the filler takes the
+    // rest.
+    await openPage('fp-defaults');
+    const widths = (aName: string) =>
+      Array.from(document.querySelectorAll<HTMLElement>(`table[aria-label="${aName}"] thead th`))
+        .filter((h) => !h.classList.contains('ze-grid-filler'))
+        .map((h) => h.style.width);
+    expect(widths('Default field properties')).toEqual(['160px', '240px', '60px', '150px']);
+    expect(widths('Default text items')).toEqual(['460px', '150px']);
+    for (const name of ['Default field properties', 'Default text items'])
+      expect(
+        document.querySelector(`table[aria-label="${name}"]`)!.classList.contains('ze-grid-fixed'),
+      ).toBe(true);
   });
 });
 
@@ -669,6 +672,21 @@ describe('Footprint Editor > User Layer Names', () => {
   );
 
   it(
+    'the User layers choice holds the count picked',
+    async () => {
+      await openPage('fp-userlayers');
+      const combo = screen.getByLabelText('User layers').closest('.ze-combo') as HTMLElement;
+      fireEvent.click(combo);
+      const option = [...document.querySelectorAll('[role="option"]')].find(
+        (o) => o.textContent === '3',
+      );
+      fireEvent.mouseDown(option as HTMLElement);
+      expect(combo.querySelector('.ze-combo-shown')?.textContent).toBe('3');
+    },
+    SLOW,
+  );
+
+  it(
     'offers the 49 layers its mask leaves, not eight',
     async () => {
       await openPage('fp-userlayers');
@@ -678,7 +696,9 @@ describe('Footprint Editor > User Layer Names', () => {
       // The grid starts empty — a fresh install has named no user layer — so
       // `m_bpAdd` is what puts a layer cell on the page.
       fireEvent.click(screen.getByLabelText('Add layer'));
-      const cell = document.querySelector('.ze-fp-layernames tbody td[data-col="0"]');
+      const cell = document.querySelector(
+        'table[aria-label="User layer names"] tbody td[data-col="0"]',
+      );
       expect(cell, 'the added row').not.toBeNull();
       // Add opens no editor upstream (`OnAddRow` returns column -1); a click on
       // the layer cell does, and the layer box is that editor.
@@ -693,7 +713,7 @@ describe('Footprint Editor > User Layer Names', () => {
     SLOW,
   );
 
-  it('holds its two columns at 200 and 220 against the filler cell', () => {
+  it('holds its two columns at 200 and 220 against the filler cell', async () => {
     // `SetColSize( 0, 200 )` / `SetColSize( 1, 220 )`, never autosized
     // (`panel_fp_user_layer_names_base.cpp:65-66`).
     //
@@ -708,10 +728,16 @@ describe('Footprint Editor > User Layer Names', () => {
         if ((m[1] ?? '').split(',').some((sel) => sel.trim() === selector)) return m[2] ?? '';
       return '';
     };
-    expect(rule('.ze-fp-layernames')).toMatch(/table-layout:\s*fixed/);
-    expect(rule('.ze-fp-layernames th:first-child')).toMatch(/width:\s*200px/);
-    expect(rule('.ze-fp-layernames th:nth-child(2)')).toMatch(/width:\s*220px/);
-    expect(rule('.ze-fp-layernames th.ze-grid-filler')).toMatch(/width:\s*auto/);
+    // WxGridView fixedColumns: the shared fixed-layout rule, the filler taking only the rest.
+    expect(rule('.ze-grid.ze-grid-fixed')).toMatch(/table-layout:\s*fixed/);
+    expect(rule('.ze-grid.ze-grid-fixed th.ze-grid-filler')).toMatch(/width:\s*auto/);
+    await openPage('fp-userlayers');
+    const grid = document.querySelector('table[aria-label="User layer names"]') as HTMLElement;
+    expect(grid.classList.contains('ze-grid-fixed')).toBe(true);
+    const heads = Array.from(grid.querySelectorAll<HTMLElement>('thead th')).filter(
+      (h) => !h.classList.contains('ze-grid-filler'),
+    );
+    expect(heads.map((h) => h.style.width)).toEqual(['200px', '220px']);
   });
 
   it(
@@ -719,9 +745,11 @@ describe('Footprint Editor > User Layer Names', () => {
     async () => {
       await openPage('fp-userlayers');
       fireEvent.click(screen.getByLabelText('Add layer'));
-      const head = Array.from(document.querySelectorAll('.ze-fp-layernames thead th'));
+      const head = Array.from(
+        document.querySelectorAll('table[aria-label="User layer names"] thead th'),
+      );
       expect(head.at(-1)?.className).toBe('ze-grid-filler');
-      const row = document.querySelector('.ze-fp-layernames tbody tr');
+      const row = document.querySelector('table[aria-label="User layer names"] tbody tr');
       expect(row?.lastElementChild?.className).toBe('ze-grid-filler');
     },
     SLOW,

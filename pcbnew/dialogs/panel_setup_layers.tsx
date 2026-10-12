@@ -36,9 +36,17 @@
  *   Putting it on all twenty is what parked a stray tooltip over the list.
  */
 
-import { Button } from '@ziroeda/wx/controls.js';
-import { useState, type JSX } from 'react';
-import { Combo } from '@ziroeda/wx/combobox.js';
+import { Fragment, type JSX, useState } from 'react';
+import { CheckBox, Choice, StaticText, TextCtrl } from '@ziroeda/wx/controls.js';
+import {
+  wxALIGN_CENTER_HORIZONTAL,
+  wxALIGN_CENTER_VERTICAL,
+  wxEXPAND,
+  wxLEFT,
+  wxRIGHT,
+} from '@ziroeda/wx/defs.js';
+import { SizerItem } from '@ziroeda/wx/sizer.js';
+import { PANEL_SETUP_LAYERS_BASE } from './panel_setup_layers_base.js';
 import { EdaListDialog } from '@ziroeda/common/dialogs/eda_list_dialog.js';
 import { IsCopperLayer, PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import { LSET } from '@ziroeda/common/lset.js';
@@ -348,13 +356,92 @@ export function PanelPcbLayers({ value, onChange }: Props): JSX.Element {
     });
   };
 
+  const CHECKBOX = wxALIGN_CENTER_HORIZONTAL | wxALIGN_CENTER_VERTICAL | wxLEFT;
+
   return (
-    <div className="ze-pcb-layers">
-      {/* `bSizerLayerCnt`: a stretch spacer then the button, so it sits hard
-          right (`panel_setup_layers_base.cpp:22-30`). */}
-      <div className="ze-pcb-layers-head">
-        <Button label="Add User Defined Layer..." onClick={openAdd} />
-      </div>
+    <>
+      <PANEL_SETUP_LAYERS_BASE
+        onAddUserDefinedLayer={openAdd}
+        m_LayersSizer={value.layers.map((l, i) => {
+          // The copper rows' checkbox is disabled: the copper count is the Physical Stackup
+          // page's to change. So is a layer mandatoryLayerCbSetup() is called on.
+          const copper = l.kind === 'copper';
+          const user = l.kind === 'user';
+          const mandatory = copper || MANDATORY_LAYERS.has(l.id);
+          const cbTip = copper ? COPPER_CB_TIP : mandatory ? MANDATORY_TIP : ENABLE_TIPS[l.id];
+          // initialize_front_tech_layers: the first row's name and text carry the column minimums.
+          const first = i === value.layers.findIndex((x) => x.kind !== 'copper');
+          return (
+            <Fragment key={l.id}>
+              <SizerItem flag={CHECKBOX} border={5}>
+                <CheckBox
+                  label=""
+                  checked={l.enabled}
+                  disabled={mandatory}
+                  title={cbTip}
+                  ariaLabel={`Enable ${l.name}`}
+                  onChange={(aOn) => setAt(i, { enabled: aOn })}
+                />
+              </SizerItem>
+              <SizerItem
+                flag={wxEXPAND | wxRIGHT}
+                border={5}
+                minSize={first ? [160, -1] : undefined}
+              >
+                <TextCtrl
+                  id={layerNameInputId(l.id)}
+                  // Only the copper and user-defined name fields carry it.
+                  title={copper || user ? 'Layer Name' : undefined}
+                  ariaLabel={`${l.id} name`}
+                  value={l.name}
+                  onChange={(aText) => setAt(i, { name: aText })}
+                />
+              </SizerItem>
+              {copper ? (
+                <SizerItem flag={wxRIGHT | wxEXPAND} border={5}>
+                  <Choice
+                    choices={COPPER_TYPES.map(([, label]) => label)}
+                    choice={{
+                      value: Math.max(
+                        0,
+                        COPPER_TYPES.findIndex(([v]) => v === (l.copperType ?? 'signal')),
+                      ),
+                      onChange: (aIndex) =>
+                        setAt(i, { copperType: COPPER_TYPES[aIndex]![0] as CopperLayerType }),
+                    }}
+                    title={COPPER_TYPE_TIP}
+                    ariaLabel={`${l.name} layer type`}
+                  />
+                </SizerItem>
+              ) : user ? (
+                <SizerItem flag={wxEXPAND | wxRIGHT} border={5}>
+                  <Choice
+                    choices={USER_TYPES.map(([, label]) => label)}
+                    choice={{
+                      value: Math.max(
+                        0,
+                        USER_TYPES.findIndex(([v]) => v === (l.userType ?? 'aux')),
+                      ),
+                      onChange: (aIndex) =>
+                        setAt(i, { userType: USER_TYPES[aIndex]![0] as UserLayerType }),
+                    }}
+                    title={USER_TYPE_TIP}
+                    ariaLabel={`${l.name} layer type`}
+                  />
+                </SizerItem>
+              ) : (
+                <SizerItem
+                  flag={wxALIGN_CENTER_VERTICAL | wxRIGHT | wxLEFT}
+                  border={5}
+                  minSize={first ? [150, -1] : undefined}
+                >
+                  <StaticText label={l.desc ?? ''} />
+                </SizerItem>
+              )}
+            </Fragment>
+          );
+        })}
+      />
       {addOpen && (
         <EdaListDialog
           title="Add User-defined Layer"
@@ -364,64 +451,7 @@ export function PanelPcbLayers({ value, onChange }: Props): JSX.Element {
           onResult={commitAdd}
         />
       )}
-      {/* `m_staticline2`, wxEXPAND|wxLEFT|wxRIGHT|wxTOP, 5. */}
-      <hr className="ze-pcb-layers-rule" />
-
-      <div className="ze-pcb-layers-list">
-        {value.layers.map((l, i) => {
-          // The copper rows' checkbox is DISABLED upstream — the copper count
-          // is the Physical Stackup page's to change, and this reads as a row
-          // you may not switch off (`panel_setup_layers.cpp:474-476`). Ours
-          // were live, so a copper layer could be removed from the wrong page.
-          // The same is true of the four layers `mandatoryLayerCbSetup()` is
-          // called on directly, which this page let you switch off.
-          const copper = l.kind === 'copper';
-          const user = l.kind === 'user';
-          const mandatory = copper || MANDATORY_LAYERS.has(l.id);
-          const cbTip = copper ? COPPER_CB_TIP : mandatory ? MANDATORY_TIP : ENABLE_TIPS[l.id];
-          return (
-            <div className="ze-pcb-layer-row" key={l.id}>
-              <input
-                type="checkbox"
-                checked={l.enabled}
-                disabled={mandatory}
-                {...(cbTip ? { title: cbTip } : {})}
-                onChange={(e) => setAt(i, { enabled: e.target.checked })}
-              />
-              <input
-                className="ze-search"
-                id={layerNameInputId(l.id)}
-                // Only the copper and user-defined name fields carry it.
-                {...(copper || user ? { title: 'Layer Name' } : {})}
-                value={l.name}
-                onChange={(e) => setAt(i, { name: e.target.value })}
-              />
-              {copper ? (
-                <Combo
-                  value={l.copperType ?? 'signal'}
-                  title={COPPER_TYPE_TIP}
-                  ariaLabel={`${l.name} layer type`}
-                  options={COPPER_TYPES.map(([v, label]) => ({ value: v, label }))}
-                  onChange={(t) => setAt(i, { copperType: t as CopperLayerType })}
-                />
-              ) : user ? (
-                <Combo
-                  value={l.userType ?? 'aux'}
-                  title={USER_TYPE_TIP}
-                  ariaLabel={`${l.name} layer type`}
-                  options={USER_TYPES.map(([v, label]) => ({ value: v, label }))}
-                  onChange={(t) => setAt(i, { userType: t as UserLayerType })}
-                />
-              ) : (
-                // A `wxStaticText`, and the panel sets no foreground on it: it
-                // is the dialog's own ink, not the dimmed grey this had.
-                <span className="ze-pcb-layer-desc">{l.desc}</span>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
+    </>
   );
 }
 

@@ -43,17 +43,29 @@ const DEMO_NO_USER = `(kicad_pcb (version 20241229) (generator "test")
 
 afterEach(cleanup);
 
-/** The row a layer id draws, as the rendered DOM. */
+/**
+ * The three cells a layer id Add()s to m_LayersSizer - checkbox, name, type - found from its name
+ * control, and searched as one row.
+ */
 function rowOf(layerId: string): HTMLElement {
   const name = document.getElementById(layerNameInputId(layerId));
   if (!name) throw new Error(`no row for ${layerId}`);
-  const row = name.closest('.ze-pcb-layer-row');
-  if (!row) throw new Error(`row for ${layerId} is not in a .ze-pcb-layer-row`);
-  return row as HTMLElement;
+  const cell = name.closest('.ze-szi') as HTMLElement;
+  const cells = [cell.previousElementSibling, cell, cell.nextElementSibling].filter(
+    Boolean,
+  ) as Element[];
+  return {
+    querySelector: (sel: string) =>
+      cells.map((c) => (c.matches(sel) ? c : c.querySelector(sel))).find(Boolean) ?? null,
+  } as unknown as HTMLElement;
 }
 
 const checkboxOf = (layerId: string): HTMLInputElement =>
   rowOf(layerId).querySelector('input[type="checkbox"]') as HTMLInputElement;
+
+/** The checkbox's SetToolTip, which the wxCheckBox row carries. */
+const tipOf = (layerId: string): string =>
+  checkboxOf(layerId).closest('label')?.getAttribute('title') ?? '';
 
 const nameOf = (layerId: string): HTMLInputElement =>
   document.getElementById(layerNameInputId(layerId)) as HTMLInputElement;
@@ -134,20 +146,16 @@ describe('Board Editor Layers: which checkboxes are disabled', () => {
 
   it('tells a mandatory row apart from a copper row in its tooltip', () => {
     renderPanel();
-    expect(checkboxOf('Edge.Cuts').title).toBe('This layer is required and cannot be disabled');
-    expect(checkboxOf('F.Cu').title).toBe(
+    expect(tipOf('Edge.Cuts')).toBe('This layer is required and cannot be disabled');
+    expect(tipOf('F.Cu')).toBe(
       'Use the Physical Stackup page to change the number of copper layers.',
     );
     // The per-layer tips, which only some rows have.
-    expect(checkboxOf('F.Mask').title).toBe(
-      'If you want a solder mask layer for the front of the board',
-    );
-    expect(checkboxOf('Cmts.User').title).toBe(
-      'If you want a separate layer for comments or notes',
-    );
+    expect(tipOf('F.Mask')).toBe('If you want a solder mask layer for the front of the board');
+    expect(tipOf('Cmts.User')).toBe('If you want a separate layer for comments or notes');
     // Eco1 and Eco2 are given no SetToolTip at all.
-    expect(checkboxOf('Eco1.User').title).toBe('');
-    expect(checkboxOf('Eco2.User').title).toBe('');
+    expect(tipOf('Eco1.User')).toBe('');
+    expect(tipOf('Eco2.User')).toBe('');
   });
 });
 
@@ -186,17 +194,17 @@ describe('Board Editor Layers: the third column', () => {
     renderPanel(value);
 
     // A fixed technical row is a static text.
-    expect(rowOf('F.Mask').querySelector('.ze-pcb-layer-desc')?.textContent).toBe(
+    expect(rowOf('F.Mask').querySelector('.ze-statictext')?.textContent).toBe(
       'On-board, non-copper',
     );
     expect(rowOf('F.Mask').querySelector('.ze-combo')).toBeNull();
 
     // A user-defined row is a wxChoice — `append_user_layer():537-547`.
     const user = rowOf('User.1');
-    expect(user.querySelector('.ze-pcb-layer-desc')).toBeNull();
+    expect(user.querySelector('.ze-statictext')).toBeNull();
     const combo = user.querySelector('.ze-combo');
     expect(combo).not.toBeNull();
-    expect(combo?.getAttribute('title')).toBe(
+    expect(combo?.closest('[title]')?.getAttribute('title')).toBe(
       'Auxiliary layers do not flip with board side, while back and front layers do.',
     );
     expect(user.querySelector('.ze-combo-shown')?.textContent).toBe('Auxiliary');
@@ -385,7 +393,7 @@ describe('Add User Defined Layer...', () => {
     fireEvent.click(screen.getByRole('button', { name: 'OK' }));
 
     // `append_user_layer()` adds at the end of m_LayersSizer, after Drawings.
-    const rows = [...document.querySelectorAll('.ze-pcb-layer-row input.ze-search')].map(
+    const rows = [...document.querySelectorAll('input[id^="ze-layer-name-"]')].map(
       (i) => (i as HTMLInputElement).value,
     );
     expect(rows[rows.length - 1]).toBe('User.3');
@@ -466,5 +474,36 @@ describe('the mandatory layers survive a file that omits them', () => {
       ).toMatchObject({ enabled: true });
     // A layer that is NOT mandatory and not in the file stays off.
     expect(s.layers.layers.find((l) => l.id === 'F.Adhes')).toMatchObject({ enabled: false });
+  });
+});
+
+describe('Board Editor Layers: a row writes its own layer', () => {
+  /** The page, keeping what it last handed back. */
+  function renderLive(): () => LayersSetup {
+    let last = freshBoardSetup().layers;
+    render(<PanelPcbLayers value={last} onChange={(v) => (last = v)} />);
+    return () => last;
+  }
+
+  it('a user layer type choice writes that layer', () => {
+    const latest = renderLive();
+    // append_user_layer's choices: Auxiliary, Off-board front, Off-board back.
+    const combo = rowOf('User.2').querySelector('.ze-combo') as HTMLElement;
+    fireEvent.click(combo);
+    const option = [...document.querySelectorAll('[role="option"]')].find(
+      (o) => o.textContent === 'Off-board, back',
+    );
+    fireEvent.mouseDown(option as HTMLElement);
+    const byId = new Map(latest().layers.map((l) => [l.id, l]));
+    expect(byId.get('User.2')!.userType).toBe('back');
+    expect(byId.get('User.1')!.userType ?? 'aux').toBe('aux');
+  });
+
+  it('a typed name writes that layer', () => {
+    const latest = renderLive();
+    fireEvent.change(nameOf('Cmts.User'), { target: { value: 'Notes' } });
+    const byId = new Map(latest().layers.map((l) => [l.id, l]));
+    expect(byId.get('Cmts.User')!.name).toBe('Notes');
+    expect(byId.get('Dwgs.User')!.name).toBe('User.Drawings');
   });
 });

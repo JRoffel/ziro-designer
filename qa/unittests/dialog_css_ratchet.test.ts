@@ -22,7 +22,11 @@ const BASELINE: Record<string, number> = {
   // 162 -> 151 (10-12): DIALOG_PRINT_GENERIC_BASE pair.
   // 151 -> 152 (10-12): not new CSS. ze-border-top was also Mask & Paste's; with that page on its
   // _base pair, pref_controls is its only user.
-  common: 152, // -11 (10-11): the shared Table Properties form, replaced by one pair per editor
+  // 152 -> 153 (10-12): not new CSS. ze-fieldnames-gap was also the footprint editor pages'; with
+  // those on _base pairs, lib_table_panel is its only user.
+  // 153 -> 154 (10-12): not new CSS. ze-pref-radiorow was also Component Classes'; with that page
+  // on its _base pairs, pref_controls is its only user.
+  common: 154, // -11 (10-11): the shared Table Properties form, replaced by one pair per editor
   cvpcb: 8,
   designer: 138,
   // 114 -> 122 (10-11): not new CSS. ze-lp-* classes the old Table Cell and Label forms shared
@@ -76,7 +80,10 @@ const BASELINE: Record<string, number> = {
   // 131 -> 124 (10-12): Mask & Paste, Zones, Dimensions and Text & Graphics pairs.
   // 124 -> 93 (10-12): Tuning Patterns, Teardrops, Pre-defined Sizes and Constraints pairs.
   // 93 -> 90 (10-12): the footprint editor's Default Values pair.
-  pcbnew: 90,
+  // 90 -> 84 (10-12): Board Setup's Layers pair.
+  // 84 -> 75 (10-12): the footprint editor's User Layer Names and Footprint Defaults pairs.
+  // 75 -> 65 (10-12): Component Classes' nine bases.
+  pcbnew: 65,
 };
 
 const git = (...aSpecs: string[]): string[] =>

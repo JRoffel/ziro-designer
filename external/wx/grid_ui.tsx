@@ -121,6 +121,7 @@ export function WxGridView({
   ariaLabel,
   onUpdate,
   rowLabelSize,
+  fixedColumns,
 }: {
   grid: wxGrid;
   /** The grid's GRID_TRICKS, for the cell tooltips. */
@@ -131,6 +132,11 @@ export function WxGridView({
   rowLabels?: boolean;
   /** `SetRowLabelSize( n )`: the row-label column's width, a floor as a column's is. */
   rowLabelSize?: number;
+  /**
+   * The stated widths are exact, as `SetColSize` leaves them on a grid no autosizer re-measures:
+   * the columns hold against the filler cell instead of growing to their content.
+   */
+  fixedColumns?: boolean;
   colLabels?: boolean;
   /** A custom renderer's drawing (a swatch, an icon); null draws the default. */
   renderCell?: (aRow: number, aCol: number, aValue: string) => ReactNode | null;
@@ -448,7 +454,7 @@ export function WxGridView({
           (grid as wxGrid & { AlternateRowColors?: () => boolean }).AlternateRowColors?.()
             ? ' ze-grid-striped'
             : ''
-        }${className ? ` ${className}` : ''}`}
+        }${fixedColumns ? ' ze-grid-fixed' : ''}${className ? ` ${className}` : ''}`}
         style={style}
         // biome-ignore lint/a11y/noNoninteractiveTabindex: the grid window takes the focus, as wx's does
         tabIndex={0}

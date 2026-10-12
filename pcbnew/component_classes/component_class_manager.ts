@@ -7,15 +7,17 @@
  * the project's assignment rules generate, and the effective (combined)
  * classes footprints carry.
  *
- * `CompileAssignmentRule` compiles an assignment through DRC_RULES_PARSER,
- * which lands with the DRC engine (#636 stage 4); until then every rule
- * fails to compile, as an unparsable rule does in the C++.
+ * `CompileAssignmentRule` compiles an assignment through DRC_RULES_PARSER's
+ * ParseComponentClassAssignmentRules; an error, or anything but one rule, is no rule.
  */
 import {
   COMPONENT_CLASS_ASSIGNMENT_DATA,
   CONDITION_TYPE,
 } from '@ziroeda/common/project/component_class_settings.js';
+import { PARSE_ERROR } from '@ziroeda/common/dsnlexer.js';
+import { RPT_SEVERITY_ERROR, WX_STRING_REPORTER } from '@ziroeda/common/reporter.js';
 import type { BOARD } from '../board.js';
+import { DRC_RULES_PARSER } from '../drc/drc_rule_parser.js';
 import type { FOOTPRINT } from '../footprint.js';
 import { COMPONENT_CLASS, USAGE } from './component_class.js';
 import type { COMPONENT_CLASS_ASSIGNMENT_RULE } from './component_class_assignment_rule.js';
@@ -283,8 +285,23 @@ export class COMPONENT_CLASS_MANAGER {
     // Ignore incomplete rules (e.g. no component class name specified)
     if (ruleSource === '') return null;
 
-    // DRC_RULES_PARSER::ParseComponentClassAssignmentRules: pending (#636 stage 4)
-    return null;
+    const parser = new DRC_RULES_PARSER(ruleSource, 'Component class assignment rule');
+
+    try {
+      const parsed: COMPONENT_CLASS_ASSIGNMENT_RULE[] = [];
+      const reporter = new WX_STRING_REPORTER();
+      parser.ParseComponentClassAssignmentRules(parsed, reporter);
+
+      // HasMessageOfSeverity( RPT_SEVERITY_ERROR )
+      if (reporter.count(RPT_SEVERITY_ERROR) > 0) return null;
+
+      if (parsed.length !== 1) return null;
+
+      return parsed[0]!;
+    } catch (e) {
+      if (e instanceof PARSE_ERROR) return null;
+      throw e;
+    }
   }
 
   /// Gets the combined component class with the given static and dynamic constituent component classes

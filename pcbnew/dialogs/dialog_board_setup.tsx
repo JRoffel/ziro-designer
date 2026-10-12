@@ -54,6 +54,7 @@ import { PanelPcbComponentClasses } from './panel_assign_component_classes.js';
 import { PanelPcbCustomRules } from './panel_setup_rules.js';
 import { delayProfileNames, validateTuningProfiles } from './panel_setup_tuning_profiles.js';
 import type { BOARD } from '../board.js';
+import type { PCB_EDIT_FRAME } from '../pcb_edit_frame.js';
 import { LSET } from '@ziroeda/common/lset.js';
 import type { PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import { SETTINGS_MANAGER } from '@ziroeda/common/pgm_base.js';
@@ -422,6 +423,8 @@ interface Props {
    * tests, where the page falls back to the rows' own names and no calculator.
    */
   board?: BOARD | null;
+  /** m_frame, which Component Classes reads the selection from and highlights through. */
+  frame?: PCB_EDIT_FRAME | null;
   initialPage?: PageId;
   onOk: (next: BoardSetupValues) => void;
   onClose: () => void;
@@ -431,6 +434,7 @@ export function DialogBoardSetup({
   value,
   units,
   board = null,
+  frame = null,
   initialPage,
   onOk,
   onClose,
@@ -724,6 +728,7 @@ export function DialogBoardSetup({
           label: 'Component Classes',
           render: () => (
             <PanelPcbComponentClasses
+              frame={frame}
               value={v.componentClasses}
               onChange={(componentClasses) => setV({ ...v, componentClasses })}
             />
@@ -839,6 +844,10 @@ export function DialogBoardSetup({
                 g.EnableCellEditControl(true);
               },
             };
+
+          // PANEL_ASSIGN_COMPONENT_CLASSES::Validate: a rule that does not compile.
+          const badClass = PANEL_ASSIGN_COMPONENT_CLASSES.Validate(v.componentClasses);
+          if (badClass) return { message: badClass.message, page: 'componentClasses' };
 
           // PANEL_SETUP_ZONES::TransferDataFromWindow: AcceptOptions refuses, the dialog stays.
           const badZone = PANEL_SETUP_ZONES.Validate(v.zones);

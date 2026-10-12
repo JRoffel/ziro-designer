@@ -2611,6 +2611,20 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
   /* [data] the same 2, on the two facing sides of adjacent panels. */
   gap: 4px;
 }
+/* wx Panel background="3dlight": wxSYS_COLOUR_3DLIGHT, which measures the same as 3DFACE here
+   (see BACKGROUND_JOB_PANEL below), so --content-bg. */
+.ze-panel.bg-3dlight {
+  background: var(--content-bg);
+}
+/* StaticText minWidthText: an invisible line of the stated text, so the label is at least that
+   wide (`SetMinSize( GetTextExtent( text ) )`). */
+.ze-statictext-minw {
+  display: block;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  white-space: pre;
+}
 /* BACKGROUND_JOB_PANEL: wxBORDER_SIMPLE, SetBackgroundColour(
    wxSYS_COLOUR_3DLIGHT ) (:41-53). [px] 3DLIGHT measures #373737 on this
    machine (qa/probes/syscolour_probe.cpp) — the same value as 3DFACE, which is
@@ -6761,6 +6775,15 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
   width: 100%;
   border: none;
   padding: 0;
+}
+/* WxGridView fixedColumns: SetColSize widths held exactly, the filler taking only what is left
+   (a 100% filler in a fixed-layout table would take the whole table). */
+.ze-grid.ze-grid-fixed {
+  table-layout: fixed;
+}
+.ze-grid.ze-grid-fixed th.ze-grid-filler,
+.ze-grid.ze-grid-fixed td.ze-grid-filler {
+  width: auto;
 }
 /* The row-label gutter is a LABEL, so it takes the label colour rather than the
    cell colour — the same call that paints the column headers. */
@@ -12944,13 +12967,13 @@ fieldset.ze-sbox > legend {
      the shared rule carries another page's 6. */
   margin-top: 3px;
 }
+
 .ze-fieldnames-gap {
   /* [data] `bSizer10->Add( 20, 0, 0, wxEXPAND, 5 )`, the fixed gap before
      Delete. */
   width: 20px;
   flex: 0 0 auto;
 }
-
 /* ---- HOTKEY_CYCLE_POPUP (common/dialogs/hotkey_cycle_popup.cpp) -------------
    The panel that flashes when a single-stroke hotkey cycles a setting. Its
    layout is EDA_VIEW_SWITCHER_BASE (common/dialogs/eda_view_switcher_base.cpp:
@@ -13157,146 +13180,6 @@ fieldset.ze-sbox > legend {
   display: contents;
 }
 
-/* A plain wxStaticText title with no rule under it — `defaultFieldPropertiesLabel`
-   (`panel_fp_editor_field_defaults_base.cpp:23-25`) and `m_layerNamesLabel`
-   (`panel_fp_user_layer_names_base.cpp:45-47`) are the same shape:
-   `wxTOP|wxRIGHT|wxLEFT, 8` followed by an `Add( 0, 4 )` spacer.
-
-   Not `.ze-pref-group-title`: that one draws the `wxStaticLine` every
-   Preferences GROUP has, and these two headings have none. Graphics Defaults'
-   `defaultPropertiesLabel` is NOT one of them — `m_staticline1` follows it
-   (`panel_fp_editor_graphics_defaults_base.cpp:31`), so that page's heading
-   takes `.ze-pref-group-title` and states its own borders below. */
-.ze-fp-defaults-title {
-  /* [data] the `wxTOP|wxLEFT, 8` of each heading's own Add(). */
-  padding: 8px 0 0 8px;
-  /* [data] the `Add( 0, 4 )` spacer under it. */
-  margin-bottom: 4px;
-}
-/* `bSizerMargins->Add( 5, 25, 0, wxEXPAND, 5 )` — the gap between the two grids
-   on Footprint Defaults, which is bigger than the 8 above every other heading. */
-.ze-fp-defaults-title2 {
-  /* [data] the spacer's own 25, less the heading's own wxTOP 8. */
-  margin-top: 17px;
-}
-
-.ze-fp-defaults,
-.ze-fp-userlayers,
-.ze-fp-gfxdefaults {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  /* [px] the notebook page's own inset, the same one `.ze-fieldnames` carries
-     and the same one Preferences > Colors measures. */
-  padding-left: 5px;
-}
-
-/* `SetColSize( 0, 240 )`, `SetColSize( 1, 60 )`, `SetColSize( 2, 150 )` and
-   `SetRowLabelSize( 160 )` (`panel_fp_editor_field_defaults_base.cpp:36-52`).
-
-   Every one of them is STATED, so both grids are 610 px wide — 160 + 240 + 60
-   + 150 and 460 + 150, which is why KiCad's two grids line up with each other
-   — and the rest of the page is empty. That is what a wxGrid whose columns do
-   not fill its window looks like: the column-label band and the cell
-   backgrounds both stop where the last column does. `width: 100%` with column
-   0 taking the slack stretched the Value cell across the whole dialog and put
-   Layer against the right edge.
-
-   `table-layout: fixed` is `SetDefaultCellOverflow( false )` for a cell that
-   holds a CONTROL rather than text: the stated column widths are used as-is
-   and a combo whose longest entry is wide cannot push its column out. The
-   text-cell half of that is `.ze-grid td > .ze-grid-text`'s `max-width: 0`
-   above. */
-.ze-fp-fieldprops,
-.ze-fp-textitems {
-  width: 610px; /* [px] the columns above, added up. */
-  table-layout: fixed;
-}
-.ze-fp-fieldprops th:first-child,
-.ze-fp-fieldprops td:first-child {
-  width: 160px; /* [px] SetRowLabelSize( 160 ) */
-}
-.ze-fp-fieldprops th:nth-child(2) {
-  width: 240px; /* [px] SetColSize( 0, 240 ) */
-}
-.ze-fp-fieldprops th:nth-child(3) {
-  width: 60px; /* [px] SetColSize( 1, 60 ) */
-}
-.ze-fp-fieldprops th:nth-child(4) {
-  width: 150px; /* [px] SetColSize( 2, 150 ) */
-}
-/* The filler cell the grid view appends: in fixed layout a 100% filler would
-   take the whole table, so here it is `auto` and takes only what is left. */
-.ze-fp-fieldprops th.ze-grid-filler,
-.ze-fp-fieldprops td.ze-grid-filler,
-.ze-fp-textitems th.ze-grid-filler,
-.ze-fp-textitems td.ze-grid-filler {
-  width: auto;
-}
-/* `SetColSize( 0, 460 )` and `SetColSize( 1, 150 )` (`:75-76`). */
-.ze-fp-textitems th:first-child {
-  width: 460px; /* [px] */
-}
-.ze-fp-textitems th:nth-child(2) {
-  width: 150px; /* [px] */
-}
-/* `m_textItemsGrid->SetMinSize( wxSize( -1, 140 ) )` (`:89`), and the same on
-   `m_layerNamesGrid` (`panel_fp_user_layer_names_base.cpp:74`). */
-.ze-fp-textitems-grid,
-.ze-fp-userlayers-grid {
-  flex: 1;
-  min-height: 140px; /* [data] */
-  /* [data] the grid's own `Add( …, 1, wxEXPAND, 5 )`, whose 5 is the border
-     wxFormBuilder writes and the flags do not apply — so no margin. */
-}
-/* `SetColSize( 0, 200 )` / `SetColSize( 1, 220 )` and `SetRowLabelSize( 0 )`
-   (`panel_fp_user_layer_names_base.cpp:65-77`) — both stated and never
-   autosized, so the columns stop at 420 and `.ze-grid-filler` takes the rest of
-   the grid's width. Name had been taking the slack instead, which is what made
-   the selected row's fill run the width of the dialog.
-
-   `table-layout: fixed` for the reason `.ze-fp-fieldprops` above states, and
-   one more: in AUTO layout a `width: 100%` filler and a stated `width: 200px`
-   are both suggestions, and the 100% wins — the two columns collapsed onto
-   their content and "Layer" / "Name" shrank to a few characters each. Fixed
-   layout is the algorithm that reads a stated width as a stated width, which
-   is what a wxGrid column is; the filler then has to be `auto`, because a
-   fixed-layout cell asking for 100% would take the whole table and push the
-   two real columns off the end. Two algorithms, two right answers for that
-   cell — which is why this override is scoped and not a change to the shared
-   rule. */
-.ze-fp-layernames {
-  table-layout: fixed;
-}
-.ze-fp-layernames th:first-child {
-  width: 200px; /* [px] */
-}
-.ze-fp-layernames th:nth-child(2) {
-  width: 220px; /* [px] */
-}
-.ze-fp-layernames th.ze-grid-filler,
-.ze-fp-layernames td.ze-grid-filler {
-  width: auto;
-}
-
-/* `bSizerUserLayerCount`, a bare `wxBoxSizer( wxHORIZONTAL )` added
-   `wxTOP|wxRIGHT|wxLEFT|wxEXPAND, 8` (`panel_fp_user_layer_names_base.cpp:
-   20-35`): the label carries `wxRIGHT, 5` and the choice none, then a growing
-   spacer takes the slack — so the pair sits at the left and does NOT line up
-   with anything below it. */
-.ze-fp-userlayer-count {
-  /* [data] the `wxTOP|wxRIGHT|wxLEFT, 8` of the sizer's own Add(). */
-  padding: 8px 8px 0;
-  /* [data] the `Add( 0, 10 )` spacer between this row and the next heading. */
-  margin-bottom: 10px;
-}
-/* A `.ze-pref-row` outside a group body has no shared label column to sit in;
-   this one is a two-item box sizer, so its label keeps its own width and the
-   choice follows it by the label's own `wxRIGHT, 5`. */
-.ze-fp-userlayer-count .ze-pref-row {
-  gap: 5px; /* [data] the label's `wxRIGHT, 5`. */
-}
-
 /* `SetCellAlignment( row, col, wxALIGN_CENTER, wxALIGN_CENTER )` on a
    `wxGridCellBoolRenderer` column — the Show column of Footprint Defaults and
    the Italic column of Graphics Defaults are both that
@@ -13396,78 +13279,6 @@ td.ze-grid-bool {
   /* [data] `Add( m_filterBox, 0, wxEXPAND|wxBOTTOM|wxRIGHT|wxLEFT, 5 )`. */
   margin: 0 5px 5px;
   width: auto;
-}
-
-/* PANEL_SETUP_LAYERS (`panel_setup_layers_base.cpp`, `panel_setup_layers.cpp`).
-
-   Every number below is a wx sizer border or a stated `SetMinSize`; the panel
-   calls SetFont and SetForegroundColour nowhere, so there is no font size and
-   no colour here. */
-.ze-pcb-layers {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-/* `bSizerLayerCnt`: `Add( 0, 0, 1, wxEXPAND )` then the button, and the row
-   itself `wxEXPAND|wxTOP|wxRIGHT, 5`. The spacer is what puts the button hard
-   right. */
-.ze-pcb-layers-head {
-  display: flex;
-  justify-content: flex-end;
-  /* [data] the row's wxTOP|wxRIGHT 5 plus the button's own wxTOP|wxRIGHT|wxLEFT 5. */
-  margin: 10px 10px 0 0;
-}
-/* [data] `m_staticline2`, `wxEXPAND|wxLEFT|wxRIGHT|wxTOP, 5`. */
-.ze-pcb-layers-rule {
-  border: none;
-  border-top: 1px solid var(--chrome-border); /* [css] Yaru's `separator { min-height: 1px }` — a wxStaticLine. */
-  margin: 5px 5px 0; /* [data] the same `wxLEFT|wxRIGHT|wxTOP, 5`. */
-  width: auto;
-}
-/* `m_LayersSizer = new wxFlexGridSizer( 0, 3, 2, 8 )` with `AddGrowableCol(1)`
-   and `AddGrowableCol(2)` — ONE grid for the whole list, which is why KiCad's
-   name fields and descriptions line up down the page. This was a stack of
-   independent flex rows, so each row's columns landed wherever its own content
-   put them. The two growable columns share the spare width equally, each
-   floored at its own `SetMinSize`. */
-.ze-pcb-layers-list {
-  /* [data] `Add( m_LayersListPanel, 1, wxEXPAND|wxTOP, 5 )`, and the
-     wxScrolledWindow's `wxVSCROLL`. */
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  margin-top: 5px; /* [data] the same `wxTOP, 5`. */
-  display: grid;
-  /* [data] the name ctrl's `SetMinSize( wxSize( 160, -1 ) )` and the
-     description's `SetMinSize( wxSize( 150, -1 ) )`. */
-  grid-template-columns: max-content minmax(160px, 1fr) minmax(150px, 1fr);
-  align-items: center;
-  /* [data] the sizer's vgap 2 and hgap 8. */
-  row-gap: 2px;
-  column-gap: 8px; /* [data] the same sizer's hgap 8. */
-  align-content: start;
-}
-.ze-pcb-layer-row {
-  display: grid;
-  grid-template-columns: subgrid;
-  grid-column: 1 / -1;
-  align-items: center;
-}
-/* [data] the checkbox's `wxALIGN_CENTER_HORIZONTAL|wxLEFT, 5`. */
-.ze-pcb-layer-row > input[type="checkbox"] {
-  margin-left: 5px; /* [data] the same `wxLEFT, 5`. */
-  justify-self: center;
-}
-/* [data] the name ctrl's `wxRIGHT, 5`. */
-.ze-pcb-layer-row > .ze-search {
-  margin-right: 5px; /* [data] the same `wxRIGHT, 5`. */
-}
-/* [data] the static text's `wxRIGHT|wxLEFT, 5`. */
-.ze-pcb-layer-desc {
-  margin: 0 5px; /* [data] the same `wxRIGHT|wxLEFT, 5`. */
-}
-.ze-pcb-layer-row > .ze-combo {
-  margin-right: 5px; /* [data] the choice's own `wxRIGHT, 5`. */
 }
 
 /* PANEL_SETUP_TUNING_PATTERNS (`panel_setup_tuning_patterns_base.cpp`), three

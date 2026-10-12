@@ -58,9 +58,7 @@
  */
 import { type JSX, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { GRID_TRICKS } from '@ziroeda/common/grid_tricks.js';
-import { StdBitmapButton } from '@ziroeda/common/widgets/std_bitmap_button.js';
 import { WX_GRID, WX_GRID_TABLE_BASE } from '@ziroeda/common/widgets/wx_grid.js';
-import { Sel } from '@ziroeda/common/dialogs/pref_controls.js';
 import {
   wxEVT_GRID_CELL_CHANGED,
   wxGRID_VALUE_NUMBER,
@@ -71,6 +69,7 @@ import {
   wxGridTableRequest,
 } from '@ziroeda/wx/grid.js';
 import { WxGridView } from '@ziroeda/wx/grid_ui.js';
+import { PANEL_FP_USER_LAYER_NAMES_BASE } from './panel_fp_user_layer_names_base.js';
 import { PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import {
   GRID_CELL_LAYER_RENDERER,
@@ -79,9 +78,6 @@ import {
   userLayerChoices,
 } from '../grid_layer_box_helpers.js';
 import { LSET_Name, LSET_NameToLayer } from '@ziroeda/common/layer_ids.js';
-
-/** `m_choiceUserLayersChoices` — "0" … "9" (`_base.cpp:29-30`). */
-const USER_LAYER_COUNTS: [number, string][] = Array.from({ length: 10 }, (_, i) => [i, String(i)]);
 
 /** `IsUserLayer`: User_1 .. User_45, the numbered user layers. */
 const IsUserLayer = (aLayer: number): boolean =>
@@ -299,52 +295,31 @@ export function PanelFpUserLayerNames({
   };
 
   return (
-    <div className="ze-fp-userlayers">
-      {/* `bSizerUserLayerCount` — a bare horizontal sizer, so the choice sits
-          immediately after its label and the slack goes to the spacer at the
-          end. Not a `.ze-pref-group`: there is no heading and no rule. */}
-      <div className="ze-fp-userlayer-count">
-        <Sel
-          label="User layers:"
-          value={fpEdit.design_settings.user_layer_count}
-          options={USER_LAYER_COUNTS}
-          onChange={(v) =>
+    <>
+      <PANEL_FP_USER_LAYER_NAMES_BASE
+        m_choiceUserLayers={{
+          value: fpEdit.design_settings.user_layer_count,
+          onChange: (aIndex) =>
             upFp((s) => {
-              s.design_settings.user_layer_count = v;
-            })
-          }
-        />
-      </div>
-      <div className="ze-fp-defaults-title">User Layer Names</div>
-      <div className="ze-grid-pane ze-fp-userlayers-grid">
-        <WxGridView
-          grid={grid}
-          tricks={tricks}
-          columns={[{ width: 200 }, { width: 220 }]}
-          className="ze-fp-layernames"
-          onUpdate={transfer}
-          ariaLabel="User layer names"
-        />
-      </div>
-      <div className="ze-grid-btns">
-        <StdBitmapButton
-          bitmap="small_plus"
-          title="Add layer"
-          tooltip={null}
-          onClick={onAddLayerItem}
-        />
-        {/* `bButtonSize->Add( 20, 0, 0, wxEXPAND, 5 )`. [px] wxFormBuilder's own 20. */}
-        <span className="ze-fieldnames-gap" />
-        <StdBitmapButton
-          bitmap="small_trash"
-          title="Delete layer"
-          tooltip={null}
-          onClick={() => grid.OnDeleteRows((row) => table.DeleteRows(row, 1))}
-        />
-      </div>
-      {/* `PAGED_DIALOG::SetError` puts its message in the dialog's own error
-          bar; ours is beside the grid it belongs to. */}
+              s.design_settings.user_layer_count = aIndex;
+            }),
+        }}
+        m_layerNamesGrid={
+          <WxGridView
+            grid={grid}
+            tricks={tricks}
+            // [data] SetColSize( 0, 200 ), SetColSize( 1, 220 ).
+            columns={[{ width: 200 }, { width: 220 }]}
+            fixedColumns
+            onUpdate={transfer}
+            ariaLabel="User layer names"
+          />
+        }
+        onAddLayerItem={onAddLayerItem}
+        onDeleteLayerItem={() => grid.OnDeleteRows((row) => table.DeleteRows(row, 1))}
+      />
+      {/* PAGED_DIALOG::SetError's message, beside the grid it belongs to. */}
       {error && <div className="ze-prefs-error">{error}</div>}
-    </div>
+    </>
   );
 }

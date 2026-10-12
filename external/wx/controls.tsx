@@ -78,9 +78,12 @@ export function CheckBox({
   disabled,
   title,
   className,
+  ariaLabel,
 }: {
   /** Its text; a wxDataViewListCtrl toggle row puts its icon-text cell here. */
   label: ReactNode;
+  /** The accessible name of a box whose label is wxEmptyString. */
+  ariaLabel?: string;
   checked?: boolean;
   onChange?: (aChecked: boolean) => void;
   /** The `_base` member instead of `checked` / `onChange` / `disabled`. */
@@ -99,6 +102,7 @@ export function CheckBox({
         type="checkbox"
         checked={value}
         disabled={off}
+        aria-label={ariaLabel}
         onChange={(e) => change?.(e.target.checked)}
       />
       {label}
@@ -338,8 +342,11 @@ export function StaticText({
   font,
   italic,
   ellipsize,
+  minWidthText,
 }: {
   label: string;
+  /** `SetMinSize( { GetTextExtent( text ).x, -1 } )`: at least as wide as this text would be. */
+  minWidthText?: string;
   disabled?: boolean;
   /** `Wrap( width )`, in pixels; -1 or absent never wraps. */
   wrap?: number;
@@ -358,6 +365,11 @@ export function StaticText({
       title={title}
     >
       {label}
+      {minWidthText !== undefined && (
+        <span className="ze-statictext-minw" aria-hidden="true">
+          {minWidthText}
+        </span>
+      )}
     </span>
   );
 }
@@ -489,15 +501,21 @@ export function StaticLine({
 export function Panel({
   border,
   title,
+  background,
   children,
 }: {
   border?: 'simple';
+  /** `SetBackgroundColour( wxSystemSettings::GetColour( wxSYS_COLOUR_3DLIGHT ) )`. */
+  background?: '3dlight';
   /** `SetToolTip()`. */
   title?: string;
   children?: ReactNode;
 }): JSX.Element {
   return (
-    <div className={`ze-panel${border === 'simple' ? ' border-simple' : ''}`} title={title}>
+    <div
+      className={`ze-panel${border === 'simple' ? ' border-simple' : ''}${background === '3dlight' ? ' bg-3dlight' : ''}`}
+      title={title}
+    >
       {children}
     </div>
   );

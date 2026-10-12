@@ -47,7 +47,6 @@
  */
 import { type JSX, useLayoutEffect, useRef, useState } from 'react';
 import { GRID_TRICKS } from '@ziroeda/common/grid_tricks.js';
-import { StdBitmapButton } from '@ziroeda/common/widgets/std_bitmap_button.js';
 import { WX_GRID, WX_GRID_TABLE_BASE } from '@ziroeda/common/widgets/wx_grid.js';
 import {
   wxALIGN_LEFT,
@@ -60,6 +59,7 @@ import {
   wxGridTableRequest,
 } from '@ziroeda/wx/grid.js';
 import { WxGridView } from '@ziroeda/wx/grid_ui.js';
+import { PANEL_FP_EDITOR_FIELD_DEFAULTS_BASE } from './panel_fp_editor_field_defaults_base.js';
 import { PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import {
   GRID_CELL_LAYER_RENDERER,
@@ -288,53 +288,33 @@ export function PanelFpFootprintDefaults({
   };
 
   return (
-    <div className="ze-fp-defaults">
-      {/* `defaultFieldPropertiesLabel`, a plain wxStaticText with no rule. */}
-      <div className="ze-fp-defaults-title">Default Field Properties for New Footprints</div>
-      <div className="ze-grid-pane">
+    <PANEL_FP_EDITOR_FIELD_DEFAULTS_BASE
+      m_fieldPropsGrid={
         <WxGridView
           grid={props.grid}
           tricks={props.tricks}
           rowLabels
+          // [data] SetRowLabelSize( 160 ), SetColSize 240 / 60 / 150, never autosized.
+          rowLabelSize={160}
           columns={[{ width: 240 }, { width: 60, center: true }, { width: 150 }]}
-          className="ze-fp-fieldprops"
+          fixedColumns
           onUpdate={transfer}
           ariaLabel="Default field properties"
         />
-      </div>
-
-      {/* `bSizerMargins->Add( 5, 25, … )` — the gap between the two grids. */}
-      <div className="ze-fp-defaults-title ze-fp-defaults-title2">
-        Default Text Items for New Footprints
-      </div>
-      <div className="ze-grid-pane ze-fp-textitems-grid">
+      }
+      m_textItemsGrid={
         <WxGridView
           grid={texts.grid}
           tricks={texts.tricks}
+          // [data] SetColSize( 0, 460 ), SetColSize( 1, 150 ).
           columns={[{ width: 460 }, { width: 150 }]}
-          className="ze-fp-textitems"
+          fixedColumns
           onUpdate={transfer}
           ariaLabel="Default text items"
         />
-      </div>
-      {/* `bButtonSize`: add, a fixed 20 px gap, delete — no up/down here,
-          unlike the Field Name Templates panel. */}
-      <div className="ze-grid-btns">
-        <StdBitmapButton
-          bitmap="small_plus"
-          title="Add text item"
-          tooltip={null}
-          onClick={onAddTextItem}
-        />
-        {/* `bButtonSize->Add( 20, 0, 0, wxEXPAND, 5 )`. [px] wxFormBuilder's own 20. */}
-        <span className="ze-fieldnames-gap" />
-        <StdBitmapButton
-          bitmap="small_trash"
-          title="Delete text item"
-          tooltip={null}
-          onClick={() => texts.grid.OnDeleteRows((row) => texts.table.DeleteRows(row, 1))}
-        />
-      </div>
-    </div>
+      }
+      onAddTextItem={onAddTextItem}
+      onDeleteTextItem={() => texts.grid.OnDeleteRows((row) => texts.table.DeleteRows(row, 1))}
+    />
   );
 }

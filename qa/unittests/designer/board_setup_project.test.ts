@@ -8,6 +8,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { pcbMmToIU } from '@ziroeda/common/eda_units.js';
+import { CONDITION_TYPE } from '@ziroeda/common/project/component_class_settings.js';
 import { findProjectPro } from '@ziroeda/pcbnew/pcb_edit_frame.js';
 import { EMPTY_PCB, projectJson } from '@ziroeda/designer/src/home/new_project.js';
 import { readSetup, writeProject } from './board_setup_test_utils.js';
@@ -119,10 +120,12 @@ function customSetup(): BoardSetupValues {
     {
       componentClass: 'HV',
       matchMode: 'any',
+      // CONDITION_DATA: a footprint-field condition keeps its secondary field.
       conditions: [
-        { type: 'Reference', value: 'R*' },
-        { type: 'Reference', value: 'C*' },
-        { type: 'Side', value: 'Front' },
+        { type: CONDITION_TYPE.REFERENCE, primary: 'R*', secondary: '' },
+        { type: CONDITION_TYPE.REFERENCE, primary: 'C*', secondary: '' },
+        { type: CONDITION_TYPE.SIDE, primary: 'Front', secondary: '' },
+        { type: CONDITION_TYPE.FOOTPRINT_FIELD, primary: 'Voltage', secondary: '50V' },
       ],
     },
   ];
@@ -195,7 +198,13 @@ describe('Board Setup, the .kicad_pro side', () => {
     expect(back.textGraphics).toEqual(want.textGraphics);
     expect(back.formatting).toEqual(want.formatting);
     expect(back.zones).toEqual(want.zones);
-    expect(back.componentClasses).toEqual(want.componentClasses);
+    // The conditions are a JSON object keyed GetConditionName() plus "-n" for a repeat, and
+    // nlohmann::json walks an object in key order: FOOTPRINT_FIELD, REFERENCE, REFERENCE-1, SIDE.
+    const [r, c, side, field] = want.componentClasses.assignments[0]!.conditions;
+    expect(back.componentClasses).toEqual({
+      ...want.componentClasses,
+      assignments: [{ ...want.componentClasses.assignments[0]!, conditions: [field, r, c, side] }],
+    });
     expect(back.tuningProfiles).toEqual(want.tuningProfiles);
     expect(back.netClasses).toEqual(want.netClasses);
     expect(back.textVars).toEqual(want.textVars);
