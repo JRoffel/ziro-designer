@@ -110,7 +110,7 @@ describe('the notebook', () => {
   it('the tab shows the name as it is typed (UpdateProfileName)', () => {
     render(<Harness initial={oneProfile()} />);
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'DDR4' } });
-    expect(screen.getByRole('button', { name: 'DDR4' })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'DDR4' })).toBeTruthy();
   });
 });
 

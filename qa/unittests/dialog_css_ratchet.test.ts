@@ -83,7 +83,10 @@ const BASELINE: Record<string, number> = {
   // 90 -> 84 (10-12): Board Setup's Layers pair.
   // 84 -> 75 (10-12): the footprint editor's User Layer Names and Footprint Defaults pairs.
   // 75 -> 65 (10-12): Component Classes' nine bases.
-  pcbnew: 65,
+  // 65 -> 61 (10-12): Display Options' pair.
+  // 61 -> 59 (10-12): Edit Options' pair.
+  // 59 -> 39 (10-12): Tuning Profiles' two pairs.
+  pcbnew: 39,
 };
 
 const git = (...aSpecs: string[]): string[] =>

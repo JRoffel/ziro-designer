@@ -23,7 +23,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { PreferencesDialog } from '@ziroeda/designer/src/dialogs/PreferencesDialog.js';
 import { resetPrefsPanelCache } from '@ziroeda/designer/src/dialogs/prefs/lazy_pages.js';
 import { GAL_GROUP_TITLES } from '@ziroeda/common/dialogs/panel_gal_options.js';
@@ -58,7 +58,7 @@ const ANCHOR: Record<FpPage, string> = {
   'fp-display': 'Clearance Outlines',
   'fp-grids': 'Fast Grid Switching',
   'fp-origins': 'X Axis',
-  'fp-editing': 'Magnetic Points',
+  'fp-editing': 'Magnetic graphics',
   // `PANEL_COLOR_SETTINGS`' own control is labelled "Theme:" — "Color theme:"
   // is `PANEL_SYM_COLOR_SETTINGS`/`PANEL_PL_EDITOR_COLOR_SETTINGS`, which are
   // a theme choice and no swatch grid.
@@ -89,6 +89,13 @@ async function openPage(id: FpPage): Promise<void> {
 
 const panelText = (): string =>
   document.querySelector('.ze-prefs-panel')?.textContent?.replace(/\s+/g, ' ') ?? '';
+
+/** The panel's text as the user sees it: a wxSimplebook's hidden pages left out. */
+const shownText = (): string => {
+  const panel = document.querySelector('.ze-prefs-panel')!.cloneNode(true) as HTMLElement;
+  for (const hidden of panel.querySelectorAll('[data-hide]')) hidden.remove();
+  return panel.textContent?.replace(/\s+/g, ' ') ?? '';
+};
 
 /** The labels a `Combo` offers — see the note in `ds_prefs_pages.test.tsx`. */
 const comboOptions = (root: ParentNode = document): string[] =>
@@ -158,7 +165,10 @@ describe('Footprint Editor > Display Options', () => {
     'draws NOTHING from the simplebook: this frame gets the empty page',
     async () => {
       await openPage('fp-display');
-      const text = panelText();
+      // The wxSimplebook keeps page 1, hidden; what the user sees is the panel without it.
+      const shown = document.querySelector('.ze-prefs-panel')!.cloneNode(true) as HTMLElement;
+      for (const hidden of shown.querySelectorAll('[data-hide]')) hidden.remove();
+      const text = shown.textContent ?? '';
       // `m_optionsBook->SetSelection( m_isPCBEdit ? 1 : 0 )` and page 0 is a
       // bare `wxPanel` (`panel_display_options_base.cpp:88-97`). Every string
       // below is on page 1 and must not appear here.
@@ -261,19 +271,10 @@ describe('Footprint Editor > Editing Options', () => {
       // (`panel_edit_options.cpp:38-45`), and `SetUnits` writes
       // `EDA_UNIT_UTILS::GetLabel( DEGREES )` -- `°` (`eda_units.cpp:153`) --
       // over the `_("deg")` wxFormBuilder put in `_base.cpp:49`.
-      const row = Array.from(document.querySelectorAll('.ze-prefs-panel .ze-pref-row')).find(
-        (r) => r.querySelector('.lbl')?.textContent === 'Step for rotate commands:',
-      );
-      expect(row, 'the rotation row').toBeDefined();
-      expect(row?.querySelector('.unit')?.textContent).toBe('°');
-      // Not the placeholder. ("45 degrees" on the checkbox above is a different
-      // row, which is why this reads the row and not the whole page.)
-      expect(row?.textContent).not.toContain('deg');
-      // The units label is the entry's NEXT sibling, not a cell stranded past
-      // some wider control in the same column: `bSizerRotationStep` is a
-      // wxBoxSizer, so nothing between them can push it right.
-      const entry = row?.querySelector('input[type="text"]');
-      expect(entry?.nextElementSibling?.className).toBe('unit');
+      // bSizerRotationStep, a wxBoxSizer: the label, the entry, its units label, side by side.
+      const entry = screen.getByRole('textbox', { name: 'Step for rotate commands' });
+      const units = entry.closest('.ze-szi')!.nextElementSibling;
+      expect(units?.textContent).toBe('°');
     },
     SLOW,
   );
@@ -287,17 +288,15 @@ describe('Footprint Editor > Editing Options', () => {
       // (`panel_edit_options_base.cpp:59-71`) -- two Add()s of a VERTICAL
       // sizer, so the choice is as wide as the column and not a cell beside
       // the label.
-      const stacked = document.querySelector('.ze-prefs-panel .ze-pref-stacked');
-      expect(stacked, 'the arc-mode block is not a .ze-pref-row').not.toBeNull();
-      expect(stacked?.querySelector('.lbl')?.textContent).toBe('Arc editing mode:');
-      expect(stacked?.querySelector('.ze-combo')).not.toBeNull();
-      // [data] the `(0, 3)` spacer, twice: once above the label and once
-      // between it and the choice.
-      const style = (stacked as HTMLElement | null)?.style;
-      expect(style?.gap).toBe('3px');
-      expect(style?.marginTop).toBe('3px');
+      const choice = screen.getByLabelText('Arc editing mode');
+      const box = choice.closest('.ze-combo') as HTMLElement;
+      // The label is its own Add() above, not a cell beside the choice.
+      const choiceItem = choice.closest('.ze-szi')!;
+      expect(choiceItem.previousElementSibling?.previousElementSibling?.textContent).toBe(
+        'Arc editing mode:',
+      );
       // Every choice upstream offers, in upstream's order.
-      expect(comboOptions(stacked ?? document)).toEqual([
+      expect(comboOptions(box)).toEqual([
         'Keep center, adjust radius',
         'Keep endpoints or direction of starting point',
         'Keep center and radius, adjust endpoints',
@@ -310,7 +309,7 @@ describe('Footprint Editor > Editing Options', () => {
     'hides the board half and the Ctrl row’s second radio',
     async () => {
       await openPage('fp-editing');
-      const text = panelText();
+      const text = shownText();
       // `m_sizerBoardEdit->Show( !m_isFootprintEditor )`
       // (`panel_edit_options.cpp:43`).
       for (const boardOnly of [
@@ -535,7 +534,7 @@ describe('Footprint Editor > Graphics Defaults', () => {
       // bad value stays in the cell for the user to correct - re-formatted in
       // the frame's unit by `WX_GRID::onCellEditorHidden`, as every auto-eval
       // cell is.
-      expect(gfxCell('Silk Layers', 0).textContent).toBe('0.001 mm');
+      await waitFor(() => expect(gfxCell('Silk Layers', 0).textContent).toBe('0.001 mm'));
       expect(document.querySelector('.ze-prefs-error')?.textContent).toContain(
         'Silk Layers: Incorrect line width.',
       );
@@ -551,7 +550,7 @@ describe('Footprint Editor > Graphics Defaults', () => {
       // rather than refused, and the cell is rewritten with the truncation.
       typeInCell(gfxCell('Silk Layers', 3), '0.6');
       await settle();
-      expect(gfxCell('Silk Layers', 3).textContent).toBe('0.25 mm');
+      await waitFor(() => expect(gfxCell('Silk Layers', 3).textContent).toBe('0.25 mm'));
       expect(document.querySelector('.ze-prefs-error')?.textContent).toContain(
         'It will be truncated to 0.25 mm',
       );

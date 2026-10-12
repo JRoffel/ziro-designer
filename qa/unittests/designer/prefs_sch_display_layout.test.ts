@@ -108,9 +108,17 @@ describe('a group is disabled on the side that does not read it', () => {
   });
 
   it("leaves the board page's copy live", () => {
-    const at = strip(PCB).indexOf('<CrossProbingGroup');
-    expect(at).toBeGreaterThan(-1);
-    expect(strip(PCB).slice(at, strip(PCB).indexOf('/>', at))).not.toMatch(/\bdisabled\b/);
+    // PANEL_DISPLAY_OPTIONS_BASE draws the five as its own checkboxes; the board page binds each
+    // to its pcbnew.cross_probing field, none of them disabled.
+    for (const [ctrl, field] of [
+      ['m_checkCrossProbeOnSelection', 'on_selection'],
+      ['m_checkCrossProbeCenter', 'center_on_items'],
+      ['m_checkCrossProbeZoom', 'zoom_to_fit'],
+      ['m_checkCrossProbeAutoHighlight', 'auto_highlight'],
+      ['m_checkCrossProbeFlash', 'flash_selection'],
+    ])
+      expect(strip(PCB)).toMatch(new RegExp(`${ctrl}=\\{check\\(cp\\.${field},`));
+    expect(strip(PCB)).not.toMatch(/enabled:\s*false/);
   });
 });
 

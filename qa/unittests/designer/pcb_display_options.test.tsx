@@ -87,13 +87,16 @@ describe('the page is both columns, not the Cross-probing group alone', () => {
     'is two columns, as `bupperSizer` is horizontal',
     async () => {
       await openPage();
-      const cols = document.querySelectorAll('.ze-display-opts > .ze-display-opts-col');
-      expect(cols).toHaveLength(2);
-      // The GAL panel is in the LEFT one and the book in the right.
-      expect(cols[0]?.textContent).toContain('Grid Display');
-      expect(cols[0]?.textContent).not.toContain('Cross-probing');
-      expect(cols[1]?.textContent).toContain('Cross-probing');
-      expect(cols[1]?.textContent).not.toContain('Grid Display');
+      // bSizer11 (the GAL panel, Pads, Clearance Outlines) and m_optionsBook, side by side.
+      const book = document.querySelector('.ze-simplebook') as HTMLElement;
+      const left = (book.closest('.ze-prefs-panel')!.textContent ?? '').replace(
+        book.textContent ?? '',
+        '',
+      );
+      expect(left).toContain('Grid Display');
+      expect(left).not.toContain('Cross-probing');
+      expect(book.textContent).toContain('Cross-probing');
+      expect(book.textContent).not.toContain('Grid Display');
     },
     SLOW,
   );

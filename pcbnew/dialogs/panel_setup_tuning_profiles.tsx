@@ -19,11 +19,8 @@
  * `calculateTrackParametersForCell` — `panel_setup_tuning_profile_info.ts` here — against
  * the board's stackup. Diff Pair Gap is hidden while the type is Single.
  *
- * NO FONT SIZES AND NO COLOURS: the tab strip is `.ze-nb-tabs`, the grids are
- * `.ze-grid`, the buttons `.ze-gridbtn`; the widths stated are transcribed
- * from the base file and from `setColumnWidths`.
+ * The window is PANEL_SETUP_TUNING_PROFILES_BASE, a PANEL_SETUP_TUNING_PROFILE_INFO_BASE a page.
  */
-import { CheckBox, TextCtrl } from '@ziroeda/wx/controls.js';
 import { type JSX, useLayoutEffect, useRef, useState } from 'react';
 import { GRID_TRICKS } from '@ziroeda/common/grid_tricks.js';
 import { GRID_CELL_RUN_FUNCTION_EDITOR } from '@ziroeda/common/widgets/grid_text_button_helpers.js';
@@ -35,6 +32,8 @@ import {
   wxGridStringTable,
 } from '@ziroeda/wx/grid.js';
 import { WxGridView } from '@ziroeda/wx/grid_ui.js';
+import { PANEL_SETUP_TUNING_PROFILE_INFO_BASE } from './panel_setup_tuning_profile_info_base.js';
+import { PANEL_SETUP_TUNING_PROFILES_BASE } from './panel_setup_tuning_profiles_base.js';
 import {
   DoubleValueFromStringIn,
   pcbIUScale,
@@ -279,57 +278,32 @@ export function PanelPcbTuningProfiles({
   };
 
   return (
-    <div className="ze-tuneprof">
-      {/* `m_tuningProfiles`, the wxNotebook: a tab per page, named by `UpdateProfileName`. */}
-      {profiles.length > 0 && (
-        <div className="ze-nb-tabs">
-          {profiles.map((p, i) => (
-            <button
+    <PANEL_SETUP_TUNING_PROFILES_BASE
+      // m_tuningProfiles: a page per profile, its tab named by UpdateProfileName.
+      m_tuningProfiles={{
+        pages: profiles.map((p, i) => ({
+          text: p.name,
+          content: (
+            <ProfileInfoPage
               key={i}
-              type="button"
-              className={i === page ? 'active' : undefined}
-              onClick={() => setSel(i)}
-            >
-              {p.name}
-            </button>
-          ))}
-        </div>
-      )}
-
-      <div className="ze-tuneprof-page">
-        {cur ? (
-          <ProfileInfoPage
-            key={page}
-            profile={cur}
-            onChange={setCur}
-            provider={provider.current}
-            layers={layers}
-            stackup={stackup}
-            onError={onError}
-          />
-        ) : (
-          <div className="ze-tuneprof-empty" />
-        )}
-      </div>
-
-      {/* `bSizer91`: add, a 20 px growable spacer, remove. */}
-      <div className="ze-grid-btns ze-tuneprof-btns">
-        <StdBitmapButton
-          bitmap="small_plus"
-          title="Add tuning profile"
-          tooltip={null}
-          onClick={addProfile}
-        />
-        <span className="ze-tuneprof-btngap" />
-        <StdBitmapButton
-          bitmap="small_trash"
-          title="Remove tuning profile"
-          tooltip={null}
-          disabled={!cur}
-          onClick={removeProfile}
-        />
-      </div>
-    </div>
+              profile={p}
+              onChange={(patch) =>
+                setProfiles(profiles.map((x, j) => (j === i ? { ...x, ...patch } : x)))
+              }
+              provider={provider.current}
+              layers={layers}
+              stackup={stackup}
+              onError={onError}
+            />
+          ),
+        })),
+        selection: page,
+        onPageChanged: setSel,
+      }}
+      onAddTuningProfileClick={addProfile}
+      onRemoveTuningProfileClick={removeProfile}
+      removeEnabled={!!cur}
+    />
   );
 }
 
@@ -381,6 +355,10 @@ function ProfileInfoPage({
   stackup: BOARD_STACKUP | null;
   onError: (message: string) => void;
 }): JSX.Element {
+  // The target impedance and the via delay, held as typed until they read.
+  const [impedanceText, setImpedanceText] = useState<string | null>(null);
+  const [viaText, setViaText] = useState<string | null>(null);
+  const viaUnits = provider.GetUnitsFromType('length_delay');
   const differential = profile.type === 'Differential';
   const ctx = useRef({ profile, onChange, provider, layers, stackup, onError });
   ctx.current = { profile, onChange, provider, layers, stackup, onError };
@@ -641,159 +619,63 @@ function ProfileInfoPage({
   };
 
   return (
-    <div className="ze-tuneprof-info">
-      {/* fgSizer2: Name, spacer, Type, spacer, Target impedance + ohms. */}
-      <div className="ze-tuneprof-head">
-        <span className="lbl">Name:</span>
-        <TextCtrl
-          value={profile.name}
-          onChange={(aValue) => onChange({ name: aValue })}
-          className="ze-search ze-tuneprof-name"
-          ariaLabel="Name"
+    <PANEL_SETUP_TUNING_PROFILE_INFO_BASE
+      m_name={{ value: profile.name, onChange: (aText) => onChange({ name: aText }) }}
+      m_type={{
+        value: Math.max(0, PROFILE_TYPES.indexOf(profile.type)),
+        onChange: (i) => onChange({ type: PROFILE_TYPES[i] as ProfileType }),
+      }}
+      m_targetImpedance={{
+        value: impedanceText ?? String(profile.targetImpedance),
+        onChange: (aText) => {
+          setImpedanceText(aText);
+          const z = Number.parseFloat(aText);
+          onChange({ targetImpedance: Number.isFinite(z) ? z : 0 });
+        },
+        onBlur: () => setImpedanceText(null),
+      }}
+      m_enableDelayTuning={{
+        value: profile.enableTimeDomain,
+        onChange: (aOn) => onChange({ enableTimeDomain: aOn }),
+      }}
+      m_trackPropagationGrid={
+        <WxGridView
+          grid={track.grid}
+          tricks={track.tricks}
+          onUpdate={transferTrack}
+          ariaLabel="Track propagation"
         />
-        <span className="ze-tuneprof-spacer" />
-        <span className="lbl">Type:</span>
-        <Combo
-          value={profile.type}
-          ariaLabel="Type"
-          options={PROFILE_TYPES.map((t) => ({ value: t, label: t }))}
-          onChange={(t) => onChange({ type: t as ProfileType })}
+      }
+      onAddTrackRow={onAddTrackRow}
+      onRemoveTrackRow={() => removeSelected(track.grid)}
+      m_viaPropagationSpeed={{
+        value:
+          viaText ??
+          stringFromValueIU(pcbIUScale, viaUnits, profile.viaPropDelay, false, 'length_delay'),
+        onChange: setViaText,
+        // UNIT_BINDER::onKillFocus: the text read in the frame's delay units.
+        onBlur: () => {
+          if (viaText === null) return;
+          onChange({
+            viaPropDelay: KiROUND(
+              DoubleValueFromStringIn(pcbIUScale, viaUnits, viaText, 'length_delay'),
+            ),
+          });
+          setViaText(null);
+        },
+      }}
+      viaUnits={viaUnits === 'ps/in' ? 'ps/inch' : viaUnits}
+      m_viaOverrides={
+        <WxGridView
+          grid={via.grid}
+          tricks={via.tricks}
+          onUpdate={transferVia}
+          ariaLabel="Via delay overrides"
         />
-        <span className="ze-tuneprof-spacer" />
-        <span className="lbl">Target impedance:</span>
-        <input
-          className="ze-search ze-tuneprof-impedance"
-          aria-label="Target impedance"
-          maxLength={15}
-          value={String(profile.targetImpedance)}
-          onChange={(e) => {
-            const z = Number.parseFloat(e.target.value);
-            onChange({ targetImpedance: Number.isFinite(z) ? z : 0 });
-          }}
-        />
-        <span className="unit">ohms</span>
-      </div>
-
-      {/* gbSizer1: the checkbox over a wxStaticLine. */}
-      <CheckBox
-        label="Enable time domain tuning"
-        checked={profile.enableTimeDomain}
-        className="ze-tuneprof-enable"
-        onChange={(aChecked) => onChange({ enableTimeDomain: aChecked })}
-      />
-      <hr className="ze-tuneprof-rule" />
-
-      {/* m_splitter1, SplitHorizontally at 200. */}
-      <div className="ze-tuneprof-split">
-        <div className="ze-tuneprof-track">
-          <span className="ze-tuneprof-title">Track Propagation</span>
-          <div className="ze-grid-pane ze-tuneprof-grid">
-            <WxGridView
-              grid={track.grid}
-              tricks={track.tricks}
-              onUpdate={transferTrack}
-              ariaLabel="Track propagation"
-            />
-          </div>
-          {/* bSizer9: add, 20 px, remove. */}
-          <div className="ze-grid-btns">
-            <StdBitmapButton
-              bitmap="small_plus"
-              title="Add track propagation row"
-              tooltip={null}
-              onClick={onAddTrackRow}
-            />
-            <span className="ze-tuneprof-btngap" />
-            <StdBitmapButton
-              bitmap="small_trash"
-              title="Remove track propagation row"
-              tooltip={null}
-              onClick={() => removeSelected(track.grid)}
-            />
-          </div>
-        </div>
-
-        <div className="ze-tuneprof-via">
-          {/* bSizer8: label, spacer, "Global unit delay:", field, units, spacer(50). */}
-          <div className="ze-tuneprof-viahead">
-            <span className="ze-tuneprof-title">Via Propagation</span>
-            <span className="ze-tuneprof-spacer" />
-            <span className="lbl">Global unit delay:</span>
-            <GlobalDelayField
-              value={profile.viaPropDelay}
-              provider={provider}
-              onCommit={(iu) => onChange({ viaPropDelay: iu })}
-            />
-            <span className="ze-tuneprof-spacer ze-tuneprof-spacer50" />
-          </div>
-          <span className="ze-tuneprof-sublabel">Via delay overrides:</span>
-          <div className="ze-grid-pane ze-tuneprof-grid">
-            <WxGridView
-              grid={via.grid}
-              tricks={via.tricks}
-              onUpdate={transferVia}
-              ariaLabel="Via delay overrides"
-            />
-          </div>
-          <div className="ze-grid-btns">
-            <StdBitmapButton
-              bitmap="small_plus"
-              title="Add via delay override"
-              tooltip={null}
-              onClick={onAddViaOverride}
-            />
-            <span className="ze-tuneprof-btngap" />
-            <StdBitmapButton
-              bitmap="small_trash"
-              title="Remove via delay override"
-              tooltip={null}
-              onClick={() => removeSelected(via.grid)}
-            />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/**
- * `m_viaPropagationUnits`, a `UNIT_BINDER` of `EDA_DATA_TYPE::LENGTH_DELAY`:
- * the field holds the number, its `wxStaticText` the unit — ps/cm or ps/inch
- * by the frame's units (`initPanel`).
- */
-function GlobalDelayField({
-  value,
-  provider,
-  onCommit,
-}: {
-  value: number;
-  provider: UNITS_PROVIDER;
-  onCommit: (iu: number) => void;
-}): JSX.Element {
-  const [text, setText] = useState<string | null>(null);
-  const units = provider.GetUnitsFromType('length_delay');
-  const commit = (): void => {
-    if (text === null) return;
-    onCommit(KiROUND(DoubleValueFromStringIn(pcbIUScale, units, text, 'length_delay')));
-    setText(null);
-  };
-  return (
-    <>
-      <input
-        className="ze-search ze-tuneprof-viadelay"
-        aria-label="Global unit delay"
-        value={text ?? stringFromValueIU(pcbIUScale, units, value, false, 'length_delay')}
-        onChange={(e) => setText(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            commit();
-          }
-        }}
-      />
-      <span className="unit">{units === 'ps/in' ? 'ps/inch' : units}</span>
-    </>
+      }
+      onAddViaOverride={onAddViaOverride}
+      onRemoveViaOverride={() => removeSelected(via.grid)}
+    />
   );
 }
 

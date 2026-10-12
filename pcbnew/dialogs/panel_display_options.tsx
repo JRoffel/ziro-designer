@@ -13,9 +13,11 @@
  * satisfies both, and this module names nothing of the designer.
  */
 import { useState, type ComponentProps, type JSX } from 'react';
-import { Check, Group, Sel } from '@ziroeda/common/dialogs/pref_controls.js';
-import { CrossProbingGroup } from '@ziroeda/common/dialogs/cross_probing_group.js';
+import type { CrossProbingGroup } from '@ziroeda/common/dialogs/cross_probing_group.js';
 import { PanelGalOptions } from '@ziroeda/common/dialogs/panel_gal_options.js';
+import { wxEXPAND, wxRIGHT } from '@ziroeda/wx/defs.js';
+import { SizerItem } from '@ziroeda/wx/sizer.js';
+import { PANEL_DISPLAY_OPTIONS_BASE } from './panel_display_options_base.js';
 
 type GalWin = ComponentProps<typeof PanelGalOptions>['win'];
 type CrossProbing = ComponentProps<typeof CrossProbingGroup>['value'];
@@ -83,45 +85,20 @@ export interface PadsAndClearanceValue {
 /** `TRACK_CLEARANCE_MODE` (`pcbnew/pcbnew_settings.h:85-92`). */
 export type TrackClearanceMode = 0 | 1 | 2 | 3 | 4;
 
-export function PadsAndClearanceGroups({
-  value,
-  onChange,
-}: {
-  value: PadsAndClearanceValue;
-  onChange: (patch: Partial<PadsAndClearanceValue>) => void;
-}): JSX.Element {
+/** `m_galOptionsSizer->Add( m_galOptsPanel, 1, wxEXPAND|wxRIGHT, 5 )`. */
+function galPanel(
+  aWin: GalWin,
+  aUpdate: (fn: (w: GalWin) => void) => void,
+  aIdPrefix: string,
+): JSX.Element {
   return (
-    // `bSizerPads`, added `wxEXPAND|wxTOP|wxRIGHT|wxLEFT, 5` — the 5 on each
-    // side is why KiCad's Pads rule starts and ends further out than the GAL
-    // panel's above it.
-    <div className="ze-display-opts-pads">
-      <Group title="Pads">
-        {/* `wxALL, 5` — the only row in this group, and it carries a top border. */}
-        <Check
-          label="Use via color for normal through hole padstacks"
-          checked={value.pad_use_via_color_for_normal_th_padstacks}
-          borders={['top', 'bottom']}
-          onChange={(v) => onChange({ pad_use_via_color_for_normal_th_padstacks: v })}
-        />
-      </Group>
-      <Group title="Clearance Outlines">
-        <Sel
-          label="Tracks:"
-          value={value.track_clearance_mode}
-          options={TRACK_CLEARANCE_CHOICES.map((c) => [c[0], c[1]] as [number, string])}
-          onChange={(v) => onChange({ track_clearance_mode: v as TrackClearanceMode })}
-        />
-        {/* `wxALL, 5` again. */}
-        <Check
-          label="Show pad clearance"
-          checked={value.pad_clearance}
-          borders={['top', 'bottom']}
-          onChange={(v) => onChange({ pad_clearance: v })}
-        />
-      </Group>
-    </div>
+    <SizerItem proportion={1} flag={wxEXPAND | wxRIGHT} border={5}>
+      <PanelGalOptions win={aWin} update={aUpdate} idPrefix={aIdPrefix} />
+    </SizerItem>
   );
 }
+
+const check = (aValue: boolean, aOn: (v: boolean) => void) => ({ value: aValue, onChange: aOn });
 
 // ---------------------------------------------------------------------------
 // The PCB Editor's page
@@ -203,65 +180,52 @@ export function PanelPcbDisplayOptions({
       Object.assign(s.pcb_display, patch);
     });
 
+  const cp = pcbnew.cross_probing;
+  const setCp =
+    (
+      aKey:
+        | 'on_selection'
+        | 'center_on_items'
+        | 'zoom_to_fit'
+        | 'auto_highlight'
+        | 'flash_selection',
+    ) =>
+    (aOn: boolean) =>
+      upP((s) => {
+        s.cross_probing[aKey] = aOn;
+      });
+
   return (
-    <div className="ze-display-opts">
-      {/* `bSizer11`, `bupperSizer->Add( bSizer11, 1, wxEXPAND )`. */}
-      <div className="ze-display-opts-col">
-        {/* `m_galOptionsSizer`, `Add( …, 0, wxEXPAND|wxRIGHT, 10 )`, with the
-            panel inside it carrying another `wxRIGHT, 5`. */}
-        <div className="ze-display-opts-gal">
-          <PanelGalOptions
-            win={pcbnew.window}
-            update={(fn) => upP((s) => fn(s.window))}
-            idPrefix="pcb"
-          />
-        </div>
-        <PadsAndClearanceGroups value={display} onChange={setDisplay} />
-      </div>
-      {/* `m_optionsBook`'s page 1. */}
-      <div className="ze-display-opts-col">
-        <Group title="Annotations">
-          <Sel
-            label="Net names:"
-            value={display.net_names_mode}
-            options={NET_NAMES_CHOICES.map((c) => [c[0], c[1]] as [number, string])}
-            onChange={(v) => setDisplay({ net_names_mode: v as 0 | 1 | 2 | 3 })}
-          />
-          {/* `wxALL, 5`. */}
-          <Check
-            label="Show pad numbers"
-            checked={display.pad_numbers}
-            borders={['top', 'bottom']}
-            onChange={(v) => setDisplay({ pad_numbers: v })}
-          />
-        </Group>
-        {/* `_("Selection && Highlighting")` — the `&&` is wx's escape for one
-            literal ampersand, not two. */}
-        <Group title="Selection & Highlighting">
-          <Check
-            label="Show all fields when parent footprint is selected"
-            checked={display.force_show_fields_when_fp_selected}
-            borders={['top', 'bottom']}
-            onChange={(v) => setDisplay({ force_show_fields_when_fp_selected: v })}
-          />
-        </Group>
-        <CrossProbingGroup
-          peer="schematic"
-          value={pcbnew.cross_probing}
-          onChange={(fn) => upP((s) => fn(s.cross_probing))}
-        >
-          {/* `m_live3Drefresh` is the sixth child of `bSizer8`, the
-              Cross-probing group's own sizer (`_base.cpp:196-199`) — it is not
-              a cross-probe setting, it just shares the box. */}
-          <Check
-            label="Refresh 3D view automatically"
-            title="When enabled, edits to the board will cause the 3D view to refresh (may be slow with larger boards)"
-            checked={display.live_3d_refresh}
-            onChange={(v) => setDisplay({ live_3d_refresh: v })}
-          />
-        </CrossProbingGroup>
-      </div>
-    </div>
+    <PANEL_DISPLAY_OPTIONS_BASE
+      m_galOptionsSizer={galPanel(pcbnew.window, (fn) => upP((s) => fn(s.window)), 'pcb')}
+      m_OptUseViaColorForNormalTHPadstacks={check(
+        display.pad_use_via_color_for_normal_th_padstacks,
+        (v) => setDisplay({ pad_use_via_color_for_normal_th_padstacks: v }),
+      )}
+      // clearanceModeMap is the identity on TRACK_CLEARANCE_MODE.
+      m_OptDisplayTracksClearance={{
+        value: display.track_clearance_mode,
+        onChange: (i) => setDisplay({ track_clearance_mode: i as TrackClearanceMode }),
+      }}
+      m_OptDisplayPadClearence={check(display.pad_clearance, (v) =>
+        setDisplay({ pad_clearance: v }),
+      )}
+      optionsPage={1}
+      m_ShowNetNamesOption={{
+        value: display.net_names_mode,
+        onChange: (i) => setDisplay({ net_names_mode: i as 0 | 1 | 2 | 3 }),
+      }}
+      m_OptDisplayPadNumber={check(display.pad_numbers, (v) => setDisplay({ pad_numbers: v }))}
+      m_checkForceShowFieldsWhenFPSelected={check(display.force_show_fields_when_fp_selected, (v) =>
+        setDisplay({ force_show_fields_when_fp_selected: v }),
+      )}
+      m_checkCrossProbeOnSelection={check(cp.on_selection, setCp('on_selection'))}
+      m_checkCrossProbeCenter={check(cp.center_on_items, setCp('center_on_items'))}
+      m_checkCrossProbeZoom={check(cp.zoom_to_fit, setCp('zoom_to_fit'))}
+      m_checkCrossProbeAutoHighlight={check(cp.auto_highlight, setCp('auto_highlight'))}
+      m_checkCrossProbeFlash={check(cp.flash_selection, setCp('flash_selection'))}
+      m_live3Drefresh={check(display.live_3d_refresh, (v) => setDisplay({ live_3d_refresh: v }))}
+    />
   );
 }
 
@@ -337,26 +301,36 @@ export function PanelFpDisplayOptions({ ctx }: { ctx: PANEL_DISPLAY_OPTIONS_FP_C
     pad_clearance: false,
   });
 
-  return (
-    <div>
-      {/* `m_galOptsPanel = new PANEL_GAL_OPTIONS( this, aAppSettings )`
-          (`panel_display_options.cpp:42`) — the shared panel over this editor's
-          own settings object, which is the whole of what this page can change.
+  const setPc = (patch: Partial<PadsAndClearanceValue>): void =>
+    setPadsAndClearance((v) => ({ ...v, ...patch }));
+  // Page 0 of m_optionsBook is empty, so the PCB page's controls are drawn by nobody; they are
+  // given inert values only because the base takes them.
+  const off = check(false, () => {});
 
-          Every control in it is live: Style, Grid thickness and Minimum grid
-          spacing reach `drawGrid` through `pcbGridOptions`, Snap to grid is
-          `footprintSnappingEnabled` in `editors/footprint/grid.ts`
-          (`GAL::GetGridSnapping`), and the Cursor group is what
-          `FootprintCanvas` hands `drawCrosshair`. */}
-      <PanelGalOptions
-        win={fpEdit.window}
-        update={(fn) => upFp((s) => fn(s.window))}
-        idPrefix="fp"
-      />
-      <PadsAndClearanceGroups
-        value={padsAndClearance}
-        onChange={(patch) => setPadsAndClearance((v) => ({ ...v, ...patch }))}
-      />
-    </div>
+  return (
+    <PANEL_DISPLAY_OPTIONS_BASE
+      m_galOptionsSizer={galPanel(fpEdit.window, (fn) => upFp((s) => fn(s.window)), 'fp')}
+      m_OptUseViaColorForNormalTHPadstacks={check(
+        padsAndClearance.pad_use_via_color_for_normal_th_padstacks,
+        (v) => setPc({ pad_use_via_color_for_normal_th_padstacks: v }),
+      )}
+      m_OptDisplayTracksClearance={{
+        value: padsAndClearance.track_clearance_mode,
+        onChange: (i) => setPc({ track_clearance_mode: i as TrackClearanceMode }),
+      }}
+      m_OptDisplayPadClearence={check(padsAndClearance.pad_clearance, (v) =>
+        setPc({ pad_clearance: v }),
+      )}
+      optionsPage={0}
+      m_ShowNetNamesOption={{ value: 0, onChange: () => {} }}
+      m_OptDisplayPadNumber={off}
+      m_checkForceShowFieldsWhenFPSelected={off}
+      m_checkCrossProbeOnSelection={off}
+      m_checkCrossProbeCenter={off}
+      m_checkCrossProbeZoom={off}
+      m_checkCrossProbeAutoHighlight={off}
+      m_checkCrossProbeFlash={off}
+      m_live3Drefresh={off}
+    />
   );
 }

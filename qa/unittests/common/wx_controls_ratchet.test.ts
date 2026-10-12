@@ -106,7 +106,7 @@ const BASELINE: Record<(typeof AREAS)[number], Record<Kind, number>> = {
   // then Create Array, 3D Models panel, footprint editor properties, Zone Manager.
   // then Board Statistics; Table Cell and Reannotate are new pairs.
   // then the Custom Rules page.
-  pcbnew: { button: 16, checkbox: 9, select: 0, frame: 1, radio: 0, entry: 4, sbox: 0 },
+  pcbnew: { button: 15, checkbox: 9, select: 0, frame: 1, radio: 0, entry: 2, sbox: 0 },
 };
 
 function tsxFiles(aDir: string, aOut: string[] = []): string[] {

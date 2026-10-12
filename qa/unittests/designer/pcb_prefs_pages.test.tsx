@@ -88,7 +88,7 @@ type PcbPage = 'pcb-origins' | 'pcb-editing' | 'pcb-colors';
 /** Something only that page renders, to wait on. */
 const ANCHOR: Record<PcbPage, string> = {
   'pcb-origins': 'Display Origin',
-  'pcb-editing': 'Magnetic Points',
+  'pcb-editing': 'Snap to tracks and vias:',
   'pcb-colors': 'Board outline area',
 };
 
@@ -110,6 +110,13 @@ async function openPage(id: PcbPage): Promise<void> {
 
 const panelText = (): string =>
   document.querySelector('.ze-prefs-panel')?.textContent?.replace(/\s+/g, ' ') ?? '';
+
+/** The panel's text as the user sees it: a wxSimplebook's hidden pages left out. */
+const shownText = (): string => {
+  const panel = document.querySelector('.ze-prefs-panel')!.cloneNode(true) as HTMLElement;
+  for (const hidden of panel.querySelectorAll('[data-hide]')) hidden.remove();
+  return panel.textContent?.replace(/\s+/g, ' ') ?? '';
+};
 
 describe('the heading is six of upstream’s seven rows', () => {
   it('ships everything but Plugins, in `ShowPreferences`’ order', () => {
@@ -167,7 +174,7 @@ describe('PCB Editor > Editing Options', () => {
     'draws `m_sizerBoardEdit`, which is hidden in the footprint editor',
     async () => {
       await openPage('pcb-editing');
-      const text = panelText();
+      const text = shownText();
       // `m_sizerBoardEdit->Show( !m_isFootprintEditor )`.
       expect(text).toContain('Track mouse-drag mode:');
       expect(text).toContain('Flip board items:');

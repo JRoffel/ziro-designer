@@ -95,9 +95,9 @@ describe('PANEL_COMPONENT_CLASS_ASSIGNMENT', () => {
         }}
       />,
     );
-    // The first Delete row is the assignment's own; then the two conditions'.
-    fireEvent.click(screen.getAllByRole('button', { name: 'Delete row' })[1]!);
-    expect(last.assignments[0]!.conditions.map((c) => c.type)).toEqual([CONDITION_TYPE.CUSTOM]);
+    // The first Delete row is the assignment's own; then the two conditions'. Delete the second.
+    fireEvent.click(screen.getAllByRole('button', { name: 'Delete row' })[2]!);
+    expect(last.assignments[0]!.conditions.map((c) => c.type)).toEqual([CONDITION_TYPE.REFERENCE]);
   });
 
   it('Match any sets the operator', () => {

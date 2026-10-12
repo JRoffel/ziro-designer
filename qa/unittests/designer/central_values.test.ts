@@ -336,7 +336,8 @@ const BASELINE: Record<string, { colours: number; metrics: number }> = {
   // with the dialog transcribed onto the sizers (dialog_plot_base.tsx).
   // colours 14 -> 12, metrics 36 -> 15 (10-12): Create Array's, the footprint editor's and the
   // Zone Manager's inline styles, gone with their _ui files.
-  'editors/pcb': { colours: 12, metrics: 15 }, // -9 metrics (10-11): the batch-5 pcbnew pairs' old forms; // -4 colours, -30 metrics (10-11): the old Move Exact and Outset Items forms' inline styles, gone with their _base pairs
+  // metrics 15 -> 14 (10-12): the Display Options pair.
+  'editors/pcb': { colours: 12, metrics: 14 }, // -9 metrics (10-11): the batch-5 pcbnew pairs' old forms; // -4 colours, -30 metrics (10-11): the old Move Exact and Outset Items forms' inline styles, gone with their _base pairs
   // At zero, and listed rather than absent: `prefs/` is the settings store, and
   // the one literal it had - the 3D viewer's `rgb(0,255,0)` selection colour -
   // is `PARAM<COLOR4D>( "render.opengl_selection_color", …, COLOR4D( 0, 1, 0, 1 ) )`
@@ -1714,7 +1715,8 @@ describe('the scan totals, so the numbers in the PR stay true', () => {
     // 789 -> 763: ERC.
     // 763 -> 751 (10-12): the common/widgets row above.
     // 751 -> 730 (10-12): the editors/pcb row above.
-    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(730);
+    // 730 -> 729 (10-12): the .ze-display-opts rules, gone with Display Options' pair.
+    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(729);
   });
 
   it('and the two agree with the per-area table, which is where they come from', () => {
