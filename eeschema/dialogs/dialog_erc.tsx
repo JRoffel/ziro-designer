@@ -1,91 +1,124 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 ZiroEDA and contributors.
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
-import { DIALOG_ERC_BASE } from './dialog_erc_base.js';
-import { WX_TEXT_ENTRY_DIALOG } from '@ziroeda/common/dialogs/dialog_text_entry.js';
-import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from 'react';
-import { iuToMM } from '@ziroeda/common';
-import {
-  ERC_ITEMS,
-  ercExclusionKey,
-  nextMarker,
-  prevMarker,
-  type ErcSeverityLevel,
-  type ErcViolation,
-} from '../index.js';
-import { ContextMenu, type MenuItem } from '@ziroeda/wx/menu_ui.js';
-import { ERC_PHASES } from '../index.js';
+/**
+ * `DIALOG_ERC` (eeschema/dialogs/dialog_erc.cpp): the Electrical Rules Checker over
+ * `dialog_erc_base.tsx`'s layout. Modeless: the schematic stays live behind it.
+ *
+ * The class is upstream's, method for method: it runs ERC_TESTER on the frame's live SCHEMATIC,
+ * the markers land on the screens, and the Violations tab is an RC_TREE_MODEL over a
+ * SHEETLIST_ERC_ITEMS_PROVIDER. What wx gives a dialog for free - the modal sub-dialogs, the save
+ * file dialog, showing and hiding the window - is the window's ({@link DIALOG_ERC_WINDOW}).
+ *
+ * Not here yet: the row menu's Inspect / Fix entries (SCH_INSPECTION_TOOL::InspectERCError and
+ * SCH_EDIT_TOOL::FixERCError are tool coroutines, and nothing runs one from outside its tool), the
+ * Ignored Tests list's severity menu (OnIgnoredItemRClick), and the drawing sheet TestTextVars
+ * would read (ERC_TESTER::RunTests takes no drawing sheet yet).
+ */
+import { useEffect, useState, type JSX } from 'react';
+import { ACTIONS } from '@ziroeda/common/tool/actions.js';
+import { MARKER_T } from '@ziroeda/common/marker_base.js';
+import { FACE_T } from '@ziroeda/common/kiway.js';
 import { numberBadge, type NumberBadgeState } from '@ziroeda/common/widgets/number_badge.js';
+import { PROGRESS_REPORTER_BASE } from '@ziroeda/common/widgets/progress_reporter_base.js';
+import {
+  RC_TREE_MODEL,
+  type RC_TREE_NODE,
+  RC_TREE_NODE_TYPE,
+  RC_TREE_VIEW_STATE,
+} from '@ziroeda/common/rc_item.js';
+import { RcTreeView } from '@ziroeda/common/widgets/rc_tree_view.js';
 import {
   RPT_SEVERITY_ERROR,
   RPT_SEVERITY_EXCLUSION,
+  RPT_SEVERITY_IGNORE,
   RPT_SEVERITY_WARNING,
 } from '@ziroeda/common/reporter.js';
+import { KICAD_T } from '@ziroeda/core/typeinfo.js';
+import { ContextMenu, type MenuItem } from '@ziroeda/wx/menu_ui.js';
+import { ERC_TESTER } from '../erc/erc.js';
+import { ERC_ITEM } from '../erc/erc_item.js';
+import { ERC_REPORT } from '../erc/erc_report.js';
+import { ERCE_T, SHEETLIST_ERC_ITEMS_PROVIDER } from '../erc/erc_settings.js';
+import type { SCH_EDIT_FRAME, DIALOG_ERC as DIALOG_ERC_FRAME } from '../sch_edit_frame.js';
+import { SCH_MARKER } from '../sch_marker.js';
+import { ANNOTATE_SCOPE_T } from '../sch_reference_list.js';
+import { SCH_SCREENS } from '../sch_screen.js';
+import { SCH_SHEET_PATH, SYMBOL_FILTER } from '../sch_sheet_path.js';
+import { SCH_ACTIONS } from '../tools/sch_actions.js';
+import { DIALOG_ERC_BASE } from './dialog_erc_base.js';
 
-/**
- * Electrical Rules Checker. Counterpart: `eeschema/dialogs/dialog_erc.cpp`
- * (DIALOG_ERC) over `dialog_erc_base.cpp`'s layout, the annotation infobar and
- * config menu, the Violations / Ignored Tests notebook over the marker tree
- * (640 x 260 minimum, as upstream sizes m_markerDataView), the "Show:" severity
- * row with its number badges and Save…, and the Delete Marker / Delete All
- * Markers / Run ERC / Close row.
- *
- * Modeless like upstream: it floats over the canvas, is dragged by its title
- * bar and resized from its corner, so the sheet stays visible while stepping
- * through faults.
- */
+/** What wx gives the dialog that a page has to be handed: its sub-dialogs, file and window. */
+export interface DIALOG_ERC_WINDOW {
+  /** `WX_TEXT_ENTRY_DIALOG( this, wxEmptyString, _( "Exclusion Comment" ), aInitial, true )`. */
+  textEntry(aInitial: string): Promise<string | null>;
+  /**
+   * `KICAD_MESSAGE_DIALOG( "Delete exclusions too?", "Delete All Markers", wxYES_NO | wxCANCEL )`
+   * labelled "Errors and Warnings Only" / "Errors, Warnings and Exclusions".
+   */
+  askDeleteExclusions(): Promise<'yes' | 'no' | 'cancel'>;
+  /** `wxFileDialog( "Save Report File" )` and the write: the saved path, or null on Cancel. */
+  saveReport(
+    aDefaultName: string,
+    aWrite: (aFullPath: string) => string | null,
+  ): Promise<string | null>;
+  /** `DisplayErrorMessage( this, msg )`. */
+  displayError(aMessage: string): void;
+  /**
+   * `( *adapter )->BlockUntilLoaded()`: the symbol libraries the placed symbols name and the
+   * footprint libraries CvPcb's link test reads, which a synchronous run cannot wait for; and the
+   * frame's live schematic brought up to the window's edits.
+   */
+  blockUntilLoaded(): Promise<void>;
+  /** `Show( aShow )` / `Raise()` / `IsShownOnScreen()` / `Destroy()`: the React window. */
+  show(aShow: boolean): void;
+  raise(): void;
+  isShownOnScreen(): boolean;
+  destroy(): void;
+  /**
+   * The project save upstream's OnModify leads to (SCH_EDIT_FRAME::SaveProject: RecordERCExclusions,
+   * then SETTINGS_MANAGER::SaveProject), made at once: the exclusions and severities live in the
+   * project file, which the window persists as it is written.
+   */
+  projectModified(): void;
+  /** EESCHEMA_SETTINGS m_ERCDialog, read by the constructor and written by `~DIALOG_ERC`. */
+  ercDialogSettings(): {
+    crossprobe: boolean;
+    scroll_on_crossprobe: boolean;
+    show_all_errors: boolean;
+  };
+  saveErcDialogSettings(aValues: {
+    crossprobe: boolean;
+    scroll_on_crossprobe: boolean;
+    show_all_errors: boolean;
+  }): void;
+}
 
-export interface ErcFilters {
-  errors: boolean;
-  warnings: boolean;
-  exclusions: boolean;
+/** A row of one of the dialog's popup menus. */
+export interface ErcMenuRow {
+  label: string;
+  help?: string;
+  checked?: boolean;
+  sep?: boolean;
+  action?: () => void | Promise<void>;
+}
+
+/** `m_ignoredList`'s rows: the text and the error code the row carries as its data. */
+export interface IgnoredRow {
+  text: string;
+  code: number;
 }
 
 /**
- * The "Show:" row's opening state.
- *
- * Upstream these are four plain `wxCheckBox`es built by the generated base
- * (`dialog_erc_base.cpp:143-176`) and read back only through
- * `DIALOG_ERC::getSeverities` (`dialog_erc.cpp:221-235`). Nothing persists
- * them: `EESCHEMA_SETTINGS m_Appearance.show_erc_*` is a DIFFERENT thing — the
- * canvas layer visibility the View menu toggles, `LAYER_ERC_ERR` /
- * `LAYER_ERC_WARN` / `LAYER_ERC_EXCLUSION` (`sch_edit_frame.cpp:2005-2007`) —
- * so the row is dialog state and starts here on every open.
- *
- * `dialog_erc_base.fbp` leaves all four `checked=0`, where the sibling
- * severity row in `dialog_drc_base.cpp:197,204` sets Errors and Warnings true;
- * taking the ERC generator output literally would open the dialog showing
- * nothing at all. The manual settles it: "Any warnings or errors are reported
- * in the Violations tab" and "Excluded violations are hidden unless the
- * Exclusions checkbox is enabled" (eeschema manual 4.6, Electrical rules
- * checking).
- */
-export const ERC_DEFAULT_FILTERS: ErcFilters = {
-  errors: true,
-  warnings: true,
-  exclusions: false,
-};
-
-/**
- * `NUMBER_BADGE::SetMaximumNumber( 999 )` (`dialog_erc.cpp:137-139`): a count
- * above the maximum reads "999+" (`number_badge.cpp:177-180`).
+ * `NUMBER_BADGE::SetMaximumNumber( 999 )` (dialog_erc.cpp:140-142): a count above it reads
+ * "999+" (number_badge.cpp:177-180).
  */
 export const ERC_BADGE_MAX = 999;
 
 /** What a NUMBER_BADGE paints for one count, or null when it paints nothing. */
 export type ErcBadge = NumberBadgeState;
 
-/**
- * `NUMBER_BADGE::UpdateNumber` (`number_badge.cpp:43-92`) with DIALOG_ERC's
- * maximum. A negative number hides the badge outright; zero hides it for
- * every severity but error and warning, where it turns green; anything else
- * takes its severity's colour.
- *
- * `DIALOG_ERC::updateDisplayedCounts` passes -1 for the error and warning
- * counts when ERC has not been run and the count is zero
- * (`dialog_erc.cpp:391-396`), which is the only way the badge is hidden with
- * markers absent rather than shown green.
- */
+/** `NUMBER_BADGE::UpdateNumber` with DIALOG_ERC's maximum. */
 export function ercBadge(n: number, severity: 'error' | 'warning' | 'exclusion'): ErcBadge | null {
   return numberBadge(
     n,
@@ -98,588 +131,911 @@ export function ercBadge(n: number, severity: 'error' | 'warning' | 'exclusion')
   );
 }
 
-/** EESCHEMA_SETTINGS m_ERCDialog, the config (gear) menu's three toggles. */
-export interface ErcDialogOptions {
-  crossprobe: boolean;
-  scrollOnCrossprobe: boolean;
-  showAllErrors: boolean;
-}
+// wxWidgets spends *far* too long calculating column widths (most of it, believe it or
+// not, in repeatedly creating/destroying a wxDC to do the measurement in).
+// Use default column widths instead.
+export const DEFAULT_SINGLE_COL_WIDTH = 660;
 
-/** Reported as `kicad_version` in the JSON report. */
-const KICAD_VERSION = '10.0.0';
+/** The notebook page texts the base declares (`m_violationsTitleTemplate` / `m_ignoredTitleTemplate`). */
+const VIOLATIONS_TITLE_TEMPLATE = 'Violations (%s)';
+const IGNORED_TITLE_TEMPLATE = 'Ignored Tests (%s)';
 
-interface Props {
-  /** The schematic file the report names as its source. */
-  sourceName?: string;
-  /** null until Run ERC has been pressed at least once (DIALOG_ERC m_ercRun). */
-  violations: readonly ErcViolation[] | null;
-  /** The "Tests Running…" page: phase messages so far, or null when idle. */
-  running: readonly string[] | null;
-  /** Rules whose severity is set to 'ignore' (the Ignored Tests tab). */
-  ignoredTests: readonly string[];
-  /** The config menu's toggles and their persistence. */
-  options: ErcDialogOptions;
-  onOptionsChange: (o: ErcDialogOptions) => void;
-  /** Schematic not fully annotated: DIALOG_ERC shows an infobar warning. */
-  unannotated?: boolean;
-  onShowAnnotate?: () => void;
-  onRun: () => void;
-  /**
-   * OnERCItemSelected: focus what the clicked row stands for, the marker
-   * itself for a heading row (`itemId` unset), or that one item for a child
-   * row. `center` follows the "Center on Cross-probe" option.
-   */
-  onLocate: (v: ErcViolation, center: boolean, itemId?: string) => void;
-  /** One line describing an involved item (EDA_ITEM::GetItemDescription);
-   *  `file` is the sheet the marker belongs to. */
-  describeItem?: (id: string, file?: string) => string;
-  /** Delete Marker / Delete All Markers (index into `violations`). */
-  onDelete: (index: number) => void;
-  onDeleteAll: () => void;
-  /** Exclusion signatures (SCHEMATIC::m_ercExclusions); a marker whose key is
-   *  in the set is excluded, shown only under the Exclusions filter. */
-  excluded: ReadonlySet<string>;
-  /** Exclude Marker / drop the exclusion (SCH_INSPECTION_TOOL::ExcludeMarker).
-   *  `comment` is MARKER_BASE::SetComment (Exclude with comment…). */
-  onToggleExclude: (v: ErcViolation, comment?: string) => void;
-  /** The comment stored with each exclusion, by signature. */
-  exclusionComments?: ReadonlyMap<string, string>;
-  /** Cancel a run in flight (m_cancelled); absent = the button just closes. */
-  onCancelRun?: () => void;
-  /** Change severity for every violation of one rule (the row context menu). */
-  onSetSeverity?: (code: ErcViolation['code'], level: ErcSeverityLevel) => void;
-  /** "Edit ignored tests" link: opens Schematic Setup > Violation Severity. */
-  onEditSeverities?: () => void;
-  /** Open Schematic Setup on the Pin Conflicts Map / Formatting pages. */
-  onEditPinMap?: () => void;
-  onEditConnectionGrid?: () => void;
-  /**
-   * Previous / Next / Exclude Marker act on the dialog, not on the schematic:
-   * upstream's SCH_INSPECTION_TOOL raises the dialog and calls into it, because
-   * the dialog owns the tree the selection lives in. The Inspect menu fills
-   * this ref in and calls it.
-   */
-  navRef?: { current: ErcDialogNav | null };
-  onClose: () => void;
-}
+let g_lastERCSchematic: unknown = null;
+let g_lastERCRun = false;
+let g_lastERCIgnored: IgnoredRow[] = [];
 
-/** What the Inspect menu can do to an open dialog (DIALOG_ERC's public API). */
-export interface ErcDialogNav {
-  next: () => void;
-  prev: () => void;
-  /** ExcludeMarker with no marker given: whichever row the dialog has. */
-  excludeCurrent: () => void;
-  /**
-   * `DIALOG_ERC::SelectMarker`: put the cursor on the row for this marker.
-   *
-   * `SCH_INSPECTION_TOOL::CrossProbe` calls it both when a marker is selected
-   * on the canvas and when one is double-clicked, so clicking a marker walks
-   * the dialog to its violation. Returns false if the row is filtered out of
-   * the current view, which is the caller's cue not to pretend it worked.
-   */
-  selectByKey: (key: string) => boolean;
-}
+export class DIALOG_ERC extends PROGRESS_REPORTER_BASE implements DIALOG_ERC_FRAME {
+  // The window's controls, as state:
+  /** m_infoBar: the annotation warning, or null when hidden. */
+  m_infoBar: string | null = null;
+  /** m_runningResultsBook: 0 = "Tests Running...", 1 = the results notebook */
+  m_runningResultsBook = 1;
+  /** m_notebook's selection: 0 Violations, 1 Ignored Tests */
+  m_notebookSelection = 0;
+  /** m_messages (WX_HTML_REPORT_BOX): the report lines, html */
+  m_messages: string[] = [];
+  /** m_gauge->GetValue() (0..1000) */
+  m_gauge = 0;
+  /** m_showAll / m_showErrors / m_showWarnings / m_showExclusions */
+  m_showAll = false;
+  m_showErrors = true;
+  m_showWarnings = true;
+  m_showExclusions = false;
+  /** m_ignoredList */
+  m_ignoredList: IgnoredRow[] = [];
+  /** m_sdbSizer1Cancel's label; m_sdbSizer1OK / delete / save buttons' enabled state */
+  m_cancelLabel = 'Close';
+  m_okEnabled = true;
+  m_deleteEnabled = true;
+  m_saveEnabled = true;
+  /** m_notebook's page texts, as updateDisplayedCounts sets them. */
+  m_violationsTitle = 'Violations';
+  m_ignoredTitle = 'Ignored Tests';
+  /** m_errorsBadge / m_warningsBadge / m_exclusionsBadge's numbers */
+  m_errorsCount = -1;
+  m_warningsCount = -1;
+  m_exclusionsCount = 0;
 
-const fmt = (iu: number): string => `${iuToMM(iu).toFixed(2)} mm`;
+  readonly m_parent: SCH_EDIT_FRAME;
+  readonly m_window: DIALOG_ERC_WINDOW;
+  private m_currentSchematic: unknown;
+  m_markerProvider: SHEETLIST_ERC_ITEMS_PROVIDER;
+  readonly m_markerDataView = new RC_TREE_VIEW_STATE();
+  readonly m_markerTreeModel: RC_TREE_MODEL;
+  private m_running = false;
+  private m_ercRun = false;
+  private m_centerMarkerOnIdle: SCH_MARKER | null = null;
+  m_crossprobe = true;
+  m_scroll_on_crossprobe = true;
+  m_showAllErrors = false;
 
-/** Phases the gauge divides the run into (PROGRESS_REPORTER_BASE's phase count). */
-const ERC_PHASE_COUNT = ERC_PHASES.length;
+  private m_destroyed = false;
+  private m_listeners = new Set<() => void>();
 
-const titleOf = (code: ErcViolation['code']): string =>
-  ERC_ITEMS.find((i) => i.code === code)?.title ?? code;
+  constructor(aParent: SCH_EDIT_FRAME, aWindow: DIALOG_ERC_WINDOW) {
+    super(1);
+    this.m_parent = aParent;
+    this.m_window = aWindow;
+    this.m_currentSchematic = aParent.Schematic();
 
-export function ErcDialog({
-  sourceName,
-  violations,
-  running,
-  ignoredTests,
-  options,
-  onOptionsChange,
-  unannotated,
-  onShowAnnotate,
-  onRun,
-  onLocate,
-  describeItem,
-  onDelete,
-  onDeleteAll,
-  excluded,
-  onToggleExclude,
-  exclusionComments,
-  onCancelRun,
-  onSetSeverity,
-  onEditSeverities,
-  onEditPinMap,
-  onEditConnectionGrid,
-  navRef,
-  onClose,
-}: Props): JSX.Element {
-  const [tab, setTab] = useState<'violations' | 'ignored'>('violations');
-  const [filters, setFilters] = useState<ErcFilters>(ERC_DEFAULT_FILTERS);
-  // m_showAll is a checkbox in its own right. DIALOG_ERC drives the other
-  // three FROM it and never the other way round, so it stays wherever the user
-  // left it even once all three below are on.
-  const [showAll, setShowAll] = useState(false);
-  // RC_TREE_MODEL's selection: a marker row, or one of its item child rows.
-  const [selected, setSelected] = useState<{ index: number; item: number | null } | null>(null);
-  const selectedRowRef = useRef<HTMLDivElement | null>(null);
-  const [menu, setMenu] = useState<{ x: number; y: number; index: number } | null>(null);
+    this.m_markerProvider = new SHEETLIST_ERC_ITEMS_PROVIDER(aParent.Schematic());
 
-  const markers = violations ?? [];
-  // DIALOG_ERC::updateDisplayedCounts: before a run the notebook titles drop
-  // their "(%s)" count and the error/warning badges are hidden (UpdateNumber
-  // with -1); the tree itself is simply empty.
-  const notRun = violations === null;
-  const isExcl = useCallback(
-    (v: ErcViolation): boolean => excluded.has(ercExclusionKey(v)),
-    [excluded],
-  );
-  // Badges tally by category, excluding the excluded ones (as KiCad does).
-  // SHEETLIST_ERC_ITEMS_PROVIDER::GetCount( severity ) counts every marker of
-  // that severity whether or not the filters are showing it, which is why the
-  // badges disagree with the tab count (erc_settings.cpp:445-462).
-  const active = markers.filter((v) => !isExcl(v));
-  const errors = active.filter((v) => v.severity === 'error').length;
-  const warnings = active.length - errors;
-  const exclusionCount = markers.length - active.length;
-  // updateDisplayedCounts hides the error and warning badges, rather than
-  // showing them green, only while ERC has not been run.
+    this.m_markerTreeModel = new RC_TREE_MODEL(aParent, this.m_markerDataView);
+    this.m_markerTreeModel.Update(this.m_markerProvider, this.getSeverities());
 
-  // An excluded marker shows only under the Exclusions filter; an active one
-  // shows per its severity filter (DIALOG_ERC::OnSeverity display rules).
-  // SHEETLIST_ERC_ITEMS_PROVIDER sorts errors before warnings.
-  const shown = useMemo(
-    () =>
-      (violations ?? [])
-        .map((v, i) => ({ v, i }))
-        .filter(({ v }) =>
-          isExcl(v)
-            ? filters.exclusions
-            : v.severity === 'error'
-              ? filters.errors
-              : filters.warnings,
-        ),
-    [violations, filters, isExcl],
-  );
-
-  // PrevMarker / NextMarker step the *displayed* tree, and both switch to the
-  // violations page first (DIALOG_ERC::NextMarker sets notebook selection 0).
-  const step = useCallback(
-    (dir: 1 | -1) => {
-      setTab('violations');
-      const order = shown.map(({ i }) => i);
-      const from = selected?.index ?? null;
-      const to = dir === 1 ? nextMarker(order, from) : prevMarker(order, from);
-      // null means "leave the selection where it is": neither direction wraps.
-      if (to !== null) setSelected({ index: to, item: null });
-    },
-    [shown, selected],
-  );
-
-  // EnsureVisible: keep whatever row is selected on screen, however it got
-  // selected — Prev/Next Marker, or a cross-probe from a marker on the sheet.
-  useEffect(() => {
-    selectedRowRef.current?.scrollIntoView({ block: 'nearest' });
-  }, [selected]);
-
-  useEffect(() => {
-    if (!navRef) return;
-    navRef.current = {
-      next: () => step(1),
-      prev: () => step(-1),
-      excludeCurrent: () => {
-        const v = selected === null ? undefined : violations?.[selected.index];
-        // "if( !marker || marker->IsExcluded() ) return" — excluding twice is
-        // not a toggle, and onToggleExclude is one.
-        if (v && !isExcl(v)) onToggleExclude(v);
-      },
-      selectByKey: (key: string): boolean => {
-        // Only rows the filters are showing can be selected — the tree upstream
-        // does not hold hidden rows either.
-        const hit = shown.find(({ v }) => ercExclusionKey(v) === key);
-        if (!hit) return false;
-        setTab('violations');
-        setSelected({ index: hit.i, item: null });
-        return true;
-      },
+    // wxEVT_COMMAND_DATAVIEW_SELECTION_CHANGED -> OnERCItemSelected
+    this.m_markerDataView.onSelectionChanged = (aNode: RC_TREE_NODE | null): void => {
+      this.OnERCItemSelected(aNode);
+      this.notify();
     };
-    return () => {
-      navRef.current = null;
-    };
-  }, [navRef, step, selected, shown, violations, isExcl, onToggleExclude]);
 
-  // RC_TREE_MODEL::GetValue: "Error: " / "Warning: " / "Excluded error: ".
-  const rowPrefix = (v: ErcViolation): string =>
-    isExcl(v)
-      ? v.severity === 'warning'
-        ? 'Excluded warning: '
-        : 'Excluded error: '
-      : v.severity === 'error'
-        ? 'Error: '
-        : 'Warning: ';
+    if (this.m_currentSchematic === g_lastERCSchematic) {
+      this.m_ercRun = g_lastERCRun;
 
-  /** ERC_REPORT::WriteJsonReport, the erc.v1 schema. */
-  const jsonReport = (): string => {
-    const sheets = new Map<string, { v: ErcViolation; i: number }[]>();
-    for (const row of shown) {
-      const path = row.v.file ?? '/';
-      const arr = sheets.get(path) ?? [];
-      arr.push(row);
-      sheets.set(path, arr);
+      for (const row of g_lastERCIgnored) this.m_ignoredList.push({ ...row });
     }
-    return JSON.stringify(
+
+    this.m_notebookSelection = 0;
+
+    this.UpdateAnnotationWarning();
+
+    const cfg = aWindow.ercDialogSettings();
+    this.m_crossprobe = cfg.crossprobe;
+    this.m_scroll_on_crossprobe = cfg.scroll_on_crossprobe;
+    this.m_showAllErrors = cfg.show_all_errors;
+
+    // finishDialogSettings() -> TransferDataToWindow() -> UpdateData()
+    this.UpdateData();
+  }
+
+  /**
+   * TRANSITIONAL (S7, with sch_record_bridge.ts): the window's live mirror reopened the project and
+   * the frame holds a new SCHEMATIC, the markers carried onto it; the provider follows.
+   */
+  OnSchematicReplaced(): void {
+    this.m_currentSchematic = this.m_parent.Schematic();
+    this.m_markerProvider = new SHEETLIST_ERC_ITEMS_PROVIDER(this.m_parent.Schematic());
+    this.UpdateData();
+  }
+
+  /** The React window's subscription: every state change notifies. */
+  subscribe(aListener: () => void): () => void {
+    this.m_listeners.add(aListener);
+    return () => this.m_listeners.delete(aListener);
+  }
+
+  notify(): void {
+    for (const l of this.m_listeners) l();
+  }
+
+  /** `~DIALOG_ERC` */
+  Destroy(): void {
+    if (this.m_destroyed) return;
+
+    this.m_destroyed = true;
+
+    g_lastERCSchematic = this.m_currentSchematic;
+    g_lastERCRun = this.m_ercRun;
+    g_lastERCIgnored = this.m_ignoredList.map((row) => ({ ...row }));
+
+    this.m_window.saveErcDialogSettings({
+      crossprobe: this.m_crossprobe,
+      scroll_on_crossprobe: this.m_scroll_on_crossprobe,
+      show_all_errors: this.m_showAllErrors,
+    });
+
+    this.m_window.destroy();
+  }
+
+  Show(aShow: boolean): void {
+    this.m_window.show(aShow);
+  }
+
+  Raise(): void {
+    this.m_window.raise();
+  }
+
+  FocusOkButton(): void {}
+
+  IsShownOnScreen(): boolean {
+    return this.m_window.isShownOnScreen();
+  }
+
+  /** `UpdateAnnotationWarning()` (dialog_erc.cpp:183). */
+  UpdateAnnotationWarning(): void {
+    if (
+      this.m_parent.CheckAnnotate(
+        () => {},
+        ANNOTATE_SCOPE_T.ANNOTATE_ALL,
+        true,
+        SYMBOL_FILTER.SYMBOL_FILTER_NON_POWER,
+      )
+    ) {
+      this.m_infoBar = 'Schematic is not fully annotated. ERC results will be incomplete.';
+    } else {
+      this.m_infoBar = null;
+    }
+  }
+
+  /** `getSeverities()` (dialog_erc.cpp:221). */
+  getSeverities(): number {
+    let severities = 0;
+
+    if (this.m_showErrors) severities |= RPT_SEVERITY_ERROR;
+
+    if (this.m_showWarnings) severities |= RPT_SEVERITY_WARNING;
+
+    if (this.m_showExclusions) severities |= RPT_SEVERITY_EXCLUSION;
+
+    return severities;
+  }
+
+  /** `OnMenu()` (dialog_erc.cpp:238): the gear's three checks. */
+  OnMenu(): ErcMenuRow[] {
+    return [
       {
-        $schema: 'https://schemas.kicad.org/erc.v1.json',
-        source: sourceName ?? '',
-        date: new Date().toISOString(),
-        kicad_version: KICAD_VERSION,
-        coordinate_units: 'mm',
-        included_severities: [
-          filters.errors ? 'error' : '',
-          filters.warnings ? 'warning' : '',
-          filters.exclusions ? 'exclusion' : '',
-        ].filter(Boolean),
-        sheets: [...sheets].map(([path, rows]) => ({
-          path,
-          uuid_path: path,
-          violations: rows.map(({ v }) => ({
-            type: v.code,
-            description: v.message,
-            severity: v.severity,
-            items: v.items.map((id) => ({
-              uuid: id,
-              description: describeItem?.(id, v.file) ?? id,
-              pos: { x: iuToMM(v.at.x), y: iuToMM(v.at.y) },
-            })),
-            ...(isExcl(v)
-              ? { excluded: true, comment: exclusionComments?.get(ercExclusionKey(v)) ?? '' }
-              : {}),
-          })),
-        })),
-        ignored_checks: ERC_ITEMS.filter((it) => ignoredTests.includes(it.title)).map((it) => ({
-          key: it.code,
-          description: it.title,
-        })),
+        label: 'Cross-probe Selected Items',
+        help: 'Highlight corresponding items on canvas when selected in the ERC list',
+        checked: this.m_crossprobe,
+        action: () => {
+          this.m_crossprobe = !this.m_crossprobe;
+          this.notify();
+        },
       },
-      null,
-      4,
-    );
-  };
-
-  const download = (name: string, text: string): void => {
-    const url = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = name;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  // DIALOG_ERC::OnSaveReport, the plain-text .rpt of ERC_REPORT::GetTextReport.
-  const saveReport = (): void => {
-    const parts: string[] = [
-      `ERC report (${new Date().toISOString()}, Encoding UTF8)`,
-      `Report includes: ${[
-        filters.errors ? 'Errors' : '',
-        filters.warnings ? 'Warnings' : '',
-        filters.exclusions ? 'Exclusions' : '',
-      ]
-        .filter(Boolean)
-        .join(', ')}`,
-      '',
-      '***** Sheet /',
+      {
+        label: 'Center on Cross-probe',
+        help: 'When cross-probing, scroll the canvas so that the item is visible',
+        checked: this.m_scroll_on_crossprobe,
+        action: () => {
+          this.m_scroll_on_crossprobe = !this.m_scroll_on_crossprobe;
+          this.notify();
+        },
+      },
+      {
+        label: 'Show all errors',
+        help: 'Show duplicate ERC markers on all applicable pins',
+        checked: this.m_showAllErrors,
+        action: () => {
+          this.m_showAllErrors = !this.m_showAllErrors;
+          this.notify();
+        },
+      },
     ];
-    for (const { v } of shown) {
-      const severity = `${v.severity}${isExcl(v) ? ' (excluded)' : ''}`;
-      parts.push(`[${v.code}]: ${v.message}`);
-      parts.push(`    ${titleOf(v.code)}; ${severity}`);
-      parts.push(
-        `    @(${fmt(v.at.x)}, ${fmt(v.at.y)}): ${describeItem?.(v.items[0] ?? '', v.file) ?? ''}`,
-      );
-    }
-    parts.push('', ` ** ERC messages: ${markers.length}  Errors ${errors}  Warnings ${warnings}`);
-    download('erc.rpt', parts.join('\n'));
-  };
+  }
 
-  /** OnERCItemRClick's menu for one violation. */
-  const rowMenu = (index: number): MenuItem[] => {
-    const v = markers[index]!;
-    const excludedNow = isExcl(v);
-    const listName = v.severity === 'error' ? 'errors' : 'warnings';
-    const key = ercExclusionKey(v);
-    // WX_TEXT_ENTRY_DIALOG( this, wxEmptyString, _( "Exclusion Comment" ),
-    // aInitial, true ): the shared dialog, not the browser's prompt().
-    const askComment = (initial: string, done: (text: string) => void): void =>
-      setCommentAsk({ initial, done });
-    const items: MenuItem[] = excludedNow
-      ? [
-          {
-            label: 'Remove exclusion for this violation',
-            action: () => onToggleExclude(v),
-          },
-          {
-            label: 'Edit exclusion comment...',
-            action: () => {
-              askComment(exclusionComments?.get(key) ?? '', (text) => onToggleExclude(v, text));
-            },
-          },
-          { sep: true },
-        ]
-      : [
-          {
-            label: 'Exclude this violation',
-            action: () => onToggleExclude(v),
-          },
-          {
-            label: 'Exclude with comment...',
-            action: () => {
-              askComment('', (text) => onToggleExclude(v, text));
-            },
-          },
-          { sep: true },
-        ];
-    const pinToPin = v.code === 'pin_to_pin' || v.code === 'pin_to_pin_error';
-    if (!pinToPin && onSetSeverity) {
-      items.push(
-        v.severity === 'warning'
-          ? {
-              label: `Change severity to Error for all '${titleOf(v.code)}' violations`,
-              action: () => onSetSeverity(v.code, 'error'),
-            }
-          : {
-              label: `Change severity to Warning for all '${titleOf(v.code)}' violations`,
-              action: () => onSetSeverity(v.code, 'warning'),
-            },
-      );
+  /** `updateUI()` (dialog_erc.cpp:305). */
+  protected override updateUI(): boolean {
+    return !this.m_cancelled;
+  }
+
+  /** `AdvancePhase( aMessage )` (dialog_erc.cpp:319). */
+  override AdvancePhase(aMessage?: string): void {
+    // Will also call Report( aMessage ):
+    if (aMessage === undefined) super.AdvancePhase();
+    else super.AdvancePhase(aMessage);
+
+    this.SetCurrentProgress(0.0);
+  }
+
+  /** `Report( aMessage )` (dialog_erc.cpp:327). */
+  override Report(aMessage: string): void {
+    this.m_messages.push(aMessage);
+  }
+
+  /** `UpdateData()` (dialog_erc.cpp:333). */
+  UpdateData(): void {
+    this.m_markerTreeModel.Update(this.m_markerProvider, this.getSeverities());
+    this.updateDisplayedCounts();
+  }
+
+  /** `updateDisplayedCounts()` (dialog_erc.cpp:340). */
+  updateDisplayedCounts(): void {
+    const numMarkers = this.m_markerProvider.GetCount();
+    let numErrors = this.m_markerProvider.GetCount(RPT_SEVERITY_ERROR);
+    let numWarnings = this.m_markerProvider.GetCount(RPT_SEVERITY_WARNING);
+    const numExcluded = this.m_markerProvider.GetCount(RPT_SEVERITY_EXCLUSION);
+
+    // We don't currently have a limit on ERC violations.
+    this.m_violationsTitle = this.m_ercRun
+      ? VIOLATIONS_TITLE_TEMPLATE.replace('%s', `${numMarkers}`)
+      : VIOLATIONS_TITLE_TEMPLATE.replace(' (%s)', '').replace('(%s)', '');
+
+    this.m_ignoredTitle = this.m_ercRun
+      ? IGNORED_TITLE_TEMPLATE.replace('%s', `${this.m_ignoredList.length}`)
+      : IGNORED_TITLE_TEMPLATE.replace(' (%s)', '').replace('(%s)', '');
+
+    if (!this.m_ercRun && numErrors === 0) numErrors = -1;
+
+    if (!this.m_ercRun && numWarnings === 0) numWarnings = -1;
+
+    this.m_errorsCount = numErrors;
+    this.m_warningsCount = numWarnings;
+    this.m_exclusionsCount = numExcluded;
+    this.notify();
+  }
+
+  /** `OnDeleteOneClick()` (dialog_erc.cpp:401). */
+  OnDeleteOneClick(): void {
+    if (this.m_notebookSelection === 0) {
+      // Clear the selection.  It may be the selected ERC marker.
+      this.m_parent.GetToolManager()?.RunAction(ACTIONS.selectionClear);
+
+      this.m_markerTreeModel.DeleteCurrentItem(true);
+
+      // redraw the schematic
+      this.redrawDrawPanel();
     }
-    if (onSetSeverity) {
-      items.push({
-        label: `Ignore all '${titleOf(v.code)}' violations`,
-        action: () => onSetSeverity(v.code, 'ignore'),
+
+    this.updateDisplayedCounts();
+  }
+
+  /** `OnDeleteAllClick()` (dialog_erc.cpp:418). */
+  async OnDeleteAllClick(): Promise<void> {
+    let includeExclusions = false;
+    const numExcluded = this.m_markerProvider.GetCount(RPT_SEVERITY_EXCLUSION);
+
+    if (numExcluded > 0) {
+      const ret = await this.m_window.askDeleteExclusions();
+
+      if (ret === 'cancel') return;
+      else if (ret === 'no') includeExclusions = true;
+    }
+
+    this.deleteAllMarkers(includeExclusions);
+    this.m_ercRun = false;
+
+    // redraw the schematic
+    this.redrawDrawPanel();
+    this.updateDisplayedCounts();
+  }
+
+  /** `OnCancelClick()` (dialog_erc.cpp:450). */
+  OnCancelClick(): void {
+    if (this.m_running) {
+      this.m_cancelled = true;
+      return;
+    }
+
+    this.m_parent.ClearFocus();
+
+    // aEvent.Skip(): the close, OnCloseErcDialog
+    this.OnCloseErcDialog();
+  }
+
+  /** `OnCloseErcDialog()` (dialog_erc.cpp:464): the modeless dialog asks its parent to destroy it. */
+  OnCloseErcDialog(): void {
+    this.m_parent.ClearFocus();
+
+    // wxQueueEvent( parent, EDA_EVT_CLOSE_ERC_DIALOG )
+    this.m_parent.CloseErcDialog();
+  }
+
+  /** `OnLinkClicked()` (dialog_erc.cpp:479). */
+  OnLinkClicked(): void {
+    this.m_parent.OnAnnotate();
+  }
+
+  /** `OnRunERCClick()` (dialog_erc.cpp:485). */
+  async OnRunERCClick(): Promise<void> {
+    if (this.m_running) return;
+
+    // wxBusyCursor: what the run reads must be in hand before it touches a marker - the
+    // libraries ERC_TESTER asks for, and the schematic the window's edits have reached.
+    this.m_running = true;
+    this.m_cancelLabel = 'Cancel';
+    this.m_okEnabled = false;
+    this.m_deleteEnabled = false;
+    this.m_saveEnabled = false;
+    this.notify();
+
+    await this.m_window.blockUntilLoaded();
+
+    const sch = this.m_parent.Schematic();
+
+    this.UpdateAnnotationWarning();
+
+    sch.RecordERCExclusions();
+    this.deleteAllMarkers(true);
+
+    this.m_ignoredList = [];
+
+    for (const item of ERC_ITEM.GetItemsWithSeverities()) {
+      if (sch.ErcSettings().GetSeverity(item.GetErrorCode()) === RPT_SEVERITY_IGNORE) {
+        this.m_ignoredList.push({
+          text: ` • ${item.GetErrorText(true)}`,
+          code: item.GetErrorCode(),
+        });
+      }
+    }
+
+    this.m_cancelled = false;
+    this.Raise();
+
+    this.m_runningResultsBook = 0; // Display the "Tests Running..." tab
+    this.m_messages = [];
+
+    this.m_running = true;
+    this.m_cancelLabel = 'Cancel';
+    this.m_okEnabled = false;
+    this.m_deleteEnabled = false;
+    this.m_saveEnabled = false;
+    this.notify();
+
+    // Update(): repaint only, so the running page is on screen before the tests block.
+    await nextPaint();
+
+    const itemsNotAnnotated = this.m_parent.CheckAnnotate(
+      (aType, aMsg, aItemA, aItemB) => {
+        const ercItem = ERC_ITEM.Create(aType)!;
+        ercItem.SetErrorMessage(aMsg);
+
+        if (aItemB) ercItem.SetItems(aItemA!.GetSymbol(), aItemB.GetSymbol());
+        else ercItem.SetItems(aItemA!.GetSymbol());
+
+        const marker = new SCH_MARKER(ercItem, aItemA!.GetSymbol().GetPosition());
+        aItemA!.GetSheetPath().LastScreen()!.Append(marker);
+      },
+      ANNOTATE_SCOPE_T.ANNOTATE_ALL,
+      true,
+      SYMBOL_FILTER.SYMBOL_FILTER_NON_POWER,
+    );
+
+    this.testErc();
+
+    if (itemsNotAnnotated)
+      this.m_messages.unshift(`${itemsNotAnnotated} symbol(s) require annotation.<br><br>`);
+
+    if (this.m_cancelled) this.m_messages.push('-------- ERC cancelled by user.<br><br>');
+    else this.m_messages.push('Done.<br><br>');
+
+    this.Raise();
+
+    this.m_running = false;
+    this.m_cancelLabel = 'Close';
+    this.m_okEnabled = true;
+    this.m_deleteEnabled = true;
+    this.m_saveEnabled = true;
+    this.notify();
+
+    if (!this.m_cancelled) {
+      // wxWidgets has a tendency to keep both buttons highlighted without the following:
+      this.m_okEnabled = false;
+      this.notify();
+
+      await new Promise((r) => setTimeout(r, 500)); // wxMilliSleep( 500 )
+      this.m_runningResultsBook = 1;
+
+      // now re-enable m_sdbSizerOK button
+      this.m_okEnabled = true;
+    }
+
+    this.m_ercRun = true;
+    this.redrawDrawPanel();
+    this.updateDisplayedCounts();
+  }
+
+  /** `redrawDrawPanel()` (dialog_erc.cpp:593). */
+  redrawDrawPanel(): void {
+    this.m_parent.GetCanvas()?.Refresh();
+  }
+
+  /** `testErc()` (dialog_erc.cpp:602). */
+  testErc(): void {
+    const sch = this.m_parent.Schematic();
+    const tester = new ERC_TESTER(sch, this.m_showAllErrors);
+
+    tester.RunTests(
+      this.m_parent,
+      this.m_parent.Kiway()?.KiFACE(FACE_T.FACE_CVPCB) ?? null,
+      this.m_parent.Prj(),
+      this,
+    );
+
+    // Update marker list:
+    this.m_markerTreeModel.Update(this.m_markerProvider, this.getSeverities());
+
+    // Display new markers from the current screen:
+    const view = this.m_parent.GetCanvas()?.GetView();
+
+    if (view) {
+      for (const marker of this.m_parent.GetScreen()?.Items().OfType(KICAD_T.SCH_MARKER_T) ?? []) {
+        view.Remove(marker);
+        view.Add(marker);
+      }
+    }
+
+    this.m_parent.GetCanvas()?.Refresh();
+  }
+
+  /** `OnERCItemSelected( aEvent )` (dialog_erc.cpp:631). */
+  OnERCItemSelected(aNode: RC_TREE_NODE | null): void {
+    if (!this.m_crossprobe || !aNode) return;
+
+    const itemID = RC_TREE_MODEL.ToUUID(aNode);
+    let sheet = new SCH_SHEET_PATH();
+    const item = this.m_parent.Schematic().ResolveItem(itemID, sheet, true);
+
+    if (this.m_centerMarkerOnIdle) {
+      // we already came from a cross-probe of the marker in the document; don't go
+      // around in circles
+    } else if (item && item.GetClass() !== 'DELETED_SHEET_ITEM') {
+      // Determine the owning sheet for sheet-specific items
+      const ercItem = aNode.m_RcItem as ERC_ITEM;
+
+      switch (aNode.m_Type) {
+        case RC_TREE_NODE_TYPE.MARKER:
+          if (ercItem.IsSheetSpecific()) sheet = ercItem.GetSpecificSheetPath();
+          break;
+        case RC_TREE_NODE_TYPE.MAIN_ITEM:
+          if (ercItem.MainItemHasSheetPath()) sheet = ercItem.GetMainItemSheetPath();
+          break;
+        case RC_TREE_NODE_TYPE.AUX_ITEM:
+          if (ercItem.AuxItemHasSheetPath()) sheet = ercItem.GetAuxItemSheetPath();
+          break;
+        default:
+          break;
+      }
+
+      if (!sheet.empty() && !sheet.equals(this.m_parent.GetCurrentSheet())) {
+        this.m_parent.GetToolManager()?.RunAction(SCH_ACTIONS.changeSheet, sheet);
+        this.m_parent.RedrawScreen(this.m_parent.GetScreen()!.m_ScrollCenter, false);
+      }
+
+      this.m_parent.FocusOnItem(item, this.m_scroll_on_crossprobe);
+      this.redrawDrawPanel();
+    }
+  }
+
+  /** `OnERCItemDClick( aEvent )` (dialog_erc.cpp:692). */
+  OnERCItemDClick(aNode: RC_TREE_NODE | null): void {
+    // turn control over to m_parent, hide this DIALOG_ERC window,
+    // no destruction so we can preserve listbox cursor
+    if (aNode) this.Show(false);
+  }
+
+  /** `OnERCItemRClick( aEvent )` (dialog_erc.cpp:706): the row's popup menu. */
+  OnERCItemRClick(aNode: RC_TREE_NODE | null): ErcMenuRow[] {
+    if (!aNode || !aNode.m_RcItem) return [];
+
+    const settings = this.m_parent.Schematic().ErcSettings();
+    const rcItem = aNode.m_RcItem;
+    const marker = rcItem.GetParent() as SCH_MARKER | null;
+    const code = rcItem.GetErrorCode();
+    const model = this.m_markerTreeModel;
+
+    let listName: string;
+
+    switch (settings.GetSeverity(code)) {
+      case RPT_SEVERITY_ERROR:
+        listName = 'errors';
+        break;
+      case RPT_SEVERITY_WARNING:
+        listName = 'warnings';
+        break;
+      default:
+        listName = 'appropriate';
+        break;
+    }
+
+    const modified = (): void => {
+      this.updateDisplayedCounts();
+      this.redrawDrawPanel();
+      this.m_parent.OnModify();
+      this.m_window.projectModified();
+    };
+
+    const exclude = async (aWithComment: boolean): Promise<void> => {
+      if (!marker) return;
+
+      let comment = '';
+
+      if (aWithComment) {
+        const value = await this.m_window.textEntry('');
+
+        if (value === null) return;
+
+        comment = value;
+      }
+
+      this.m_markerProvider.SetMarkerExcluded(marker, true, comment);
+
+      this.m_parent.GetCanvas()?.GetView()?.Update(marker);
+
+      // The marker survives as an exclusion, so when exclusions are hidden it must leave
+      // the filtered view without being counted as deleted; a rebuild re-filters cleanly.
+      if (this.getSeverities() & RPT_SEVERITY_EXCLUSION) model.ValueChanged(aNode);
+      else model.Update(this.m_markerProvider, this.getSeverities());
+
+      modified();
+    };
+
+    const setSeverity = (aSeverity: number): void => {
+      settings.SetSeverity(code, aSeverity);
+
+      for (const item of this.m_parent.GetScreen()?.Items().OfType(KICAD_T.SCH_MARKER_T) ?? []) {
+        if ((item as SCH_MARKER).GetRCItem()?.GetErrorCode() === code)
+          this.m_parent.GetCanvas()?.GetView()?.Update(item);
+      }
+
+      // Rebuild model and view
+      model.Update(this.m_markerProvider, this.getSeverities());
+      modified();
+    };
+
+    const rows: ErcMenuRow[] = [];
+
+    if (marker?.IsExcluded()) {
+      rows.push({
+        label: 'Remove exclusion for this violation',
+        help: `It will be placed back in the ${listName} list`,
+        action: () => {
+          this.m_markerProvider.SetMarkerExcluded(marker, false);
+          this.m_parent.GetCanvas()?.GetView()?.Update(marker);
+
+          // The restored severity may fall outside the current filter, so re-filter when it no
+          // longer matches instead of leaving a stale node in the view.
+          if (this.getSeverities() & marker.GetSeverity()) model.ValueChanged(aNode);
+          else model.Update(this.m_markerProvider, this.getSeverities());
+
+          modified();
+        },
+      });
+      rows.push({
+        label: 'Edit exclusion comment...',
+        action: async () => {
+          const value = await this.m_window.textEntry(marker.GetComment());
+
+          if (value === null) return;
+
+          this.m_markerProvider.SetMarkerExcluded(marker, true, value);
+
+          // Update view
+          model.ValueChanged(aNode);
+          modified();
+        },
+      });
+    } else {
+      rows.push({
+        label: 'Exclude this violation',
+        help: `It will be excluded from the ${listName} list`,
+        action: () => exclude(false),
+      });
+      rows.push({
+        label: 'Exclude with comment...',
+        help: `It will be excluded from the ${listName} list`,
+        action: () => exclude(true),
       });
     }
-    items.push({ sep: true });
-    if (pinToPin && onEditPinMap) {
-      items.push({ label: 'Edit pin-to-pin conflict map...', action: onEditPinMap });
-    } else if (onEditSeverities) {
-      items.push({ label: 'Edit violation severities...', action: onEditSeverities });
-    }
-    if (v.code === 'endpoint_off_grid' && onEditConnectionGrid) {
-      items.push({ label: 'Edit connection grid spacing...', action: onEditConnectionGrid });
-    }
-    void listName;
-    return items;
-  };
 
-  const configMenu: MenuItem[] = [
-    {
-      label: 'Cross-probe Selected Items',
-      checked: options.crossprobe,
-      action: () => onOptionsChange({ ...options, crossprobe: !options.crossprobe }),
-    },
-    {
-      label: 'Center on Cross-probe',
-      checked: options.scrollOnCrossprobe,
-      action: () =>
-        onOptionsChange({ ...options, scrollOnCrossprobe: !options.scrollOnCrossprobe }),
-    },
-    {
-      label: 'Show all errors',
-      checked: options.showAllErrors,
-      action: () => onOptionsChange({ ...options, showAllErrors: !options.showAllErrors }),
-    },
-  ];
-  const [configOpen, setConfigOpen] = useState<{ x: number; y: number } | null>(null);
-  // The Save File dialog's wildcard: a text report or the JSON schema.
-  const [saveMenu, setSaveMenu] = useState<{ x: number; y: number } | null>(null);
-  /** The open Exclusion Comment dialog, and what OK does with its text. */
-  const [commentAsk, setCommentAsk] = useState<{
-    initial: string;
-    done: (text: string) => void;
-  } | null>(null);
+    rows.push({ label: '', sep: true });
+
+    const pinToPin =
+      code === ERCE_T.ERCE_PIN_TO_PIN_WARNING || code === ERCE_T.ERCE_PIN_TO_PIN_ERROR;
+
+    if (pinToPin) {
+      // Pin to pin severities edited through pin conflict map
+    } else if (settings.GetSeverity(code) === RPT_SEVERITY_WARNING) {
+      rows.push({
+        label: `Change severity to Error for all '${rcItem.GetErrorText(true)}' violations`,
+        help: 'Violation severities can also be edited in Schematic Setup',
+        action: () => setSeverity(RPT_SEVERITY_ERROR),
+      });
+    } else {
+      rows.push({
+        label: `Change severity to Warning for all '${rcItem.GetErrorText(true)}' violations`,
+        help: 'Violation severities can also be edited in Schematic Setup',
+        action: () => setSeverity(RPT_SEVERITY_WARNING),
+      });
+    }
+
+    rows.push({
+      label: `Ignore all '${rcItem.GetErrorText(true)}' violations`,
+      help: 'Violations will not be checked or reported',
+      action: () => {
+        settings.SetSeverity(code, RPT_SEVERITY_IGNORE);
+
+        if (code === ERCE_T.ERCE_PIN_TO_PIN_ERROR)
+          settings.SetSeverity(ERCE_T.ERCE_PIN_TO_PIN_WARNING, RPT_SEVERITY_IGNORE);
+
+        this.m_ignoredList.push({ text: ` • ${rcItem.GetErrorText(true)}`, code });
+
+        // Clear the selection before deleting markers. It may be some selected ERC markers.
+        this.m_parent.GetToolManager()?.RunAction(ACTIONS.selectionClear);
+
+        new SCH_SCREENS(this.m_parent.Schematic().Root()).DeleteMarkers(MARKER_T.MARKER_ERC, code);
+
+        // Rebuild model and view
+        model.Update(this.m_markerProvider, this.getSeverities());
+        modified();
+      },
+    });
+
+    rows.push({ label: '', sep: true });
+
+    if (pinToPin) {
+      rows.push({
+        label: 'Edit pin-to-pin conflict map...',
+        help: 'Open the Schematic Setup dialog',
+        action: () => void this.m_parent.ShowSchematicSetupDialog('Pin Conflicts Map'),
+      });
+    } else {
+      rows.push({
+        label: 'Edit violation severities...',
+        help: 'Open the Schematic Setup dialog',
+        action: () => void this.m_parent.ShowSchematicSetupDialog('Violation Severity'),
+      });
+    }
+
+    if (code === ERCE_T.ERCE_ENDPOINT_OFF_GRID) {
+      rows.push({
+        label: 'Edit connection grid spacing...',
+        help: 'Open the Schematic Setup dialog',
+        action: () => void this.m_parent.ShowSchematicSetupDialog('Formatting'),
+      });
+    }
+
+    return rows;
+  }
+
+  /** `PrevMarker()` (dialog_erc.cpp:1021). */
+  PrevMarker(): void {
+    if (this.m_notebookSelection !== 0) this.m_notebookSelection = 0;
+
+    this.m_markerTreeModel.PrevMarker();
+    this.notify();
+  }
+
+  /** `NextMarker()` (dialog_erc.cpp:1033). */
+  NextMarker(): void {
+    if (this.m_notebookSelection !== 0) this.m_notebookSelection = 0;
+
+    this.m_markerTreeModel.NextMarker();
+    this.notify();
+  }
+
+  /** `SelectMarker( aMarker )` (dialog_erc.cpp:1045). */
+  SelectMarker(aMarker: SCH_MARKER): void {
+    this.m_notebookSelection = 0;
+    this.m_centerMarkerOnIdle = aMarker;
+    this.m_markerTreeModel.SelectMarker(aMarker);
+
+    // centerMarkerIdleHandler, on the next idle
+    queueMicrotask(() => {
+      if (this.m_centerMarkerOnIdle) this.m_markerTreeModel.CenterMarker(this.m_centerMarkerOnIdle);
+
+      this.m_centerMarkerOnIdle = null;
+      this.notify();
+    });
+    this.notify();
+  }
+
+  /** `ExcludeMarker( aMarker )` (dialog_erc.cpp:1071). */
+  ExcludeMarker(aMarker: SCH_MARKER | null = null): void {
+    let marker = aMarker;
+
+    if (marker !== null) this.m_markerTreeModel.SelectMarker(marker);
+
+    let node: RC_TREE_NODE | null = null;
+
+    if (this.m_notebookSelection === 0) {
+      node = this.m_markerDataView.GetCurrentItem();
+
+      if (node?.m_RcItem) marker = node.m_RcItem.GetParent() as SCH_MARKER | null;
+    }
+
+    if (!marker || marker.IsExcluded()) return;
+
+    // Route through the provider so its cached counts stay in sync even when the dialog is not on
+    // the violations tab and has no tree node to refresh.
+    this.m_markerProvider.SetMarkerExcluded(marker, true);
+    this.m_parent.GetCanvas()?.GetView()?.Update(marker);
+
+    if (node) {
+      // The marker survives as an exclusion, so when exclusions are hidden it must leave the
+      // filtered view without being counted as deleted; a rebuild re-filters cleanly.
+      if (this.getSeverities() & RPT_SEVERITY_EXCLUSION) this.m_markerTreeModel.ValueChanged(node);
+      else this.m_markerTreeModel.Update(this.m_markerProvider, this.getSeverities());
+    }
+
+    this.updateDisplayedCounts();
+    this.redrawDrawPanel();
+    this.m_parent.OnModify();
+    this.m_window.projectModified();
+  }
+
+  /** `OnEditViolationSeverities()` (dialog_erc.cpp:1112). */
+  OnEditViolationSeverities(): void {
+    void this.m_parent.ShowSchematicSetupDialog('Violation Severity');
+  }
+
+  /** `OnSeverity( aEvent )` (dialog_erc.cpp:1118). */
+  OnSeverity(aBox: 'all' | 'errors' | 'warnings' | 'exclusions', aChecked: boolean): void {
+    if (aBox === 'all') {
+      this.m_showAll = aChecked;
+      this.m_showErrors = true;
+      this.m_showWarnings = aChecked;
+      this.m_showExclusions = aChecked;
+    } else if (aBox === 'errors') {
+      this.m_showErrors = aChecked;
+    } else if (aBox === 'warnings') {
+      this.m_showWarnings = aChecked;
+    } else {
+      this.m_showExclusions = aChecked;
+    }
+
+    this.UpdateData();
+  }
+
+  /** `deleteAllMarkers( aIncludeExclusions )` (dialog_erc.cpp:1131). */
+  deleteAllMarkers(aIncludeExclusions: boolean): void {
+    this.m_parent.GetToolManager()?.RunAction(ACTIONS.selectionClear);
+
+    this.m_markerTreeModel.DeleteItems(false, aIncludeExclusions, false);
+
+    new SCH_SCREENS(this.m_parent.Schematic().Root()).DeleteAllMarkers(
+      MARKER_T.MARKER_ERC,
+      aIncludeExclusions,
+    );
+
+    // DeleteItems() only decremented the cached counts for markers matching the current filter,
+    // but DeleteAllMarkers() removed hidden severities too; rebuild to resync the counts.
+    this.m_markerTreeModel.Update(this.m_markerProvider, this.getSeverities());
+  }
+
+  /** `OnSaveReport()` (dialog_erc.cpp:1153). */
+  async OnSaveReport(): Promise<void> {
+    const reportWriter = new ERC_REPORT(
+      this.m_parent.Schematic(),
+      this.m_parent.GetUserUnits(),
+      this.m_markerProvider,
+    );
+
+    const path = await this.m_window.saveReport('ERC.rpt', (aFullPath) => {
+      // fn.GetExt() == FILEEXT::JsonFileExtension
+      return aFullPath.toLowerCase().endsWith('.json')
+        ? reportWriter.WriteJsonReport()
+        : reportWriter.WriteTextReport();
+    });
+
+    if (path === null) return;
+
+    this.m_messages.push(`Report file '${path}' created.`);
+    this.notify();
+  }
+}
+
+/** `Update()`: one repaint, so a page change is on screen before a blocking run. */
+function nextPaint(): Promise<void> {
+  return new Promise((resolve) => {
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => resolve());
+    else setTimeout(resolve, 0);
+  });
+}
+
+function toMenuItems(aRows: readonly ErcMenuRow[]): MenuItem[] {
+  return aRows.map((r) =>
+    r.sep
+      ? { sep: true }
+      : {
+          label: r.label,
+          ...(r.checked !== undefined ? { checked: r.checked } : {}),
+          action: () => void r.action?.(),
+        },
+  );
+}
+
+/** The dialog's window: DIALOG_ERC_BASE over the class's state. */
+export function DialogErc({ dialog }: { dialog: DIALOG_ERC }): JSX.Element {
+  const [, force] = useState(0);
+  useEffect(() => dialog.subscribe(() => force((n) => n + 1)), [dialog]);
+  const [menu, setMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
+  const d = dialog;
 
   return (
     <>
       <DIALOG_ERC_BASE
-        m_infoBar={
-          unannotated ? 'Schematic is not fully annotated. ERC results will be incomplete.' : null
-        }
-        {...(onShowAnnotate ? { onShowAnnotate } : {})}
+        m_infoBar={d.m_infoBar}
+        onShowAnnotate={() => d.OnLinkClicked()}
         onMenu={(aAnchor) => {
           const r = aAnchor.getBoundingClientRect();
-          setConfigOpen({ x: r.left, y: r.bottom });
+          setMenu({ x: r.left, y: r.bottom, items: toMenuItems(d.OnMenu()) });
         }}
-        runningResultsPage={running ? 0 : 1}
-        m_messages={running ?? []}
-        gauge={Math.round(((running?.length ?? 0) / ERC_PHASE_COUNT) * 1000)}
-        resultsPage={tab === 'violations' ? 0 : 1}
-        onResultsPageChanged={(i) => setTab(i === 0 ? 'violations' : 'ignored')}
-        violationsTitle={notRun ? 'Violations' : `Violations (${shown.length})`}
-        ignoredTitle={notRun ? 'Ignored Tests' : `Ignored Tests (${ignoredTests.length})`}
+        runningResultsPage={d.m_runningResultsBook}
+        m_messages={d.m_messages}
+        gauge={d.m_gauge}
+        resultsPage={d.m_notebookSelection}
+        onResultsPageChanged={(aPage) => {
+          d.m_notebookSelection = aPage;
+          d.notify();
+        }}
+        violationsTitle={d.m_violationsTitle}
+        ignoredTitle={d.m_ignoredTitle}
         m_markerDataView={
-          <div className="ze-erc-list" data-testid="erc-violation-list">
-            {shown.map(({ v, i }) => (
-              <div key={`${i}:${v.code}`} className="ze-erc-item">
-                <div
-                  // `DIALOG_ERC::SelectMarker` ends in `EnsureVisible`, so a row
-                  // reached by cross-probing from the canvas is scrolled to
-                  // rather than merely marked selected somewhere off-screen.
-                  ref={selected?.index === i ? selectedRowRef : undefined}
-                  className={`ze-erc-row ${v.severity}${
-                    selected?.index === i && selected.item === null ? ' selected' : ''
-                  }${isExcl(v) ? ' excluded' : ''}`}
-                  onClick={() => {
-                    setSelected({ index: i, item: null });
-                    if (options.crossprobe) onLocate(v, options.scrollOnCrossprobe);
-                  }}
-                  onDoubleClick={() => onLocate(v, true)}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    setSelected({ index: i, item: null });
-                    setMenu({ x: e.clientX, y: e.clientY, index: i });
-                  }}
-                >
-                  {/* The shared disclosure chevron, `.twisty` — "declared without
-                    an ancestor so every tree-ish expander in the app is the
-                    same mark". This drew a raw "⌄" character in a span of its
-                    own instead, which is why it read smaller and thinner than
-                    KiCad's: a glyph at a font size rather than GTK's expander,
-                    whose arms the shared rule measures at 11 x 6. A marker row
-                    always has children and is always expanded here. */}
-                  <span className="twisty expandable open" />
-                  <span className="msg">
-                    {rowPrefix(v)}
-                    {v.message}
-                  </span>
-                </div>
-                {/* RC_TREE_MODEL::rebuildModel (rc_item.cpp:363-383) gives a
-                  marker one child per non-null item id — MAIN_ITEM, AUX_ITEM,
-                  AUX_ITEM2, AUX_ITEM3, so four and not three — and appends the
-                  COMMENT node AFTER them, not before. */}
-                {v.items.slice(0, 4).map((id, k) => (
-                  <div
-                    key={id}
-                    className={`ze-erc-subrow${isExcl(v) ? ' excluded' : ''}${
-                      selected?.index === i && selected.item === k ? ' selected' : ''
-                    }`}
-                    onClick={() => {
-                      setSelected({ index: i, item: k });
-                      if (options.crossprobe) onLocate(v, options.scrollOnCrossprobe, id);
-                    }}
-                    onDoubleClick={() => onLocate(v, true, id)}
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      setSelected({ index: i, item: k });
-                      setMenu({ x: e.clientX, y: e.clientY, index: i });
-                    }}
-                  >
-                    {describeItem?.(id, v.file) ?? id}
-                  </div>
-                ))}
-                {/* RC_TREE_NODE::COMMENT: an excluded marker's comment, when it
-                  has one, last of the marker's children. */}
-                {isExcl(v) && exclusionComments?.get(ercExclusionKey(v)) && (
-                  <div className="ze-erc-subrow excluded">
-                    {exclusionComments.get(ercExclusionKey(v))}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+          <RcTreeView
+            model={d.m_markerTreeModel}
+            view={d.m_markerDataView}
+            testId="erc-violation-list"
+            onDoubleClick={(aNode) => d.OnERCItemDClick(aNode)}
+            onContextMenu={(e, aNode) => {
+              e.preventDefault();
+              setMenu({ x: e.clientX, y: e.clientY, items: toMenuItems(d.OnERCItemRClick(aNode)) });
+            }}
+          />
         }
-        ignoredRows={ignoredTests.map((t) => ` • ${t}`)}
-        {...(onEditSeverities ? { onEditIgnoredTests: onEditSeverities } : {})}
-        // DIALOG_ERC::OnSeverity (dialog_erc.cpp:1118-1129): the All box turns Errors on whichever
-        // way it is moved, and hands only Warnings and Exclusions its own new state.
-        m_showAll={{
-          value: showAll,
-          onChange: (v) => {
-            setShowAll(v);
-            setFilters({ errors: true, warnings: v, exclusions: v });
-          },
-        }}
+        ignoredRows={d.m_ignoredList.map((r) => r.text)}
+        onEditIgnoredTests={() => d.OnEditViolationSeverities()}
+        m_showAll={{ value: d.m_showAll, onChange: (aOn) => d.OnSeverity('all', aOn) }}
         m_showErrors={{
-          check: { value: filters.errors, onChange: (v) => setFilters({ ...filters, errors: v }) },
-          count: notRun && errors === 0 ? -1 : errors,
+          check: { value: d.m_showErrors, onChange: (aOn) => d.OnSeverity('errors', aOn) },
+          count: d.m_errorsCount,
           severity: RPT_SEVERITY_ERROR,
         }}
         m_showWarnings={{
-          check: {
-            value: filters.warnings,
-            onChange: (v) => setFilters({ ...filters, warnings: v }),
-          },
-          count: notRun && warnings === 0 ? -1 : warnings,
+          check: { value: d.m_showWarnings, onChange: (aOn) => d.OnSeverity('warnings', aOn) },
+          count: d.m_warningsCount,
           severity: RPT_SEVERITY_WARNING,
         }}
         m_showExclusions={{
           check: {
-            value: filters.exclusions,
-            onChange: (v) => setFilters({ ...filters, exclusions: v }),
+            value: d.m_showExclusions,
+            onChange: (aOn) => d.OnSeverity('exclusions', aOn),
           },
-          count: exclusionCount,
+          count: d.m_exclusionsCount,
           severity: RPT_SEVERITY_EXCLUSION,
         }}
         badgeMax={ERC_BADGE_MAX}
-        saveEnabled={!running}
-        onSaveReport={(aAnchor) => {
-          const r = aAnchor.getBoundingClientRect();
-          setSaveMenu({ x: r.left, y: r.top });
-        }}
-        // Both delete buttons are live except while a run is in flight, the only place DIALOG_ERC
-        // disables them (dialog_erc.cpp:523-525, 565-568); Delete Marker with no current item rings
-        // the bell (rc_item.cpp:664-668).
-        deleteEnabled={!running}
-        onDeleteOneMarker={() => {
-          if (selected) {
-            onDelete(selected.index);
-            setSelected(null);
-          }
-        }}
-        onDeleteAllMarkers={onDeleteAll}
-        runEnabled={!running}
-        cancelLabel={running ? 'Cancel' : 'Close'}
-        onRunERC={onRun}
-        onCancel={() => (running && onCancelRun ? onCancelRun() : onClose())}
+        saveEnabled={d.m_saveEnabled}
+        onSaveReport={() => void d.OnSaveReport()}
+        deleteEnabled={d.m_deleteEnabled}
+        onDeleteOneMarker={() => d.OnDeleteOneClick()}
+        onDeleteAllMarkers={() => void d.OnDeleteAllClick()}
+        runEnabled={d.m_okEnabled}
+        cancelLabel={d.m_cancelLabel}
+        onRunERC={() => void d.OnRunERCClick()}
+        onCancel={() => d.OnCancelClick()}
       />
-
       {menu && (
-        <ContextMenu
-          x={menu.x}
-          y={menu.y}
-          items={rowMenu(menu.index)}
-          onClose={() => setMenu(null)}
-        />
-      )}
-      {saveMenu && (
-        <ContextMenu
-          x={saveMenu.x}
-          y={saveMenu.y}
-          items={[
-            { label: 'Report file (*.rpt)', action: saveReport },
-            { label: 'JSON report (*.json)', action: () => download('erc.json', jsonReport()) },
-          ]}
-          onClose={() => setSaveMenu(null)}
-        />
-      )}
-      {configOpen && (
-        <ContextMenu
-          x={configOpen.x}
-          y={configOpen.y}
-          items={configMenu}
-          onClose={() => setConfigOpen(null)}
-        />
-      )}
-      {commentAsk && (
-        <WX_TEXT_ENTRY_DIALOG
-          label=""
-          caption="Exclusion Comment"
-          defaultValue={commentAsk.initial}
-          extraWidth
-          onResult={(text) => {
-            const { done } = commentAsk;
-            setCommentAsk(null);
-            if (text !== null) done(text);
-          }}
-        />
+        <ContextMenu x={menu.x} y={menu.y} items={menu.items} onClose={() => setMenu(null)} />
       )}
     </>
   );

@@ -125,46 +125,6 @@ export function readTypeFromFields(deviceType: string, modelType: string): { fou
 }
 
 /**
- * SIM_LIB_MGR::CreateModel for one symbol: the diagnostics a model build
- * produces, in upstream's order. `libraryText` resolves a `Sim.Library` path to
- * the library's contents; returning undefined is upstream's "not found".
- */
-export function checkSimModel(
-  sym: SIM_FIELDS,
-  aPinCount: number,
-  libraryText: (path: string) => string | undefined,
-): SimModelIssue[] {
-  const issues: SimModelIssue[] = [];
-
-  const libraryPath = fieldValue(sym, SIM_LIBRARY_FIELD);
-  const baseModelName = fieldValue(sym, SIM_NAME_FIELD);
-
-  if (libraryPath !== '') {
-    const text = libraryText(libraryPath);
-
-    if (text === undefined) {
-      issues.push({ message: `Simulation model library not found at '${libraryPath}'` });
-    }
-
-    if (baseModelName === '') {
-      issues.push({ message: `Error loading simulation model: no '${SIM_NAME_FIELD}' field` });
-    } else if (text !== undefined && !findSpiceModel(text, baseModelName)) {
-      issues.push({
-        message:
-          `Error loading simulation model: could not find base model '${baseModelName}' ` +
-          `in library '${libraryPath}'`,
-      });
-    }
-    return issues;
-  }
-
-  const issue = simModelTypeIssue(sym, aPinCount);
-  if (issue) issues.push(issue);
-
-  return issues;
-}
-
-/**
  * The model a symbol with no `Sim.Library` gets: InferSimModel first, then
  * `SIM_MODEL::ReadTypeFromFields` (sim_model.cpp:405), whose failure is the one
  * thing building it reports. Its message names the symbol only when the fields

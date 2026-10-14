@@ -3,78 +3,78 @@
 // Copyright (C) 2026 ZiroEDA and contributors.
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
 /**
- * The Electrical Rules Checker dialog, against `DIALOG_ERC` and the
- * `dialog_erc_base.cpp` it derives from.
+ * The Electrical Rules Checker dialog: `DIALOG_ERC` on a live SCH_EDIT_FRAME, rendered through
+ * `dialog_erc_base.tsx`, against dialog_erc.cpp and the `dialog_erc_base.cpp` it derives from.
  *
- * Each assertion is one structural fact with one line of C++ behind it. The
- * control-set assertions are written as EQUALITIES over what the dialog
- * renders, not as "these are present" lookups: a test that only names the rows
- * we do draw cannot report an extra one, and an extra control is half of what
- * a side-by-side turns up.
+ * Each assertion is one structural fact with one line of C++ behind it. The control-set
+ * assertions are EQUALITIES over what the dialog renders, so an extra control fails too.
  *
- * What a side-by-side against a live 10.0.5 and the manual's own capture
- * (kicad-docs images/en/dialog_erc.png) turned up, and what is therefore
- * pinned here:
+ * What a side-by-side against KiCad and the manual's own capture (kicad-docs
+ * images/en/dialog_erc.png) turned up, and what is therefore pinned here:
  *
- *   1. the Show: row wrote EESCHEMA_SETTINGS m_Appearance.show_erc_*, which is
- *      the CANVAS layer visibility the View menu owns
- *      (sch_edit_frame.cpp:2005-2007), not the dialog's own checkboxes;
- *   2. the All box drove Errors from its own state, where OnSeverity forces
- *      Errors true whichever way All is moved (dialog_erc.cpp:1118-1129);
- *   3. Delete Marker was greyed with no selection and Delete All Markers with
- *      an empty list, where DIALOG_ERC disables both only during a run;
- *   4. the exclusions badge was drawn at zero, where NUMBER_BADGE hides it;
- *   5. no count was capped, where SetMaximumNumber( 999 ) reads "999+";
- *   6. a marker showed three child rows, where rebuildModel makes up to four;
- *   7. the exclusion comment came BEFORE the item rows instead of after;
- *   8. the config button carried the board-setup bitmap, not BITMAPS::config.
+ *   1. the All box forces Errors on whichever way it moves (dialog_erc.cpp:1118-1129);
+ *   2. Delete Marker and Delete All Markers are live with no selection and no markers - DIALOG_ERC
+ *      disables them only during a run;
+ *   3. the exclusions badge is hidden at zero, and counts cap at "999+";
+ *   4. a marker shows up to four item rows, its exclusion comment after them;
+ *   5. the config button carries BITMAPS::config and its menu is the three checks.
  */
+import { resolve } from 'node:path';
 import { bitmapUrl } from '@ziroeda/common/bitmap_store.js';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
-import type { ErcViolation } from '@ziroeda/eeschema';
+import { PGM_BASE, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
+import { RPT_SEVERITY_IGNORE } from '@ziroeda/common/reporter.js';
+import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import {
-  ErcDialog,
+  DIALOG_ERC,
+  type DIALOG_ERC_WINDOW,
+  DialogErc,
   ERC_BADGE_MAX,
-  ERC_DEFAULT_FILTERS,
   ercBadge,
 } from '@ziroeda/eeschema/dialogs/dialog_erc.js';
+import { ERC_ITEM } from '@ziroeda/eeschema/erc/erc_item.js';
+import { ERCE_T } from '@ziroeda/eeschema/erc/erc_settings.js';
+import { SCH_MARKER } from '@ziroeda/eeschema/sch_marker.js';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { openProject, schFrame } from '../eeschema/support/sch_tool_harness.js';
 
-afterEach(cleanup);
+const DIR = resolve(__dirname, '../../data/eeschema/erc_cases/quirks');
 
-/** Distinct positions, so ercExclusionKey tells two otherwise-equal markers apart. */
-let seq = 0;
-const violation = (over: Partial<ErcViolation> = {}): ErcViolation => {
-  seq++;
-  return {
-    code: 'pin_not_connected',
-    severity: 'error',
-    message: 'Pin not connected',
-    at: { x: 0, y: seq * 1000 },
-    items: ['a'],
-    ...over,
+beforeEach(() => SetPgm(new PGM_BASE(null, new SETTINGS_MANAGER())));
+afterEach(() => {
+  cleanup();
+  SetPgm(null);
+});
+
+function open(aWindow: Partial<DIALOG_ERC_WINDOW> = {}) {
+  const frame = schFrame();
+  openProject(frame, DIR, 'quirks', ['quirks.kicad_sch', 'quirks.kicad_pro']);
+  const window: DIALOG_ERC_WINDOW = {
+    textEntry: async () => null,
+    askDeleteExclusions: async () => 'yes',
+    saveReport: async () => null,
+    displayError: () => {},
+    blockUntilLoaded: async () => {},
+    show: () => {},
+    raise: () => {},
+    isShownOnScreen: () => true,
+    destroy: () => {},
+    projectModified: () => {},
+    ercDialogSettings: () => ({
+      crossprobe: true,
+      scroll_on_crossprobe: true,
+      show_all_errors: false,
+    }),
+    saveErcDialogSettings: () => {},
+    ...aWindow,
   };
-};
-
-const NOOP = (): void => {};
-
-function open(over: Partial<Parameters<typeof ErcDialog>[0]> = {}) {
-  const props: Parameters<typeof ErcDialog>[0] = {
-    violations: [],
-    running: null,
-    ignoredTests: [],
-    options: { crossprobe: true, scrollOnCrossprobe: true, showAllErrors: false },
-    onOptionsChange: NOOP,
-    onRun: NOOP,
-    onLocate: NOOP,
-    onDelete: NOOP,
-    onDeleteAll: NOOP,
-    excluded: new Set<string>(),
-    onToggleExclude: NOOP,
-    onClose: NOOP,
-    ...over,
-  };
-  return render(<ErcDialog {...props} />);
+  const dialog = new DIALOG_ERC(frame, window);
+  render(<DialogErc dialog={dialog} />);
+  const run = () =>
+    act(async () => {
+      await dialog.OnRunERCClick();
+    });
+  return { frame, dialog, run };
 }
 
 /** The "Show:" row's four checkboxes, in the order bSeveritySizer adds them. */
@@ -83,6 +83,8 @@ const severityRow = (): { label: string; checked: boolean }[] =>
     label: l.textContent ?? '',
     checked: (l.querySelector('input') as HTMLInputElement | null)?.checked ?? false,
   }));
+
+const checkbox = (i: number) => document.querySelectorAll('label.ze-check input')[i]!;
 
 const buttonRow = (): { label: string; disabled: boolean }[] =>
   // m_buttonsSizer: the sizer row Delete Marker sits in.
@@ -101,12 +103,11 @@ const badges = (): { text: string; kind: string }[] =>
       .join(' '),
   }));
 
+const rows = (): string[] =>
+  Array.from(document.querySelectorAll('.ze-erc-row .msg')).map((m) => m.textContent ?? '');
+
 describe('DIALOG_ERC: the Show: severity row', () => {
-  /**
-   * dialog_erc_base.cpp:141-176 builds exactly m_showLabel, m_showAll,
-   * m_showErrors, m_showWarnings, m_showExclusions and m_saveReport into
-   * bSeveritySizer, in that order. An equality, so a fifth checkbox fails.
-   */
+  /** dialog_erc_base.cpp builds exactly m_showLabel, m_showAll .. m_showExclusions, m_saveReport. */
   it('is Show: All Errors Warnings Exclusions and nothing else', () => {
     open();
     expect(screen.getByText('Show:').textContent).toBe('Show:');
@@ -120,12 +121,9 @@ describe('DIALOG_ERC: the Show: severity row', () => {
   });
 
   /**
-   * The generated base leaves all four unchecked where the sibling severity
-   * row in dialog_drc_base.cpp:197,204 sets Errors and Warnings, and taking
-   * the ERC generator output literally opens the dialog showing nothing.
-   * eeschema manual 4.6 settles it: errors and warnings are reported, and
-   * "Excluded violations are hidden unless the Exclusions checkbox is
-   * enabled".
+   * The generated base leaves all four unchecked, which opens the dialog showing nothing; the
+   * manual settles it: errors and warnings are reported, and "Excluded violations are hidden
+   * unless the Exclusions checkbox is enabled".
    */
   it('opens with Errors and Warnings on, Exclusions and All off', () => {
     open();
@@ -135,29 +133,12 @@ describe('DIALOG_ERC: the Show: severity row', () => {
       { label: 'Warnings', checked: true },
       { label: 'Exclusions', checked: false },
     ]);
-    expect(ERC_DEFAULT_FILTERS).toStrictEqual({
-      errors: true,
-      warnings: true,
-      exclusions: false,
-    });
   });
 
-  /**
-   * DIALOG_ERC::OnSeverity, dialog_erc.cpp:1118-1129:
-   *
-   *   m_showErrors->SetValue( true );
-   *   m_showWarnings->SetValue( aEvent.IsChecked() );
-   *   m_showExclusions->SetValue( aEvent.IsChecked() );
-   *
-   * Errors is forced ON whichever way All is moved. Turning All OFF is
-   * therefore "errors only", not "nothing" — which is what a filter row that
-   * hands All's own state to all three produces.
-   */
+  /** DIALOG_ERC::OnSeverity: m_showErrors->SetValue( true ) whichever way All moves. */
   it('All forces Errors on in both directions', () => {
     open();
-    const all = document.querySelectorAll('label.ze-check input')[0]!;
-
-    fireEvent.click(all); // -> checked
+    fireEvent.click(checkbox(0));
     expect(severityRow()).toStrictEqual([
       { label: 'All', checked: true },
       { label: 'Errors', checked: true },
@@ -165,7 +146,7 @@ describe('DIALOG_ERC: the Show: severity row', () => {
       { label: 'Exclusions', checked: true },
     ]);
 
-    fireEvent.click(all); // -> unchecked
+    fireEvent.click(checkbox(0));
     expect(severityRow()).toStrictEqual([
       { label: 'All', checked: false },
       { label: 'Errors', checked: true },
@@ -174,53 +155,72 @@ describe('DIALOG_ERC: the Show: severity row', () => {
     ]);
   });
 
-  /**
-   * m_showAll is a checkbox in its own right and DIALOG_ERC never writes to it
-   * from the other three, so ticking all three by hand leaves it clear.
-   */
+  /** m_showAll is never written from the other three. */
   it('All is not driven by the other three', () => {
     open();
-    const boxes = document.querySelectorAll('label.ze-check input');
-    fireEvent.click(boxes[3]!); // Exclusions on; Errors and Warnings already on
-    expect(severityRow()).toStrictEqual([
-      { label: 'All', checked: false },
-      { label: 'Errors', checked: true },
-      { label: 'Warnings', checked: true },
-      { label: 'Exclusions', checked: true },
-    ]);
+    fireEvent.click(checkbox(3));
+    expect(severityRow()[0]).toStrictEqual({ label: 'All', checked: false });
   });
 
   /**
-   * getSeverities() feeds SHEETLIST_ERC_ITEMS_PROVIDER::SetSeverities, which
-   * keeps a marker only when `severity & m_severities` (erc_settings.cpp:410-427)
-   * and files an excluded marker under EXCLUSION rather than its own severity.
+   * getSeverities() feeds SHEETLIST_ERC_ITEMS_PROVIDER::SetSeverities, which files an excluded
+   * marker under EXCLUSION rather than its own severity.
    */
-  it('filters the tree by severity, and an excluded marker only under Exclusions', () => {
-    const err = violation();
-    const warn = violation({ severity: 'warning', message: 'Warn' });
-    const excl = violation({ message: 'Excluded one' });
-    const key = `|${excl.code}|${excl.at.x}|${excl.at.y}|a|`;
-    open({ violations: [err, warn, excl], excluded: new Set([key]) });
+  it('filters the tree by severity, and an excluded marker only under Exclusions', async () => {
+    // No cross-probe: the headless frame has no canvas for FocusOnItem to scroll.
+    const { dialog, run } = open({
+      ercDialogSettings: () => ({
+        crossprobe: false,
+        scroll_on_crossprobe: false,
+        show_all_errors: false,
+      }),
+    });
+    await run();
+    const all = rows();
+    expect(all.some((r) => r.startsWith('Error: '))).toBe(true);
+    expect(all.some((r) => r.startsWith('Warning: '))).toBe(true);
 
-    const rows = (): string[] =>
-      Array.from(document.querySelectorAll('.ze-erc-row .msg')).map((m) => m.textContent ?? '');
-    expect(rows()).toStrictEqual(['Error: Pin not connected', 'Warning: Warn']);
+    act(() => {
+      fireEvent.click(checkbox(2)); // Warnings off
+    });
+    expect(rows().every((r) => r.startsWith('Error: '))).toBe(true);
 
-    const boxes = document.querySelectorAll('label.ze-check input');
-    fireEvent.click(boxes[2]!); // Warnings off
-    expect(rows()).toStrictEqual(['Error: Pin not connected']);
+    const first = rows()[0]!;
+    const count = (aRow: string) => rows().filter((r) => r === aRow).length;
+    const before = count(first);
+    act(() => {
+      dialog.m_markerDataView.Select(dialog.m_markerTreeModel.GetTree()[0]!);
+      dialog.ExcludeMarker();
+    });
+    expect(count(first)).toBe(before - 1);
 
-    fireEvent.click(boxes[3]!); // Exclusions on
-    expect(rows()).toStrictEqual(['Error: Pin not connected', 'Excluded error: Excluded one']);
+    act(() => {
+      fireEvent.click(checkbox(3)); // Exclusions on
+    });
+    expect(rows()).toContain(`Excluded error: ${first.slice('Error: '.length)}`);
+  });
+});
+
+describe('DIALOG_ERC::ExcludeMarker', () => {
+  /** `if( !marker || marker->IsExcluded() ) return;` - excluding twice keeps the comment. */
+  it('leaves an already excluded marker, and its comment, alone', async () => {
+    const { dialog, run } = open({
+      ercDialogSettings: () => ({
+        crossprobe: false,
+        scroll_on_crossprobe: false,
+        show_all_errors: false,
+      }),
+    });
+    await run();
+    const marker = dialog.m_markerTreeModel.GetTree()[0]!.m_RcItem!.GetParent() as SCH_MARKER;
+    act(() => dialog.m_markerProvider.SetMarkerExcluded(marker, true, 'reviewed'));
+    act(() => dialog.ExcludeMarker(marker));
+    expect(marker.GetComment()).toBe('reviewed');
   });
 });
 
 describe('DIALOG_ERC: NUMBER_BADGE', () => {
-  /**
-   * NUMBER_BADGE::UpdateNumber, number_badge.cpp:43-92. Zero is green for an
-   * error or warning and INVISIBLE for anything else, which is why the
-   * exclusions badge is absent on a clean board.
-   */
+  /** NUMBER_BADGE::UpdateNumber: zero is green for an error or warning, invisible otherwise. */
   it('UpdateNumber hides a negative, and hides a zero exclusion count', () => {
     expect(ercBadge(-1, 'error')).toBeNull();
     expect(ercBadge(-1, 'warning')).toBeNull();
@@ -230,7 +230,7 @@ describe('DIALOG_ERC: NUMBER_BADGE', () => {
     expect(ercBadge(3, 'exclusion')).toStrictEqual({ text: '3', kind: 'excl' });
   });
 
-  /** SetMaximumNumber( 999 ) (dialog_erc.cpp:137-139) + number_badge.cpp:177-180. */
+  /** SetMaximumNumber( 999 ) + number_badge.cpp:177-180. */
   it('caps at the maximum with a trailing +', () => {
     expect(ERC_BADGE_MAX).toBe(999);
     expect(ercBadge(999, 'error')).toStrictEqual({ text: '999', kind: 'err' });
@@ -238,50 +238,34 @@ describe('DIALOG_ERC: NUMBER_BADGE', () => {
     expect(ercBadge(1000, 'warning')).toStrictEqual({ text: '999+', kind: 'warn' });
   });
 
-  /**
-   * updateDisplayedCounts passes -1 for errors and warnings only while
-   * !m_ercRun, so before a run there are no badges at all.
-   */
+  /** updateDisplayedCounts passes -1 for errors and warnings only while !m_ercRun. */
   it('draws nothing before ERC has been run', () => {
-    open({ violations: null });
+    open();
     expect(badges()).toStrictEqual([]);
   });
 
-  /** After a clean run: green zeros for errors and warnings, no exclusion badge. */
-  it('draws two green zeros after a clean run', () => {
-    open({ violations: [] });
-    expect(badges()).toStrictEqual([
-      { text: '0', kind: 'zero' },
-      { text: '0', kind: 'zero' },
-    ]);
-  });
-
   /**
-   * SHEETLIST_ERC_ITEMS_PROVIDER::GetCount( aSeverity ) totals every marker of
-   * that severity whatever the filter is showing, while GetCount() with no
-   * argument returns the FILTERED size (erc_settings.cpp:445-462). So the tab
-   * count and the badges disagree on purpose — the manual's own capture reads
-   * "Violations (25)" beside a 999+ warnings badge.
+   * GetCount( aSeverity ) totals every marker of that severity whatever the filter shows, while
+   * the tab counts the filtered list: the two disagree on purpose.
    */
-  it('badges count every marker while the tab counts the shown ones', () => {
-    open({ violations: [violation(), violation({ severity: 'warning' })] });
-    const boxes = document.querySelectorAll('label.ze-check input');
-    fireEvent.click(boxes[2]!); // Warnings off
+  it('badges count every marker while the tab counts the shown ones', async () => {
+    const { dialog, run } = open();
+    await run();
+    const errors = dialog.m_markerProvider.GetCount(0x20);
+    const warnings = dialog.m_markerProvider.GetCount(0x10);
+    act(() => {
+      fireEvent.click(checkbox(2)); // Warnings off
+    });
     expect(badges()).toStrictEqual([
-      { text: '1', kind: 'err' },
-      { text: '1', kind: 'warn' },
+      { text: `${errors}`, kind: 'err' },
+      { text: `${warnings}`, kind: 'warn' },
     ]);
-    expect(screen.getByText('Violations (1)')).toBeTruthy();
+    expect(screen.getByText(`Violations (${errors})`)).toBeTruthy();
   });
 });
 
 describe('DIALOG_ERC: the button row', () => {
-  /**
-   * m_deleteOneMarker, m_deleteAllMarkers, then the wxStdDialogButtonSizer,
-   * whose wxID_OK and wxID_CANCEL are relabelled "Run ERC" and "Close" by
-   * SetupStandardButtons (dialog_erc.cpp:130-131). GTK orders the standard
-   * sizer Cancel-then-OK, which is the order the manual's capture shows.
-   */
+  /** SetupStandardButtons relabels wxID_OK / wxID_CANCEL; GTK orders Cancel then OK. */
   it('is Delete Marker / Delete All Markers / Close / Run ERC', () => {
     open();
     expect(buttonRow().map((b) => b.label)).toStrictEqual([
@@ -292,14 +276,9 @@ describe('DIALOG_ERC: the button row', () => {
     ]);
   });
 
-  /**
-   * DIALOG_ERC touches Enable() in exactly two places, both inside
-   * OnRunERCClick (dialog_erc.cpp:523-525 and 565-568). There is no selection
-   * condition and no empty-list condition: DeleteItems answers Delete Marker
-   * with no current item by ringing the bell (rc_item.cpp:664-668).
-   */
+  /** DIALOG_ERC touches Enable() only inside OnRunERCClick. */
   it('leaves both delete buttons live with no selection and no markers', () => {
-    open({ violations: [] });
+    open();
     expect(buttonRow()).toStrictEqual([
       { label: 'Delete Marker', disabled: false },
       { label: 'Delete All Markers', disabled: false },
@@ -308,104 +287,114 @@ describe('DIALOG_ERC: the button row', () => {
     ]);
   });
 
-  /** m_sdbSizer1Cancel->SetLabel( _( "Cancel" ) ) while a run is in flight. */
-  it('disables all but Cancel during a run', () => {
-    open({ running: ['Checking pins...'], violations: [violation()] });
-    expect(buttonRow()).toStrictEqual([
-      { label: 'Delete Marker', disabled: true },
-      { label: 'Delete All Markers', disabled: true },
-      { label: 'Cancel', disabled: false },
-      { label: 'Run ERC', disabled: true },
+  /** m_sdbSizer1Cancel->SetLabel( _( "Cancel" ) ) and the rest disabled while a run is in flight. */
+  it('disables all but Cancel during a run, and shows the running page', async () => {
+    let release: () => void = () => {};
+    const { dialog } = open({
+      blockUntilLoaded: () => new Promise<void>((r) => (release = r)),
+    });
+    const done = dialog.OnRunERCClick();
+    try {
+      await act(async () => {});
+      expect(buttonRow()).toStrictEqual([
+        { label: 'Delete Marker', disabled: true },
+        { label: 'Delete All Markers', disabled: true },
+        { label: 'Cancel', disabled: false },
+        { label: 'Run ERC', disabled: true },
+      ]);
+      expect(screen.getByText('Save...').hasAttribute('disabled')).toBe(true);
+    } finally {
+      release();
+      await act(async () => {
+        await done;
+      });
+    }
+    expect(buttonRow().map((b) => b.label)).toStrictEqual([
+      'Delete Marker',
+      'Delete All Markers',
+      'Close',
+      'Run ERC',
     ]);
-    expect(screen.getByText('Save...').hasAttribute('disabled')).toBe(true);
   });
 });
 
 describe('DIALOG_ERC: the marker tree', () => {
   /**
-   * RC_TREE_MODEL::rebuildModel, rc_item.cpp:363-383. One child per non-null
-   * item id — MAIN_ITEM, AUX_ITEM, AUX_ITEM2, AUX_ITEM3 — and the COMMENT node
-   * pushed AFTER them.
+   * RC_TREE_MODEL::rebuildModel: one child per non-null item id - MAIN_ITEM, AUX_ITEM, AUX_ITEM2,
+   * AUX_ITEM3 - and the COMMENT node pushed AFTER them.
    */
   it('gives a marker four item rows and puts the comment last', () => {
-    const v = violation({ items: ['a', 'b', 'c', 'd', 'e'] });
-    const key = `|${v.code}|${v.at.x}|${v.at.y}|a|b`;
-    open({
-      violations: [v],
-      excluded: new Set([key]),
-      exclusionComments: new Map([[key, 'reviewed']]),
+    const { frame, dialog } = open();
+    const screenItems = [...frame.GetScreen()!.Items()].filter(
+      (i) => i.Type() === KICAD_T.SCH_LINE_T,
+    );
+    const ercItem = ERC_ITEM.Create(ERCE_T.ERCE_WIRE_DANGLING)!;
+    ercItem.SetItems(
+      screenItems[0]!.m_Uuid,
+      screenItems[1]!.m_Uuid,
+      screenItems[2]!.m_Uuid,
+      screenItems[3]!.m_Uuid,
+    );
+    const marker = new SCH_MARKER(ercItem, { x: 0, y: 0 });
+    marker.SetExcluded(true, 'reviewed');
+    frame.GetScreen()!.Append(marker);
+    act(() => {
+      fireEvent.click(checkbox(3)); // Exclusions on
     });
-    const boxes = document.querySelectorAll('label.ze-check input');
-    fireEvent.click(boxes[3]!); // show exclusions
+    act(() => dialog.UpdateData());
 
     const item = document.querySelector('.ze-erc-item')!;
-    expect(
-      Array.from(item.querySelectorAll('.ze-erc-subrow')).map((r) => r.textContent),
-    ).toStrictEqual(['a', 'b', 'c', 'd', 'reviewed']);
+    const children = Array.from(item.querySelectorAll('.ze-erc-subrow'));
+    expect(children.length).toBe(5);
+    expect(children[4]!.textContent).toBe('reviewed');
   });
 
-  /**
-   * The column is m_view->AppendTextColumn( wxEmptyString, 0, ... )
-   * (rc_item.cpp:406) — ONE text column, no bitmap renderer — and GetValue
-   * builds the whole row as text: "Error: " / "Warning: " / "Excluded error: "
-   * ahead of the message (rc_item.cpp:495-518), with GetAttr setting only bold
-   * on the heading (rc_item.cpp:566-574). There is no severity glyph to draw.
-   */
-  it('prefixes the heading with its severity as text and draws no icon', () => {
-    open({ violations: [violation(), violation({ severity: 'warning', message: 'Loose end' })] });
-    expect(
-      Array.from(document.querySelectorAll('.ze-erc-row .msg')).map((m) => m.textContent),
-    ).toStrictEqual(['Error: Pin not connected', 'Warning: Loose end']);
+  /** GetValue builds the row as text: "Error: " / "Warning: " ahead of the message; no glyph. */
+  it('prefixes the heading with its severity as text and draws no icon', async () => {
+    const { run } = open();
+    await run();
+    expect(rows().every((r) => /^(Error|Warning): /.test(r))).toBe(true);
     expect(document.querySelectorAll('.ze-erc-row img').length).toBe(0);
-    expect(document.querySelectorAll('.ze-erc-row .sev').length).toBe(0);
   });
 
-  /**
-   * m_notebook's two pages, with updateDisplayedCounts stripping the "(%s)"
-   * from both titles until m_ercRun (dialog_erc.cpp:355-380). An equality, so
-   * a third tab fails.
-   */
-  it('is a two-page notebook whose counts appear only after a run', () => {
+  /** updateDisplayedCounts strips "(%s)" from both titles until m_ercRun. */
+  it('is a two-page notebook whose counts appear only after a run', async () => {
     const tabs = (): string[] =>
-      // m_notebook's tabs: the tablist the Violations tab is in.
       Array.from(
         screen.getByRole('tab', { name: /^Violations/ }).closest('[role=tablist]')!.children,
       ).map((t) => t.textContent ?? '');
-    open({ violations: null, ignoredTests: ['Pin not connected'] });
+    const { dialog, run } = open();
     expect(tabs()).toStrictEqual(['Violations', 'Ignored Tests']);
-    cleanup();
-    open({ violations: [violation()], ignoredTests: ['Pin not connected'] });
-    expect(tabs()).toStrictEqual(['Violations (1)', 'Ignored Tests (1)']);
+    await run();
+    expect(tabs()).toStrictEqual([
+      `Violations (${dialog.m_markerProvider.GetCount()})`,
+      'Ignored Tests (' + dialog.m_ignoredList.length + ')',
+    ]);
   });
 
-  /**
-   * The Ignored Tests page is m_ignoredList plus the "Edit ignored tests"
-   * hyperlink (dialog_erc_base.cpp:110-118), and each row is
-   * wxT( " • " ) + GetErrorText() (dialog_erc.cpp:503).
-   */
-  it('bullets each ignored test and offers Edit ignored tests', () => {
-    open({ violations: [], ignoredTests: ['Pin not connected'], onEditSeverities: NOOP });
-    fireEvent.click(screen.getByText('Ignored Tests (1)'));
-    expect(
-      screen.getByRole('tab', { name: 'Ignored Tests (1)' }).getAttribute('aria-selected'),
-    ).toBe('true');
+  /** Each ignored row is wxT( " • " ) + GetErrorText(); the page offers "Edit ignored tests". */
+  it('bullets each ignored test and offers Edit ignored tests', async () => {
+    const { frame, run } = open();
+    frame.Schematic().ErcSettings().SetSeverity(ERCE_T.ERCE_PIN_NOT_CONNECTED, RPT_SEVERITY_IGNORE);
+    await run();
+    const ignored = screen.getByRole('tab', { name: /^Ignored Tests/ });
+    act(() => {
+      fireEvent.click(ignored);
+    });
     expect(screen.getByText('• Pin not connected')).toBeTruthy();
     expect(screen.getByText('Edit ignored tests')).toBeTruthy();
   });
 });
 
 describe('DIALOG_ERC: chrome', () => {
-  /** m_bMenu->SetBitmap( KiBitmapBundle( BITMAPS::config ) ), dialog_erc.cpp:98. */
+  /** m_bMenu->SetBitmap( KiBitmapBundle( BITMAPS::config ) ). */
   it('puts KiCad config bitmap on the options button', () => {
     open();
     const img = screen.getByLabelText('Options').querySelector('img');
     expect(img?.getAttribute('src')).toBe(bitmapUrl('config'));
   });
 
-  /**
-   * The gear opens a three-item wxMenu, all wxITEM_CHECK
-   * (dialog_erc.cpp:238-260). An equality, so a fourth entry fails.
-   */
+  /** The gear opens a three-item wxMenu, all wxITEM_CHECK. */
   it('offers exactly the three config toggles', () => {
     open();
     fireEvent.click(screen.getByLabelText('Options'));
@@ -414,30 +403,27 @@ describe('DIALOG_ERC: chrome', () => {
     ).toStrictEqual(['Cross-probe Selected Items', 'Center on Cross-probe', 'Show all errors']);
   });
 
-  /**
-   * DIALOG_ERC_BASE's default style is wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER
-   * (dialog_erc_base.h:105), and a resize border is what makes the window
-   * manager offer maximise as well. happy-dom loads no stylesheet, so the rule
-   * itself is what is read.
-   */
+  /** wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER: DialogShim's eight resize grips. */
   it('carries the wxRESIZE_BORDER as resize grips', () => {
-    // DialogShim draws its eight resize grips unless a dialog says resizable={false}.
     open();
     expect(document.querySelectorAll('.ze-shim-grip').length).toBe(8);
   });
 
-  describe('DIALOG_ERC: m_runningResultsBook', () => {
-    /** The running page is shown while a run is in flight, the results page otherwise. */
-    it('shows the running page during a run and the results after', () => {
-      const page = (text: RegExp | string) =>
-        (screen.getByText(text).closest('.ze-simplebook-page') as HTMLElement).hasAttribute(
-          'data-hide',
-        );
-      open({ running: ['Checking sheet names...'] });
-      expect(page('Tests Running...')).toBe(false);
-      cleanup();
-      open({ violations: [], running: null });
-      expect(page('Tests Running...')).toBe(true);
+  /** The report the dialog writes is ERC_REPORT's, text or JSON by the chosen extension. */
+  it('saves the ERC_REPORT text or JSON by extension', async () => {
+    const written: string[] = [];
+    const { run, dialog } = open({
+      saveReport: async (_name, aWrite) => {
+        written.push(aWrite('ERC.rpt')!, aWrite('ERC.json')!);
+        return 'ERC.rpt';
+      },
     });
+    await run();
+    await act(async () => {
+      await dialog.OnSaveReport();
+    });
+    expect(written[0]).toMatch(/^ERC report \(/);
+    expect(JSON.parse(written[1]!).$schema).toBe('https://schemas.kicad.org/erc.v1.json');
+    expect(dialog.m_messages.at(-1)).toBe("Report file 'ERC.rpt' created.");
   });
 });

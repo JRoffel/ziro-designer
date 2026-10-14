@@ -8,6 +8,7 @@
  * index, each footprint's file fetched the first time it is asked for.
  */
 import { LIB_ID } from '@ziroeda/common/lib_id.js';
+import { IFACE as CVPCB_IFACE } from '@ziroeda/cvpcb/cvpcb.js';
 import type { FOOTPRINT } from '@ziroeda/pcbnew/footprint.js';
 import {
   FOOTPRINT_LIBRARY_STORE,
@@ -61,7 +62,21 @@ export function hostedFootprintLibs(): Promise<FOOTPRINT_LIBRARY_STORE> {
       // No index: every lookup answers null, "Footprint not found.".
     });
 
-  return s_indexed.then(() => store);
+  return s_indexed.then(() => {
+    s_cvpcb ??= new CVPCB_IFACE(store);
+    return store;
+  });
+}
+
+let s_cvpcb: CVPCB_IFACE | null = null;
+
+/**
+ * `KIWAY::KiFACE( FACE_CVPCB )`: the cvpcb kiface over the program's footprint store, once the
+ * store's index has loaded (`BlockUntilLoaded` is the caller's `await hostedFootprintLibs()`);
+ * null before then, as a kiface that failed to load is.
+ */
+export function cvpcbKiface(): CVPCB_IFACE | null {
+  return s_cvpcb;
 }
 
 /**

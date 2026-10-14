@@ -19,8 +19,13 @@ import { writeSchematic } from './sch_io/sexpr/write-schematic.js';
 import { parse } from '@ziroeda/sexpr/parser.js';
 import { readSchematic } from './sch_io/sexpr/read-schematic.js';
 import { SCH_IO_KICAD_SEXPR } from './sch_io/kicad_sexpr/sch_io_kicad_sexpr.js';
-import type { SCH_SCREEN } from './sch_screen.js';
+import { SCH_SCREENS, type SCH_SCREEN } from './sch_screen.js';
 import type { SCHEMATIC } from './schematic.js';
+import { Pgm } from '@ziroeda/common/pgm_base.js';
+import type { PROJECT } from '@ziroeda/common/project.js';
+import { LoadSchematic } from './eeschema_helpers.js';
+import { KICAD_T } from '@ziroeda/core/typeinfo.js';
+import type { SCH_MARKER } from './sch_marker.js';
 
 export interface RecordProject {
   /**
@@ -61,22 +66,42 @@ export function openRecordsLive(aFrame: SCH_EDIT_FRAME, aProject: RecordProject)
 }
 
 /**
+ * \a aProject's records loaded as a schematic of their own (`EESCHEMA_HELPERS::LoadSchematic`,
+ * what kicad-cli runs), under \a aPrj: for a check that must not touch the editor's screens.
+ */
+export function loadRecordsDetached(aProject: RecordProject, aPrj: PROJECT): SCHEMATIC | null {
+  const texts = new Map<string, string>();
+
+  for (const f of aProject.files) texts.set(`${aProject.dir}/${base(f.name)}`, f.text);
+
+  for (const [file, sheet] of aProject.docs)
+    texts.set(`${aProject.dir}/${file}`, serialize(writeSchematic(sheet)));
+
+  return LoadSchematic(`${aProject.dir}/${aProject.root}`, aPrj, (p) => texts.get(p) ?? null);
+}
+
+/**
  * The live mirror of a window's records: `get()` answers the live schematic, rebuilding it
  * first when any sheet's record is not the one it was built from.
  */
 export class LIVE_SCHEMATIC_MIRROR {
   private m_builtFrom: Map<string, Schematic> | null = null;
   private m_live: SCHEMATIC | null = null;
+  /** The `.kicad_pro` text the live project last read or wrote. */
+  private m_proText: string | null = null;
 
   constructor(
     private readonly m_frame: SCH_EDIT_FRAME,
     private readonly m_project: () => RecordProject | null,
+    /** Told of each rebuild, with the schematic that replaced the last one. */
+    private readonly m_onRebuilt: (aSchematic: SCHEMATIC) => void = () => {},
   ) {}
 
   /** Forget the build (a different project opened). */
   Invalidate(): void {
     this.m_builtFrom = null;
     this.m_live = null;
+    this.m_proText = null;
   }
 
   /**
@@ -90,20 +115,65 @@ export class LIVE_SCHEMATIC_MIRROR {
     for (const [file, doc] of aDocs) this.m_builtFrom.set(file, doc);
   }
 
+  /** The live project wrote \a aText as its `.kicad_pro` (SETTINGS_MANAGER::SaveProject). */
+  NoteProjectSaved(aText: string): void {
+    this.m_proText = aText;
+  }
+
   get(): SCHEMATIC | null {
     const project = this.m_project();
 
     if (!project) return null;
 
+    const proText = project.files.find((f) => /\.kicad_pro$/i.test(f.name))?.text ?? null;
     const built = this.m_builtFrom;
+    const proChanged = built !== null && proText !== this.m_proText;
     const fresh =
       built !== null &&
+      !proChanged &&
       built.size === project.docs.size &&
       [...project.docs].every(([file, doc]) => built.get(file) === doc);
 
     if (!fresh) {
+      const previous = this.m_live;
+      const carried = new Map<string, SCH_MARKER[]>();
+
+      if (previous) {
+        // The excluded markers come back from the settings (OpenProjectFiles'
+        // ResolveERCExclusionsPostUpdate); the others ride across on their sheet's file.
+        previous.RecordERCExclusions();
+
+        const screens = new SCH_SCREENS(previous.Root());
+
+        for (let screen = screens.GetFirst(); screen; screen = screens.GetNext()) {
+          const markers = [...screen.Items().OfType(KICAD_T.SCH_MARKER_T)]
+            .map((m) => m as SCH_MARKER)
+            .filter((m) => !m.IsExcluded());
+
+          if (markers.length) carried.set(screen.GetFileName(), markers);
+        }
+      }
+
+      // The window's project file changed under the live project: reload it from the text.
+      if (proChanged) {
+        const prj = this.m_frame.Prj();
+
+        if (!prj.IsNullProject()) Pgm().GetSettingsManager().UnloadProject(prj);
+      }
+
       this.m_live = openRecordsLive(this.m_frame, project);
       this.m_builtFrom = new Map(project.docs);
+      this.m_proText = proText;
+
+      if (this.m_live) {
+        const screens = new SCH_SCREENS(this.m_live.Root());
+
+        for (let screen = screens.GetFirst(); screen; screen = screens.GetNext()) {
+          for (const marker of carried.get(screen.GetFileName()) ?? []) screen.Append(marker);
+        }
+
+        if (previous && previous !== this.m_live) this.m_onRebuilt(this.m_live);
+      }
     }
 
     return this.m_live;

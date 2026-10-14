@@ -10,7 +10,11 @@ import {
   schBridge,
   searchIndex,
 } from '@ziroeda/ai/sch_bridge.js';
-import { runErc } from '@ziroeda/eeschema/erc/erc.js';
+import { PGM_BASE, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
+import { PROJECT } from '@ziroeda/common/project.js';
+import { PROJECT_FILE } from '@ziroeda/common/project/project_file.js';
+import { loadRecordsDetached } from '@ziroeda/eeschema/sch_record_bridge.js';
+import { schErcLines } from '@ziroeda/eeschema/sch_script_api.js';
 import { enumeratePins, symbolBodyBBox } from '@ziroeda/eeschema';
 import { serializeSchematic } from '@ziroeda/eeschema/index.js';
 import type { SchScriptApi } from '@ziroeda/eeschema/sch_script_api.js';
@@ -18,7 +22,7 @@ import { readSchematic, readSymbolLib } from '@ziroeda/eeschema/sch_io/sexpr/rea
 import type { EditCommand } from '@ziroeda/eeschema/tools/command.js';
 import type { LibSymbol, Schematic } from '@ziroeda/eeschema/types.js';
 import { parse } from '@ziroeda/sexpr/index.js';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 const lib = (file: string, qualified: string): LibSymbol => {
   const [sym] = readSymbolLib(
@@ -66,6 +70,23 @@ const FP_INDEX = [
   { name: 'Package_TO_SOT_SMD', footprints: ['SOT-23', 'SOT-23-5'] },
 ];
 
+// The editor's ERC runs ERC_TESTER on the records loaded as a schematic of their own.
+beforeEach(() => SetPgm(new PGM_BASE(null, new SETTINGS_MANAGER())));
+afterEach(() => SetPgm(null));
+
+function liveErc(aDoc: Schematic) {
+  const project = new PROJECT();
+  project.setProjectFullName('/t/t.kicad_pro');
+  const file = new PROJECT_FILE('/t/t.kicad_pro');
+  project.setProjectFile(file);
+  file.LoadFromFile({});
+  const sch = loadRecordsDetached(
+    { dir: '/t', docs: new Map([['t.kicad_sch', aDoc]]), root: 't.kicad_sch', files: [] },
+    project,
+  );
+  return sch ? schErcLines(sch) : [];
+}
+
 function fakeEditor(): SchScriptApi & { undo(): void; commits: number } {
   let doc: Schematic = readSchematic(
     parse(
@@ -86,7 +107,7 @@ function fakeEditor(): SchScriptApi & { undo(): void; commits: number } {
     },
     annotatePlacement: (s) => s,
     loadSymbol: async (l, n) => LIBS[`${l}:${n}`],
-    erc: () => runErc(doc, new Map(doc.libSymbols.map((l) => [l.libId, l]))),
+    erc: () => liveErc(doc),
     symbolIndex: async () => [{ name: 'Device', symbols: ['R', 'C', 'R_Small'] }],
     footprintIndex: async () => FP_INDEX,
     snapshot: () => '',

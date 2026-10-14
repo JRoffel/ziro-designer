@@ -133,6 +133,11 @@ export interface EESCHEMA_APP {
   // ----- footprint libraries (ERC's footprint tests) ------------------------
   loadFootprintIndex(): Promise<readonly EeschemaFootprintIndexLibrary[]>;
   loadFootprint(libId: string): Promise<EeschemaFootprintPads | null>;
+  /**
+   * The footprint libraries loaded into the program's FOOTPRINT_LIBRARY_STORE, after which
+   * `KIWAY::KiFACE( FACE_CVPCB )` answers: `( *adapter )->BlockUntilLoaded()` for ERC.
+   */
+  loadFootprintLibraries(): Promise<void>;
 
   // ----- settings ----------------------------------------------------------
   settings: EESCHEMA_SETTINGS_STORE;

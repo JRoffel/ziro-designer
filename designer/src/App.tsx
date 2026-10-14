@@ -5,7 +5,8 @@ import { FRAME_T } from '@ziroeda/common/frame_type.js';
 import { AiDock, aiEnabled, registerAiBridge } from '@ziroeda/ai';
 import { appBridge, designDocName } from '@ziroeda/ai/app_bridge.js';
 import { MAIL_T } from '@ziroeda/common/mail_type.js';
-import { KIWAY } from '@ziroeda/common/kiway.js';
+import { FACE_T, KIWAY } from '@ziroeda/common/kiway.js';
+import { cvpcbKiface } from './editors/pcb/footprint_lib_adapter_app.js';
 import {
   useEffect,
   useMemo,
@@ -1559,6 +1560,7 @@ export function App(): JSX.Element {
       // The library tables and Configure Paths are raised by the editors that
       // own them, not through a KIWAY here.
       CreateKiWindow: () => false,
+      KiFACE: (aFaceId) => (aFaceId === FACE_T.FACE_CVPCB ? cvpcbKiface() : null),
     });
   }, [goHome, mountFor]);
   kiwayRef.current = kiway;

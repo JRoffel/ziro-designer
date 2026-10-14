@@ -38,7 +38,6 @@ import type {
   EditCommand,
   EditedLabelField,
   EditHandle,
-  ErcViolation,
   ItemRef,
   LabelKind,
   LabelShape,

@@ -18,7 +18,6 @@ import {
 import { comparePageNum } from '@ziroeda/eeschema/sch_sheet_path.js';
 import { existsSync, readFileSync } from 'node:fs';
 import { moveItems } from '@ziroeda/eeschema/tools/move.js';
-import { runErc } from '@ziroeda/eeschema/erc/erc.js';
 import { mmToIU } from '@ziroeda/common/eda_units.js';
 
 const SHEET = `(sheet (at 100 50) (size 40 30)
@@ -65,15 +64,6 @@ describe('SCH_SHEET model', () => {
     const re = readSchematic(writeSchematic(moved));
     expect(re.sheets[0]!.at).toEqual({ x: mmToIU(110), y: mmToIU(45) });
     expect(re.sheets[0]!.pins[0]!.at).toEqual({ x: mmToIU(110), y: mmToIU(55) });
-  });
-
-  it('sheet pins join the netlist, so a wire into one is neither dangling nor an ERC fault', () => {
-    // Wire from a sheet pin to nothing else: exempt from single-sheet ERC checks.
-    const d = doc(`${SHEET} (wire (pts (xy 140 60) (xy 160 60)) (uuid "w1"))
-      (label "VOUT" (at 160 60 0) (uuid "l1"))`);
-    const violations = runErc(d, new Map());
-    expect(violations.filter((v) => v.code === 'label_dangling')).toEqual([]);
-    expect(violations.filter((v) => v.code === 'isolated_pin_label')).toEqual([]);
   });
 });
 

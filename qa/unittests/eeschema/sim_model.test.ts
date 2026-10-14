@@ -10,9 +10,9 @@ import { describe, expect, it } from 'vitest';
 import { parse } from '@ziroeda/sexpr/index.js';
 import { readSchematic } from '@ziroeda/eeschema';
 import {
-  checkSimModel,
   findSpiceModel,
   readTypeFromFields,
+  simModelTypeIssue,
 } from '@ziroeda/eeschema/sim/sim_model.js';
 
 /** A two-pin symbol with the given fields. */
@@ -59,17 +59,15 @@ describe('readTypeFromFields', () => {
   });
 });
 
-describe('checkSimModel', () => {
-  const noLibraries = () => undefined;
-
+describe('simModelTypeIssue', () => {
   it('says nothing about a plain RLC symbol (InferSimModel covers it)', () => {
     const { fields, pins } = symbolWith('(property "Value" "10k" (at 10 10 0))');
-    expect(checkSimModel(fields, pins, noLibraries)).toEqual([]);
+    expect(simModelTypeIssue(fields, pins)).toBeNull();
   });
 
   it('says nothing about a behavioural RLC value either', () => {
     const { fields, pins } = symbolWith('(property "Value" "V(1)*2" (at 10 10 0))');
-    expect(checkSimModel(fields, pins, noLibraries)).toEqual([]);
+    expect(simModelTypeIssue(fields, pins)).toBeNull();
   });
 
   it('reports a Sim.Type that no device provides', () => {
@@ -81,47 +79,9 @@ describe('checkSimModel', () => {
     );
     // kicad-cli's message for the same fields (erc_cases/sim_models U1): CreateModel copies the
     // Reference as a USER field, so ReadTypeFromFields never finds one to name.
-    expect(checkSimModel(fields, pins, noLibraries)).toEqual([
-      { message: 'No simulation model definition found.' },
-    ]);
-  });
-
-  it('reports a missing library, a missing Sim.Name and an unknown base model', () => {
-    const withLib = (extra: string) =>
-      symbolWith(
-        `(property "Value" "X" (at 10 10 0))
-         (property "Sim.Library" "models.lib" (at 10 10 0))
-         ${extra}`,
-        'U1',
-      );
-
-    // The library cannot be resolved at all.
-    const missing = withLib('(property "Sim.Name" "OPA" (at 10 10 0))');
-    expect(checkSimModel(missing.fields, missing.pins, noLibraries)).toEqual([
-      { message: "Simulation model library not found at 'models.lib'" },
-    ]);
-
-    const library = '.subckt OPA1 1 2 3\n.ends\n.MODEL DIODE1 D\n';
-    const resolve = (path: string) => (path === 'models.lib' ? library : undefined);
-
-    // Present, but the symbol names no model.
-    const noName = withLib('');
-    expect(checkSimModel(noName.fields, noName.pins, resolve)).toEqual([
-      { message: "Error loading simulation model: no 'Sim.Name' field" },
-    ]);
-
-    // Present, but the model isn't in it.
-    const unknown = withLib('(property "Sim.Name" "OPA" (at 10 10 0))');
-    expect(checkSimModel(unknown.fields, unknown.pins, resolve)).toEqual([
-      {
-        message:
-          "Error loading simulation model: could not find base model 'OPA' in library 'models.lib'",
-      },
-    ]);
-
-    // …and nothing at all when the model is there (case-insensitively).
-    const ok = withLib('(property "Sim.Name" "diode1" (at 10 10 0))');
-    expect(checkSimModel(ok.fields, ok.pins, resolve)).toEqual([]);
+    expect(simModelTypeIssue(fields, pins)).toEqual({
+      message: 'No simulation model definition found.',
+    });
   });
 });
 

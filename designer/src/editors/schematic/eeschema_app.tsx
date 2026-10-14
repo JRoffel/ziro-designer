@@ -20,7 +20,7 @@ import { HomeLink } from '../../ui/HomeLink.js';
 import { useToolbarEntries } from '../../ui/useToolbarEntries.js';
 import { DialogSymLibTable } from '../../widgets/dialog_sym_lib_table.js';
 import { loadFootprintIndex } from '../../widgets/footprint_list.js';
-import { loadLibraryFootprint } from '../pcb/footprint_lib_adapter_app.js';
+import { hostedFootprintLibs, loadLibraryFootprint } from '../pcb/footprint_lib_adapter_app.js';
 import { FootprintChooserFrame } from '../pcb/dialogs/footprint_chooser_frame.js';
 import {
   libraryUri,
@@ -127,6 +127,8 @@ export function useEeschemaApp(): EESCHEMA_APP {
         loadLibraryFootprint(libId).then((fp) =>
           fp ? { pads: fp.Pads().map((p) => ({ number: p.GetNumber() })) } : null,
         ),
+
+      loadFootprintLibraries: () => hostedFootprintLibs().then(() => {}),
 
       loadIndex,
       loadSymbol,

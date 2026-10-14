@@ -351,6 +351,16 @@ const downloadsMount = (): MEMORY_FILESYSTEM => {
   return s_downloads;
 };
 
+/**
+ * The global table's row URI for a hosted library: its download folder, a KiCad 10 symbol
+ * library directory (`SCH_IO_KICAD_SEXPR` reads one `.kicad_sym` per symbol from it), made so
+ * the library reads as present before any of its symbols has been fetched.
+ */
+export function hostedSymbolLibraryUri(aNickname: string): string {
+  downloadsMount().Mkdir(aNickname);
+  return `${SYMBOL_DOWNLOAD_DIR}/${aNickname}`;
+}
+
 const hostedFiles = new Map<string, Promise<string | null>>();
 
 /**

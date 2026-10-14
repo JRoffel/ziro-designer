@@ -12,7 +12,12 @@ import { PROJECT } from '@ziroeda/common/project.js';
 import { PROJECT_FILE } from '@ziroeda/common/project/project_file.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { ERC_TESTER } from '@ziroeda/eeschema/erc/erc.js';
-import { ERCE_T } from '@ziroeda/eeschema/erc/erc_settings.js';
+import { ERCE_T, PIN_ERROR } from '@ziroeda/eeschema/erc/erc_settings.js';
+import {
+  RPT_SEVERITY_ERROR,
+  RPT_SEVERITY_IGNORE,
+  RPT_SEVERITY_WARNING,
+} from '@ziroeda/common/reporter.js';
 import { LIB_SYMBOL } from '@ziroeda/eeschema/lib_symbol.js';
 import { SCH_LABEL } from '@ziroeda/eeschema/sch_label.js';
 import { SCH_LINE } from '@ziroeda/eeschema/sch_line.js';
@@ -106,7 +111,22 @@ function sheet() {
     ]);
   };
 
-  return { symbol, wire, run, partners, label, runGround };
+  /** The pin-to-pin markers' RC severities (MARKER_BASE::GetSeverity, the project's rule). */
+  const severities = () =>
+    (screen.Items().OfType(KICAD_T.SCH_MARKER_T) as unknown as SCH_MARKER[]).map((m) =>
+      m.GetSeverity(),
+    );
+
+  return {
+    symbol,
+    wire,
+    run,
+    partners,
+    label,
+    runGround,
+    severities,
+    settings: () => schematic.ErcSettings(),
+  };
 }
 
 const { PT_OUTPUT, PT_TRISTATE, PT_UNSPECIFIED, PT_INPUT, PT_POWER_IN, PT_PASSIVE } =
@@ -196,5 +216,42 @@ describe('ERC_TESTER::TestGroundPins', () => {
     expect(runGround()).toEqual([
       [ERCE_T.ERCE_GROUND_PIN_NOT_GROUND, 'Pin EARTH_A not connected to ground net'],
     ]);
+  });
+});
+
+describe("ERC_TESTER::TestPinToPin, the project's settings", () => {
+  it('reads the pin map: a cell set to OK drops the conflict, one set to warning lowers it', () => {
+    const ok = sheet();
+    ok.settings().SetPinMapValue(PT_OUTPUT, PT_OUTPUT, PIN_ERROR.OK);
+    ok.symbol(0, [PT_OUTPUT]);
+    ok.symbol(0, [PT_OUTPUT]);
+    expect(ok.run()).toEqual({ errors: 0, markers: [] });
+
+    const warn = sheet();
+    warn.settings().SetPinMapValue(PT_OUTPUT, PT_OUTPUT, PIN_ERROR.WARNING);
+    warn.symbol(0, [PT_OUTPUT]);
+    warn.symbol(0, [PT_OUTPUT]);
+    expect(warn.run().markers).toEqual([
+      [ERCE_T.ERCE_PIN_TO_PIN_WARNING, 'Pins of type Output and Output are connected', 0],
+    ]);
+  });
+
+  it("gives a marker its rule's severity, pin-to-pin's through ERC_SETTINGS' special case", () => {
+    const driven = sheet();
+    driven.settings().SetSeverity(ERCE_T.ERCE_PIN_NOT_DRIVEN, RPT_SEVERITY_WARNING);
+    driven.symbol(0, [PT_INPUT]);
+    driven.run();
+    expect(driven.severities()).toEqual([RPT_SEVERITY_WARNING]);
+
+    // ERC_SETTINGS::GetSeverity: a pin-to-pin error stays an error whatever its own rule says;
+    // only ERCE_PIN_TO_PIN_WARNING set to ignore silences both.
+    const p2p = sheet();
+    p2p.settings().SetSeverity(ERCE_T.ERCE_PIN_TO_PIN_ERROR, RPT_SEVERITY_WARNING);
+    p2p.symbol(0, [PT_OUTPUT]);
+    p2p.symbol(0, [PT_OUTPUT]);
+    p2p.run();
+    expect(p2p.severities()).toEqual([RPT_SEVERITY_ERROR]);
+    p2p.settings().SetSeverity(ERCE_T.ERCE_PIN_TO_PIN_WARNING, RPT_SEVERITY_IGNORE);
+    expect(p2p.severities()).toEqual([RPT_SEVERITY_IGNORE]);
   });
 });

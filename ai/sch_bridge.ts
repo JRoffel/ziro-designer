@@ -1049,21 +1049,13 @@ function pinHintsIn(doc: Schematic, applyErrors: readonly string[]): string[] {
   return out;
 }
 
-/** The editor's ERC on the sheet as it stands, pins as REF.PIN. */
+/** The editor's ERC on the hierarchy as it stands, pins as REF.PIN. */
 export function ercText(api: SchScriptApi): string {
-  const doc = api.doc();
-  if (!doc) return 'no schematic open';
-  const pins = enumeratePins(doc, libMap(doc));
-  const names = pinLabels(pins);
-  const refOf = new Map<string, string>();
-  doc.symbols.forEach((s, i) => refOf.set(refId('symbol', s.uuid, i), reference(s)));
+  if (!api.doc()) return 'no schematic open';
   const lines = new Set<string>();
   for (const v of api.erc()) {
-    const items = [
-      ...new Set(v.items.map((id) => names.get(id) ?? refOf.get(id) ?? itemName(doc, id) ?? '')),
-    ].filter(Boolean);
     lines.add(
-      `${v.severity} ${v.code}: ${v.message}${items.length ? ` [${items.join(' ')}]` : ''}`,
+      `${v.severity} ${v.code}: ${v.message}${v.items.length ? ` [${v.items.join(' ')}]` : ''}`,
     );
   }
   return lines.size ? [`${lines.size} ERC violations:`, ...lines].join('\n') : 'ERC clean';

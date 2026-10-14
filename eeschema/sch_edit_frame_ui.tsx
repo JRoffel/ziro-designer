@@ -46,6 +46,7 @@ import type { SCH_JUNCTION } from './sch_junction.js';
 import { color4dToItemColor, itemColorToColor4d } from './dialogs/item_color.js';
 import { type ChooserFilter, type OpenedFile, WxFileDialog } from '@ziroeda/wx/filedlg.js';
 import { WxTextEntryDialog } from '@ziroeda/wx/textdlg.js';
+import { WX_TEXT_ENTRY_DIALOG } from '@ziroeda/common/dialogs/dialog_text_entry.js';
 import { wxFD_FILE_MUST_EXIST, wxFD_OPEN, wxFD_SAVE } from '@ziroeda/wx/defs.js';
 import { wxID_CANCEL, wxID_OK } from '@ziroeda/wx/menu.js';
 import { type KICAD_MESSAGE_DIALOG_ARG, ShowKicadMessageDialog } from '@ziroeda/common/confirm.js';
@@ -133,18 +134,10 @@ import {
   setSymbolsCommand,
   type AnnotateSheet,
   type AnnotateOptions,
-  type ErcRunOptions,
-  type ExternalPin,
-  type ExternalSymbol,
-  type ExternalLabel,
   computeHierarchyNetlist,
   enumeratePins,
-  runErc,
-  runErcSteps,
   ERC_ITEMS,
-  ercExclusionKey,
   type LibPin,
-  ercParentId,
   electricalPinTypeGetText,
   pinShapeGetText,
   symbolEditorRequest,
@@ -167,7 +160,6 @@ import {
   type EditCommand,
   type LabelShape,
   type PastePayload,
-  type ErcViolation,
   type SheetTreeNode,
   type ItemRef,
   describeItem,
@@ -189,7 +181,7 @@ import {
   DialogSymbolProperties,
   type SYMBOL_DIALOG_VALUES,
 } from './dialogs/dialog_symbol_properties.js';
-import { ErcDialog, type ErcDialogNav } from './dialogs/dialog_erc.js';
+import { DIALOG_ERC, DialogErc, type DIALOG_ERC_WINDOW } from './dialogs/dialog_erc.js';
 import type { PickedSymbol, SymbolChooserResult } from './picksymbol.js';
 import { repairSourceLibs } from './browser/repair_source.js';
 import {
@@ -205,7 +197,7 @@ import {
   legacyCacheFileNames,
   readLegacySymbolLibrary,
 } from './sch_io/kicad_legacy/sch_io_kicad_legacy_lib_cache.js';
-import { legacySchLibs } from './project_sch.js';
+import { legacySchLibs, SymbolLibAdapter } from './project_sch.js';
 import {
   legacyLibrarySymbols,
   legacyRootFile,
@@ -233,7 +225,25 @@ import {
   revertPromptMessage,
   savedFileMessage,
 } from './files-io.js';
-import { MessageDialogOk, MessageDialogYesNo } from '@ziroeda/common/dialogs/dialog_message.js';
+import {
+  MessageDialogOk,
+  MessageDialogYesNo,
+  MessageDialogYesNoCancel,
+} from '@ziroeda/common/dialogs/dialog_message.js';
+import { Pgm } from '@ziroeda/common/pgm_base.js';
+import {
+  LIBRARY_TABLE,
+  LIBRARY_TABLE_SCOPE,
+  LIBRARY_TABLE_TYPE,
+} from '@ziroeda/common/libraries/library_table.js';
+import { hostedLibraryTable } from '@ziroeda/common/dialogs/lib_table_panel.js';
+import { jsonFileWildcard, reportFileWildcard } from '@ziroeda/common/wildcards_and_files_ext.js';
+import { KICAD_T } from '@ziroeda/core/typeinfo.js';
+import {
+  fetchHostedSymbolFile,
+  hostedSymbolLibraryUri,
+} from './libraries/symbol_library_adapter.js';
+import { type SchErcLine, schErcLines } from './sch_script_api.js';
 import { INFO_CAPTION } from '@ziroeda/common/confirm_types.js';
 import { dispatchMenuHotkey, focusBlocksHotkey } from '@ziroeda/common/tool/action_menu_hotkeys.js';
 import { wasBrowserSuppressed, type FocusLike } from '@ziroeda/common/browser_hotkeys.js';
@@ -418,7 +428,11 @@ import '@ziroeda/common/widgets/shell.css';
 import { schSymbolLibraryName } from './index.js';
 import { busJunctionIds as busJunctionIdsOf } from './connectivity/bus.js';
 import { useModalEscape } from '@ziroeda/common/dialog_shim.js';
-import { LIVE_SCHEMATIC_MIRROR, liveScreensToRecords } from './sch_record_bridge.js';
+import {
+  LIVE_SCHEMATIC_MIRROR,
+  liveScreensToRecords,
+  loadRecordsDetached,
+} from './sch_record_bridge.js';
 import { createSchDrawPanel } from './browser/sch_canvas.js';
 import type { SCH_DRAW_PANEL } from './sch_draw_panel.js';
 import { loadBitmapFontImage } from '@ziroeda/common/gal/gal_window.js';
@@ -573,6 +587,70 @@ const SCH_TOOL_MSGS: Record<string, string> = {
  * every standard KiCad library as missing.
  */
 const MIN_FOOTPRINT_LIBS = 10;
+
+/**
+ * The symbol libraries as KiCad has them when DIALOG_ERC runs: the global table (the hosted
+ * libraries, each its download folder) and the project's sym-lib-table in the program's
+ * LIBRARY_MANAGER, every placed symbol of a hosted library fetched into its folder, and each
+ * library a placed symbol names (re)loaded - what PGM_BASE's table load and the adapter's
+ * preload give ERC_TESTER::TestLibSymbolIssues upstream.
+ */
+async function prepareSymbolLibraries(
+  aFrame: SCH_EDIT_FRAME,
+  aProjectFiles: readonly { name: string; text: string }[],
+  aLoadIndex: () => Promise<readonly { name: string }[]>,
+): Promise<void> {
+  let hosted: string[] = [];
+
+  try {
+    hosted = (await aLoadIndex()).map((e) => e.name);
+  } catch {
+    // No hosted set: only the project's own libraries are configured.
+  }
+
+  const manager = Pgm().GetLibraryManager();
+  manager.SetTable(
+    LIBRARY_TABLE_TYPE.SYMBOL,
+    LIBRARY_TABLE_SCOPE.GLOBAL,
+    hostedLibraryTable(LIBRARY_TABLE_TYPE.SYMBOL, hosted, hostedSymbolLibraryUri),
+  );
+
+  const tablePath = projectSymLibTablePath(aProjectFiles);
+  const tableFile = aProjectFiles.find((f) => f.name === tablePath);
+  const projectTable = tableFile
+    ? LIBRARY_TABLE.FromFile(
+        `${aFrame.Prj().GetProjectPath()}/${tablePath}`,
+        tableFile.text,
+        LIBRARY_TABLE_SCOPE.PROJECT,
+        LIBRARY_TABLE_TYPE.SYMBOL,
+      )
+    : LIBRARY_TABLE.Empty(LIBRARY_TABLE_SCOPE.PROJECT, LIBRARY_TABLE_TYPE.SYMBOL);
+  manager.SetTable(LIBRARY_TABLE_TYPE.SYMBOL, LIBRARY_TABLE_SCOPE.PROJECT, projectTable);
+
+  const used = new Set<string>();
+  const fetches: Promise<unknown>[] = [];
+  const hostedSet = new Set(hosted);
+  const screens = new SCH_SCREENS(aFrame.Schematic().Root());
+
+  for (let screen = screens.GetFirst(); screen; screen = screens.GetNext()) {
+    for (const item of screen.Items().OfType(KICAD_T.SCH_SYMBOL_T)) {
+      const libId = (item as SCH_SYMBOL).GetLibId();
+      const nickname = libId.GetLibNickname();
+
+      used.add(nickname);
+
+      // A project row of the same nickname shadows the global one.
+      if (hostedSet.has(nickname) && !projectTable.HasRow(nickname))
+        fetches.push(fetchHostedSymbolFile(libId));
+    }
+  }
+
+  await Promise.all(fetches);
+
+  const adapter = SymbolLibAdapter(aFrame.Prj());
+
+  for (const nickname of used) adapter.LoadOne(nickname);
+}
 
 export interface PickedFile {
   name: string;
@@ -754,6 +832,7 @@ export function SchematicEditor({
     useToolbarEntries,
     loadFootprintIndex,
     loadFootprint,
+    loadFootprintLibraries,
     loadIndex,
     loadSymbol,
     symbolsBase,
@@ -1421,26 +1500,31 @@ export function SchematicEditor({
   }, []);
   /** File > Import > Graphics (Ctrl+Shift+F): the open DIALOG_IMPORT_GFX_SCH. */
   const [importGfxOpen, setImportGfxOpen] = useState(false);
-  // ERC markers: null until a run has happened. They live on past the dialog
-  // closing, exactly like the SCH_MARKERs upstream appends to the screen,
-  // only Delete All Markers (or a new run) clears them.
-  const [ercResult, setErcResult] = useState<readonly ErcViolation[] | null>(null);
-  // m_cancelled: set by the dialog's Cancel button, read between phases.
-  const ercCancelled = useRef(false);
-  // The marker a heading row put the focus on (FocusOnItem brightens it).
-  // DIALOG_ERC's visibility, and the phase messages of a run in flight.
-  const [ercOpen, setErcOpen] = useState(false);
+  /** `m_ercDialog`: the frame's DIALOG_ERC, and whether its window is shown. */
+  const [ercDialog, setErcDialog] = useState<{ dialog: DIALOG_ERC; shown: boolean } | null>(null);
+  const ercDialogRef = useRef(ercDialog);
+  ercDialogRef.current = ercDialog;
+  /** DIALOG_ERC's "Delete exclusions too?" and its Save Report File dialog, while open. */
+  const [ercYesNoCancel, setErcYesNoCancel] = useState<{
+    resolve: (aResult: 'yes' | 'no' | 'cancel') => void;
+  } | null>(null);
+  /** WX_TEXT_ENTRY_DIALOG( this, wxEmptyString, _( "Exclusion Comment" ), aInitial, true ). */
+  const [ercComment, setErcComment] = useState<{
+    initial: string;
+    resolve: (aText: string | null) => void;
+  } | null>(null);
+  const [ercSaveReport, setErcSaveReport] = useState<{
+    defaultName: string;
+    resolve: (aPath: string | null) => void;
+  } | null>(null);
+  /** `new DIALOG_ERC( this )`, as SCH_EDIT_FRAME::GetErcDialog asks for one. */
+  const ercDialogFactoryRef = useRef<() => DIALOG_ERC | null>(() => null);
   /** Tools > Update Schematic from PCB: the footprints read for this run. */
   const [updateFromPcbDialog, setUpdateFromPcbDialog] = useState<{
     resolve: (aRet: number) => void;
   } | null>(null);
-  /** The open ERC dialog's marker-tree API, for the Inspect menu's entries. */
-  const ercNav = useRef<ErcDialogNav | null>(null);
-  /** A marker cross-probe waiting for the ERC dialog to exist (or to unfilter). */
-  const pendingErcSelect = useRef<string | null>(null);
   /** DIALOG_SYNC_SHEET_PINS while it is open (SCH_DRAWING_TOOLS::m_dialogSyncSheetPin). */
   const [syncDialog, setSyncDialog] = useState<DIALOG_SYNC_SHEET_PINS | null>(null);
-  const [ercRunning, setErcRunning] = useState<readonly string[] | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   /**
    * `SCH_ACTIONS::importSheet`'s file picker.
@@ -1821,6 +1905,7 @@ export function SchematicEditor({
       symbolLibraryUri: (aNickname) => symbolLibraryUri(liveFilesRef.current.rawFiles)(aNickname),
       liveModified: () => liveModifiedRef.current(),
       liveSheetChanged: () => liveSheetChangedRef.current(),
+      ercDialog: () => ercDialogFactoryRef.current(),
     });
   }
   // `KIWAY::Player()` stores the frame it created as FRAME_SCH's player, and
@@ -2102,7 +2187,7 @@ export function SchematicEditor({
       runCommand: (cmd) => runCommandRef.current(cmd),
       annotatePlacement: (sym, lib) => annotatePlacementRef.current(sym, lib),
       loadSymbol: (library, name) => app.loadSymbol(library, name),
-      erc: () => ercNowRef.current(),
+      erc: () => ercLinesRef.current(),
       symbolIndex: () => app.loadIndex(),
       footprintIndex: () => app.loadFootprintIndex(),
       snapshot: () => snapshotRef.current(),
@@ -2554,9 +2639,6 @@ export function SchematicEditor({
       });
       onPersistFiles?.([{ name, text }]);
       // The table decides what ERC can resolve, so drop the cached library set.
-      ercSymbolLibs.current = null;
-      ercLibrarySymbols.current = new Map();
-      ercUnloadedSymbolLibs.current = new Map();
     },
     [rawFiles, onPersistFiles],
   );
@@ -3619,8 +3701,8 @@ export function SchematicEditor({
    * different schematic or project invalidates the run.
    */
   const resetErc = useCallback(() => {
-    setErcResult(null);
-    setErcRunning(null);
+    // The outgoing project's ERC dialog goes with it (SCH_INSPECTION_TOOL::Reset).
+    schFrameRef.current?.CloseErcDialog();
   }, []);
 
   const loadText = useCallback(
@@ -4067,11 +4149,23 @@ export function SchematicEditor({
     const dec = new TextDecoder();
     const fs = new MEMORY_FILESYSTEM();
     for (const f of rawFiles) fs.Write(f.name, enc.encode(f.text));
-    fs.SetWriteListener((aRel, aData) =>
-      onPersistFiles?.([{ name: aRel, text: dec.decode(aData) }]),
-    );
+    fs.SetWriteListener((aRel, aData) => {
+      const text = dec.decode(aData);
+      onPersistFiles?.([{ name: aRel, text }]);
+      // (TRANSITIONAL, with the mirror) the live project wrote its project file
+      // (SETTINGS_MANAGER::SaveProject): the window's copy and the Schematic Setup read from it
+      // follow the file, the one thing both models read, so neither writes over the other.
+      if (/\.kicad_pro$/i.test(aRel)) {
+        liveMirrorRef.current?.NoteProjectSaved(text);
+        const next = liveFilesRef.current.rawFiles.map((f) =>
+          f.name === aRel ? { ...f, text } : f,
+        );
+        setRawFiles(next);
+        setSetup(readSchematicSetup(next, rootPro ?? undefined));
+      }
+    });
     return wxMountFileSystem(`/${name}`, fs);
-  }, [rawFiles, projectName, onPersistFiles]);
+  }, [rawFiles, projectName, onPersistFiles, rootPro]);
   const liveMirrorRef = useRef<LIVE_SCHEMATIC_MIRROR | null>(null);
   const inEditLiveRef = useRef(false);
   const adoptLiveScreensRef = useRef<(aScreens: Iterable<SCH_SCREEN>) => void>(() => {});
@@ -4080,22 +4174,104 @@ export function SchematicEditor({
   const showingLiveRef = useRef(false);
   liveFilesRef.current = { rawFiles, projectName, rootPro };
   syncLiveRef.current = () => {
-    liveMirrorRef.current ??= new LIVE_SCHEMATIC_MIRROR(schFrameRef.current!, () => {
-      const docs = new Map(project.current.docs);
-      if (docRef.current) docs.set(currentFileRef.current, docRef.current);
-      if (docs.size === 0) return null;
-      const { rawFiles: files, projectName: name } = liveFilesRef.current;
-      const root = project.current.root;
-      return {
+    liveMirrorRef.current ??= new LIVE_SCHEMATIC_MIRROR(
+      schFrameRef.current!,
+      () => {
+        const docs = new Map(project.current.docs);
+        if (docRef.current) docs.set(currentFileRef.current, docRef.current);
+        if (docs.size === 0) return null;
+        const { rawFiles: files, projectName: name } = liveFilesRef.current;
+        const root = project.current.root;
+        return {
+          dir: `/${name ?? root.replace(/\.[^.]*$/, '')}`,
+          docs,
+          root,
+          files: files
+            .filter((f) => /\.kicad_(pro|prl)$/i.test(f.name))
+            .map((f) => ({ name: f.name, text: f.text })),
+        };
+      },
+      () => ercDialogRef.current?.dialog.OnSchematicReplaced(),
+    );
+    return liveMirrorRef.current.get() !== null;
+  };
+  // The script API's ERC: ERC_TESTER on the window's records loaded on their own, as kicad-cli
+  // loads a schematic, so the editor's screens get no markers.
+  const ercLinesRef = useRef<() => SchErcLine[]>(() => []);
+  ercLinesRef.current = () => {
+    const frame = schFrameRef.current;
+    const docs = new Map(project.current.docs);
+    if (docRef.current) docs.set(currentFileRef.current, docRef.current);
+    if (!frame || docs.size === 0 || !syncLiveRef.current()) return [];
+    const { rawFiles: files, projectName: name } = liveFilesRef.current;
+    const root = project.current.root;
+    const sch = loadRecordsDetached(
+      {
         dir: `/${name ?? root.replace(/\.[^.]*$/, '')}`,
         docs,
         root,
-        files: files
-          .filter((f) => /\.kicad_(pro|prl)$/i.test(f.name))
-          .map((f) => ({ name: f.name, text: f.text })),
-      };
-    });
-    return liveMirrorRef.current.get() !== null;
+        files: files.filter((f) => /\.kicad_(pro|prl)$/i.test(f.name)),
+      },
+      frame.Prj(),
+    );
+    return sch ? schErcLines(sch, app.settings.eeschema.erc_dialog.show_all_errors) : [];
+  };
+  // DIALOG_ERC's window: what wx gives the dialog - its sub-dialogs, the report file, its
+  // showing - and the libraries ERC_TESTER reads, loaded before the run that cannot wait.
+  ercDialogFactoryRef.current = () => {
+    const frame = schFrameRef.current;
+    if (!frame) return null;
+    let dialog: DIALOG_ERC;
+    const window: DIALOG_ERC_WINDOW = {
+      // WX_TEXT_ENTRY_DIALOG( this, wxEmptyString, _( "Exclusion Comment" ), aInitial, true )
+      textEntry: (initial) =>
+        new Promise<string | null>((resolve) => setErcComment({ initial, resolve })),
+      askDeleteExclusions: () =>
+        new Promise<'yes' | 'no' | 'cancel'>((resolve) => setErcYesNoCancel({ resolve })),
+      saveReport: async (defaultName, write) => {
+        // wxFileDialog( _( "Save Report File" ), Prj().GetProjectPath(), ... ): the report goes
+        // to the project's files, as a plot does.
+        const path = await new Promise<string | null>((resolve) =>
+          setErcSaveReport({ defaultName, resolve }),
+        );
+        if (path === null) return null;
+        const { projectName: name } = liveFilesRef.current;
+        const prefix = name ? `/${name}/` : '/';
+        const file = path.startsWith(prefix)
+          ? path.slice(prefix.length)
+          : path.slice(path.lastIndexOf('/') + 1);
+        const text = write(file);
+        if (text === null) return file;
+        if (onOutputFile) onOutputFile(file, new TextEncoder().encode(text), 'text/plain');
+        return file;
+      },
+      displayError: (message) => console.error(message),
+      blockUntilLoaded: async () => {
+        // The live schematic brought up to the window's edits first: a rebuild after the run
+        // has begun would put back the markers it is about to delete.
+        syncLiveRef.current();
+        await prepareSymbolLibraries(frame, liveFilesRef.current.rawFiles, loadIndex);
+        // CvPcb's link test reads the footprint libraries (KIWAY::KiFACE( FACE_CVPCB )).
+        await loadFootprintLibraries();
+      },
+      show: (aShow) => setErcDialog({ dialog, shown: aShow }),
+      raise: () => {},
+      isShownOnScreen: () => ercDialogRef.current?.shown ?? false,
+      destroy: () => setErcDialog(null),
+      projectModified: () => {
+        frame.Schematic().RecordERCExclusions();
+        Pgm().GetSettingsManager().SaveProject();
+      },
+      ercDialogSettings: () => app.settings.eeschema.erc_dialog,
+      saveErcDialogSettings: (values) =>
+        app.settings.updateEeschema((c) => {
+          c.erc_dialog.crossprobe = values.crossprobe;
+          c.erc_dialog.scroll_on_crossprobe = values.scroll_on_crossprobe;
+          c.erc_dialog.show_all_errors = values.show_all_errors;
+        }),
+    };
+    dialog = new DIALOG_ERC(frame, window);
+    return dialog;
   };
   // (TRANSITIONAL, S4-6c/S5): KiCad's own canvas - SCH_DRAW_PANEL on the live model,
   // its VIEW and WX_VIEW_CONTROLS owning zoom and pan - over the window's, read only until the
@@ -4501,67 +4677,6 @@ export function SchematicEditor({
   // Duplicate (Ctrl+D): SCH_EDITOR_CONTROL::Duplicate on the live tool.
   const duplicateSelection = useCallback(() => runLiveAction(ACTIONS.duplicate), [runLiveAction]);
 
-  // ----- ERC (Inspect > Electrical Rules Checker) ------------------------------
-  /** The run's options: the hierarchy, the project settings and the libraries. */
-  const ercOptions = useCallback(
-    (cfg: SchematicSetup): ErcRunOptions => {
-      // The hierarchy feeds the sheet-pin / global-label tests: sub-sheet
-      // documents by file, and the global labels used on every other sheet.
-      const docs = liveDocs();
-      const otherGlobals = new Set<string>();
-      for (const [file, other] of docs) {
-        if (file === currentFile) continue;
-        for (const l of other.labels) if (l.kind === 'global_label') otherGlobals.add(l.text);
-      }
-      return {
-        // Formatting's connection grid feeds the off-grid endpoint test.
-        connectionGridIU: cfg.formatting.connectionGridMils * IU_PER_MILS,
-        busAliases,
-        subSheets: docs,
-        otherSheetGlobalLabels: otherGlobals,
-        ...(resolveTextVar ? { resolveTextVar } : {}),
-        // SIM_LIB_MGR::ResolveLibraryPath: a `Sim.Library` path resolves
-        // against the project, so the project's own files are the library set.
-        simLibraryText: (path) => {
-          const wanted =
-            path
-              .replace(/^\$\{KIPRJMOD\}[\\/]/, '')
-              .split(/[\\/]/)
-              .pop() ?? path;
-          return rawFiles.find(
-            (f) => f.name === path || f.name.endsWith(`/${wanted}`) || f.name === wanted,
-          )?.text;
-        },
-        showAllErrors: app.settings.eeschema.erc_dialog.show_all_errors,
-        // TestMissingNetclasses: a "Netclass" field may only name a class the
-        // project defines (NET_SETTINGS::HasNetclass), or the default one.
-        netclasses: {
-          defaultName: cfg.netClasses.classes[0]?.name ?? 'Default',
-          names: new Set(cfg.netClasses.classes.map((c) => c.name)),
-        },
-        // TestFootprintLinkIssues compares against the *configured* footprint
-        // library table. Ours is whatever the deployment serves, so the test
-        // only runs against a real library set, a bundled stub would report
-        // every standard KiCad library as "not configured".
-        ...(ercFootprintLibs.current && ercFootprintLibs.current.size >= MIN_FOOTPRINT_LIBS
-          ? { footprintLibs: ercFootprintLibs.current }
-          : {}),
-      };
-    },
-    [liveDocs, currentFile, busAliases, resolveTextVar, app],
-  );
-
-  /** One synchronous ERC pass (used when a severity change re-runs the list). */
-  const runErcWith = useCallback(
-    (cfg: SchematicSetup): ErcViolation[] => {
-      const d = doc;
-      if (!d) return [];
-      return runErc(d, new Map(d.libSymbols.map((l) => [l.libId, l])), cfg.erc, ercOptions(cfg));
-    },
-    [doc, ercOptions],
-  );
-  // The script API's ERC reads the doc through its ref: a host calls it
-  // right after its own command, before React has rendered the new doc.
   // The script API's picture: the whole sheet through the plot path, in the
   // editor's theme. 150 dpi keeps 1.27 mm text legible to a vision model.
   const snapshotRef = useRef<() => string>(() => '');
@@ -4576,480 +4691,6 @@ export function SchematicEditor({
     );
     return canvas.toDataURL('image/png').slice('data:image/png;base64,'.length);
   };
-  const ercNowRef = useRef<() => ErcViolation[]>(() => []);
-  ercNowRef.current = () => {
-    const d = docRef.current;
-    if (!d) return [];
-    return runErc(d, new Map(d.libSymbols.map((l) => [l.libId, l])), setup.erc, ercOptions(setup));
-  };
-
-  // The footprint library index (nickname -> footprint names) backing
-  // TestFootprintLinkIssues; loaded on the first run, like upstream's
-  // BlockUntilLoaded before the test.
-  const ercFootprintLibs = useRef<Map<string, Set<string>> | null>(null);
-  // The library's copy of each symbol used in the project, for the
-  // ERCE_LIB_SYMBOL_MISMATCH comparison. Cached across runs.
-  const ercLibrarySymbols = useRef<Map<string, LibSymbol>>(new Map());
-  // The symbol library table as TestLibSymbolIssues sees it: nickname -> the
-  // symbol names the library holds.
-  const ercSymbolLibs = useRef<Map<string, Set<string>> | null>(null);
-  // Configured libraries whose file would not load, with the URI they were
-  // looked for at (SYMBOL_LIBRARY_ADAPTER::IsLibraryLoaded / GetFullURI).
-  const ercUnloadedSymbolLibs = useRef<Map<string, string>>(new Map());
-  // Pad numbers of each footprint the project assigns or associates, upstream
-  // fetches these from CvPcb (KIFACE_FOOTPRINT_PAD_NUMBERS) for the pin-map tests.
-  const ercFootprintPads = useRef<Map<string, Set<string>>>(new Map());
-
-  /**
-   * DIALOG_ERC::OnRunERCClick: switch to the "Tests Running…" page, walk the
-   * phases (repainting between them), then show the results.
-   */
-  const runErcNow = useCallback(async () => {
-    const d = doc;
-    if (!d || ercRunning) return;
-    ercCancelled.current = false;
-    // Upstream's running page shows the tester's phases and nothing else: the
-    // library loads DIALOG_ERC does first (BlockUntilLoaded, the CvPcb pad
-    // fetch) happen silently behind its busy cursor.
-    const messages: string[] = [];
-    setErcRunning([...messages]);
-    if (!ercFootprintLibs.current) {
-      try {
-        const index = await loadFootprintIndex();
-        ercFootprintLibs.current = new Map(
-          index.map((lib) => [lib.name, new Set(lib.footprints)] as const),
-        );
-      } catch {
-        ercFootprintLibs.current = new Map();
-      }
-    }
-
-    // Fetch the library copy of every symbol the project places, so the
-    // mismatch test has something to compare against (upstream reads them from
-    // the symbol library table).
-    if (!ercSymbolLibs.current) {
-      try {
-        const index = await loadIndex();
-        ercSymbolLibs.current = new Map(
-          index.map((lib) => [lib.name, new Set(lib.symbols)] as const),
-        );
-      } catch {
-        ercSymbolLibs.current = new Map();
-      }
-    }
-    // SYMBOL_LIB_TABLE resolves a nickname through the *project* table before the
-    // global one, and a project that ships its own symbols registers them only
-    // there. The hosted index above is the global table's stand-in, so without
-    // this every symbol such a project places reads as an unconfigured library
-    // and TestLibSymbolIssues reports it once per symbol.
-    const projectLibs = projectSymbolLibraries(rawFiles);
-    for (const [nickname, names] of projectLibs.symbolLibs)
-      ercSymbolLibs.current.set(nickname, names);
-    for (const [nickname, uri] of projectLibs.unloaded)
-      ercUnloadedSymbolLibs.current.set(nickname, uri);
-    {
-      const wanted = new Set<string>();
-      for (const d of liveDocs().values()) for (const sym of d.symbols) wanted.add(sym.libId);
-      await Promise.all(
-        [...wanted].map(async (libId) => {
-          if (ercLibrarySymbols.current.has(libId)) return;
-          // The project's own libraries are already in hand; only the hosted
-          // ones need fetching.
-          const fromProject = projectLibs.librarySymbols.get(libId);
-          if (fromProject) {
-            ercLibrarySymbols.current.set(libId, fromProject);
-            return;
-          }
-          const sep = libId.indexOf(':');
-          if (sep <= 0) return;
-          const libName = libId.slice(0, sep);
-          if (projectLibs.symbolLibs.has(libName) || projectLibs.unloaded.has(libName)) return;
-          try {
-            const fromLib = await loadSymbol(libName, libId.slice(sep + 1));
-            if (fromLib) ercLibrarySymbols.current.set(libId, fromLib);
-            ercUnloadedSymbolLibs.current.delete(libName);
-          } catch {
-            // A library that will not load is TestLibSymbolIssues' second case.
-            ercUnloadedSymbolLibs.current.set(libName, libraryUri(libName));
-          }
-        }),
-      );
-    }
-    // ERC covers the whole hierarchy (SCH_SCREENS), not just the open sheet:
-    // every sheet file is checked in turn and its markers carry its file name.
-    const docs = liveDocs();
-    const sheetFiles: string[] = [];
-    for (const s of flatSheets) if (!sheetFiles.includes(s.file)) sheetFiles.push(s.file);
-    if (sheetFiles.length === 0) sheetFiles.push(currentFile);
-
-    // The pads of every footprint the project assigns, plus those its symbols
-    // associate a pin map with, for the pin-map pad tests.
-    {
-      const wantedFootprints = new Set<string>();
-      for (const d of liveDocs().values()) {
-        const libs = new Map(d.libSymbols.map((l) => [l.libId, l]));
-        for (const sym of d.symbols) {
-          const fp = sym.fields.find((f) => f.key === 'Footprint')?.value ?? '';
-          if (fp.includes(':')) wantedFootprints.add(fp);
-          for (const assoc of libs.get(schSymbolLibraryName(sym))?.associatedFootprints ?? []) {
-            if (assoc.footprintLibId.includes(':')) wantedFootprints.add(assoc.footprintLibId);
-          }
-        }
-      }
-      if (wantedFootprints.size > 0) {
-        await Promise.all(
-          [...wantedFootprints].map(async (libId) => {
-            if (ercFootprintPads.current.has(libId)) return;
-            try {
-              const fp = await loadFootprint(libId);
-              if (fp)
-                ercFootprintPads.current.set(libId, new Set(fp.pads.map((pad) => pad.number)));
-            } catch {
-              /* an unreachable footprint stands the pad tests down */
-            }
-          }),
-        );
-      }
-    }
-
-    // CONNECTION_GRAPH: graph every sheet instance and propagate net names
-    // through the sheet pins, so the net tests below see whole nets rather
-    // than each sheet's slice of them.
-    // setTimeout, not requestAnimationFrame, rAF never fires in a hidden tab,
-    // which would leave an ERC run wedged half-way through.
-    await new Promise((r) => setTimeout(r, 0));
-
-    const hierSheets = flatSheets
-      .map((s) => ({ path: s.path, file: s.file, doc: docs.get(s.file) }))
-      .filter((s): s is { path: string; file: string; doc: Schematic } => !!s.doc);
-    const hier = computeHierarchyNetlist(
-      hierSheets,
-      (s) => new Map(s.doc.libSymbols.map((l) => [l.libId, l])),
-      { busAliases },
-    );
-
-    // Every pin of the hierarchy by (propagated) net name, and the net names
-    // that carry a no-connect flag, upstream's merged m_nets entry.
-    const pinsByNet = new Map<string, { file: string; pin: ExternalPin }[]>();
-    const ncNets = new Set<string>();
-    for (const sheet of hierSheets) {
-      const netlist = hier.bySheet.get(sheet.path);
-      if (!netlist) continue;
-      const libs = new Map(sheet.doc.libSymbols.map((l) => [l.libId, l]));
-      const byId = new Map(enumeratePins(sheet.doc, libs).map((p) => [p.id, p]));
-      const nameOf = (id: string): string | undefined => {
-        const code = netlist.netByItem.get(id);
-        return netlist.nets.find((n) => n.code === code)?.name;
-      };
-      for (const [id, p] of byId) {
-        const name = nameOf(id);
-        if (name === undefined) continue;
-        const arr = pinsByNet.get(name) ?? [];
-        arr.push({
-          file: sheet.file,
-          pin: {
-            electricalType: p.electricalType,
-            ref: p.ref,
-            number: p.number,
-            hidden: p.hidden,
-            file: sheet.file,
-          },
-        });
-        pinsByNet.set(name, arr);
-      }
-      sheet.doc.noConnects.forEach((nc, i) => {
-        const name = nameOf(refId('noconnect', nc.uuid, i));
-        if (name !== undefined) ncNets.add(name);
-      });
-    }
-    /**
-     * The human-readable sheet path each file is checked under. ERC re-graphs one
-     * sheet at a time, so it must qualify its net names with the same path the
-     * hierarchy used or the cross-sheet pin lookup above would miss. A file used by
-     * several instances is checked once, under its first instance's path, the same
-     * approximation this file-based loop already makes.
-     */
-    const sheetPathFor = new Map<string, string>();
-    /** …and the renames the hierarchy applied to that instance's net names, so the
-     *  lookup finds them even when a parent's driver outranked this sheet's. */
-    const hierNamesFor = new Map<string, ReadonlyMap<string, string>>();
-    for (const sheet of hierSheets) {
-      if (!sheetPathFor.has(sheet.file)) {
-        sheetPathFor.set(sheet.file, hier.humanPaths.get(sheet.path) ?? '/');
-        const renames = hier.hierNetNames.get(sheet.path);
-        if (renames) hierNamesFor.set(sheet.file, renames);
-      }
-    }
-
-    /** The pins of each net that do *not* live on `file`. */
-    const externalPinsFor = (file: string): Map<string, ExternalPin[]> => {
-      const map = new Map<string, ExternalPin[]>();
-      for (const [name, entries] of pinsByNet) {
-        const others = entries.filter((e) => e.file !== file).map((e) => e.pin);
-        if (others.length > 0) map.set(name, others);
-      }
-      return map;
-    };
-
-    // SCH_REFERENCE_LIST and TestSimilarLabels span the whole hierarchy, so
-    // each sheet's run is told what the other sheets hold. `sheetIndex` is the
-    // sheet's place in the list, which decides who owns a marker that spans two
-    // sheets, upstream never had to ask, walking every sheet in one pass.
-    const sheetIndexOf = new Map(sheetFiles.map((f, i) => [f, i] as const));
-    const allSymbols: (ExternalSymbol & { file: string })[] = [];
-    const allLabels: (ExternalLabel & { file: string })[] = [];
-    for (const file of sheetFiles) {
-      const sheetDoc = file === currentFile ? d : docs.get(file);
-      if (!sheetDoc) continue;
-      const sheetIndex = sheetIndexOf.get(file) ?? 0;
-      const libs = new Map(sheetDoc.libSymbols.map((l) => [l.libId, l]));
-      sheetDoc.symbols.forEach((sym, index) => {
-        const fieldOf = (key: string): string => sym.fields.find((f) => f.key === key)?.value ?? '';
-        allSymbols.push({
-          file,
-          ref: fieldOf('Reference'),
-          unit: sym.unit,
-          libId: sym.libId,
-          value: fieldOf('Value'),
-          footprint: fieldOf('Footprint'),
-          sheetIndex,
-          index,
-        });
-      });
-      let order = 0;
-      for (const l of sheetDoc.labels) {
-        if (l.kind === 'text') continue;
-        allLabels.push({ file, text: l.text, isPin: false, sheetIndex, index: order++ });
-      }
-      // A power symbol's value is the text TestSimilarLabels compares.
-      const seen = new Set<string>();
-      for (const p of enumeratePins(sheetDoc, libs)) {
-        if (p.electricalType !== 'power_in' || !p.isPowerSymbol || seen.has(p.symId)) continue;
-        seen.add(p.symId);
-        const sym = sheetDoc.symbols.find((_, i) => refId('symbol', _.uuid, i) === p.symId);
-        const value = sym?.fields.find((f) => f.key === 'Value')?.value ?? '';
-        if (value) allLabels.push({ file, text: value, isPin: true, sheetIndex, index: order++ });
-      }
-    }
-
-    const found: ErcViolation[] = [];
-    // As above: a plain task yield, so a run keeps going in a hidden tab.
-    const frame = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
-
-    for (const file of sheetFiles) {
-      const sheetDoc = file === currentFile ? d : docs.get(file);
-      if (!sheetDoc) continue;
-      const steps = runErcSteps(
-        sheetDoc,
-        new Map(sheetDoc.libSymbols.map((l) => [l.libId, l])),
-        setup.erc,
-        {
-          ...ercOptions(setup),
-          sheetFile: file,
-          sheetPath: sheetPathFor.get(file) ?? '/',
-          sheetIndex: sheetIndexOf.get(file) ?? 0,
-          externalSymbols: allSymbols.filter((x) => x.file !== file),
-          externalLabels: allLabels.filter((x) => x.file !== file),
-          externalNetPins: externalPinsFor(file),
-          externalNetNoConnects: ncNets,
-          ...(hierNamesFor.has(file) ? { hierNetNames: hierNamesFor.get(file)! } : {}),
-          librarySymbols: ercLibrarySymbols.current,
-          footprintPads: ercFootprintPads.current,
-          // Only a real library set is a symbol library table; a failed index
-          // load would otherwise report every library as unconfigured.
-          ...(ercSymbolLibs.current && ercSymbolLibs.current.size > 0
-            ? {
-                symbolLibs: ercSymbolLibs.current,
-                unloadedSymbolLibs: ercUnloadedSymbolLibs.current,
-              }
-            : {}),
-        },
-      );
-      for (;;) {
-        if (ercCancelled.current) break;
-        const step = steps.next();
-        if (step.done) {
-          found.push(...step.value);
-          break;
-        }
-        const line = step.value;
-        // Only a phase name we have not shown yet is worth adding — every sheet
-        // emits the same ones — but the **yield is unconditional**. Guarding it
-        // on the same condition meant that from the second sheet onwards no line
-        // was ever new, so the loop never yielded again and sheets 2..N ran in
-        // one unbroken synchronous block: the tab stopped repainting, the
-        // progress panel froze on its first line, and Cancel could not be
-        // reached (#446).
-        if (!messages.includes(line)) {
-          messages.push(line);
-          setErcRunning([...messages]);
-        }
-        await frame();
-      }
-      if (ercCancelled.current) break;
-    }
-
-    if (ercCancelled.current) {
-      messages.push('-------- ERC cancelled by user.');
-      setErcRunning([...messages]);
-      await new Promise((r) => setTimeout(r, 500));
-      setErcRunning(null);
-      return;
-    }
-
-    // "%d symbol(s) require annotation.", reported as a head line upstream.
-    const notAnnotated = found.filter((v) => v.code === 'unannotated').length;
-    if (notAnnotated > 0) messages.unshift(`${notAnnotated} symbol(s) require annotation.`);
-    messages.push('Done.');
-    setErcRunning([...messages]);
-    // The 500 ms upstream waits before flipping to the results page.
-    await new Promise((r) => setTimeout(r, 500));
-    setErcResult(found);
-    setErcRunning(null);
-  }, [
-    doc,
-    setup,
-    ercOptions,
-    ercRunning,
-    liveDocs,
-    flatSheets,
-    currentFile,
-    rawFiles,
-    loadFootprintIndex,
-    loadFootprint,
-    loadIndex,
-    loadSymbol,
-    libraryUri,
-  ]);
-
-  // Clicking a violation centres the fault and selects the offending items.
-  // DIALOG_ERC's cross-probe: select the violation's items, and scroll the
-  // canvas to them only when "Center on Cross-probe" is on.
-  const locateViolation = useCallback(
-    (v: ErcViolation, center = true, itemId?: string) => {
-      // A marker on another sheet: open its sheet first (KiCad's cross-probe
-      // follows the marker's SCH_SHEET_PATH).
-      let switched = false;
-      if (v.file && v.file !== currentFile) {
-        const target = flatSheets.find((s) => s.file === v.file);
-        if (target) {
-          switchSheet(target.path, target.file);
-          switched = true;
-        }
-      }
-      // FocusOnItem( ResolveItem( RC_TREE_MODEL::ToUUID( row ) ) ): a heading
-      // row resolves to the *marker*, so it brightens the marker and leaves the
-      // schematic items alone; only an item row focuses that item.
-      // A sheet switch fits the canvas on the next frame, which would throw the
-      // marker back off-centre; centre on the frame after, as FindNext does.
-      if (center) {
-        if (switched)
-          requestAnimationFrame(() =>
-            requestAnimationFrame(() => schFrameRef.current!.FocusOnLocation(v.at)),
-          );
-        else schFrameRef.current!.FocusOnLocation(v.at);
-      }
-      if (itemId) {
-        // A marker's item may be a PIN (`<symId>:pin<k>`); the editor selects
-        // its parent symbol, which is what upstream highlights too.
-        setSelection(new Set([ercParentId(itemId)]));
-      } else {
-        setSelection(new Set());
-      }
-    },
-    [currentFile, flatSheets, switchSheet],
-  );
-
-  // RC_TREE_MODEL's child rows: one description line per involved item
-  // (SCH_EDIT_FRAME::ResolveItem + EDA_ITEM::GetItemDescription).
-  const describeErcItem = useCallback(
-    (id: string, file?: string): string => {
-      const target = !file || file === currentFile ? doc : liveDocs().get(file);
-      if (!target) return id;
-      const kinds: ItemRef['kind'][] = [
-        'symbol',
-        'label',
-        'line',
-        'junction',
-        'noconnect',
-        'sheet',
-        'busentry',
-      ];
-      const arrays: readonly (readonly { uuid?: string }[])[] = [
-        target.symbols,
-        target.labels,
-        target.lines,
-        target.junctions,
-        target.noConnects,
-        target.sheets,
-        target.busEntries,
-      ];
-      // A marker's item may be a PIN, `<symId>:pin<k>`, and upstream names the
-      // pin rather than the symbol it is on:
-      //
-      //   SCH_PIN::GetItemDescription   "Symbol %s %s"  (sch_pin.cpp:1721)
-      //   SCH_PIN::getItemDescription   "Pin %s [%s, %s, %s]" with a name,
-      //                                 "Pin %s [%s, %s]" without   (:1729-1750)
-      //
-      // so KiCad reads `Symbol #PWR01 Pin 1 [Power input, Line]` where this
-      // fell through to the parent symbol and read `Symbol #PWR1 [GND]`.
-      const pinAt = id.lastIndexOf(':pin');
-      if (pinAt !== -1) {
-        const symId = id.slice(0, pinAt);
-        const pinIdx = Number(id.slice(pinAt + 4));
-        for (let i = 0; i < target.symbols.length; i++) {
-          const sym = target.symbols[i]!;
-          if (refId('symbol', sym.uuid, i) !== symId) continue;
-          const lib = target.libSymbols.find((l) => l.libId === schSymbolLibraryName(sym));
-          const ref = sym.fields.find((f) => f.key === 'Reference')?.value ?? '';
-          // The same walk `enumeratePins` uses (nets.ts:345-352) — the unit and
-          // body-style filter included — so `k` here is the k that built the id.
-          let pin: LibPin | undefined;
-          if (lib) {
-            let k = 0;
-            outer: for (const u of lib.units) {
-              if (
-                (u.unit !== 0 && u.unit !== sym.unit) ||
-                (u.bodyStyle !== 0 && u.bodyStyle !== sym.bodyStyle)
-              )
-                continue;
-              for (const q of u.pins) {
-                if (k === pinIdx) {
-                  pin = q;
-                  break outer;
-                }
-                k++;
-              }
-            }
-          }
-          if (!pin) return `Symbol ${ref}`;
-          // `UnescapeString( GetShownName() )` — an empty name is "~" upstream
-          // and prints as nothing.
-          const name = pin.name === '~' ? '' : pin.name;
-          const type = electricalPinTypeGetText(pin.electricalType);
-          const shape = pinShapeGetText(pin.shape);
-          const desc = name
-            ? `Pin ${pin.number} [${name}, ${type}, ${shape}]`
-            : `Pin ${pin.number} [${type}, ${shape}]`;
-          return `Symbol ${ref} ${desc}`;
-        }
-        return id;
-      }
-
-      for (let k = 0; k < kinds.length; k++) {
-        const kind = kinds[k]!;
-        const arr = arrays[k]!;
-        for (let i = 0; i < arr.length; i++) {
-          if (refId(kind, arr[i]!.uuid, i) === id) {
-            const libs = new Map(target.libSymbols.map((l) => [l.libId, l]));
-            return describeItem(target, libs, { kind, id });
-          }
-        }
-      }
-      return id;
-    },
-    [doc, currentFile, liveDocs],
-  );
 
   /**
    * `SCHEMATIC_SETTINGS::m_TemplateFieldNames.GetTemplateFieldNames()` — the
@@ -5286,14 +4927,6 @@ export function SchematicEditor({
   /** A label was dropped: take the next of a multi-label run, else stop. */
   /** The sheet as DIALOG_SHEET_PROPERTIES wants it: its fields as grid rows,
    *  its border and fill, this instance's page number and its attributes. */
-  // Flush a cross-probe that arrived before the ERC dialog was on screen: the
-  // double-click that opens it cannot select a row in a dialog that does not
-  // exist yet, and `CrossProbe` shows the dialog *then* calls SelectMarker.
-  useEffect(() => {
-    const key = pendingErcSelect.current;
-    if (!key || !ercOpen) return;
-    if (ercNav.current?.selectByKey(key)) pendingErcSelect.current = null;
-  }, [ercOpen, ercResult, es.appearance.show_erc_errors, es.appearance.show_erc_warnings]);
 
   // The image file picker: read the chosen bitmap as base64 and attach it to the cursor.
   const onImageFile = useCallback((file: File) => {
@@ -5352,22 +4985,12 @@ export function SchematicEditor({
       else if (id === 'saveCurrSheetCopyAs') saveCurrSheetCopyAs();
       // ACTIONS::revert
       else if (id === 'revert') revert();
-      else if (id === 'erc') setErcOpen(true);
+      else if (id === 'erc') runLiveAction(SCH_ACTIONS.runERC);
       else if (id === 'manageSymbolLibraries') setSymLibTableOpen(true);
-      else if (id === 'ercPrevMarker' || id === 'ercNextMarker' || id === 'ercExcludeMarker') {
-        // The dialog owns the tree, so raise it first and act on the next tick,
-        // when it has mounted and filled in the ref (dlg->Show(true); dlg->Raise();
-        // dlg->NextMarker()).
-        setErcOpen(true);
-        const act = id;
-        requestAnimationFrame(() => {
-          const nav = ercNav.current;
-          if (!nav) return;
-          if (act === 'ercPrevMarker') nav.prev();
-          else if (act === 'ercNextMarker') nav.next();
-          else nav.excludeCurrent();
-        });
-      } else if (id === 'syncSheetPins' || id === 'syncAllSheetPins') {
+      else if (id === 'ercPrevMarker') runLiveAction(SCH_ACTIONS.prevMarker);
+      else if (id === 'ercNextMarker') runLiveAction(SCH_ACTIONS.nextMarker);
+      else if (id === 'ercExcludeMarker') runLiveAction(SCH_ACTIONS.excludeMarker);
+      else if (id === 'syncSheetPins' || id === 'syncAllSheetPins') {
         // SCH_DRAWING_TOOLS::SyncSheetsPins / SyncAllSheetsPins on the live tool.
         runLiveAction(
           id === 'syncSheetPins' ? SCH_ACTIONS.syncSheetPins : SCH_ACTIONS.syncAllSheetsPins,
@@ -5473,7 +5096,6 @@ export function SchematicEditor({
       saveCurrSheetCopyAs,
       revert,
       promptOpen,
-      runErcNow,
       onShowPcb,
       onUpdatePcb,
       onShowSymbolEditor,
@@ -6600,82 +6222,46 @@ export function SchematicEditor({
                 onClose={() => setLoadRepairedMessage(null)}
               />
             )}
-            {ercOpen && (
-              <ErcDialog
-                navRef={ercNav}
-                sourceName={currentFile}
-                violations={ercResult}
-                running={ercRunning}
-                ignoredTests={ERC_ITEMS.filter(
-                  (it) => setup.erc.severities[it.code] === 'ignore',
-                ).map((it) => it.title)}
-                unannotated={doc?.symbols.some((s) =>
-                  (s.fields.find((f) => f.key === 'Reference')?.value ?? '').endsWith('?'),
-                )}
-                options={{
-                  crossprobe: es.erc_dialog.crossprobe,
-                  scrollOnCrossprobe: es.erc_dialog.scroll_on_crossprobe,
-                  showAllErrors: es.erc_dialog.show_all_errors,
+            {ercDialog?.shown && <DialogErc dialog={ercDialog.dialog} />}
+            {ercComment && (
+              <WX_TEXT_ENTRY_DIALOG
+                label=""
+                caption="Exclusion Comment"
+                defaultValue={ercComment.initial}
+                extraWidth
+                onResult={(text) => {
+                  ercComment.resolve(text);
+                  setErcComment(null);
                 }}
-                onOptionsChange={(o) =>
-                  app.settings.updateEeschema((s) => {
-                    s.erc_dialog.crossprobe = o.crossprobe;
-                    s.erc_dialog.scroll_on_crossprobe = o.scrollOnCrossprobe;
-                    s.erc_dialog.show_all_errors = o.showAllErrors;
-                  })
-                }
-                onShowAnnotate={() => setAnnotateOpen(true)}
-                onRun={() => void runErcNow()}
-                onLocate={locateViolation}
-                describeItem={describeErcItem}
-                onSetSeverity={(code, level) => {
-                  // OnERCItemRClick's severity commands: change the rule for
-                  // every violation of its type, then re-run so the list matches.
-                  const next = {
-                    ...setup,
-                    erc: {
-                      ...setup.erc,
-                      severities: { ...setup.erc.severities, [code]: level },
-                    },
-                  };
-                  commitSetup(next);
-                  setErcResult(runErcWith(next));
+              />
+            )}
+            {ercYesNoCancel && (
+              <MessageDialogYesNoCancel
+                caption="Delete All Markers"
+                message="Delete exclusions too?"
+                icon="question"
+                defaultButton="yes"
+                labels={{ yes: 'Errors and Warnings Only', no: 'Errors, Warnings and Exclusions' }}
+                onResult={(r) => {
+                  ercYesNoCancel.resolve(r);
+                  setErcYesNoCancel(null);
                 }}
-                onEditPinMap={() => setSetupOpen(true)}
-                onEditConnectionGrid={() => setSetupOpen(true)}
-                onDelete={(i) => setErcResult((r) => (r ? r.filter((_, idx) => idx !== i) : r))}
-                onDeleteAll={() => {
-                  setErcResult([]);
-                }}
-                excluded={new Set(setup.ercExclusions)}
-                exclusionComments={new Map(Object.entries(setup.ercExclusionComments))}
-                onCancelRun={() => {
-                  ercCancelled.current = true;
-                }}
-                onToggleExclude={(v, comment) => {
-                  const key = ercExclusionKey(v);
-                  setSetup((cur) => {
-                    const has = cur.ercExclusions.includes(key);
-                    // A comment edit keeps the exclusion and only rewrites the note
-                    // (MARKER_BASE::SetComment); otherwise this toggles it.
-                    const keepExcluded = comment !== undefined ? true : !has;
-                    const comments = { ...cur.ercExclusionComments };
-                    if (!keepExcluded) delete comments[key];
-                    else if (comment !== undefined) comments[key] = comment;
-                    return {
-                      ...cur,
-                      ercExclusions: keepExcluded
-                        ? has
-                          ? cur.ercExclusions
-                          : [...cur.ercExclusions, key]
-                        : cur.ercExclusions.filter((k) => k !== key),
-                      ercExclusionComments: comments,
-                    };
-                  });
-                }}
-                onEditSeverities={() => setSetupOpen(true)}
-                onClose={() => {
-                  setErcOpen(false);
+              />
+            )}
+            {ercSaveReport && (
+              // DIALOG_ERC::OnSaveReport (dialog_erc.cpp:1157-1159): wxFileDialog(
+              //   _( "Save Report File" ), Prj().GetProjectPath(), fn.GetFullName(),
+              //   ReportFileWildcard() | JsonFileWildcard(), wxFD_SAVE | wxFD_OVERWRITE_PROMPT ).
+              <SaveAsDialog
+                title="Save Report File"
+                initialName={ercSaveReport.defaultName}
+                filters={[reportFileWildcard(), jsonFileWildcard()]}
+                {...(projectName
+                  ? { projectDir: `/${projectName}`, initialPath: `/${projectName}` }
+                  : {})}
+                onDone={(path) => {
+                  ercSaveReport.resolve(path);
+                  setErcSaveReport(null);
                 }}
               />
             )}

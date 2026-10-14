@@ -48,6 +48,10 @@ import { AnalyzePoint } from './junction_helpers.js';
 import { LIB_SYMBOL } from './lib_symbol.js';
 import { DANGLING_END_ITEM_HELPER, type DANGLING_END_ITEM, type SCH_ITEM } from './sch_item.js';
 import type { SCH_MARKER } from './sch_marker.js';
+import type { MARKER_T } from '@ziroeda/common/marker_base.js';
+
+/** `ERCE_UNSPECIFIED` (erc_settings.h), the value: erc_settings.ts imports this file. */
+const ERCE_UNSPECIFIED = 0;
 import type { BUS_ALIAS } from './bus_alias.js';
 import { type SCH_LABEL_BASE, SPIN_STYLE } from './sch_label.js';
 import type { SCH_BUS_WIRE_ENTRY } from './sch_bus_entry.js';
@@ -1854,6 +1858,37 @@ export class SCH_SCREENS {
     if (this.m_index < this.m_screens.length) this.m_index++;
 
     return this.GetScreen(this.m_index);
+  }
+
+  /**
+   * `DeleteMarkers( aMarkerType, aErrorCode, aIncludeExclusions )` (sch_screen.cpp:2252): every
+   * marker of that type (and error code, unless it is ERCE_UNSPECIFIED), excluded ones only
+   * when asked.
+   */
+  DeleteMarkers(aMarkerType: MARKER_T, aErrorCode: number, aIncludeExclusions = false): void {
+    for (let screen = this.GetFirst(); screen; screen = this.GetNext()) {
+      const markers: SCH_ITEM[] = [];
+
+      for (const item of screen.Items().OfType(KICAD_T.SCH_MARKER_T)) {
+        const marker = item as SCH_MARKER;
+        const rcItem = marker.GetRCItem()!;
+
+        if (
+          marker.GetMarkerType() === aMarkerType &&
+          (aErrorCode === ERCE_UNSPECIFIED || rcItem.GetErrorCode() === aErrorCode) &&
+          (!marker.IsExcluded() || aIncludeExclusions)
+        ) {
+          markers.push(item);
+        }
+      }
+
+      for (const marker of markers) screen.DeleteItem(marker);
+    }
+  }
+
+  /** `DeleteAllMarkers( aMarkerType, aIncludeExclusions )` (sch_screen.cpp:2278). */
+  DeleteAllMarkers(aMarkerType: MARKER_T, aIncludeExclusions: boolean): void {
+    this.DeleteMarkers(aMarkerType, ERCE_UNSPECIFIED, aIncludeExclusions);
   }
 
   /** Delete a specific marker. */

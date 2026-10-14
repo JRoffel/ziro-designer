@@ -108,7 +108,8 @@ import { ZOOM_TOOL } from '@ziroeda/common/tool/zoom_tool.js';
 import { PICKER_TOOL } from '@ziroeda/common/tool/picker_tool.js';
 import { SCH_SELECTION_TOOL } from './tools/sch_selection_tool.js';
 import { findItemsFromSyncSelection } from './cross-probing.js';
-import { type KIID, kiidFromString } from '@ziroeda/common/kiid.js';
+import { type KIID, kiidFromString, niluuid } from '@ziroeda/common/kiid.js';
+import type { Severity } from '@ziroeda/common/reporter.js';
 import { wxID_CANCEL, wxID_OK } from '@ziroeda/wx/menu.js';
 import { EVENTS } from '@ziroeda/common/tool/tool_event.js';
 import { VIEW_UPDATE_FLAGS } from '@ziroeda/common/view/view_item.js';
@@ -1495,6 +1496,52 @@ export class SCH_EDIT_FRAME extends SCH_BASE_FRAME implements SCHEMATIC_HOLDER {
     if (this.m_isClosing) return;
 
     this.GetCanvas()?.Refresh();
+  }
+
+  /** `ResolveItem( aId, aAllowNullptrReturn )` (sch_edit_frame.cpp:1030). */
+  override ResolveItem(aId: KIID, aAllowNullptrReturn = false): EDA_ITEM | null {
+    return this.Schematic().ResolveItem(aId, null, aAllowNullptrReturn);
+  }
+
+  /** `GetSeverity( aErrorCode )` (sch_edit_frame.cpp:1327). */
+  override GetSeverity(aErrorCode: number): Severity {
+    return this.Schematic().ErcSettings().GetSeverity(aErrorCode);
+  }
+
+  /** `lastBrightenedItemID` (FocusOnItem's function static). */
+  private static s_lastBrightenedItemID: KIID = niluuid;
+
+  /**
+   * `FocusOnItem( aItem, aAllowScroll )` (sch_edit_frame.cpp:2178): brighten \a aItem (the last
+   * one dimmed again) and bring it into view; null clears the current focus.
+   */
+  override FocusOnItem(aItem: EDA_ITEM | null, aAllowScroll = true): void {
+    // nullptr will clear the current focus
+    if (aItem !== null && !aItem.IsSCH_ITEM()) return;
+
+    const lastItem = this.Schematic().ResolveItem(
+      SCH_EDIT_FRAME.s_lastBrightenedItemID,
+      null,
+      true,
+    );
+
+    if (lastItem && lastItem !== aItem) {
+      lastItem.ClearBrightened();
+
+      this.UpdateItem(lastItem);
+      SCH_EDIT_FRAME.s_lastBrightenedItemID = niluuid;
+    }
+
+    if (aItem) {
+      if (!aItem.IsBrightened()) {
+        aItem.SetBrightened();
+
+        this.UpdateItem(aItem);
+        SCH_EDIT_FRAME.s_lastBrightenedItemID = aItem.m_Uuid;
+      }
+
+      this.FocusOnLocation(aItem.GetFocusPosition(), aAllowScroll);
+    }
   }
 
   /** `IsSyncingSelection()` (sch_edit_frame.h:812). */
