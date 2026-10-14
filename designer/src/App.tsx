@@ -6,7 +6,7 @@ import { AiDock, aiEnabled, registerAiBridge } from '@ziroeda/ai';
 import { appBridge, designDocName } from '@ziroeda/ai/app_bridge.js';
 import { MAIL_T } from '@ziroeda/common/mail_type.js';
 import { FACE_T, KIWAY } from '@ziroeda/common/kiway.js';
-import { cvpcbKiface } from './editors/pcb/footprint_lib_adapter_app.js';
+import { cvpcbKiface } from './editors/pcb/cvpcb_kiface.js';
 import {
   useEffect,
   useMemo,
