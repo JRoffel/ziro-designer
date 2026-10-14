@@ -2,249 +2,193 @@
 // Copyright (C) 2026 ZiroEDA and contributors.
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
 /**
- * Symbol Fields Table data model (FIELDS_EDITOR_GRID_DATA_MODEL): column
- * set-up from the field union, grouping by the "Group By" fields, unit
- * collapsing, sorting, mixed-value cells, the generated Qty / item-number
- * columns, attribute columns, the delimited export and applying edits back.
+ * FIELDS_EDITOR_GRID_DATA_MODEL against kicad-cli 10.0.6's own `sch export bom`, which builds and
+ * exports exactly this model (EESCHEMA_JOBS_HANDLER::JobExportBom): the complex hierarchy with
+ * the default fields, grouped by Value and Footprint, and every field (`*`) sorted by Value with
+ * `;` delimiters and no reference ranges. `exportBom` below is JobExportBom's model building, step
+ * for step.
  */
-import { describe, it, expect } from 'vitest';
-import { parse } from '@ziroeda/sexpr/index.js';
-import { readSchematic, type Schematic } from '@ziroeda/eeschema';
+import { existsSync, readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { GetGeneratedFieldDisplayName, IsGeneratedField } from '@ziroeda/common/common.js';
+import { PGM_BASE, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
+import { PROJECT } from '@ziroeda/common/project.js';
+import { PROJECT_FILE } from '@ziroeda/common/project/project_file.js';
+import type { BOM_FIELD, BOM_PRESET } from '@ziroeda/common/settings/bom_settings.js';
 import {
-  buildFieldsReferences,
-  FieldsDataModel,
-  INDETERMINATE_STATE,
-  loadFieldNames,
-  QUANTITY_VARIABLE,
-  type BomPresetSpec,
-} from '@ziroeda/eeschema/fields_data_model.js';
+  GetCanonicalFieldName,
+  GetDefaultFieldName,
+  MANDATORY_FIELDS,
+} from '@ziroeda/common/template_fieldnames.js';
+import { LoadSchematic } from '@ziroeda/eeschema/eeschema_helpers.js';
+import { FIELDS_EDITOR_GRID_DATA_MODEL } from '@ziroeda/eeschema/fields_data_model.js';
+import { SCH_REFERENCE_LIST } from '@ziroeda/eeschema/sch_reference_list.js';
+import { SYMBOL_FILTER } from '@ziroeda/eeschema/sch_sheet_path.js';
+import type { SCHEMATIC } from '@ziroeda/eeschema/schematic.js';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-const sym = (
-  ref: string,
-  value: string,
-  fp: string,
-  uuid: string,
-  extra = '',
-  fields = '',
-): string => `(symbol (lib_id "Device:R") (at 0 0 0) (unit 1) ${extra} (uuid "${uuid}")
-  (property "Reference" "${ref}" (at 0 0 0))
-  (property "Value" "${value}" (at 0 0 0))
-  (property "Footprint" "${fp}" (at 0 0 0))
-  ${fields})`;
+const DIR = resolve(__dirname, '../../data/eeschema/netlist_oracle/complex_hierarchy');
+const ORACLE = resolve(__dirname, '../../data/eeschema/bom_oracle');
 
-const load = (body: string): Schematic =>
-  readSchematic(parse(`(kicad_sch (version 20231120) (generator "test") (lib_symbols) ${body})`));
+beforeEach(() => SetPgm(new PGM_BASE(null, new SETTINGS_MANAGER())));
+afterEach(() => SetPgm(null));
 
-/** A model over one sheet, with the columns LoadFieldNames would create. */
-function modelOf(doc: Schematic, preset?: Partial<BomPresetSpec>): FieldsDataModel {
-  const docs = new Map([['root.kicad_sch', doc]]);
-  const refs = buildFieldsReferences(docs, 'root.kicad_sch');
-  const model = new FieldsDataModel(refs);
-  loadFieldNames(model, refs);
-  model.applyBomPreset({
-    name: 'test',
-    fieldsOrdered: [
-      { name: 'Reference', label: 'Reference', show: true, groupBy: false },
-      { name: 'Value', label: 'Value', show: true, groupBy: true },
-      { name: 'Footprint', label: 'Footprint', show: true, groupBy: true },
-      { name: QUANTITY_VARIABLE, label: 'Qty', show: true, groupBy: false },
-    ],
-    sortField: 'Reference',
+function load(): SCHEMATIC {
+  const pro = join(DIR, 'complex_hierarchy.kicad_pro');
+  const project = new PROJECT();
+  project.setProjectFullName(pro);
+  const file = new PROJECT_FILE(pro);
+  project.setProjectFile(file);
+  file.LoadFromFile(JSON.parse(readFileSync(pro, 'utf8')));
+  return LoadSchematic(join(DIR, 'complex_hierarchy.kicad_sch'), project, (p) =>
+    existsSync(p) ? readFileSync(p, 'utf8') : null,
+  )!;
+}
+
+interface BomJob {
+  fields: string[];
+  labels: string[];
+  groupBy: string[];
+  sortField: string;
+  fieldDelimiter: string;
+  refRangeDelimiter: string;
+}
+
+/** EESCHEMA_JOBS_HANDLER::JobExportBom's data model, preset and format, then Export(). */
+function exportBom(sch: SCHEMATIC, job: BomJob): string {
+  const referenceList = new SCH_REFERENCE_LIST();
+  sch.Hierarchy().GetSymbols(referenceList, SYMBOL_FILTER.SYMBOL_FILTER_NON_POWER, false);
+
+  const dataModel = new FIELDS_EDITOR_GRID_DATA_MODEL(referenceList, null);
+
+  // Mandatory fields first
+  for (const fieldId of MANDATORY_FIELDS)
+    dataModel.AddColumn(GetCanonicalFieldName(fieldId), GetDefaultFieldName(fieldId, true), false);
+
+  // Generated/virtual fields, then the attribute fields
+  for (const name of [
+    FIELDS_EDITOR_GRID_DATA_MODEL.QUANTITY_VARIABLE,
+    FIELDS_EDITOR_GRID_DATA_MODEL.ITEM_NUMBER_VARIABLE,
+    '${DNP}',
+    '${EXCLUDE_FROM_BOM}',
+    '${EXCLUDE_FROM_BOARD}',
+    '${EXCLUDE_FROM_SIM}',
+  ])
+    dataModel.AddColumn(name, GetGeneratedFieldDisplayName(name), false);
+
+  // User field names in symbols second
+  const userFieldNames = new Set<string>();
+  for (let i = 0; i < referenceList.GetCount(); ++i) {
+    for (const field of referenceList.GetItem(i).GetSymbol()!.GetFields()) {
+      if (!field.IsMandatory() && !field.IsPrivate()) userFieldNames.add(field.GetName());
+    }
+  }
+  for (const fieldName of [...userFieldNames].sort())
+    dataModel.AddColumn(fieldName, GetGeneratedFieldDisplayName(fieldName), true);
+
+  for (const t of sch.Settings().m_TemplateFieldNames.GetTemplateFieldNames()) {
+    if (!userFieldNames.has(t.m_Name))
+      dataModel.AddColumn(t.m_Name, GetGeneratedFieldDisplayName(t.m_Name), false);
+  }
+
+  const normalizeFieldName = (aName: string): string => {
+    if (aName === '') return '';
+    if (IsGeneratedField(aName)) return aName;
+    const wrapped = `\${${aName}}`;
+    if (IsGeneratedField(wrapped) && dataModel.GetFieldNameCol(wrapped) !== -1) return wrapped;
+    return aName;
+  };
+
+  const fieldsOrdered: BOM_FIELD[] = [];
+  let i = 0;
+  for (const rawFieldName of job.fields) {
+    const fieldName = normalizeFieldName(rawFieldName);
+    if (fieldName === '*') {
+      for (const modelField of dataModel.GetFieldsOrdered()) {
+        if (fieldsOrdered.some((f) => f.name === modelField.name)) continue;
+        if (job.fields.some((f) => normalizeFieldName(f) === modelField.name)) continue;
+        fieldsOrdered.push({
+          name: modelField.name,
+          label: modelField.name,
+          show: true,
+          groupBy: false,
+        });
+      }
+      continue;
+    }
+    const label = job.labels[i]
+      ? job.labels[i]!
+      : IsGeneratedField(fieldName)
+        ? GetGeneratedFieldDisplayName(fieldName)
+        : fieldName;
+    fieldsOrdered.push({
+      name: fieldName,
+      label,
+      show: !fieldName.startsWith('__'),
+      groupBy: job.groupBy.includes(fieldName) || job.groupBy.includes(rawFieldName),
+    });
+    i++;
+  }
+
+  const preset: BOM_PRESET = {
+    name: '',
+    fieldsOrdered,
+    sortField: normalizeFieldName(job.sortField),
     sortAsc: true,
     filterString: '',
     groupSymbols: true,
     excludeDNP: false,
-    includeExcludedFromBOM: true,
-    ...preset,
+    includeExcludedFromBOM: false,
+  };
+
+  dataModel.SetVariantNames(['']);
+  dataModel.SetCurrentVariant('');
+  dataModel.UpdateReferences(dataModel.GetReferenceList());
+  dataModel.ApplyBomPreset(preset);
+
+  return dataModel.Export({
+    name: '',
+    fieldDelimiter: job.fieldDelimiter,
+    stringDelimiter: '"',
+    refDelimiter: ',',
+    refRangeDelimiter: job.refRangeDelimiter,
+    keepTabs: false,
+    keepLineBreaks: false,
   });
-  return model;
 }
 
-const rowValues = (model: FieldsDataModel, col: number): string[] =>
-  model.getRows().map((_, row) => model.getValue(row, col));
+const DEFAULT_JOB: BomJob = {
+  fields: ['Reference', 'Value', 'Footprint', 'QUANTITY', 'DNP'],
+  labels: ['Refs', 'Value', 'Footprint', 'Qty', 'DNP'],
+  groupBy: [],
+  sortField: 'Reference',
+  fieldDelimiter: ',',
+  refRangeDelimiter: '-',
+};
 
-describe('fields table data model', () => {
-  it('builds a column per mandatory, generated and user field', () => {
-    const doc = load(`
-      ${sym('R1', '1k', 'R_0603', 'a', '', '(property "MPN" "RC0603" (at 0 0 0))')}
-      ${sym('R2', '1k', 'R_0603', 'b')}`);
-    const docs = new Map([['root.kicad_sch', doc]]);
-    const refs = buildFieldsReferences(docs, 'root.kicad_sch');
-    const model = new FieldsDataModel(refs);
-    const order = loadFieldNames(model, refs, [{ name: 'Template' }]);
-    expect(order).toEqual([
-      'Reference',
-      'Value',
-      'Footprint',
-      'Datasheet',
-      'Description',
-      '${QUANTITY}',
-      '${ITEM_NUMBER}',
-      'MPN',
-      'Template',
-    ]);
-    // Columns start hidden; a preset decides what shows (ApplyBomPreset).
-    expect(model.getColumns().every((c) => !c.show && !c.group)).toBe(true);
-  });
-
-  it('groups by the group-by fields and counts quantities', () => {
-    const doc = load(`
-      ${sym('R10', '1k', 'R_0603', 'a')}
-      ${sym('R2', '1k', 'R_0603', 'b')}
-      ${sym('R1', '1k', 'R_0805', 'c')}
-      ${sym('C1', '100n', 'C_0603', 'd')}`);
-    const model = modelOf(doc);
-    // Reference col 0, Value 1, Footprint 2, Qty 3 after the preset order.
-    expect(rowValues(model, 0)).toEqual(['C1', 'R1', 'R2, R10']);
-    expect(rowValues(model, 3)).toEqual(['1', '1', '2']);
-    // Ungrouped, every symbol is its own row.
-    model.setGroupingEnabled(false);
-    model.rebuildRows();
-    expect(rowValues(model, 0)).toEqual(['C1', 'R1', 'R2', 'R10']);
-  });
-
-  it('collapses units of one symbol into a single row', () => {
-    const doc = load(`
-      ${sym('U1', 'ECC83', 'Valve', 'a')}
-      ${sym('U1', 'ECC83', 'Valve', 'b')}`);
-    const model = modelOf(doc, { groupSymbols: false });
-    expect(model.getRows()).toHaveLength(1);
-    expect(model.getValue(0, 0)).toBe('U1');
-    expect(model.getValue(0, 3)).toBe('1'); // one part, two units
-  });
-
-  it('reads mixed group values as the indeterminate state', () => {
-    const doc = load(`
-      ${sym('R1', '1k', 'R_0603', 'a', '', '(property "MPN" "AAA" (at 0 0 0))')}
-      ${sym('R2', '1k', 'R_0603', 'b', '', '(property "MPN" "BBB" (at 0 0 0))')}`);
-    const model = modelOf(doc);
-    model.addColumn('MPN', 'MPN', false);
-    model.setShowColumn(model.getFieldNameCol('MPN'), true);
-    model.rebuildRows();
-    const mpn = model.getFieldNameCol('MPN');
-    expect(model.getValue(0, mpn)).toBe(INDETERMINATE_STATE);
-    // Writing a value sets it on every symbol of the group.
-    model.setValue(0, mpn, 'CCC');
-    expect(model.getValue(0, mpn)).toBe('CCC');
-  });
-
-  it('resolves a token only the document answers, through the symbol resolver', () => {
-    // SCH_SYMBOL::ResolveTextVar falls through to SCHEMATIC::ResolveTextVar
-    // for a token that is none of its own.
-    const doc = load(`${sym('R1', '${TITLE}', 'R_0603', 'a')}`);
-    const docs = new Map([['root.kicad_sch', doc]]);
-    const refs = buildFieldsReferences(docs, 'root.kicad_sch');
-    const model = new FieldsDataModel(refs, () => (t) => {
-      if (t.value !== 'TITLE') return false;
-      t.value = 'Amp';
-      return true;
-    });
-    loadFieldNames(model, refs);
-    model.rebuildRows();
-    expect(model.getExportValue(0, model.getFieldNameCol('Value'), ', ', '-')).toBe('Amp');
-  });
-
-  it('expands and collapses a group into its members', () => {
-    const doc = load(`
-      ${sym('R1', '1k', 'R_0603', 'a')}
-      ${sym('R2', '1k', 'R_0603', 'b')}`);
-    const model = modelOf(doc);
-    expect(model.getRows()).toHaveLength(1);
-    model.expandCollapseRow(0);
-    expect(model.getRows().map((r) => r.flag)).toEqual(['expanded', 'child', 'child']);
-    expect(rowValues(model, 0)).toEqual(['R1, R2', 'R1', 'R2']);
-    model.expandCollapseRow(0);
-    expect(model.getRows()).toHaveLength(1);
-  });
-
-  it('filters, scopes and honours the DNP / exclude-from-BOM options', () => {
-    const doc = load(`
-      ${sym('#PWR01', 'GND', '', 'p')}
-      ${sym('R1', '1k', 'R_0603', 'a', '(dnp yes)')}
-      ${sym('R2', '1k', 'R_0603', 'b', '(in_bom no)')}
-      ${sym('C1', '100n', 'C_0603', 'c')}`);
-    const model = modelOf(doc, { groupSymbols: false });
-    // Power symbols never list; the others do while both options are on.
-    expect(rowValues(model, 0)).toEqual(['C1', 'R1', 'R2']);
-    model.setExcludeDNP(true);
-    model.setIncludeExcludedFromBOM(false);
-    model.rebuildRows();
-    expect(rowValues(model, 0)).toEqual(['C1']);
-    model.setExcludeDNP(false);
-    model.setIncludeExcludedFromBOM(true);
-    model.setFilter('r');
-    model.rebuildRows();
-    expect(rowValues(model, 0)).toEqual(['R1', 'R2']);
-  });
-
-  it('sorts by a column, descending on the second click', () => {
-    const doc = load(`
-      ${sym('R1', '10k', 'R_0603', 'a')}
-      ${sym('R2', '1k', 'R_0603', 'b')}
-      ${sym('R3', '100R', 'R_0603', 'c')}`);
-    const model = modelOf(doc, { groupSymbols: false });
-    model.setSorting(1, true); // Value: 100R < 1k < 10k by ValueStringCompare
-    model.rebuildRows();
-    expect(rowValues(model, 1)).toEqual(['100R', '1k', '10k']);
-    model.setSorting(1, false);
-    model.rebuildRows();
-    expect(rowValues(model, 1)).toEqual(['10k', '1k', '100R']);
-  });
-
-  it('exports the shown columns with the format preset delimiters', () => {
-    const doc = load(`
-      ${sym('R1', '1k', 'R_0603', 'a')}
-      ${sym('R2', '1k', 'R_0603', 'b')}
-      ${sym('R3', '1k', 'R_0603', 'c')}`);
-    const model = modelOf(doc);
-    const csv = model.export({
-      fieldDelimiter: ',',
-      stringDelimiter: '"',
-      refDelimiter: ',',
-      refRangeDelimiter: '-',
-      keepTabs: false,
-      keepLineBreaks: false,
-    });
-    expect(csv).toBe(
-      '"Reference","Value","Footprint","Qty"\n' + '"R1-R3","1k","R_0603","3"\n', // a run of 3 collapses into a range
+describe('FIELDS_EDITOR_GRID_DATA_MODEL against kicad-cli sch export bom', () => {
+  it('the default fields', () => {
+    expect(exportBom(load(), DEFAULT_JOB)).toBe(
+      readFileSync(join(ORACLE, 'complex_hierarchy_default.csv'), 'utf8'),
     );
   });
 
-  it('applies only the changed cells, per sheet', () => {
-    const doc = load(`
-      ${sym('R1', '1k', 'R_0603', 'a')}
-      ${sym('R2', '2k', 'R_0603', 'b')}`);
-    const model = modelOf(doc, { groupSymbols: false });
-    model.setValue(0, 1, '4k7'); // R1's Value
-    expect(model.isEdited()).toBe(true);
-    const edits = model.applyData();
-    expect([...edits.fields.keys()]).toEqual(['root.kicad_sch']);
-    expect([...edits.fields.get('root.kicad_sch')!.values()]).toEqual([{ Value: '4k7' }]);
-    expect(edits.attrs.size).toBe(0);
-    expect(model.isEdited()).toBe(false);
+  it('grouped by Value and Footprint', () => {
+    expect(exportBom(load(), { ...DEFAULT_JOB, groupBy: ['Value', 'Footprint'] })).toBe(
+      readFileSync(join(ORACLE, 'complex_hierarchy_grouped.csv'), 'utf8'),
+    );
   });
 
-  it('writes the ${DNP} / ${EXCLUDE_FROM_BOM} columns as symbol attributes', () => {
-    const doc = load(`${sym('R1', '1k', 'R_0603', 'a')}`);
-    const model = modelOf(doc, {
-      fieldsOrdered: [
-        { name: 'Reference', label: 'Reference', show: true, groupBy: false },
-        { name: '${DNP}', label: 'DNP', show: true, groupBy: false },
-        { name: '${EXCLUDE_FROM_BOM}', label: 'Exclude from BOM', show: true, groupBy: false },
-      ],
-    });
-    const dnp = model.getFieldNameCol('${DNP}');
-    expect(model.getValue(0, dnp)).toBe('0');
-    model.setValue(0, dnp, '1');
-    const edits = model.applyData();
-    expect(edits.fields.size).toBe(0);
-    expect([...edits.attrs.get('root.kicad_sch')!.values()]).toEqual([{ dnp: true }]);
-  });
-
-  it('drops a symbol field when its column is removed', () => {
-    const doc = load(`${sym('R1', '1k', 'R_0603', 'a', '', '(property "MPN" "AAA" (at 0 0 0))')}`);
-    const model = modelOf(doc);
-    model.removeColumn(model.getFieldNameCol('MPN'));
-    expect(model.applyData().fields.get('root.kicad_sch')!.get('a')).toEqual({ MPN: '' });
+  it('every field, sorted by Value, no ranges, ; delimited', () => {
+    expect(
+      exportBom(load(), {
+        fields: ['*'],
+        labels: [],
+        groupBy: [],
+        sortField: 'Value',
+        fieldDelimiter: ';',
+        refRangeDelimiter: '',
+      }),
+    ).toBe(readFileSync(join(ORACLE, 'complex_hierarchy_all.csv'), 'utf8'));
   });
 });

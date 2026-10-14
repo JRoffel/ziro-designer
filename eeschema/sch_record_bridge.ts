@@ -20,7 +20,8 @@ import { parse } from '@ziroeda/sexpr/parser.js';
 import { readSchematic } from './sch_io/sexpr/read-schematic.js';
 import { SCH_IO_KICAD_SEXPR } from './sch_io/kicad_sexpr/sch_io_kicad_sexpr.js';
 import { SCH_SCREENS, type SCH_SCREEN } from './sch_screen.js';
-import type { SCHEMATIC } from './schematic.js';
+import type { SCHEMATIC, SCHEMATIC_LISTENER } from './schematic.js';
+import type { SCH_ITEM } from './sch_item.js';
 import { Pgm } from '@ziroeda/common/pgm_base.js';
 import type { PROJECT } from '@ziroeda/common/project.js';
 import { LoadSchematic } from './eeschema_helpers.js';
@@ -89,6 +90,14 @@ export class LIVE_SCHEMATIC_MIRROR {
   private m_live: SCHEMATIC | null = null;
   /** The `.kicad_pro` text the live project last read or wrote. */
   private m_proText: string | null = null;
+  /** The screens a commit has touched since TakeCommittedScreens last read them. */
+  private m_committed = new Set<SCH_SCREEN>();
+  /** Hears every SCH_COMMIT on the live schematic (SCHEMATIC::OnItemsChanged and the rest). */
+  private readonly m_listener: SCHEMATIC_LISTENER = {
+    OnSchItemsAdded: (_aSch, aItems) => this.noteCommitted(aItems),
+    OnSchItemsRemoved: (_aSch, aItems) => this.noteCommitted(aItems),
+    OnSchItemsChanged: (_aSch, aItems) => this.noteCommitted(aItems),
+  };
 
   constructor(
     private readonly m_frame: SCH_EDIT_FRAME,
@@ -96,6 +105,26 @@ export class LIVE_SCHEMATIC_MIRROR {
     /** Told of each rebuild, with the schematic that replaced the last one. */
     private readonly m_onRebuilt: (aSchematic: SCHEMATIC) => void = () => {},
   ) {}
+
+  private noteCommitted(aItems: readonly SCH_ITEM[]): void {
+    for (const item of aItems) {
+      let parent = item.GetParent();
+
+      while (parent && parent.Type() !== KICAD_T.SCH_SCREEN_T) parent = parent.GetParent();
+
+      if (parent) this.m_committed.add(parent as unknown as SCH_SCREEN);
+    }
+  }
+
+  /**
+   * The screens the live commits since the last call changed - every sheet a multi-sheet commit
+   * (the Symbol Fields Table's, say) reached, which OnModify's current screen alone misses.
+   */
+  TakeCommittedScreens(): Set<SCH_SCREEN> {
+    const out = this.m_committed;
+    this.m_committed = new Set();
+    return out;
+  }
 
   /** Forget the build (a different project opened). */
   Invalidate(): void {
@@ -161,7 +190,10 @@ export class LIVE_SCHEMATIC_MIRROR {
         if (!prj.IsNullProject()) Pgm().GetSettingsManager().UnloadProject(prj);
       }
 
+      previous?.RemoveListener(this.m_listener);
+      this.m_committed.clear();
       this.m_live = openRecordsLive(this.m_frame, project);
+      this.m_live?.AddListener(this.m_listener);
       this.m_builtFrom = new Map(project.docs);
       this.m_proText = proText;
 

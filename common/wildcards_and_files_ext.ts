@@ -151,6 +151,9 @@ export const footprintAssignmentFileWildcard = (): ChooserFilter =>
 export const gencadFileWildcard = (): ChooserFilter =>
   fileFilter('GenCAD 1.4 board files', ['cad']);
 
+/** `FILEEXT::CsvFileWildcard()`: "CSV Files" on `CsvFileExtension`, csv. */
+export const csvFileWildcard = (): ChooserFilter => fileFilter('CSV Files', ['csv']);
+
 /** `FILEEXT::JsonFileWildcard()`: "Json files" on `JsonFileExtension`, json. */
 export const jsonFileWildcard = (): ChooserFilter => fileFilter('Json files', ['json']);
 

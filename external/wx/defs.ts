@@ -11,6 +11,8 @@ export const wxOK = 0x00000004;
 export const wxICON_ERROR = 0x00000200;
 /** `wxCANCEL` (wx/defs.h). */
 export const wxCANCEL = 0x00000010;
+/** `wxOK_DEFAULT` (wx/defs.h). */
+export const wxOK_DEFAULT = 0x00000000;
 /** `wxCANCEL_DEFAULT` (wx/defs.h). */
 export const wxCANCEL_DEFAULT = 0x80000000;
 /** `wxYES` / `wxNO` / `wxYES_NO` (wx/defs.h). */

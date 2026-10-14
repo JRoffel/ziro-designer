@@ -2,7 +2,7 @@
 // Copyright (C) 2026 ZiroEDA and contributors.
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
 /**
- * `TEMPLATES::resolveTemplates` (`common/template_fieldnames.cpp:249-274`).
+ * `TEMPLATES::resolveTemplates` (`common/template_fieldnames.cpp:249-274`), on TEMPLATES itself.
  *
  * The Preferences page edits the GLOBAL list and Schematic Setup edits the
  * PROJECT's; every consumer reads the resolved one. Ours had no resolved list
@@ -13,7 +13,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   MANDATORY_FIELD_NAMES,
-  resolveTemplateFieldnames,
+  TEMPLATES,
   templateNamesNeedingTrim,
   transferTemplateFieldnames,
   type TemplateFieldname,
@@ -27,10 +27,25 @@ const t = (name: string, visible = false, url = false): TemplateFieldname => ({
 });
 
 describe('the resolved list is the project’s, then the globals it did not take', () => {
+  /** A TEMPLATES holding \a project and \a globals, read back resolved, as name/visible/url. */
+  const resolved = (
+    project: readonly TemplateFieldname[],
+    globals: readonly TemplateFieldname[],
+  ): TemplateFieldname[] => {
+    const templates = new TEMPLATES();
+    for (const f of project)
+      templates.AddTemplateFieldName({ m_Name: f.name, m_Visible: f.visible, m_URL: f.url }, false);
+    for (const f of globals)
+      templates.AddTemplateFieldName({ m_Name: f.name, m_Visible: f.visible, m_URL: f.url }, true);
+    return templates
+      .GetTemplateFieldNames()
+      .map((f) => ({ name: f.m_Name, visible: f.m_Visible, url: f.m_URL }));
+  };
+
   it('keeps the project’s own order and appends the rest after it', () => {
     // `m_resolved = m_project;` then a push_back per surviving global — so the
     // project's order is preserved and the globals follow, never interleaved.
-    const out = resolveTemplateFieldnames([t('Zeta'), t('Alpha')], [t('Beta'), t('Omega')]);
+    const out = resolved([t('Zeta'), t('Alpha')], [t('Beta'), t('Omega')]);
     expect(out.map((f) => f.name)).toEqual(['Zeta', 'Alpha', 'Beta', 'Omega']);
   });
 
@@ -38,35 +53,22 @@ describe('the resolved list is the project’s, then the globals it did not take
     // `overriddenInProject` compares the NAME only, and the project entry is
     // the one that survives — its visible/url win outright rather than being
     // merged with the global's.
-    const out = resolveTemplateFieldnames([t('MPN', true, true)], [t('MPN', false, false)]);
-    expect(out).toHaveLength(1);
-    expect(out[0]).toEqual({ name: 'MPN', visible: true, url: true });
+    const out = resolved([t('MPN', true, true)], [t('MPN', false, false)]);
+    expect(out).toEqual([{ name: 'MPN', visible: true, url: true }]);
   });
 
   it('treats a case variant as a different template, because wxString does', () => {
     // `global.m_Name == project.m_Name` is case SENSITIVE. Folding case here
     // would silently swallow a global the user can see on the page.
-    const out = resolveTemplateFieldnames([t('mpn')], [t('MPN')]);
-    expect(out.map((f) => f.name)).toEqual(['mpn', 'MPN']);
+    expect(resolved([t('mpn')], [t('MPN')]).map((f) => f.name)).toEqual(['mpn', 'MPN']);
   });
 
   it('is the globals alone when the project has none', () => {
-    expect(resolveTemplateFieldnames([], [t('MPN')]).map((f) => f.name)).toEqual(['MPN']);
+    expect(resolved([], [t('MPN')]).map((f) => f.name)).toEqual(['MPN']);
   });
 
   it('and the project alone when there are no globals', () => {
-    const project = [t('MPN')];
-    // Identity, not a copy: a caller memoising on this must not see a change
-    // where nothing changed.
-    expect(resolveTemplateFieldnames(project, [])).toBe(project);
-  });
-
-  it('touches neither input', () => {
-    const project = [t('A')];
-    const globals = [t('B')];
-    resolveTemplateFieldnames(project, globals);
-    expect(project).toHaveLength(1);
-    expect(globals).toHaveLength(1);
+    expect(resolved([t('MPN')], []).map((f) => f.name)).toEqual(['MPN']);
   });
 });
 

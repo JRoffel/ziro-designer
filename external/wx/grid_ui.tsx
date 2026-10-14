@@ -406,9 +406,12 @@ export function WxGridView({
     const drawn = grid.GetCellRenderer(aRow, aCol) as Partial<wxGridCellDrawn>;
 
     if (drawn.DrawValue) {
-      const { label, swatch, icon } = drawn.DrawValue(value, grid, aRow, aCol);
+      const { label, swatch, icon, indent } = drawn.DrawValue(value, grid, aRow, aCol);
       return (
-        <span className={icon !== undefined ? 'ze-grid-text ze-icon-text' : 'ze-grid-text'}>
+        <span
+          className={icon !== undefined ? 'ze-grid-text ze-icon-text' : 'ze-grid-text'}
+          style={indent ? { paddingLeft: indent } : undefined}
+        >
           {icon !== undefined && (
             <img className="ze-pin-icon" src={icon} alt="" aria-hidden="true" />
           )}
@@ -476,7 +479,10 @@ export function WxGridView({
                 <th
                   key={c}
                   className={columns[c]?.center ? 'c' : undefined}
-                  style={columns[c]?.width ? { width: columns[c]!.width } : undefined}
+                  style={(() => {
+                    const width = columns[c]?.width ?? grid.GetStatedColSize(c);
+                    return width ? { width } : undefined;
+                  })()}
                   onClick={(e) => {
                     grid.ProcessEvent(
                       new wxGridEvent(wxEVT_GRID_LABEL_LEFT_CLICK, grid, -1, c, modifiersOf(e)),

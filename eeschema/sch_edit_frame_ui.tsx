@@ -49,7 +49,14 @@ import { WxTextEntryDialog } from '@ziroeda/wx/textdlg.js';
 import { WX_TEXT_ENTRY_DIALOG } from '@ziroeda/common/dialogs/dialog_text_entry.js';
 import { wxFD_FILE_MUST_EXIST, wxFD_OPEN, wxFD_SAVE } from '@ziroeda/wx/defs.js';
 import { wxID_CANCEL, wxID_OK } from '@ziroeda/wx/menu.js';
-import { type KICAD_MESSAGE_DIALOG_ARG, ShowKicadMessageDialog } from '@ziroeda/common/confirm.js';
+import {
+  handleUnsavedChanges,
+  type KICAD_MESSAGE_DIALOG_ARG,
+  ShowKicadMessageDialog,
+  type UnsavedChangesResult,
+} from '@ziroeda/common/confirm.js';
+import { UnsavedChangesDialog } from '@ziroeda/common/dialogs/dialog_unsaved_changes.js';
+import { EdaListDialog } from '@ziroeda/common/dialogs/eda_list_dialog.js';
 import { LIB_ID } from '@ziroeda/common/lib_id.js';
 import { FIELD_T, GetCanonicalFieldName } from '@ziroeda/common/template_fieldnames.js';
 import type { PICKED_SYMBOL } from './sch_screen.js';
@@ -111,10 +118,6 @@ import {
   getSheetPageNumber,
   getRootPageNumber,
   getPageSettings,
-  bulkEditFieldsCommand,
-  bulkEditSymbolAttributesCommand,
-  composeCommands,
-  type SymbolAttrEdit,
   selectionHasGroup,
   expandSelectionToGroups,
   planNetclassAssignment,
@@ -237,7 +240,11 @@ import {
   LIBRARY_TABLE_TYPE,
 } from '@ziroeda/common/libraries/library_table.js';
 import { hostedLibraryTable } from '@ziroeda/common/dialogs/lib_table_panel.js';
-import { jsonFileWildcard, reportFileWildcard } from '@ziroeda/common/wildcards_and_files_ext.js';
+import {
+  csvFileWildcard,
+  jsonFileWildcard,
+  reportFileWildcard,
+} from '@ziroeda/common/wildcards_and_files_ext.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import {
   fetchHostedSymbolFile,
@@ -350,7 +357,11 @@ import {
 import { schematicTextVarResolver } from './schematic.js';
 import { ResolveShownText, type TextVarResolverFn } from '@ziroeda/common/common.js';
 import { DialogExportNetlist } from './dialogs/dialog_export_netlist.js';
-import { DialogSymbolFieldsTable, type FieldsEdits } from './dialogs/dialog_symbol_fields_table.js';
+import {
+  DIALOG_SYMBOL_FIELDS_TABLE,
+  type DIALOG_SYMBOL_FIELDS_TABLE_WINDOW,
+  DialogSymbolFieldsTable,
+} from './dialogs/dialog_symbol_fields_table.js';
 import { DialogPrint } from './printing/dialog_print.js';
 import { SCH_PRINTOUT } from './printing/sch_printout.js';
 import { wxPrinter } from '@ziroeda/wx/printer.js';
@@ -382,7 +393,6 @@ import {
   type FastGridAction,
 } from '@ziroeda/common/settings/grid_settings_ui.js';
 import { useHotkeyCyclePopup } from '@ziroeda/common/dialogs/hotkey_cycle_popup_ui.js';
-import { resolveTemplateFieldnames } from '@ziroeda/common/template_fieldnames.js';
 import type { RenderOpts } from './sch_render_settings.js';
 import type { InputPrefs } from '@ziroeda/common/view/wx_view_controls.js';
 import { LiveSchPropertiesPanel } from './widgets/sch_properties_panel_ui.js';
@@ -1521,6 +1531,36 @@ export function SchematicEditor({
     defaultName: string;
     resolve: (aPath: string | null) => void;
   } | null>(null);
+  /** `m_symbolFieldsTableDialog`: the frame's DIALOG_SYMBOL_FIELDS_TABLE, and whether it shows. */
+  const [fieldsTable, setFieldsTable] = useState<{
+    dialog: DIALOG_SYMBOL_FIELDS_TABLE;
+    shown: boolean;
+  } | null>(null);
+  const fieldsTableRef = useRef(fieldsTable);
+  fieldsTableRef.current = fieldsTable;
+  /** DIALOG_SYMBOL_FIELDS_TABLE's sub-dialogs, while one is open. */
+  const [fieldsTextEntry, setFieldsTextEntry] = useState<{
+    message: string;
+    caption: string;
+    value: string;
+    resolve: (aText: string | null) => void;
+  } | null>(null);
+  const [fieldsList, setFieldsList] = useState<{
+    caption: string;
+    label: string;
+    items: readonly string[];
+    resolve: (aPicked: string | null) => void;
+  } | null>(null);
+  const [fieldsUnsaved, setFieldsUnsaved] = useState<{
+    message: string;
+    resolve: (aResult: UnsavedChangesResult) => void;
+  } | null>(null);
+  const [fieldsSaveFile, setFieldsSaveFile] = useState<{
+    defaultName: string;
+    resolve: (aPath: string | null) => void;
+  } | null>(null);
+  /** `new DIALOG_SYMBOL_FIELDS_TABLE( this )`, as GetSymbolFieldsTableDialog asks for one. */
+  const fieldsTableFactoryRef = useRef<() => DIALOG_SYMBOL_FIELDS_TABLE | null>(() => null);
   /** `new DIALOG_ERC( this )`, as SCH_EDIT_FRAME::GetErcDialog asks for one. */
   const ercDialogFactoryRef = useRef<() => DIALOG_ERC | null>(() => null);
   /** Tools > Update Schematic from PCB: the footprints read for this run. */
@@ -1910,6 +1950,7 @@ export function SchematicEditor({
       liveModified: () => liveModifiedRef.current(),
       liveSheetChanged: () => liveSheetChangedRef.current(),
       ercDialog: () => ercDialogFactoryRef.current(),
+      symbolFieldsTableDialog: () => fieldsTableFactoryRef.current(),
     });
   }
   // `KIWAY::Player()` stores the frame it created as FRAME_SCH's player, and
@@ -2542,12 +2583,8 @@ export function SchematicEditor({
   // ERC severities + pin-conflict map that the ERC checker reads. (The setup
   // state itself is declared above the netlist memo, which consumes it.)
   const [setupOpen, setSetupOpen] = useState(false);
-  // Generate Bill of Materials (Symbol Fields Table export) dialog.
-  const [bomOpen, setBomOpen] = useState(false);
   // Export Netlist (DIALOG_EXPORT_NETLIST) dialog.
   const [netlistOpen, setNetlistOpen] = useState(false);
-  // Bulk Edit Symbol Fields (Symbol Fields Table edit view) dialog.
-  const [fieldsTableOpen, setFieldsTableOpen] = useState(false);
   // Symbol Library Browser (SYMBOL_VIEWER_FRAME).
   const [browserOpen, setBrowserOpen] = useState(false);
   // Assign Footprints (CVPCB_MAINFRAME).
@@ -2967,12 +3004,6 @@ export function SchematicEditor({
       applyingRemoteRef.current = false;
     }
   }, [pendingRemoteChange, sheetInstanceRefs, currentFile, applySheetDocument]);
-
-  /** Open the fields table (DIALOG_SYMBOL_FIELDS_TABLE opens directly). */
-  const openFieldsTable = useCallback((view: 'edit' | 'bom') => {
-    if (view === 'bom') setBomOpen(true);
-    else setFieldsTableOpen(true);
-  }, []);
 
   // Bulk Edit Symbol Library Links (DIALOG_EDIT_SYMBOLS_LIBID). A bad row keeps
   // the dialog open on its error rather than closing on a half-applied edit.
@@ -3440,40 +3471,6 @@ export function SchematicEditor({
     });
     setPrintOpen(false);
   }, []);
-
-  // Bulk Edit Symbol Fields: apply the changed cells across every sheet they
-  // reach, as ONE entry — DIALOG_SYMBOL_FIELDS_TABLE builds a single SCH_COMMIT
-  // and pushes it once, however many screens it modified.
-  const applyFieldsEdits = useCallback(
-    (
-      edits: FieldsEdits,
-      opts: {
-        persist?: boolean;
-        /** The `${DNP}` / `${EXCLUDE_FROM_…}` columns, applied in the same step. */
-        attrs?: ReadonlyMap<string, ReadonlyMap<string, SymbolAttrEdit>>;
-      } = {},
-    ) => {
-      const edit = new Map<string, EditCommand>();
-      const files = new Set([...edits.keys(), ...(opts.attrs?.keys() ?? [])]);
-      for (const file of files) {
-        if (file !== currentFile && !project.current.docs.has(file)) continue;
-        const perSymbol = edits.get(file);
-        const perSymbolAttrs = opts.attrs?.get(file);
-        const cmds = [
-          ...(perSymbol?.size ? [bulkEditFieldsCommand(perSymbol)] : []),
-          ...(perSymbolAttrs?.size ? [bulkEditSymbolAttributesCommand(perSymbolAttrs)] : []),
-        ];
-        if (cmds.length === 0) continue;
-        edit.set(file, cmds.length === 1 ? cmds[0]! : composeCommands('Edit Symbol Fields', cmds));
-      }
-      if (edit.size === 0) return;
-      // "Apply, Save Schematic & Continue" (CVPCB) writes now rather than
-      // waiting for the debounced autosave, so every sheet the edit reached —
-      // the open one included — is reported to the host.
-      runProject(edit, opts.persist === true);
-    },
-    [currentFile, runProject],
-  );
 
   // Plot (DIALOG_PLOT_SCHEMATIC / SCH_PLOTTER::Plot): write the chosen format
   // into the project's output directory. "Plot All Pages" (the upstream OK
@@ -4217,7 +4214,10 @@ export function SchematicEditor({
             .map((f) => ({ name: f.name, text: f.text })),
         };
       },
-      () => ercDialogRef.current?.dialog.OnSchematicReplaced(),
+      () => {
+        ercDialogRef.current?.dialog.OnSchematicReplaced();
+        fieldsTableRef.current?.dialog.OnSchematicReplaced();
+      },
     );
     return liveMirrorRef.current.get() !== null;
   };
@@ -4297,6 +4297,56 @@ export function SchematicEditor({
         }),
     };
     dialog = new DIALOG_ERC(frame, window);
+    return dialog;
+  };
+  // DIALOG_SYMBOL_FIELDS_TABLE's window: its sub-dialogs, the BOM file, its showing and the
+  // field_editor settings.
+  fieldsTableFactoryRef.current = () => {
+    const frame = schFrameRef.current;
+    if (!frame || !syncLiveRef.current()) return null;
+    let dialog: DIALOG_SYMBOL_FIELDS_TABLE;
+    /** A path the dialog names, relative to the project folder (where generated files go). */
+    const projectRelative = (aPath: string): string => {
+      const { projectName: name } = liveFilesRef.current;
+      const prefix = name ? `/${name}/` : '/';
+      return aPath.startsWith(prefix) ? aPath.slice(prefix.length) : aPath.replace(/^\/+/, '');
+    };
+    const window: DIALOG_SYMBOL_FIELDS_TABLE_WINDOW = {
+      textEntry: (message, caption, value) =>
+        new Promise<string | null>((resolve) =>
+          setFieldsTextEntry({ message, caption, value, resolve }),
+        ),
+      listDialog: (caption, label, items) =>
+        new Promise<string | null>((resolve) => setFieldsList({ caption, label, items, resolve })),
+      handleUnsavedChanges: async (message, save) => {
+        const result = await new Promise<UnsavedChangesResult>((resolve) =>
+          setFieldsUnsaved({ message, resolve }),
+        );
+        return handleUnsavedChanges(result, save);
+      },
+      saveFileDialog: (defaultName) =>
+        new Promise<string | null>((resolve) => setFieldsSaveFile({ defaultName, resolve })),
+      // The BOM lands in the project's files (the cloud "disk"), as every generated output does.
+      writeFile: (path, text) => {
+        const file = projectRelative(path);
+        if (onOutputFile) onOutputFile(file, new TextEncoder().encode(text), 'text/csv');
+        else downloadBlob(new Blob([text], { type: 'text/csv' }), file);
+        return true;
+      },
+      chooseFootprint: (current) =>
+        new Promise<string | null>((resolve) =>
+          setFpChooser({ current, commit: resolve, fpFilters: [], cancel: () => resolve(null) }),
+        ),
+      show: (aShow) => setFieldsTable({ dialog, shown: aShow }),
+      raise: () => {},
+      destroy: () => setFieldsTable(null),
+      fieldEditorSettings: () => app.settings.eeschema.field_editor,
+      saveFieldEditorSettings: (values) =>
+        app.settings.updateEeschema((c) => {
+          c.field_editor = structuredClone(values);
+        }),
+    };
+    dialog = new DIALOG_SYMBOL_FIELDS_TABLE(frame, window);
     return dialog;
   };
   // (TRANSITIONAL, S4-6c/S5): KiCad's own canvas - SCH_DRAW_PANEL on the live model,
@@ -4451,6 +4501,7 @@ export function SchematicEditor({
     const changed = new Set<SCH_SCREEN>();
     const current = frame.GetScreen();
     if (current) changed.add(current);
+    for (const screen of liveMirrorRef.current?.TakeCommittedScreens() ?? []) changed.add(screen);
     const name = liveFilesRef.current.projectName;
     const dir = `/${name ?? project.current.root.replace(/\.[^.]*$/, '')}`;
     const screens = new SCH_SCREENS(frame.Schematic().Root());
@@ -4717,25 +4768,6 @@ export function SchematicEditor({
     );
     return canvas.toDataURL('image/png').slice('data:image/png;base64,'.length);
   };
-
-  /**
-   * `SCHEMATIC_SETTINGS::m_TemplateFieldNames.GetTemplateFieldNames()` — the
-   * RESOLVED templates, which is what every consumer upstream asks for and what
-   * neither of ours was getting.
-   *
-   * There are two lists. Schematic Setup > Field Name Templates edits the
-   * PROJECT's, and Preferences > Schematic Editor > Field Name Templates edits
-   * the GLOBAL one in `eeschema.json`'s `drawing.field_names`
-   * (`panel_template_fieldnames.cpp:50-60`). We passed `setup.fieldTemplates`
-   * — the project's alone — to both dialogs, so a template added on the
-   * Preferences page was stored, listed back on that page, and used by nothing.
-   *
-   * See `template_fieldnames.ts` for the merge, which is `resolveTemplates`.
-   */
-  const resolvedFieldTemplates = useMemo(
-    () => resolveTemplateFieldnames(setup.fieldTemplates, es.drawing.field_names),
-    [setup.fieldTemplates, es.drawing.field_names],
-  );
 
   // Display + input options handed to the canvas, straight from the settings
   // (Preferences > Display Options / Grids / Mouse and Touchpad).
@@ -5037,9 +5069,9 @@ export function SchematicEditor({
       else if (id === 'updateSchFromPcb') runLiveAction(ACTIONS.updateSchematicFromPcb);
       else if (id === 'symbolEditor') onShowSymbolEditor?.();
       else if (id === 'footprintEditor') onShowFootprintEditor?.();
-      else if (id === 'bom') openFieldsTable('bom');
+      else if (id === 'bom') runLiveAction(SCH_ACTIONS.generateBOM);
       else if (id === 'exportNetlist') setNetlistOpen(true);
-      else if (id === 'editSymbolFields') openFieldsTable('edit');
+      else if (id === 'editSymbolFields') runLiveAction(SCH_ACTIONS.editSymbolFields);
       else if (id === 'symbolBrowser') setBrowserOpen(true);
       else if (id === 'assignFootprints') setAssignFpOpen(true);
       else if (id === 'showCalculator') onShowCalculator?.();
@@ -6249,6 +6281,56 @@ export function SchematicEditor({
               />
             )}
             {ercDialog?.shown && <DialogErc dialog={ercDialog.dialog} />}
+            {fieldsTable?.shown && <DialogSymbolFieldsTable dialog={fieldsTable.dialog} />}
+            {fieldsTextEntry && (
+              <WX_TEXT_ENTRY_DIALOG
+                label={fieldsTextEntry.message}
+                caption={fieldsTextEntry.caption}
+                defaultValue={fieldsTextEntry.value}
+                onResult={(text) => {
+                  fieldsTextEntry.resolve(text);
+                  setFieldsTextEntry(null);
+                }}
+              />
+            )}
+            {fieldsList && (
+              <EdaListDialog
+                title={fieldsList.caption}
+                headers={['Presets']}
+                rows={fieldsList.items.map((name) => ({ value: name, cells: [name] }))}
+                listLabel={fieldsList.label}
+                onResult={(picked) => {
+                  fieldsList.resolve(picked);
+                  setFieldsList(null);
+                }}
+              />
+            )}
+            {fieldsUnsaved && (
+              <UnsavedChangesDialog
+                message={fieldsUnsaved.message}
+                onResult={(result) => {
+                  fieldsUnsaved.resolve(result);
+                  setFieldsUnsaved(null);
+                }}
+              />
+            )}
+            {fieldsSaveFile && (
+              // DIALOG_SYMBOL_FIELDS_TABLE::OnOutputFileBrowseClicked: wxFileDialog(
+              //   _( "Bill of Materials Output File" ), path, fn.GetFullName(),
+              //   CsvFileWildcard(), wxFD_SAVE ).
+              <SaveAsDialog
+                title="Bill of Materials Output File"
+                initialName={fieldsSaveFile.defaultName}
+                filters={[csvFileWildcard()]}
+                {...(projectName
+                  ? { projectDir: `/${projectName}`, initialPath: `/${projectName}` }
+                  : {})}
+                onDone={(path) => {
+                  fieldsSaveFile.resolve(path);
+                  setFieldsSaveFile(null);
+                }}
+              />
+            )}
             {ercComment && (
               <WX_TEXT_ENTRY_DIALOG
                 label=""
@@ -6580,43 +6662,6 @@ export function SchematicEditor({
                 projectFolders={projectFolders}
                 onOutputFile={onOutputFile}
                 onClose={() => setNetlistOpen(false)}
-              />
-            )}
-            {/* One dialog, two views (DIALOG_SYMBOL_FIELDS_TABLE): Edit Symbol
-              Fields opens its Edit page, Generate BOM its Export page. */}
-            {(fieldsTableOpen || bomOpen) && (
-              <DialogSymbolFieldsTable
-                docs={liveDocs()}
-                rootFile={project.current.root}
-                currentPath={currentPath}
-                fieldTemplates={resolvedFieldTemplates}
-                presets={setup.bomPresets}
-                // Saved presets persist into schematic.bom_presets and list in
-                // Schematic Setup > BOM Presets, like upstream.
-                onSavePresets={(bomPresets) => commitSetup({ ...setup, bomPresets })}
-                defaultBomFileName={`${outputBaseName()}.csv`}
-                initialTab={bomOpen ? 'export' : 'edit'}
-                onApply={(edits, opts) =>
-                  applyFieldsEdits(edits.fields, { ...opts, attrs: edits.attrs })
-                }
-                // The BOM lands in the project's file manager (the cloud "disk"),
-                // like every other generated output.
-                onExportFile={(name, text) => {
-                  if (onOutputFile) onOutputFile(name, new TextEncoder().encode(text), 'text/csv');
-                  else downloadBlob(new Blob([text], { type: 'text/csv' }), name);
-                }}
-                // Cross-probe: pick the row's symbols on the canvas (highlight
-                // also centres on the first one), as OnTableRangeSelected does.
-                onCrossProbe={(refs, mode) => {
-                  const ids = refs.filter((r) => r.file === currentFile).map((r) => r.id);
-                  if (ids.length === 0) return;
-                  setSelection(new Set(ids));
-                  if (mode === 'highlight') setHighlightItem(ids[0] ?? null);
-                }}
-                onClose={() => {
-                  setFieldsTableOpen(false);
-                  setBomOpen(false);
-                }}
               />
             )}
             {/* Assign Footprints (cvpcb): assignments apply as Footprint field

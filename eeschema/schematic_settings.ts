@@ -387,6 +387,7 @@ import {
 import { LIB_SYMBOL as LIB_SYMBOL_E3 } from './lib_symbol.js';
 import { REFDES_TRACKER } from './refdes_tracker.js';
 import { TEMPLATES } from '@ziroeda/common/template_fieldnames.js';
+import { currentEeschemaSettings } from './eeschema_settings.js';
 import { NESTED_SETTINGS } from '@ziroeda/common/settings/nested_settings.js';
 import type { JSON_SETTINGS } from '@ziroeda/common/settings/json_settings.js';
 import type { JsonValue } from '@ziroeda/common/settings/json_settings_internals.js';
@@ -648,7 +649,13 @@ export class SCHEMATIC_SETTINGS extends NESTED_SETTINGS {
             }
           }
 
-          // Read global fieldname templates: no EESCHEMA_SETTINGS here.
+          // Read global fieldname templates
+          for (const field of currentEeschemaSettings().drawing.field_names) {
+            this.m_TemplateFieldNames.AddTemplateFieldName(
+              { m_Name: field.name, m_URL: field.url, m_Visible: field.visible },
+              true,
+            );
+          }
         },
         [],
       ),

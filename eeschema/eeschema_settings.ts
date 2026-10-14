@@ -187,6 +187,16 @@ export interface EeschemaSettings {
     scroll_on_crossprobe: boolean;
     show_all_errors: boolean;
   };
+  /** DIALOG_SYMBOL_FIELDS_TABLE's state (EESCHEMA_SETTINGS m_FieldEditorPanel, "field_editor.*"). */
+  field_editor: {
+    field_widths: Record<string, number>;
+    export_filename: string;
+    /** 0 highlight, 1 select, 2 neither, on cross-probe. */
+    selection_mode: number;
+    sash_pos: number;
+    variant_sash_pos: number;
+    sidebar_collapsed: boolean;
+  };
   /** DIALOG_CHANGE_SYMBOLS' list-box state (EESCHEMA_SETTINGS m_ChangeSymbols, "change_symbols.*"). */
   change_symbols: {
     update_references: boolean;
@@ -411,6 +421,15 @@ export const EESCHEMA_DEFAULTS: EeschemaSettings = {
     crossprobe: true,
     scroll_on_crossprobe: true,
     show_all_errors: false,
+  },
+  // eeschema_settings.cpp:549-565
+  field_editor: {
+    field_widths: {},
+    export_filename: '',
+    selection_mode: 0,
+    sash_pos: 400,
+    variant_sash_pos: 500,
+    sidebar_collapsed: false,
   },
   change_symbols: {
     update_references: false,

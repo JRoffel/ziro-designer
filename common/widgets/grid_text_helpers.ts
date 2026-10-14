@@ -11,7 +11,15 @@
  * one KiCad grids set (`panel_text_variables.cpp`, `dialog_configure_paths.cpp`):
  * a character in the list is refused as it is typed.
  */
-import { wxGridCellTextEditor } from '@ziroeda/wx/grid.js';
+import {
+  type wxGrid,
+  type wxGridCellDrawn,
+  wxGridCellStringRenderer,
+  wxGridCellTextEditor,
+} from '@ziroeda/wx/grid.js';
+// wx_grid imports this file: the two are read only inside DrawValue, never as the modules load.
+import { GROUP_TYPE, WX_GRID_TABLE_BASE } from './wx_grid.js';
+import { BLANK_INDICATOR_URL, ROW_ICON_STATE, turndownIconUrl } from './indicator_icon.js';
 
 export class GRID_CELL_TEXT_EDITOR extends wxGridCellTextEditor {
   private m_excludes: string | null = null;
@@ -73,4 +81,37 @@ export class GRID_CELL_MARK_AS_NULLABLE
   }
 
   override Reset(): void {}
+}
+
+/**
+ * `GRID_CELL_TEXT_RENDERER` (grid_text_helpers.cpp:82): a string renderer that, in a grouped
+ * table's expander column, draws the row's ROW_ICON_PROVIDER indicator (closed or open for a
+ * group, blank otherwise) before the text, a child row indented a further 12 DIP.
+ */
+export class GRID_CELL_TEXT_RENDERER extends wxGridCellStringRenderer implements wxGridCellDrawn {
+  DrawValue(
+    aValue: string,
+    aGrid: wxGrid,
+    aRow: number,
+    aCol: number,
+  ): { label: string; icon?: string; indent?: number } {
+    const table = aGrid.GetTable();
+
+    if (!(table instanceof WX_GRID_TABLE_BASE) || !table.IsExpanderColumn(aCol))
+      return { label: aValue };
+
+    const group = table.GetGroupType(aRow);
+    const icon =
+      group === GROUP_TYPE.GROUP_COLLAPSED
+        ? turndownIconUrl(ROW_ICON_STATE.CLOSED)
+        : group === GROUP_TYPE.GROUP_EXPANDED
+          ? turndownIconUrl(ROW_ICON_STATE.OPEN)
+          : BLANK_INDICATOR_URL;
+
+    return {
+      label: aValue,
+      icon,
+      ...(group === GROUP_TYPE.CHILD_ITEM ? { indent: 12 } : {}),
+    };
+  }
 }

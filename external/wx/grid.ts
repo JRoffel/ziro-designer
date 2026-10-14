@@ -351,7 +351,7 @@ export interface wxGridCellDrawn {
     aGrid: wxGrid,
     aRow: number,
     aCol: number,
-  ): { label: string; swatch?: string; icon?: string };
+  ): { label: string; swatch?: string; icon?: string; indent?: number };
 }
 
 /**
@@ -1321,6 +1321,8 @@ export class wxGrid extends wxEvtHandler {
   private m_editable = true;
   protected m_cellEditCtrlEnabled = false;
   private m_hiddenCols = new Set<number>();
+  /** `m_colWidths`: the widths `SetColSize` stated; the rest are `m_defaultColWidth`. */
+  private m_colWidths = new Map<number, number>();
   private m_batchCount = 0;
   private m_defaultCellAttr = (() => {
     const a = new wxGridCellAttr();
@@ -1537,6 +1539,18 @@ export class wxGrid extends wxEvtHandler {
   HideCol(aCol: number): void {
     this.m_hiddenCols.add(aCol);
     this.Refresh();
+  }
+  /** `GetColSize( aCol )`: the stated width, else `WXGRID_DEFAULT_COL_WIDTH` (80). */
+  GetColSize(aCol: number): number {
+    return this.m_colWidths.get(aCol) ?? 80; // [data] WXGRID_DEFAULT_COL_WIDTH, generic/grid.h
+  }
+  SetColSize(aCol: number, aWidth: number): void {
+    this.m_colWidths.set(aCol, aWidth);
+    this.Refresh();
+  }
+  /** The width `SetColSize` stated, for the view; undefined lets the column take its content. */
+  GetStatedColSize(aCol: number): number | undefined {
+    return this.m_colWidths.get(aCol);
   }
 
   // ---- attributes, editors, renderers ------------------------------------

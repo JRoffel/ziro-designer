@@ -169,9 +169,10 @@ describe('what the registered cancel means', () => {
     expect(registered('../../eeschema/dialogs/dialog_symbol_fields_table_base.tsx')).toEqual([
       'p.onCancel',
     ]);
+    // OnCancel -> OnClose, which asks HandleUnsavedChanges over edited data.
     expect(
       FILES.find((f) => f.rel === '../../eeschema/dialogs/dialog_symbol_fields_table.tsx')?.src,
-    ).toMatch(/onCancel=\{onCancel\}/);
+    ).toMatch(/onCancel=\{\(\) => d\.OnCancel\(\)\}/);
     // DIALOG_PRINT's Close stores the print options on the way out.
     expect(registered('../../eeschema/printing/dialog_print.tsx')).toEqual(['saveAndClose']);
     // The board's is DIALOG_PRINT_PCBNEW on the common DIALOG_PRINT_GENERIC:

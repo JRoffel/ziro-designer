@@ -5571,126 +5571,6 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
 .ze-splitter-sash:hover {
   background: var(--chrome-active);
 }
-/* EnableGridLines( false ): only the header rule shows. */
-.ze-sft-fields {
-  table-layout: fixed;
-}
-.ze-sft-fields th {
-  height: 24px;
-  padding: 0 4px;
-  border: none;
-  border-bottom: 1px solid var(--chrome-border);
-  white-space: nowrap;
-}
-.ze-sft-fields td {
-  border: none;
-  padding: 0;
-  height: 20px;
-}
-.ze-sft-fields td.center {
-  text-align: center;
-}
-.ze-sft-fields td.ze-sft-name {
-  padding: 0 5px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.ze-sft-fields td input[type="text"] {
-  padding: 1px 5px;
-}
-/* The grid cursor's row highlights solid, like WX_GRID's selection. */
-.ze-sft-fields tr.selected td {
-  outline: none;
-  background: var(--chrome-active);
-  color: var(--selection-fg);
-}
-.ze-sft-fields tr.selected td input[type="text"] {
-  color: #1b1d1f;
-}
-.ze-sft-menu {
-  position: absolute;
-  right: 0;
-  top: 100%;
-  z-index: 5;
-  min-width: 270px;
-  padding: 4px 0;
-  background: var(--chrome-bg2);
-  border: 1px solid var(--chrome-border);
-  border-radius: 4px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
-}
-.ze-sft-menu > div {
-  padding: 4px 10px;
-  font-size: 12.5px;
-  cursor: default;
-  white-space: nowrap;
-}
-.ze-sft-menu > div:hover {
-  background: var(--chrome-hover);
-}
-.ze-sft-menu .tick {
-  display: inline-block;
-  width: 14px;
-}
-.ze-sft-menu hr {
-  border: none;
-  border-top: 1px solid var(--chrome-border);
-  margin: 4px 0;
-}
-.ze-sft-table {
-  table-layout: fixed;
-  min-width: 400px;
-}
-.ze-sft-table th {
-  height: 24px;
-  cursor: default;
-  white-space: nowrap;
-  overflow: hidden;
-}
-.ze-sft-table td {
-  height: 28px;
-}
-/* WX_GRID paints its selection in the accent colour, not a focus ring. */
-.ze-sft-table tr.selected td {
-  outline: none;
-  background: var(--chrome-active);
-  color: var(--selection-fg);
-}
-.ze-sft-cell {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-}
-.ze-sft-cell.center {
-  justify-content: center;
-}
-.ze-sft-cell.right {
-  justify-content: flex-end;
-  padding-right: 6px;
-}
-.ze-sft-cell .ze-sft-text {
-  padding: 3px 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.ze-sft-twisty {
-  flex: 0 0 auto;
-  width: 14px;
-  cursor: default;
-  user-select: none;
-  opacity: 0.85;
-  font-size: 10px;
-}
-.ze-sft-twisty:not(.on) {
-  cursor: default;
-}
-.ze-sft-empty {
-  padding: 6px 8px;
-  font-size: 12px;
-  color: var(--ze-muted, #9a9ca0);
-}
 
 /* Symbol Library Browser (symbol_viewer_frame.cpp): the frame's AUI panes,
    toolbar on top, "Libraries" | "Symbols" palettes left of the canvas, message
@@ -7854,7 +7734,7 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
 /* Painted on the cells, not the row: every other selected-row style in this file
    does the same, because a background on a `tr` is unreliable once the cells
    establish their own formatting (these carry `overflow: hidden` for the
-   ellipsis). `.ze-sft-table tr.selected td` is the same shape. */
+   ellipsis). */
 .ze-search-row:hover td {
   background: var(--chrome-hover);
 }

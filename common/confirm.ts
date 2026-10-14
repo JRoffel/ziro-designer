@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 ZiroEDA and contributors.
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
+import { wxCANCEL, wxCENTER, wxICON_WARNING, wxOK, wxOK_DEFAULT } from '@ziroeda/wx/defs.js';
 import { wxID_CANCEL } from '@ziroeda/wx/menu.js';
 
 /**
@@ -180,4 +181,26 @@ export function SetMessageDialogPresenter(aPresenter: MessageDialogPresenter): v
 /** `KICAD_MESSAGE_DIALOG( … ).ShowModal()`: wxID_OK or wxID_CANCEL. */
 export function ShowKicadMessageDialog(aArg: KICAD_MESSAGE_DIALOG_ARG): Promise<number> {
   return s_messageDialogPresenter(aArg);
+}
+
+/**
+ * `OKOrCancelDialog( aParent, aWarning, aMessage, aDetailedMessage, aOKLabel, aCancelLabel )`
+ * (common/confirm.cpp:169): a warning box whose caption is `aWarning`, OK the default; wxID_OK or
+ * wxID_CANCEL. The "Apply to all" checkbox is not here; no caller in the port passes it.
+ */
+export function OKOrCancelDialog(
+  aWarning: string,
+  aMessage: string,
+  aDetailedMessage = '',
+  aOKLabel = '',
+  aCancelLabel = '',
+): Promise<number> {
+  return ShowKicadMessageDialog({
+    message: aMessage,
+    caption: aWarning,
+    style: wxOK | wxCANCEL | wxOK_DEFAULT | wxICON_WARNING | wxCENTER,
+    ...(aDetailedMessage ? { extended: aDetailedMessage } : {}),
+    okLabel: aOKLabel === '' ? 'OK' : aOKLabel,
+    cancelLabel: aCancelLabel === '' ? 'Cancel' : aCancelLabel,
+  });
 }

@@ -166,22 +166,6 @@ export interface TemplateFieldname {
 }
 
 /**
- * `TEMPLATES::GetTemplateFieldNames()` — the resolved list.
- *
- * Returns a new array; neither input is touched. `project` keeps its identity
- * when there is nothing global to append, so a caller memoising on the result
- * does not re-render for a change that did not happen.
- */
-export function resolveTemplateFieldnames<T extends TemplateFieldname>(
-  project: readonly T[],
-  globals: readonly T[],
-): readonly T[] {
-  const taken = new Set(project.map((t) => t.name));
-  const extra = globals.filter((g) => !taken.has(g.name));
-  return extra.length === 0 ? project : [...project, ...extra];
-}
-
-/**
  * `PANEL_TEMPLATE_FIELDNAMES::TransferDataFromWindow` (`:193-252`), minus its
  * one modal.
  *

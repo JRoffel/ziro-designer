@@ -33,13 +33,13 @@ describe('a viewer cannot originate an edit', () => {
     expect(body).toContain(GUARD);
   });
 
-  it('runCommand, applySheetCommand and applyFieldsEdits all reach runProject', () => {
+  it('runCommand and applySheetCommand both reach runProject', () => {
     // The guard lives once, in runProject — everything else is a thin wrapper
     // (runCommand, applySheetCommand -> stage -> runProject) or calls
-    // runProject directly (applyFieldsEdits, sheetBatch). This
+    // runProject directly (sheetBatch). This
     // just confirms none of them still holds its own copy of the guard, which
     // would mean runProject's copy is not actually the only one left.
-    for (const fn of ['runCommand', 'applySheetCommand', 'applyFieldsEdits']) {
+    for (const fn of ['runCommand', 'applySheetCommand']) {
       const decl = `const ${fn} = useCallback(`;
       const i = text.indexOf(decl);
       expect(i).toBeGreaterThan(-1);
@@ -51,6 +51,14 @@ describe('a viewer cannot originate an edit', () => {
       const body = text.slice(i, nextFn > -1 ? nextFn : i + 2000);
       expect(body).not.toContain(GUARD);
     }
+  });
+
+  it('a live commit (the Symbol Fields Table, a live tool) is refused at the write-back', () => {
+    // Edits on the live model reach the window's records through adoptLiveScreens, which keeps
+    // runProject's viewer rule.
+    const i = text.indexOf('adoptLiveScreensRef.current = (screens) => {');
+    expect(i).toBeGreaterThan(-1);
+    expect(text.slice(i, i + 200)).toContain("if (myRoleRef.current === 'viewer') return;");
   });
 
   it('the remote-update effect brackets its applySheetDocument call with applyingRemoteRef', () => {

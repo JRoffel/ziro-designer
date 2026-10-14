@@ -81,7 +81,8 @@ describe('the Net Navigator matches upstream', () => {
 /**
  * One disclosure mark across the app. The project tree draws a CSS chevron; the
  * net navigator and the fields table's group rows drew solid triangle glyphs
- * instead, so the same gesture looked like three different controls.
+ * instead, so the same gesture looked like three different controls. The fields
+ * table now draws KiCad's own turndown (GRID_CELL_TEXT_RENDERER).
  */
 describe('disclosure arrows are the project tree chevron', () => {
   it('the chevron is declared without an ancestor so anything can use it', () => {
@@ -94,7 +95,9 @@ describe('disclosure arrows are the project tree chevron', () => {
     // Only the expander glyphs. A column's ▲/▼ sort indicator stays a triangle:
     // that is what wxGrid's ShowSortIndicator draws, and it is not a disclosure
     // control.
-    const FIELDS = read('../../../eeschema/dialogs/dialog_symbol_fields_table.tsx');
+    // The fields table's expander is GRID_CELL_TEXT_RENDERER's (grid_text_helpers.cpp), drawn on
+    // the grid as KiCad draws it, from GetIndicatorIcon's turndown.
+    const FIELDS = read('../../../common/widgets/grid_text_helpers.ts');
     for (const [name, src] of [
       ['net navigator', PANEL],
       ['fields table', FIELDS],
@@ -103,15 +106,13 @@ describe('disclosure arrows are the project tree chevron', () => {
         expect(src.includes(glyph), `${name} still uses ${glyph} as an expander`).toBe(false);
       }
     }
-    // …and the sort indicator is still there, deliberately.
-    expect(FIELDS).toContain('▲');
+    // …it draws KiCad's indicator icon, the turndown, for both states.
+    expect(FIELDS).toContain('turndownIconUrl(ROW_ICON_STATE.CLOSED)');
+    expect(FIELDS).toContain('turndownIconUrl(ROW_ICON_STATE.OPEN)');
   });
 
-  it('both use the twisty markup', () => {
+  it('the net navigator uses the twisty markup', () => {
     expect(PANEL).toContain('twisty expandable');
-    expect(read('../../../eeschema/dialogs/dialog_symbol_fields_table.tsx')).toContain(
-      'twisty expandable',
-    );
   });
 });
 

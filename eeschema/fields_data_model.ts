@@ -2,1074 +2,1678 @@
 // Copyright (C) 2026 ZiroEDA and contributors.
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
 /**
- * Symbol Fields Table data model. Counterpart: `eeschema/fields_data_model.cpp`
- * (FIELDS_EDITOR_GRID_DATA_MODEL), the engine behind KiCad's
- * DIALOG_SYMBOL_FIELDS_TABLE, its Edit view *and* its Export (BOM) view are
- * both this one model:
+ * `eeschema/fields_data_model.{h,cpp}`: the Symbol Fields Table's two grid tables.
  *
- *   - columns are field names (plus the generated `${QUANTITY}` /
- *     `${ITEM_NUMBER}` and the `${DNP}` / `${EXCLUDE_FROM_…}` attributes), each
- *     carrying a BOM label, a "show" flag and a "group by" flag,
- *   - rows are groups of symbol references: units of one symbol always collapse
- *     together, and with grouping enabled every symbol whose group-by fields
- *     match joins the same row (expandable to its members),
- *   - cell values live in a data store keyed by symbol, so edits are held until
- *     they are applied to the schematic in one commit,
- *   - a cell whose group members disagree reads as {@link INDETERMINATE_STATE}.
+ *  - VIEW_CONTROLS_GRID_DATA_MODEL, the field list beside the grid (Field / Label / Include /
+ *    Group By);
+ *  - FIELDS_EDITOR_GRID_DATA_MODEL, the grid itself over a SCH_REFERENCE_LIST of live symbols:
+ *    one column per field (plus the generated `${QUANTITY}` / `${ITEM_NUMBER}` and the attribute
+ *    columns), rows grouped by unit and, with grouping on, by the group-by columns, edits held in a
+ *    data store keyed by sheet path + symbol until ApplyData commits them.
  *
- * Values are edited as raw text; the exporter resolves `${…}` references
- * against the symbol the way SCH_FIELD::GetShownText does.
+ * GRID_CELL_RESOLVED_TEXT_RENDERER is the grid window's: a text-variable cell renders
+ * GetResolvedValue (the attribute this table asks for carries `resolvedText`).
  */
-
-import type { BOM_FIELD, BOM_PRESET } from '@ziroeda/common/settings/bom_settings.js';
-import { strNumCmp, valueStringCompare } from '@ziroeda/common/string_utils.js';
-import type { Schematic, SchSymbol } from './types.js';
-import { buildSheetTree } from './project.js';
-import { refId } from './tools/hittest.js';
-import { isMandatoryField, type SymbolAttrEdit } from './tools/properties.js';
+import { ExpandTextVars, IsGeneratedField } from '@ziroeda/common/common.js';
+import { CombinedMatcherContext, EdaCombinedMatcher } from '@ziroeda/common/eda_pattern_match.js';
+import { KIID_PATH } from '@ziroeda/common/kiid.js';
+import type {
+  BOM_FIELD,
+  BOM_FMT_PRESET,
+  BOM_PRESET,
+} from '@ziroeda/common/settings/bom_settings.js';
+import { IsURL, strNumCmp, valueStringCompare } from '@ziroeda/common/string_utils.js';
 import {
-  GetGeneratedFieldDisplayName,
-  IsGeneratedField,
-  ResolveShownText,
-  type TextVarResolverFn,
-} from '@ziroeda/common/common.js';
-import type { OutStr } from '@ziroeda/common/eda_item.js';
-import { refsShorthand, type BomOutputFormat } from './exporters/bom.js';
+  FieldNamesAreDuplicates,
+  FIELD_T,
+  GetCanonicalFieldName,
+  GetDefaultFieldName,
+  MANDATORY_FIELDS,
+  type TEMPLATES,
+} from '@ziroeda/common/template_fieldnames.js';
+import { INDETERMINATE_STATE } from '@ziroeda/common/widgets/ui_common.js';
+import { GROUP_TYPE, WX_GRID_TABLE_BASE, type WX_GRID } from '@ziroeda/common/widgets/wx_grid.js';
+import { GetTextExtent } from '@ziroeda/wx/controls.js';
+import {
+  type wxAttrKind,
+  wxGRID_VALUE_BOOL,
+  wxGRID_VALUE_STRING,
+  type wxGrid,
+  wxGridCellAttr,
+  type wxGridCellDrawn,
+  wxGridCellStringRenderer,
+  wxGridTableRequest,
+} from '@ziroeda/wx/grid.js';
+import type { SCH_COMMIT } from './sch_commit.js';
+import { SCH_FIELD } from './sch_field.js';
+import { type SCH_REFERENCE, SCH_REFERENCE_LIST } from './sch_reference_list.js';
+import { SCH_SHEET_PATH } from './sch_sheet_path.js';
+import type { SCH_SYMBOL } from './sch_symbol.js';
 
-/** FIELDS_EDITOR_GRID_DATA_MODEL::QUANTITY_VARIABLE. */
-export const QUANTITY_VARIABLE = '${QUANTITY}';
-/** FIELDS_EDITOR_GRID_DATA_MODEL::ITEM_NUMBER_VARIABLE. */
-export const ITEM_NUMBER_VARIABLE = '${ITEM_NUMBER}';
-/** INDETERMINATE_STATE (widgets/ui_common.h), a group's cells disagree. */
-export const INDETERMINATE_STATE = '-- mixed values --';
+export { INDETERMINATE_STATE };
 
-/** FIELDS_EDITOR_GRID_DATA_MODEL::isAttribute, columns that write symbol flags. */
-export const ATTRIBUTE_FIELDS = [
-  '${DNP}',
-  '${EXCLUDE_FROM_BOARD}',
-  '${EXCLUDE_FROM_BOM}',
-  '${EXCLUDE_FROM_POS_FILES}',
-  '${EXCLUDE_FROM_SIM}',
-] as const;
-
-export const isAttributeField = (name: string): boolean =>
-  (ATTRIBUTE_FIELDS as readonly string[]).includes(name);
-
-/** GROUP_TYPE (widgets/wx_grid.h): what a row is in the grouped table. */
-export type GroupType = 'singleton' | 'collapsed' | 'expanded' | 'child' | 'collapsed-during-sort';
-
-/** One symbol instance in the table, our stand-in for SCH_REFERENCE. */
-export interface FieldsRef {
-  /** Sheet document basename the symbol lives in. */
-  file: string;
-  /** Symbol id within that document (refId of uuid/index). */
-  id: string;
-  /** Instance path of the sheet (SCH_SHEET_PATH), for scope filtering. */
-  sheetPath: string;
-  index: number;
-  symbol: SchSymbol;
-  /** Reference prefix, e.g. "R" of "R12" (SCH_REFERENCE::GetRef). */
-  ref: string;
-  /** Reference number as text, "?" when unannotated (GetRefNumber). */
-  refNumber: string;
-  unit: number;
-}
-
-/** DATA_MODEL_COL. */
-export interface DataModelCol {
-  fieldName: string;
-  label: string;
-  userAdded: boolean;
-  show: boolean;
-  group: boolean;
-}
-
-/** DATA_MODEL_ROW. */
-export interface DataModelRow {
-  itemNumber: number;
-  flag: GroupType;
-  refs: FieldsRef[];
-}
-
-/** FIELDS_EDITOR_GRID_DATA_MODEL::SCOPE. */
-export type FieldsScope = 'all' | 'sheet' | 'sheet-recursive';
-
-/** BOM_FIELD, one column of a BOM preset (common/settings/bom_settings.ts). */
-export type BomFieldSpec = BOM_FIELD;
-
-/** BOM_PRESET, a named view of the table (columns, grouping, sort, filters). */
-export type BomPresetSpec = BOM_PRESET;
-
-/** The per-sheet edits {@link FieldsDataModel.applyData} produces. */
-export interface FieldsTableEdits {
-  /** file → symbol refId → { field: newValue } (an empty value drops the field). */
-  fields: Map<string, Map<string, Record<string, string>>>;
-  /** file → symbol refId → changed attribute flags. */
-  attrs: Map<string, Map<string, SymbolAttrEdit>>;
-}
-
-const fieldValue = (sym: SchSymbol, key: string): string | undefined =>
-  sym.fields.find((f) => f.key === key)?.value;
-
-/** SCH_REFERENCE::Split, "R12" → { ref: "R", refNumber: "12" }, "R?" → "?". */
-function splitRef(reference: string): { ref: string; refNumber: string } {
-  const m = /^(.*?)(\d+)$/.exec(reference);
-  if (m) return { ref: m[1]!, refNumber: m[2]! };
-  return { ref: reference.replace(/\?+$/, ''), refNumber: '?' };
-}
-
-/** SubReference, unit 1 → "A", 2 → "B" … (SCH_SYMBOL::SubReference). */
-const subReference = (unit: number): string =>
-  unit >= 1 ? String.fromCharCode('A'.charCodeAt(0) + ((unit - 1) % 26)) : '';
+export const DISPLAY_NAME_COLUMN = 0; // The field name in the data model (translated)
+export const LABEL_COLUMN = 1; // The field name's label for exporting (CSV, etc.)
+export const SHOW_FIELD_COLUMN = 2;
+export const GROUP_BY_COLUMN = 3;
+export const VIEW_FIELDS_COL_COUNT = 4;
 
 /**
- * Collect every non-power symbol of the hierarchy, once per sheet instance,
- * SCHEMATIC::Hierarchy().GetSymbols( …, SYMBOL_FILTER_NON_POWER ). Without a
- * root file the documents are walked in map order at the root path.
+ * Create a unique key for the data store by combining the KIID_PATH from the SCH_SHEET_PATH with
+ * the symbol's UUID.
  */
-export function buildFieldsReferences(
-  docs: ReadonlyMap<string, Schematic>,
-  rootFile?: string,
-): FieldsRef[] {
-  const out: FieldsRef[] = [];
-  const collect = (file: string, sheetPath: string): void => {
-    const doc = docs.get(file);
-    if (!doc) return;
-    doc.symbols.forEach((symbol, index) => {
-      const reference = fieldValue(symbol, 'Reference') ?? '';
-      // Power symbols carry a "#PWR…" reference and never list.
-      if (!reference || reference.startsWith('#')) return;
-      out.push({
-        file,
-        id: refId('symbol', symbol.uuid, index),
-        sheetPath,
-        index,
-        symbol,
-        ...splitRef(reference),
-        unit: symbol.unit,
-      });
-    });
-  };
-
-  if (rootFile && docs.has(rootFile)) {
-    const walk = (node: ReturnType<typeof buildSheetTree>): void => {
-      collect(node.file, node.path);
-      for (const child of node.children) walk(child);
-    };
-    walk(buildSheetTree(docs, rootFile));
-  } else {
-    for (const file of docs.keys()) collect(file, '/');
-  }
-  return out;
+function makeDataStoreKey(aSheetPath: SCH_SHEET_PATH, aSymbol: SCH_SYMBOL): string {
+  const path = new KIID_PATH(aSheetPath.Path().AsString());
+  path.push_back(aSymbol.m_Uuid);
+  return path.AsString();
 }
 
-// ---------------------------------------------------------------------------
+export class VIEW_CONTROLS_GRID_DATA_MODEL extends WX_GRID_TABLE_BASE {
+  protected m_forBOM: boolean;
+  protected m_fields: BOM_FIELD[] = [];
 
-const storeKey = (ref: FieldsRef): string => `${ref.file}\0${ref.id}`;
-
-/** The attribute flag a `${…}` attribute column reads/writes on a symbol. */
-function attributeValue(sym: SchSymbol, name: string): string {
-  switch (name) {
-    case '${DNP}':
-      return sym.dnp ? '1' : '0';
-    case '${EXCLUDE_FROM_BOARD}':
-      return sym.onBoard ? '0' : '1';
-    case '${EXCLUDE_FROM_BOM}':
-      return sym.inBom ? '0' : '1';
-    case '${EXCLUDE_FROM_SIM}':
-      return sym.excludedFromSim ? '1' : '0';
-    case '${EXCLUDE_FROM_POS_FILES}':
-      return sym.excludedFromPosFiles ? '1' : '0';
-    default:
-      return '0';
+  constructor(aForBOM: boolean) {
+    super();
+    this.m_forBOM = aForBOM;
   }
-}
 
-/** The SymbolAttrEdit key a `${…}` attribute column writes. */
-const ATTR_EDIT_KEY: Readonly<Record<string, keyof SymbolAttrEdit>> = {
-  '${DNP}': 'dnp',
-  '${EXCLUDE_FROM_BOARD}': 'excludedFromBoard',
-  '${EXCLUDE_FROM_BOM}': 'excludedFromBom',
-  '${EXCLUDE_FROM_SIM}': 'excludedFromSim',
-  '${EXCLUDE_FROM_POS_FILES}': 'excludedFromPosFiles',
-};
+  GetNumberRows(): number {
+    return this.m_fields.length;
+  }
 
-/**
- * SCH_SYMBOL::ResolveTextVar for the tokens we model, falling back to the
- * document/project resolver (title block, text variables, sheet tokens).
- */
-export function symbolTextVarResolver(
-  ref: FieldsRef,
-  docResolver?: TextVarResolverFn,
-  /**
-   * The RESOLVED template field names (`TEMPLATES::GetTemplateFieldNames()`),
-   * for the branch below. Absent = none, which is what a caller with no
-   * schematic settings to hand has.
-   */
-  templateFieldNames: readonly { name: string }[] = [],
-): TextVarResolverFn {
-  const sym = ref.symbol;
-  /** This symbol's answer for `token`, or undefined to ask the document. */
-  const answer = (token: string): string | undefined => {
-    for (const f of sym.fields) {
-      if (f.key.toLowerCase() === token.toLowerCase()) {
-        if (f.key === 'Reference') return ref.ref + ref.refNumber;
-        // A field whose value is just its own reference doesn't recurse.
-        if (f.value.replace(/\s/g, '') === `\${${f.key}}`) return '';
-        return f.value;
-      }
-    }
-    switch (token) {
-      case 'DNP':
-        return sym.dnp ? 'DNP' : '';
-      case 'EXCLUDE_FROM_BOM':
-        return sym.inBom ? '' : 'Excluded from BOM';
-      case 'EXCLUDE_FROM_BOARD':
-        return sym.onBoard ? '' : 'Excluded from board';
-      case 'EXCLUDE_FROM_SIM':
-        return sym.excludedFromSim ? 'Excluded from simulation' : '';
-      case 'FOOTPRINT_LIBRARY':
-        return (fieldValue(sym, 'Footprint') ?? '').split(':')[0] ?? '';
-      case 'FOOTPRINT_NAME': {
-        const parts = (fieldValue(sym, 'Footprint') ?? '').split(':');
-        return parts.length > 1 ? (parts[1] ?? '') : '';
-      }
-      case 'UNIT':
-        return subReference(ref.unit);
-      case 'SHORT_REFERENCE':
-        return ref.ref + ref.refNumber;
-      case 'SYMBOL_LIBRARY':
-        return sym.libId.split(':')[0] ?? '';
-      case 'SYMBOL_NAME': {
-        const parts = sym.libId.split(':');
-        return parts.length > 1 ? (parts[1] ?? '') : sym.libId;
-      }
+  GetNumberCols(): number {
+    return VIEW_FIELDS_COL_COUNT;
+  }
+
+  override GetColLabelValue(aCol: number): string {
+    switch (aCol) {
+      case DISPLAY_NAME_COLUMN:
+        return 'Field';
+      case LABEL_COLUMN:
+        return this.m_forBOM ? 'BOM Name' : 'Label';
+      case SHOW_FIELD_COLUMN:
+        return 'Include';
+      case GROUP_BY_COLUMN:
+        return 'Group By';
       default:
-        /*
-         * A token naming a TEMPLATE field the symbol does not carry resolves to
-         * empty, rather than being left for the document resolver and printed
-         * as `${MPN}`:
-         *
-         *     for( const TEMPLATE_FIELDNAME& templateFieldname : …GetTemplateFieldNames() )
-         *         if( token->IsSameAs( templateFieldname.m_Name )
-         *             || token->IsSameAs( templateFieldname.m_Name.Upper() ) )
-         *         {
-         *             // If we didn't find it in the fields list then it isn't set
-         *             // on this symbol. Just return an empty string.
-         *             *token = wxEmptyString;
-         *             return true;
-         *         }
-         *     (`eeschema/sch_symbol.cpp:1967-1978`)
-         *
-         * The loop above has already answered for a field the symbol DOES
-         * carry, so reaching here means it does not. Upstream matches the name
-         * as written or fully upper-cased, and nothing in between.
-         */
-        for (const t of templateFieldNames)
-          if (token === t.name || token === t.name.toUpperCase()) return '';
-        return undefined;
+        return 'unknown column';
     }
-  };
+  }
 
-  return (aToken: OutStr): boolean => {
-    const value = answer(aToken.value);
+  override IsEmptyCell(_aRow: number, _aCol: number): boolean {
+    return false; // don't allow adjacent cell overflow, even if we are actually empty
+  }
 
-    if (value !== undefined) {
-      aToken.value = value;
-      return true;
+  override CanGetValueAs(_aRow: number, aCol: number, aTypeName: string): boolean {
+    switch (aCol) {
+      case DISPLAY_NAME_COLUMN:
+      case LABEL_COLUMN:
+        return aTypeName === wxGRID_VALUE_STRING;
+      case SHOW_FIELD_COLUMN:
+      case GROUP_BY_COLUMN:
+        return aTypeName === wxGRID_VALUE_BOOL;
+      default:
+        return false;
+    }
+  }
+
+  override CanSetValueAs(aRow: number, aCol: number, aTypeName: string): boolean {
+    return this.CanGetValueAs(aRow, aCol, aTypeName);
+  }
+
+  GetValue(aRow: number, aCol: number): string {
+    if (aRow >= this.GetNumberRows()) return 'bad row!';
+
+    const rowData = this.m_fields[aRow]!;
+
+    switch (aCol) {
+      case DISPLAY_NAME_COLUMN:
+        for (const fieldId of MANDATORY_FIELDS) {
+          if (GetDefaultFieldName(fieldId, false) === rowData.name)
+            return GetDefaultFieldName(fieldId, true);
+        }
+
+        return rowData.name;
+
+      case LABEL_COLUMN:
+        return rowData.label;
+
+      default:
+        // we can't assert here because wxWidgets sometimes calls this without checking
+        // the column type when trying to see if there's an overflow
+        return 'bad wxWidgets!';
+    }
+  }
+
+  override GetValueAsBool(aRow: number, aCol: number): boolean {
+    if (aRow >= this.GetNumberRows()) return false;
+
+    const rowData = this.m_fields[aRow]!;
+
+    switch (aCol) {
+      case SHOW_FIELD_COLUMN:
+        return rowData.show;
+      case GROUP_BY_COLUMN:
+        return rowData.groupBy;
+      default:
+        return false;
+    }
+  }
+
+  SetValue(aRow: number, aCol: number, aValue: string): void {
+    if (aRow >= this.GetNumberRows()) return;
+
+    const rowData = this.m_fields[aRow]!;
+
+    switch (aCol) {
+      case DISPLAY_NAME_COLUMN:
+        // Not editable
+        break;
+
+      case LABEL_COLUMN:
+        rowData.label = aValue;
+        break;
     }
 
-    return docResolver ? docResolver(aToken) : false;
-  };
+    this.GetView()?.Refresh();
+  }
+
+  override SetValueAsBool(aRow: number, aCol: number, aValue: boolean): void {
+    if (aRow >= this.GetNumberRows()) return;
+
+    const rowData = this.m_fields[aRow]!;
+
+    switch (aCol) {
+      case SHOW_FIELD_COLUMN:
+        rowData.show = aValue;
+        break;
+      case GROUP_BY_COLUMN:
+        rowData.groupBy = aValue;
+        break;
+    }
+  }
+
+  AppendRow(aFieldName: string, aBOMName: string, aShow: boolean, aGroupBy: boolean): void {
+    this.m_fields.push({ name: aFieldName, label: aBOMName, show: aShow, groupBy: aGroupBy });
+
+    this.notify(wxGridTableRequest.wxGRIDTABLE_NOTIFY_ROWS_APPENDED, 1);
+  }
+
+  DeleteRow(aRow: number): void {
+    if (aRow < 0 || aRow >= this.GetNumberRows()) return;
+
+    this.m_fields.splice(aRow, 1);
+
+    this.notify(wxGridTableRequest.wxGRIDTABLE_NOTIFY_ROWS_DELETED, aRow, 1);
+  }
+
+  GetCanonicalFieldName(aRow: number): string {
+    if (aRow < 0 || aRow >= this.GetNumberRows()) return '';
+
+    return this.m_fields[aRow]!.name;
+  }
+
+  SetCanonicalFieldName(aRow: number, aName: string): void {
+    if (aRow < 0 || aRow >= this.GetNumberRows()) return;
+
+    this.m_fields[aRow]!.name = aName;
+  }
+}
+
+/** `DATA_MODEL_ROW`: the references one grid row stands for. */
+export class DATA_MODEL_ROW {
+  m_ItemNumber: number;
+  m_Flag: GROUP_TYPE;
+  m_Refs: SCH_REFERENCE[];
+
+  constructor(aFirstReference: SCH_REFERENCE, aType: GROUP_TYPE) {
+    this.m_ItemNumber = 0;
+    this.m_Refs = [aFirstReference];
+    this.m_Flag = aType;
+  }
+}
+
+/** `DATA_MODEL_COL` */
+export interface DATA_MODEL_COL {
+  m_fieldName: string;
+  m_label: string;
+  m_userAdded: boolean;
+  m_show: boolean;
+  m_group: boolean;
 }
 
 /**
- * DIALOG_SYMBOL_FIELDS_TABLE::LoadFieldNames, seed the model's columns from a
- * union of every field name in use: the mandatory fields first, then the
- * generated `${QUANTITY}` / `${ITEM_NUMBER}`, then user fields, then any
- * template fieldname not already present. Returns the names in that order,
- * which is the order the dialog's field list keeps (columns themselves are
- * re-ordered by presets and by dragging).
+ * `GRID_CELL_RESOLVED_TEXT_RENDERER`: a cell renderer that shows the expanded result of text
+ * variables (e.g. "${VALUE}" is displayed as "10K"). The actual cell still stores the raw
+ * variable so it can be edited directly.
  */
-export function loadFieldNames(
-  model: FieldsDataModel,
-  refs: readonly FieldsRef[],
-  templateFieldNames: readonly { name: string }[] = [],
-): string[] {
-  const order: string[] = [];
-  const add = (name: string, label: string): void => {
-    if (model.getFieldNameCol(name) !== -1) return;
-    model.addColumn(name, label, false);
-    order.push(name);
-  };
+export class GRID_CELL_RESOLVED_TEXT_RENDERER
+  extends wxGridCellStringRenderer
+  implements wxGridCellDrawn
+{
+  DrawValue(aValue: string, aGrid: wxGrid, aRow: number, aCol: number): { label: string } {
+    const model = aGrid.GetTable();
 
-  for (const name of ['Reference', 'Value', 'Footprint', 'Datasheet', 'Description'])
-    add(name, name);
-  add(QUANTITY_VARIABLE, 'Qty');
-  add(ITEM_NUMBER_VARIABLE, '#');
-
-  // User field names are matched case-sensitively (KiCad issue #24021), so each
-  // distinct spelling gets its own column.
-  const userFieldNames = new Set<string>();
-  for (const ref of refs) {
-    for (const f of ref.symbol.fields) {
-      if (!isMandatoryField(f.key)) userFieldNames.add(f.key);
-    }
+    return {
+      label:
+        model instanceof FIELDS_EDITOR_GRID_DATA_MODEL
+          ? model.GetResolvedValue(aRow, aCol)
+          : aValue,
+    };
   }
-  for (const name of [...userFieldNames].sort()) add(name, GetGeneratedFieldDisplayName(name));
-  for (const tfn of templateFieldNames) {
-    if (tfn.name && !userFieldNames.has(tfn.name))
-      add(tfn.name, GetGeneratedFieldDisplayName(tfn.name));
-  }
-  return order;
 }
 
-/**
- * The table's columns × grouped rows, with a data store of pending cell edits.
- * A live object rather than immutable state: the dialog mutates it and redraws,
- * exactly as the wxGrid table does upstream.
- */
-export class FieldsDataModel {
-  private readonly refs: readonly FieldsRef[];
+/** The theme-dependent tints GetAttr picks (wxSYS_COLOUR_WINDOW dark or light). */
+const VARIANT_HIGHLIGHT = { dark: '#505028', light: '#ffffc8' }; // [data] wxColour( 80, 80, 40 ) / ( 255, 255, 200 )
+const TEXT_VAR_TINT = { dark: '#50461e', light: '#fffcc8' }; // [data] wxColour( 80, 70, 30 ) / ( 255, 252, 200 )
 
-  private readonly templateFieldNames: readonly { name: string }[];
-  private cols: DataModelCol[] = [];
-  private rows: DataModelRow[] = [];
-  /** symbol key → field name → pending value. */
-  private readonly store = new Map<string, Map<string, string>>();
-  private readonly docResolver?: (ref: FieldsRef) => TextVarResolverFn | undefined;
+export class FIELDS_EDITOR_GRID_DATA_MODEL extends WX_GRID_TABLE_BASE {
+  static readonly QUANTITY_VARIABLE = '${QUANTITY}';
+  static readonly ITEM_NUMBER_VARIABLE = '${ITEM_NUMBER}';
 
-  private filter = '';
-  private scope: FieldsScope = 'all';
-  private path = '/';
-  private groupingEnabled = false;
-  private excludeDNP = false;
-  private includeExcluded = false;
-  private rebuildsEnabled = true;
-  private sortColumn = 0;
-  private sortAscending = false;
-  private edited = false;
+  static readonly SCOPE = { SCOPE_ALL: 0, SCOPE_SHEET: 1, SCOPE_SHEET_RECURSIVE: 2 } as const;
+
+  protected m_symbolsList: SCH_REFERENCE_LIST;
+  protected m_edited = false;
+  protected m_sortColumn = 0;
+  protected m_sortAscending = false;
+  protected m_filter = '';
+  protected m_scope: number = FIELDS_EDITOR_GRID_DATA_MODEL.SCOPE.SCOPE_ALL;
+  protected m_path = new SCH_SHEET_PATH();
+  protected m_groupingEnabled = false;
+  protected m_excludeDNP = false;
+  protected m_includeExcluded = false;
+  protected m_rebuildsEnabled = true;
+  protected m_urlEditor: wxGridCellAttr | null;
+  protected m_currentVariant = '';
+  protected m_variantNames: string[] = [];
+  protected m_textVarRenderer: GRID_CELL_RESOLVED_TEXT_RENDERER | null = null;
+
+  protected m_cols: DATA_MODEL_COL[] = [];
+  protected m_rows: DATA_MODEL_ROW[] = [];
+
+  /** Data store: the KIID_PATH (sheet path + symbol UUID) to field name to value. */
+  protected m_dataStore = new Map<string, Map<string, string>>();
+
+  /** Whether the window draws dark (wxSYS_COLOUR_WINDOW's brightness, which GetAttr reads). */
+  private m_isDark: () => boolean;
 
   constructor(
-    refs: readonly FieldsRef[],
-    docResolver?: (ref: FieldsRef) => TextVarResolverFn | undefined,
-    /** The resolved template field names — see {@link symbolTextVarResolver}. */
-    templateFieldNames: readonly { name: string }[] = [],
+    aSymbolsList: SCH_REFERENCE_LIST,
+    aURLEditor: wxGridCellAttr | null,
+    aIsDark: () => boolean = () => true,
   ) {
-    this.refs = refs;
-    this.docResolver = docResolver;
-    this.templateFieldNames = templateFieldNames;
+    super();
+    this.m_symbolsList = aSymbolsList;
+    this.m_urlEditor = aURLEditor;
+    this.m_isDark = aIsDark;
+    this.m_symbolsList.SplitReferences();
   }
 
-  // --- columns -------------------------------------------------------------
+  private store(aKey: string): Map<string, string> {
+    let fields = this.m_dataStore.get(aKey);
 
-  getColumns(): readonly DataModelCol[] {
-    return this.cols;
-  }
-
-  getRows(): readonly DataModelRow[] {
-    return this.rows;
-  }
-
-  getColsCount(): number {
-    return this.cols.length;
-  }
-
-  getNumberRows(): number {
-    return this.rows.length;
-  }
-
-  getColFieldName(col: number): string {
-    return this.cols[col]?.fieldName ?? '';
-  }
-
-  getColLabelValue(col: number): string {
-    return this.cols[col]?.label ?? '';
-  }
-
-  setColLabelValue(col: number, label: string): void {
-    const c = this.cols[col];
-    if (c) c.label = label;
-  }
-
-  /** GetFieldNameCol, KiCad matches names case-insensitively here. */
-  getFieldNameCol(fieldName: string): number {
-    return this.cols.findIndex((c) => c.fieldName.toLowerCase() === fieldName.toLowerCase());
-  }
-
-  addColumn(fieldName: string, label: string, userAdded: boolean): void {
-    if (this.getFieldNameCol(fieldName) !== -1) return;
-    this.cols.push({ fieldName, label, userAdded, show: false, group: false });
-    for (const ref of this.refs) this.updateDataStoreSymbolField(ref, fieldName);
-  }
-
-  removeColumn(col: number): void {
-    const name = this.cols[col]?.fieldName;
-    if (name === undefined) return;
-    for (const ref of this.refs) this.store.get(storeKey(ref))?.delete(name);
-    this.cols.splice(col, 1);
-  }
-
-  renameColumn(col: number, newName: string): void {
-    const c = this.cols[col];
-    if (!c) return;
-    for (const ref of this.refs) {
-      const fields = this.store.get(storeKey(ref));
-      if (!fields || !fields.has(c.fieldName)) continue;
-      fields.set(newName, fields.get(c.fieldName)!);
-      fields.delete(c.fieldName);
+    if (!fields) {
+      fields = new Map();
+      this.m_dataStore.set(aKey, fields);
     }
-    c.fieldName = newName;
-    c.label = newName;
+
+    return fields;
   }
 
-  moveColumn(col: number, newPos: number): void {
-    if (col === newPos || col < 0 || col >= this.cols.length) return;
-    const [moved] = this.cols.splice(col, 1);
-    this.cols.splice(newPos, 0, moved!);
+  AddColumn(aFieldName: string, aLabel: string, aAddedByUser: boolean): void {
+    // Don't add a field twice
+    if (this.GetFieldNameCol(aFieldName) !== -1) return;
+
+    this.m_cols.push({
+      m_fieldName: aFieldName,
+      m_label: aLabel,
+      m_userAdded: aAddedByUser,
+      m_show: false,
+      m_group: false,
+    });
+
+    for (let i = 0; i < this.m_symbolsList.GetCount(); ++i)
+      this.updateDataStoreSymbolField(this.m_symbolsList.GetItem(i), aFieldName);
   }
 
-  setFieldsOrder(order: readonly string[]): void {
-    let foundCount = 0;
-    for (const name of order) {
-      if (foundCount >= this.cols.length) break;
-      const idx = this.cols.findIndex((c) => c.fieldName === name);
-      if (idx === -1) continue;
-      const tmp = this.cols[foundCount]!;
-      this.cols[foundCount] = this.cols[idx]!;
-      this.cols[idx] = tmp;
-      foundCount++;
+  protected updateDataStoreSymbolField(aSymbolRef: SCH_REFERENCE, aFieldName: string): void {
+    const symbol = aSymbolRef.GetSymbol();
+
+    if (!symbol) return;
+
+    const fields = this.store(makeDataStoreKey(aSymbolRef.GetSheetPath(), symbol));
+
+    if (this.isAttribute(aFieldName)) {
+      fields.set(aFieldName, this.getAttributeValue(aSymbolRef, aFieldName, this.m_currentVariant));
+      return;
+    }
+
+    const field = symbol.GetField(aFieldName);
+
+    if (field) {
+      if (field.IsPrivate()) {
+        fields.set(aFieldName, '');
+        return;
+      }
+
+      fields.set(
+        aFieldName,
+        symbol
+          .Schematic()!
+          .ConvertKIIDsToRefs(field.GetText(aSymbolRef.GetSheetPath(), this.m_currentVariant)),
+      );
+    } else if (IsGeneratedField(aFieldName)) {
+      // Handle generated fields with variables as names (e.g. ${QUANTITY}) that are not present
+      // in the symbol by giving them the correct value
+      fields.set(aFieldName, aFieldName);
+    } else {
+      fields.set(aFieldName, '');
     }
   }
 
-  getFieldsOrdered(): BomFieldSpec[] {
-    return this.cols.map((c) => ({
-      name: c.fieldName,
-      label: c.label,
-      show: c.show,
-      groupBy: c.group,
+  RemoveColumn(aCol: number): void {
+    for (let i = 0; i < this.m_symbolsList.GetCount(); ++i) {
+      const ref = this.m_symbolsList.GetItem(i);
+      const symbol = ref.GetSymbol();
+
+      if (symbol)
+        this.store(makeDataStoreKey(ref.GetSheetPath(), symbol)).delete(
+          this.m_cols[aCol]!.m_fieldName,
+        );
+    }
+
+    this.m_cols.splice(aCol, 1);
+
+    this.notify(wxGridTableRequest.wxGRIDTABLE_NOTIFY_COLS_DELETED, aCol, 1);
+  }
+
+  RenameColumn(aCol: number, newName: string): void {
+    for (let i = 0; i < this.m_symbolsList.GetCount(); ++i) {
+      const ref = this.m_symbolsList.GetItem(i);
+      const fields = this.store(makeDataStoreKey(ref.GetSheetPath(), ref.GetSymbol()!));
+      const oldName = this.m_cols[aCol]!.m_fieldName;
+
+      // Careful; field may have already been renamed from another sheet instance
+      if (fields.has(oldName)) {
+        const value = fields.get(oldName)!;
+        fields.delete(oldName);
+        fields.set(newName, value);
+      }
+    }
+
+    this.m_cols[aCol]!.m_fieldName = newName;
+    this.m_cols[aCol]!.m_label = newName;
+  }
+
+  MoveColumn(aCol: number, aNewPos: number): void {
+    if (aCol < 0 || aCol >= this.m_cols.length || aCol === aNewPos) return;
+
+    const [col] = this.m_cols.splice(aCol, 1);
+    this.m_cols.splice(aNewPos, 0, col!);
+  }
+
+  GetNumberRows(): number {
+    return this.m_rows.length;
+  }
+
+  GetNumberCols(): number {
+    return this.m_cols.length;
+  }
+
+  override SetColLabelValue(aCol: number, aLabel: string): void {
+    if (aCol < 0 || aCol >= this.m_cols.length) return;
+
+    this.m_cols[aCol]!.m_label = aLabel;
+  }
+
+  override GetColLabelValue(aCol: number): string {
+    if (aCol < 0 || aCol >= this.m_cols.length) return '';
+
+    return this.m_cols[aCol]!.m_label;
+  }
+
+  GetColFieldName(aCol: number): string {
+    if (aCol < 0 || aCol >= this.m_cols.length) return '';
+
+    return this.m_cols[aCol]!.m_fieldName;
+  }
+
+  GetFieldNameCol(aFieldName: string): number {
+    for (let i = 0; i < this.m_cols.length; i++) {
+      if (FieldNamesAreDuplicates(this.m_cols[i]!.m_fieldName, aFieldName)) return i;
+    }
+
+    return -1;
+  }
+
+  GetFieldsOrdered(): BOM_FIELD[] {
+    return this.m_cols.map((col) => ({
+      name: col.m_fieldName,
+      label: col.m_label,
+      show: col.m_show,
+      groupBy: col.m_group,
     }));
   }
 
-  colIsReference(col: number): boolean {
-    return this.getColFieldName(col) === 'Reference';
-  }
+  SetFieldsOrder(aNewOrder: readonly string[]): void {
+    let foundCount = 0;
 
-  colIsValue(col: number): boolean {
-    return this.getColFieldName(col) === 'Value';
-  }
+    for (const newField of aNewOrder) {
+      if (foundCount >= this.m_cols.length) break;
 
-  colIsQuantity(col: number): boolean {
-    return this.getColFieldName(col) === QUANTITY_VARIABLE;
-  }
-
-  colIsItemNumber(col: number): boolean {
-    return this.getColFieldName(col) === ITEM_NUMBER_VARIABLE;
-  }
-
-  colIsAttribute(col: number): boolean {
-    return isAttributeField(this.getColFieldName(col));
-  }
-
-  /** IsExpanderColumn, the first *shown* column carries the group triangle. */
-  isExpanderColumn(col: number): boolean {
-    for (let i = 0; i < col; i++) {
-      if (this.cols[i]?.show) return false;
+      for (let i = 0; i < this.m_cols.length; i++) {
+        if (this.m_cols[i]!.m_fieldName === newField) {
+          [this.m_cols[foundCount], this.m_cols[i]] = [this.m_cols[i]!, this.m_cols[foundCount]!];
+          foundCount++;
+          break;
+        }
+      }
     }
+  }
+
+  override IsEmptyCell(_aRow: number, _aCol: number): boolean {
+    return false; // don't allow adjacent cell overflow, even if we are actually empty
+  }
+
+  override IsExpanderColumn(aCol: number): boolean {
+    // Check if aCol is the first visible column
+    for (let col = 0; col < aCol; ++col) {
+      if (this.m_cols[col]!.m_show) return false;
+    }
+
     return true;
   }
 
-  getShowColumn(col: number): boolean {
-    return this.cols[col]?.show ?? false;
-  }
-
-  setShowColumn(col: number, show: boolean): void {
-    const c = this.cols[col];
-    if (c) c.show = show;
-  }
-
-  getGroupColumn(col: number): boolean {
-    return this.cols[col]?.group ?? false;
-  }
-
-  setGroupColumn(col: number, group: boolean): void {
-    const c = this.cols[col];
-    if (c) c.group = group;
-  }
-
-  // --- view options --------------------------------------------------------
-
-  setFilter(filter: string): void {
-    this.filter = filter;
-  }
-
-  getFilter(): string {
-    return this.filter;
-  }
-
-  setScope(scope: FieldsScope): void {
-    this.scope = scope;
-  }
-
-  getScope(): FieldsScope {
-    return this.scope;
-  }
-
-  setPath(path: string): void {
-    this.path = path;
-  }
-
-  setGroupingEnabled(group: boolean): void {
-    this.groupingEnabled = group;
-  }
-
-  getGroupingEnabled(): boolean {
-    return this.groupingEnabled;
-  }
-
-  setExcludeDNP(exclude: boolean): void {
-    this.excludeDNP = exclude;
-  }
-
-  getExcludeDNP(): boolean {
-    return this.excludeDNP;
-  }
-
-  setIncludeExcludedFromBOM(include: boolean): void {
-    this.includeExcluded = include;
-  }
-
-  getIncludeExcludedFromBOM(): boolean {
-    return this.includeExcluded;
-  }
-
-  setSorting(col: number, ascending: boolean): void {
-    if (col < 0 || col >= this.cols.length) return;
-    this.sortColumn = col;
-    this.sortAscending = ascending;
-  }
-
-  getSortCol(): number {
-    return this.sortColumn;
-  }
-
-  getSortAsc(): boolean {
-    return this.sortAscending;
-  }
-
-  isEdited(): boolean {
-    return this.edited;
-  }
-
-  enableRebuilds(): void {
-    this.rebuildsEnabled = true;
-  }
-
-  disableRebuilds(): void {
-    this.rebuildsEnabled = false;
-  }
-
-  // --- data store ----------------------------------------------------------
-
-  private updateDataStoreSymbolField(ref: FieldsRef, fieldName: string): void {
-    const key = storeKey(ref);
-    let fields = this.store.get(key);
-    if (!fields) {
-      fields = new Map();
-      this.store.set(key, fields);
-    }
-    if (isAttributeField(fieldName)) {
-      fields.set(fieldName, attributeValue(ref.symbol, fieldName));
-      return;
-    }
-    const value = fieldValue(ref.symbol, fieldName);
-    if (value !== undefined) fields.set(fieldName, value);
-    // Generated fields absent from the symbol keep their token, which the
-    // exporter resolves (e.g. ${QUANTITY}).
-    else if (IsGeneratedField(fieldName)) fields.set(fieldName, fieldName);
-    else fields.set(fieldName, '');
-  }
-
-  private storedValue(ref: FieldsRef, fieldName: string): string | undefined {
-    return this.store.get(storeKey(ref))?.get(fieldName);
-  }
-
-  private resolverFor(ref: FieldsRef): TextVarResolverFn {
-    return symbolTextVarResolver(ref, this.docResolver?.(ref), this.templateFieldNames);
-  }
-
-  /** getFieldShownText, the field's resolved text straight off the symbol. */
-  private getFieldShownText(ref: FieldsRef, fieldName: string): string {
-    const value = fieldValue(ref.symbol, fieldName);
-    if (value !== undefined) return ResolveShownText(value, this.resolverFor(ref));
-    if (IsGeneratedField(fieldName)) return ResolveShownText(fieldName, this.resolverFor(ref));
-    return '';
-  }
-
-  // --- rows ----------------------------------------------------------------
-
-  /** SCH_SYMBOL::ResolveExcludedFromBOM et al. for a reference. */
-  private refIsDNP(ref: FieldsRef): boolean {
-    return ref.symbol.dnp;
-  }
-
-  private refIsExcludedFromBOM(ref: FieldsRef): boolean {
-    return !ref.symbol.inBom;
-  }
-
-  private inScope(ref: FieldsRef): boolean {
-    if (this.scope === 'sheet') return ref.sheetPath === this.path;
-    if (this.scope === 'sheet-recursive') return ref.sheetPath.startsWith(this.path);
-    return true;
-  }
-
-  /** unitMatch, units of one annotated symbol always share a row. */
-  private unitMatch(lh: FieldsRef, rh: FieldsRef): boolean {
-    if (lh.refNumber === '?') return false;
-    return lh.ref === rh.ref && lh.refNumber === rh.refNumber;
-  }
-
-  /** groupMatch, every group-by column must agree (and at least one exists). */
-  private groupMatch(lh: FieldsRef, rh: FieldsRef): boolean {
-    const refCol = this.getFieldNameCol('Reference');
-    if (refCol === -1) return false;
-    let matchFound = false;
-    if (this.cols[refCol]!.group) {
-      // Grouping by reference means only the prefix must match.
-      if (lh.ref !== rh.ref) return false;
-      matchFound = true;
-    }
-    for (let i = 0; i < this.cols.length; i++) {
-      if (i === refCol) continue;
-      const col = this.cols[i]!;
-      if (!col.group) continue;
-      const lhStored = this.storedValue(lh, col.fieldName) ?? '';
-      const rhStored = this.storedValue(rh, col.fieldName) ?? '';
-      const lhs =
-        IsGeneratedField(col.fieldName) || IsGeneratedField(lhStored)
-          ? this.getFieldShownText(lh, col.fieldName)
-          : lhStored;
-      const rhs =
-        IsGeneratedField(col.fieldName) || IsGeneratedField(rhStored)
-          ? this.getFieldShownText(rh, col.fieldName)
-          : rhStored;
-      if (lhs !== rhs) return false;
-      matchFound = true;
-    }
-    return matchFound;
-  }
-
-  rebuildRows(): void {
-    if (!this.rebuildsEnabled) return;
-    this.rows = [];
-    const needle = this.filter.trim().toLowerCase();
-
-    for (const ref of this.refs) {
-      const fullRef = ref.ref + ref.refNumber;
-      if (needle && !fullRef.toLowerCase().includes(needle)) continue;
-      if (this.excludeDNP && this.refIsDNP(ref)) continue;
-      if (!this.includeExcluded && this.refIsExcludedFromBOM(ref)) continue;
-      if (!this.inScope(ref)) continue;
-
-      let matchFound = false;
-      for (const row of this.rows) {
-        const rowRef = row.refs[0]!;
-        if (this.unitMatch(ref, rowRef)) {
-          matchFound = true;
-          row.refs.push(ref);
-          break;
-        }
-        if (this.groupingEnabled && this.groupMatch(ref, rowRef)) {
-          matchFound = true;
-          row.refs.push(ref);
-          row.flag = 'collapsed';
-          break;
-        }
-      }
-      if (!matchFound) this.rows.push({ itemNumber: 0, flag: 'singleton', refs: [ref] });
-    }
-
-    this.sort();
-  }
-
-  /** cmp, sort column first, reference second (empty rows sink). */
-  private cmp(lh: DataModelRow, rh: DataModelRow): boolean {
-    if (lh.refs.length === 0) return true;
-    if (rh.refs.length === 0) return false;
-    const localCmp = (v: number): boolean => (this.sortAscending ? v < 0 : v > 0);
-    let sortCol = this.sortColumn;
-    if (sortCol < 0 || sortCol >= this.cols.length) sortCol = 0;
-    const lhs = this.getGroupValue(lh, sortCol, ', ', '-', true).trim();
-    const rhs = this.getGroupValue(rh, sortCol, ', ', '-', true).trim();
-    if (lhs === rhs || this.colIsReference(sortCol)) {
-      const lhRef = lh.refs[0]!.ref + lh.refs[0]!.refNumber;
-      const rhRef = rh.refs[0]!.ref + rh.refs[0]!.refNumber;
-      return localCmp(strNumCmp(lhRef, rhRef, true));
-    }
-    return localCmp(valueStringCompare(lhs, rhs));
-  }
-
-  private sort(): void {
-    this.collapseForSort();
-    const byRef = (a: FieldsRef, b: FieldsRef): number =>
-      strNumCmp(a.ref + a.refNumber, b.ref + b.refNumber, true);
-    for (const row of this.rows) row.refs.sort(byRef);
-    this.rows.sort((a, b) => (this.cmp(a, b) ? -1 : this.cmp(b, a) ? 1 : 0));
-    let itemNumber = 1;
-    for (const row of this.rows) row.itemNumber = itemNumber++;
-    this.expandAfterSort();
-  }
-
-  expandRow(row: number): void {
-    const group = this.rows[row];
-    if (!group) return;
-    const children: DataModelRow[] = [];
-    for (const ref of group.refs) {
-      let matchFound = false;
-      for (const child of children) {
-        if (this.unitMatch(ref, child.refs[0]!)) {
-          matchFound = true;
-          child.refs.push(ref);
-          break;
-        }
-      }
-      if (!matchFound) children.push({ itemNumber: 0, flag: 'child', refs: [ref] });
-    }
-    if (children.length < 2) return;
-    children.sort((a, b) => (this.cmp(a, b) ? -1 : this.cmp(b, a) ? 1 : 0));
-    group.flag = 'expanded';
-    this.rows.splice(row + 1, 0, ...children);
-  }
-
-  collapseRow(row: number): void {
-    const group = this.rows[row];
-    if (!group) return;
-    let deleted = 0;
-    while (this.rows[row + 1 + deleted]?.flag === 'child') deleted++;
-    group.flag = 'collapsed';
-    this.rows.splice(row + 1, deleted);
-  }
-
-  expandCollapseRow(row: number): void {
-    const flag = this.rows[row]?.flag;
-    if (flag === 'collapsed') this.expandRow(row);
-    else if (flag === 'expanded') this.collapseRow(row);
-  }
-
-  private collapseForSort(): void {
-    for (let i = 0; i < this.rows.length; i++) {
-      if (this.rows[i]!.flag === 'expanded') {
-        this.collapseRow(i);
-        this.rows[i]!.flag = 'collapsed-during-sort';
-      }
-    }
-  }
-
-  private expandAfterSort(): void {
-    for (let i = 0; i < this.rows.length; i++) {
-      if (this.rows[i]!.flag === 'collapsed-during-sort') this.expandRow(i);
-    }
-  }
-
-  // --- values --------------------------------------------------------------
-
-  /**
-   * FIELDS_EDITOR_GRID_DATA_MODEL::GetValue for a group: the shared value of
-   * the group's symbols, {@link INDETERMINATE_STATE} when they disagree (or,
-   * for the export, every distinct value joined by commas).
-   */
-  getGroupValue(
-    group: DataModelRow,
-    col: number,
+  /** `GetValue( aRow, aCol )` and `GetValue( group, aCol, ... )`. */
+  GetValue(aRow: number, aCol: number): string;
+  GetValue(
+    group: DATA_MODEL_ROW,
+    aCol: number,
+    refDelimiter?: string,
+    refRangeDelimiter?: string,
+    resolveVars?: boolean,
+    listMixedValues?: boolean,
+  ): string;
+  GetValue(
+    a: number | DATA_MODEL_ROW,
+    aCol: number,
     refDelimiter = ', ',
     refRangeDelimiter = '-',
     resolveVars = false,
     listMixedValues = false,
   ): string {
-    const column = this.cols[col];
-    if (!column) return '';
-    const references: FieldsRef[] = [];
-    const mixedValues = new Set<string>();
-    let fieldText = '';
-    const listy = this.colIsReference(col) || this.colIsQuantity(col) || this.colIsItemNumber(col);
+    if (typeof a === 'number') {
+      this.GetView()?.SetReadOnly(
+        a,
+        aCol,
+        this.IsExpanderColumn(aCol) || this.rowAttributeInheritedFromSheet(this.m_rows[a]!, aCol),
+      );
+      return this.GetValue(this.m_rows[a]!, aCol);
+    }
 
-    for (const ref of group.refs) {
-      if (listy) {
+    const group = a;
+    let references: SCH_REFERENCE[] = [];
+    const mixedValues = new Set<string>();
+    let fieldValue = '';
+    const fieldName = this.m_cols[aCol]!.m_fieldName;
+
+    for (const ref of group.m_Refs) {
+      if (this.ColIsReference(aCol) || this.ColIsQuantity(aCol) || this.ColIsItemNumber(aCol)) {
         references.push(ref);
-        continue;
-      }
-      let refFieldValue = this.storedValue(ref, column.fieldName);
-      if (refFieldValue === undefined) return INDETERMINATE_STATE;
-      if (resolveVars) {
-        if (IsGeneratedField(column.fieldName)) {
-          refFieldValue = this.getFieldShownText(ref, column.fieldName);
-        } else if (refFieldValue.includes('${')) {
-          refFieldValue = ResolveShownText(refFieldValue, this.resolverFor(ref));
+      } else {
+        // Other columns are either a single value or ROW_MULTI_ITEMS
+        const fields = this.m_dataStore.get(makeDataStoreKey(ref.GetSheetPath(), ref.GetSymbol()!));
+
+        if (!fields || !fields.has(fieldName)) return INDETERMINATE_STATE;
+
+        let refFieldValue = fields.get(fieldName)!;
+
+        // Show the effective state when a sheet forces it on, but do not change
+        // the stored value so the symbol is never stamped on apply.
+        if (this.ColIsAttribute(aCol) && this.attributeInheritedFromSheet(ref, fieldName))
+          refFieldValue = '1';
+
+        if (resolveVars) {
+          if (IsGeneratedField(fieldName)) {
+            // Generated fields (e.g. ${QUANTITY}) can't have un-applied values as they're
+            // read-only.  Resolve them against the field.
+            refFieldValue = this.getFieldShownText(ref, fieldName);
+          } else if (refFieldValue.includes('${')) {
+            // Resolve variables in the un-applied value using the parent symbol and instance
+            // data.
+            refFieldValue = ExpandTextVars(refFieldValue, (token) =>
+              ref.GetSymbol()!.ResolveTextVar(ref.GetSheetPath(), token, this.m_currentVariant),
+            );
+          }
         }
+
+        if (listMixedValues) mixedValues.add(refFieldValue);
+        else if (ref === group.m_Refs[0]) fieldValue = refFieldValue;
+        else if (fieldValue !== refFieldValue) return INDETERMINATE_STATE;
       }
-      if (listMixedValues) mixedValues.add(refFieldValue);
-      else if (ref === group.refs[0]) fieldText = refFieldValue;
-      else if (fieldText !== refFieldValue) return INDETERMINATE_STATE;
     }
 
     if (listMixedValues) {
-      fieldText = [...mixedValues].filter((v) => v !== '').join(',');
+      fieldValue = '';
+
+      for (const value of [...mixedValues].sort()) {
+        if (value === '') continue;
+        else if (fieldValue === '') fieldValue = value;
+        else fieldValue += `,${value}`;
+      }
     }
 
-    if (listy) {
-      // Other units of a multi-unit part count once.
-      references.sort((a, b) => strNumCmp(a.ref + a.refNumber, b.ref + b.refNumber, true));
-      const unique: FieldsRef[] = [];
+    if (this.ColIsReference(aCol) || this.ColIsQuantity(aCol) || this.ColIsItemNumber(aCol)) {
+      // Remove duplicates (other units of multi-unit parts)
+      const fullRef = (r: SCH_REFERENCE) => r.GetRef() + r.GetRefNumber();
+      references.sort((l, r) => strNumCmp(fullRef(l), fullRef(r), true));
+
+      const unique: SCH_REFERENCE[] = [];
+
       for (const ref of references) {
-        const prev = unique[unique.length - 1];
-        if (
-          prev &&
-          prev.refNumber !== '?' &&
-          prev.ref + prev.refNumber === ref.ref + ref.refNumber
-        ) {
-          continue;
-        }
+        const last = unique.at(-1);
+
+        // If unannotated then we can't tell what units belong together
+        // so we have to leave them all
+        if (last && last.GetRefNumber() !== '?' && fullRef(last) === fullRef(ref)) continue;
+
         unique.push(ref);
       }
-      if (this.colIsReference(col)) {
-        return refsShorthand(
-          unique.map((r) => r.ref + r.refNumber),
-          refDelimiter,
-          refRangeDelimiter,
-        );
-      }
-      if (this.colIsQuantity(col)) return String(unique.length);
-      if (this.colIsItemNumber(col) && group.flag !== 'child') return String(group.itemNumber);
-      return '';
+
+      references = unique;
     }
-    return fieldText;
+
+    if (this.ColIsReference(aCol))
+      fieldValue = SCH_REFERENCE_LIST.Shorthand(references, refDelimiter, refRangeDelimiter);
+    else if (this.ColIsQuantity(aCol)) fieldValue = `${references.length}`;
+    else if (this.ColIsItemNumber(aCol) && group.m_Flag !== GROUP_TYPE.CHILD_ITEM)
+      fieldValue = `${group.m_ItemNumber}`;
+
+    return fieldValue;
   }
 
-  /** The raw (unresolved) cell text the grid edits. */
-  getValue(row: number, col: number): string {
-    const group = this.rows[row];
-    return group ? this.getGroupValue(group, col) : '';
+  GetResolvedValue(aRow: number, aCol: number): string {
+    return this.GetValue(this.m_rows[aRow]!, aCol, ', ', '-', true, false);
   }
 
-  /** The cell text with `${…}` references resolved, for display/tooltips. */
-  getResolvedValue(row: number, col: number): string {
-    const group = this.rows[row];
-    return group ? this.getGroupValue(group, col, ', ', '-', true, false) : '';
+  override GetAttr(aRow: number, aCol: number, aKind: wxAttrKind): wxGridCellAttr | null {
+    let attr: wxGridCellAttr | null = null;
+    let needsUrlEditor = false;
+    let needsVariantHighlight = false;
+    let needsTextVarRenderer = false;
+    let highlightColor = '';
+
+    // Check if we need URL editor
+    if (
+      this.GetColFieldName(aCol) === GetCanonicalFieldName(FIELD_T.DATASHEET) ||
+      IsURL(this.GetValue(this.m_rows[aRow]!, aCol))
+    ) {
+      if (this.m_urlEditor) needsUrlEditor = true;
+    }
+
+    // Check if the raw value contains a text variable that should be resolved for display
+    if (
+      aRow >= 0 &&
+      aRow < this.m_rows.length &&
+      aCol >= 0 &&
+      aCol < this.m_cols.length &&
+      !this.ColIsReference(aCol) &&
+      !this.ColIsQuantity(aCol) &&
+      !this.ColIsItemNumber(aCol)
+    ) {
+      if (this.GetValue(this.m_rows[aRow]!, aCol).includes('${')) needsTextVarRenderer = true;
+    }
+
+    // Check if we need variant highlighting
+    if (
+      this.m_currentVariant !== '' &&
+      aRow >= 0 &&
+      aRow < this.m_rows.length &&
+      aCol >= 0 &&
+      aCol < this.m_cols.length
+    ) {
+      const fieldName = this.m_cols[aCol]!.m_fieldName;
+
+      // Skip Reference and generated fields (like ${QUANTITY}) for highlighting
+      if (!this.ColIsReference(aCol) && !this.ColIsQuantity(aCol) && !this.ColIsItemNumber(aCol)) {
+        // Check if any symbol in this row has a variant-specific value
+        for (const ref of this.m_rows[aRow]!.m_Refs) {
+          const defaultValue = this.getDefaultFieldValue(ref, fieldName);
+          const symbol = ref.GetSymbol();
+          const symbolKey = symbol ? makeDataStoreKey(ref.GetSheetPath(), symbol) : '';
+          const currentValue = this.m_dataStore.get(symbolKey)?.get(fieldName) ?? '';
+
+          if (currentValue !== defaultValue) {
+            needsVariantHighlight = true;
+
+            // Use a subtle highlight color that works in both light and dark themes
+            highlightColor = this.m_isDark() ? VARIANT_HIGHLIGHT.dark : VARIANT_HIGHLIGHT.light;
+            break;
+          }
+        }
+      }
+    }
+
+    // If we don't need any custom attributes, use the base class behavior
+    if (!needsUrlEditor && !needsVariantHighlight && !needsTextVarRenderer)
+      return super.GetAttr(aRow, aCol, aKind);
+
+    // URL cells: use m_urlEditor as base, potentially with variant highlight overlay
+    if (needsUrlEditor) {
+      attr = this.m_urlEditor!.Clone();
+
+      if (needsVariantHighlight) attr.SetBackgroundColour(highlightColor);
+
+      return this.enhanceAttr(attr, aRow, aCol, aKind);
+    }
+
+    // Non-URL cells: start with column attributes if they exist.
+    // This preserves checkbox renderers and other column-specific settings.
+    const colAttr = this.m_colAttrs.get(aCol);
+    attr = colAttr ? colAttr.Clone() : new wxGridCellAttr();
+
+    if (needsVariantHighlight) attr.SetBackgroundColour(highlightColor);
+
+    if (needsTextVarRenderer) {
+      this.m_textVarRenderer ??= new GRID_CELL_RESOLVED_TEXT_RENDERER();
+      attr.SetRenderer(this.m_textVarRenderer);
+
+      // Tint text-var cells if not already highlighted by variant
+      if (!needsVariantHighlight)
+        attr.SetBackgroundColour(this.m_isDark() ? TEXT_VAR_TINT.dark : TEXT_VAR_TINT.light);
+    }
+
+    return this.enhanceAttr(attr, aRow, aCol, aKind);
   }
 
-  /** GetExportValue, resolved, and mixed group values listed rather than hidden. */
-  getExportValue(
-    row: number,
-    col: number,
+  GetExportValue(
+    aRow: number,
+    aCol: number,
     refDelimiter: string,
     refRangeDelimiter: string,
   ): string {
-    const group = this.rows[row];
-    return group ? this.getGroupValue(group, col, refDelimiter, refRangeDelimiter, true, true) : '';
+    return this.GetValue(this.m_rows[aRow]!, aCol, refDelimiter, refRangeDelimiter, true, true);
   }
 
-  /** SetValue, write one value to every symbol of the row. */
-  setValue(row: number, col: number, value: string): void {
-    const column = this.cols[col];
-    const group = this.rows[row];
-    if (!column || !group) return;
-    // References and generated (non-attribute) columns are read-only.
-    if (
-      this.colIsReference(col) ||
-      (IsGeneratedField(column.fieldName) && !this.colIsAttribute(col))
-    )
+  SetValue(aRow: number, aCol: number, aValue: string): void {
+    if (aCol < 0 || aCol >= this.m_cols.length) return;
+
+    const fieldName = this.m_cols[aCol]!.m_fieldName;
+
+    // Can't modify references or generated fields (e.g. ${QUANTITY})
+    if (this.ColIsReference(aCol) || (IsGeneratedField(fieldName) && !this.ColIsAttribute(aCol)))
       return;
-    if (value === INDETERMINATE_STATE) return;
-    for (const ref of group.refs) {
-      let fields = this.store.get(storeKey(ref));
-      if (!fields) {
-        fields = new Map();
-        this.store.set(storeKey(ref), fields);
-      }
-      fields.set(column.fieldName, value);
+
+    if (aValue === INDETERMINATE_STATE) return;
+
+    const editedSymbols = new Set<SCH_SYMBOL>();
+
+    for (const ref of this.m_rows[aRow]!.m_Refs) {
+      editedSymbols.add(ref.GetSymbol()!);
+      this.store(makeDataStoreKey(ref.GetSheetPath(), ref.GetSymbol()!)).set(fieldName, aValue);
     }
-    this.edited = true;
+
+    // ApplyData walks every path a symbol is reachable through, so an edit to storage those
+    // paths have in common must also reach the ones the current scope and filter hide
+    if (this.storageIsSharedAcrossPaths(fieldName)) {
+      for (let ii = 0; ii < this.m_symbolsList.GetCount(); ++ii) {
+        const ref = this.m_symbolsList.GetItem(ii);
+
+        if (!editedSymbols.has(ref.GetSymbol()!)) continue;
+
+        this.store(makeDataStoreKey(ref.GetSheetPath(), ref.GetSymbol()!)).set(fieldName, aValue);
+      }
+    }
+
+    this.m_edited = true;
   }
 
-  /** GetDataWidth, the longest cell text of a column, in characters. */
-  getDataWidth(col: number): number {
-    const column = this.cols[col];
-    if (!column) return 0;
-    let width = 0;
-    if (this.colIsReference(col)) {
-      for (let row = 0; row < this.rows.length; row++)
-        width = Math.max(width, this.getValue(row, col).length);
-    } else {
-      for (const ref of this.refs)
-        width = Math.max(width, (this.storedValue(ref, column.fieldName) ?? '').length);
+  GetRowFlags(aRow: number): GROUP_TYPE {
+    return this.m_rows[aRow]!.m_Flag;
+  }
+
+  GetRowReferences(aRow: number): SCH_REFERENCE[] {
+    if (aRow < 0 || aRow >= this.m_rows.length) return [];
+
+    return [...this.m_rows[aRow]!.m_Refs];
+  }
+
+  ColIsReference(aCol: number): boolean {
+    if (aCol < 0 || aCol >= this.m_cols.length) return false;
+    return this.m_cols[aCol]!.m_fieldName === GetCanonicalFieldName(FIELD_T.REFERENCE);
+  }
+
+  ColIsValue(aCol: number): boolean {
+    if (aCol < 0 || aCol >= this.m_cols.length) return false;
+    return this.m_cols[aCol]!.m_fieldName === GetCanonicalFieldName(FIELD_T.VALUE);
+  }
+
+  ColIsQuantity(aCol: number): boolean {
+    if (aCol < 0 || aCol >= this.m_cols.length) return false;
+    return this.m_cols[aCol]!.m_fieldName === FIELDS_EDITOR_GRID_DATA_MODEL.QUANTITY_VARIABLE;
+  }
+
+  ColIsItemNumber(aCol: number): boolean {
+    if (aCol < 0 || aCol >= this.m_cols.length) return false;
+    return this.m_cols[aCol]!.m_fieldName === FIELDS_EDITOR_GRID_DATA_MODEL.ITEM_NUMBER_VARIABLE;
+  }
+
+  ColIsAttribute(aCol: number): boolean {
+    if (aCol < 0 || aCol >= this.m_cols.length) return false;
+    return this.isAttribute(this.m_cols[aCol]!.m_fieldName);
+  }
+
+  override GetGroupType(aRow: number): GROUP_TYPE {
+    return this.m_rows[aRow]!.m_Flag;
+  }
+
+  SetSorting(aCol: number, ascending: boolean): void {
+    if (aCol < 0 || aCol >= this.m_cols.length) return;
+
+    this.m_sortColumn = aCol;
+    this.m_sortAscending = ascending;
+  }
+
+  GetSortCol(): number {
+    return this.m_sortColumn;
+  }
+
+  GetSortAsc(): boolean {
+    return this.m_sortAscending;
+  }
+
+  /** `cmp( lhGroup, rhGroup, dataModel, sortCol, ascending )`: a strict weak order (true = lhs first). */
+  private static cmp(
+    lhGroup: DATA_MODEL_ROW,
+    rhGroup: DATA_MODEL_ROW,
+    dataModel: FIELDS_EDITOR_GRID_DATA_MODEL,
+    sortCol: number,
+    ascending: boolean,
+  ): boolean {
+    // Empty rows always go to the bottom, whether ascending or descending
+    if (lhGroup.m_Refs.length === 0) return true;
+    else if (rhGroup.m_Refs.length === 0) return false;
+
+    // N.B. To meet the iterator sort conditions, we cannot simply invert the truth
+    // to get the opposite sort.  i.e. ~(a<b) != (a>b)
+    const local_cmp = (a: number, b: number): boolean => (ascending ? a < b : a > b);
+
+    // Primary sort key is sortCol; secondary is always REFERENCE (column 0)
+    if (sortCol < 0 || sortCol >= dataModel.GetNumberCols()) sortCol = 0;
+
+    const lhs = dataModel.GetValue(lhGroup, sortCol, ', ', '-', true).trim();
+    const rhs = dataModel.GetValue(rhGroup, sortCol, ', ', '-', true).trim();
+
+    if (lhs === rhs || dataModel.ColIsReference(sortCol)) {
+      const lhRef = lhGroup.m_Refs[0]!.GetRef() + lhGroup.m_Refs[0]!.GetRefNumber();
+      const rhRef = rhGroup.m_Refs[0]!.GetRef() + rhGroup.m_Refs[0]!.GetRefNumber();
+      return local_cmp(strNumCmp(lhRef, rhRef, true), 0);
     }
+
+    return local_cmp(valueStringCompare(lhs, rhs), 0);
+  }
+
+  /** std::sort over a `cmp`-style predicate. */
+  private sortRows(aRows: DATA_MODEL_ROW[]): void {
+    aRows.sort((l, r) =>
+      FIELDS_EDITOR_GRID_DATA_MODEL.cmp(l, r, this, this.m_sortColumn, this.m_sortAscending)
+        ? -1
+        : FIELDS_EDITOR_GRID_DATA_MODEL.cmp(r, l, this, this.m_sortColumn, this.m_sortAscending)
+          ? 1
+          : 0,
+    );
+  }
+
+  /** `Sort()` (fields_data_model.cpp:787). */
+  Sort(): void {
+    this.CollapseForSort();
+
+    // We're going to sort the rows based on their first reference, so the first reference
+    // had better be the lowest one.
+    for (const row of this.m_rows) {
+      row.m_Refs.sort((lhs, rhs) =>
+        strNumCmp(lhs.GetRef() + lhs.GetRefNumber(), rhs.GetRef() + rhs.GetRefNumber(), true),
+      );
+    }
+
+    this.sortRows(this.m_rows);
+
+    // Time to renumber the item numbers
+    let itemNumber = 1;
+
+    for (const row of this.m_rows) row.m_ItemNumber = itemNumber++;
+
+    this.ExpandAfterSort();
+  }
+
+  private unitMatch(lhRef: SCH_REFERENCE, rhRef: SCH_REFERENCE): boolean {
+    // If items are unannotated then we can't tell if they're units of the same symbol or not
+    if (lhRef.GetRefNumber() === '?') return false;
+
+    return lhRef.GetRef() === rhRef.GetRef() && lhRef.GetRefNumber() === rhRef.GetRefNumber();
+  }
+
+  private groupMatch(lhRef: SCH_REFERENCE, rhRef: SCH_REFERENCE): boolean {
+    const refCol = this.GetFieldNameCol(GetCanonicalFieldName(FIELD_T.REFERENCE));
+    let matchFound = false;
+
+    if (refCol === -1) return false;
+
+    // First check the reference column.  This can be done directly out of the
+    // SCH_REFERENCEs as the references can't be edited in the grid.
+    if (this.m_cols[refCol]!.m_group) {
+      // if we're grouping by reference, then only the prefix must match
+      if (lhRef.GetRef() !== rhRef.GetRef()) return false;
+
+      matchFound = true;
+    }
+
+    const lhFields = this.store(makeDataStoreKey(lhRef.GetSheetPath(), lhRef.GetSymbol()!));
+    const rhFields = this.store(makeDataStoreKey(rhRef.GetSheetPath(), rhRef.GetSymbol()!));
+
+    // Now check all the other columns.
+    for (let i = 0; i < this.m_cols.length; ++i) {
+      //Handled already
+      if (i === refCol) continue;
+
+      const col = this.m_cols[i]!;
+
+      if (!col.m_group) continue;
+
+      // If the field is generated (e.g. ${QUANTITY}), we need to resolve it through the symbol
+      // to get the actual current value; otherwise we need to pull it out of the store so the
+      // refresh can regroup based on values that haven't been applied to the schematic yet.
+      const lhStored = lhFields.get(col.m_fieldName) ?? '';
+      const rhStored = rhFields.get(col.m_fieldName) ?? '';
+      const lh =
+        IsGeneratedField(col.m_fieldName) || IsGeneratedField(lhStored)
+          ? this.getFieldShownText(lhRef, col.m_fieldName)
+          : lhStored;
+      const rh =
+        IsGeneratedField(col.m_fieldName) || IsGeneratedField(rhStored)
+          ? this.getFieldShownText(rhRef, col.m_fieldName)
+          : rhStored;
+
+      if (lh !== rh) return false;
+
+      matchFound = true;
+    }
+
+    return matchFound;
+  }
+
+  private getFieldShownText(aRef: SCH_REFERENCE, aFieldName: string): string {
+    const field = aRef.GetSymbol()!.GetField(aFieldName);
+
+    if (field) {
+      if (field.IsPrivate()) return '';
+
+      return field.GetShownText(aRef.GetSheetPath(), false, 0, this.m_currentVariant);
+    }
+
+    // Handle generated fields with variables as names (e.g. ${QUANTITY}) that are not present in
+    // the symbol by giving them the correct value by resolving against the symbol
+    if (IsGeneratedField(aFieldName)) {
+      const depth = 0;
+      const path = aRef.GetSheetPath();
+
+      return ExpandTextVars(aFieldName, (token) =>
+        aRef.GetSymbol()!.ResolveTextVar(path, token, this.m_currentVariant, depth + 1),
+      );
+    }
+
+    return '';
+  }
+
+  private isAttribute(aFieldName: string): boolean {
+    return (
+      aFieldName === '${DNP}' ||
+      aFieldName === '${EXCLUDE_FROM_BOARD}' ||
+      aFieldName === '${EXCLUDE_FROM_BOM}' ||
+      aFieldName === '${EXCLUDE_FROM_POS_FILES}' ||
+      aFieldName === '${EXCLUDE_FROM_SIM}'
+    );
+  }
+
+  private storageIsSharedAcrossPaths(aFieldName: string): boolean {
+    // Variant edits are kept on the symbol instance, but SCH_REFERENCE has no variant form of
+    // the board exclusion so that one always lands on the symbol
+    if (aFieldName === '${EXCLUDE_FROM_BOARD}') return true;
+
+    return this.m_currentVariant === '';
+  }
+
+  private getAttributeValue(
+    aRef: SCH_REFERENCE,
+    aAttributeName: string,
+    aVariantName: string,
+  ): string {
+    const b = (v: boolean) => (v ? '1' : '0');
+
+    if (aAttributeName === '${DNP}') return b(aRef.GetSymbolDNP(aVariantName));
+    if (aAttributeName === '${EXCLUDE_FROM_BOARD}') return b(aRef.GetSymbolExcludedFromBoard());
+    if (aAttributeName === '${EXCLUDE_FROM_BOM}')
+      return b(aRef.GetSymbolExcludedFromBOM(aVariantName));
+    if (aAttributeName === '${EXCLUDE_FROM_SIM}')
+      return b(aRef.GetSymbolExcludedFromSim(aVariantName));
+    if (aAttributeName === '${EXCLUDE_FROM_POS_FILES}')
+      return b(aRef.GetSymbolExcludedFromPosFiles(aVariantName));
+
+    return '0';
+  }
+
+  private attributeInheritedFromSheet(aRef: SCH_REFERENCE, aAttributeName: string): boolean {
+    const path = aRef.GetSheetPath();
+
+    if (aAttributeName === '${DNP}') return path.GetDNP(this.m_currentVariant);
+    else if (aAttributeName === '${EXCLUDE_FROM_BOARD}')
+      return path.GetExcludedFromBoard(this.m_currentVariant);
+    else if (aAttributeName === '${EXCLUDE_FROM_BOM}')
+      return path.GetExcludedFromBOM(this.m_currentVariant);
+    else if (aAttributeName === '${EXCLUDE_FROM_SIM}')
+      return path.GetExcludedFromSim(this.m_currentVariant);
+
+    return false;
+  }
+
+  private rowAttributeInheritedFromSheet(aGroup: DATA_MODEL_ROW, aCol: number): boolean {
+    if (!this.ColIsAttribute(aCol) || aGroup.m_Refs.length === 0) return false;
+
+    // Lock the cell only when every symbol in the row inherits it, so a mixed group
+    // stays editable and shows the indeterminate state.
+    for (const ref of aGroup.m_Refs) {
+      if (!this.attributeInheritedFromSheet(ref, this.m_cols[aCol]!.m_fieldName)) return false;
+    }
+
+    return true;
+  }
+
+  private getDefaultFieldValue(aRef: SCH_REFERENCE, aFieldName: string): string {
+    const symbol = aRef.GetSymbol();
+
+    if (!symbol) return '';
+
+    // For attributes, get the default (non-variant) value
+    if (this.isAttribute(aFieldName)) return this.getAttributeValue(aRef, aFieldName, '');
+
+    // For regular fields, get the text without variant override
+    const field = symbol.GetField(aFieldName);
+
+    if (field) {
+      if (field.IsPrivate()) return '';
+
+      return symbol.Schematic()!.ConvertKIIDsToRefs(field.GetText(aRef.GetSheetPath(), ''));
+    }
+
+    // For generated fields, return the field name itself
+    if (IsGeneratedField(aFieldName)) return aFieldName;
+
+    return '';
+  }
+
+  private setAttributeValue(
+    aRef: SCH_REFERENCE,
+    aAttributeName: string,
+    aValue: string,
+    aVariantName: string,
+  ): boolean {
+    let attrChanged = false;
+    const newValue = aValue === '1';
+
+    if (aAttributeName === '${DNP}') {
+      attrChanged = aRef.GetSymbolDNP(aVariantName) !== newValue;
+      if (attrChanged) aRef.SetSymbolDNP(newValue, aVariantName);
+    } else if (aAttributeName === '${EXCLUDE_FROM_BOARD}') {
+      attrChanged = aRef.GetSymbolExcludedFromBoard() !== newValue;
+      if (attrChanged) aRef.SetSymbolExcludedFromBoard(newValue);
+    } else if (aAttributeName === '${EXCLUDE_FROM_BOM}') {
+      attrChanged = aRef.GetSymbolExcludedFromBOM(aVariantName) !== newValue;
+      if (attrChanged) aRef.SetSymbolExcludedFromBOM(newValue, aVariantName);
+    } else if (aAttributeName === '${EXCLUDE_FROM_SIM}') {
+      attrChanged = aRef.GetSymbolExcludedFromSim(aVariantName) !== newValue;
+      if (attrChanged) aRef.SetSymbolExcludedFromSim(newValue, aVariantName);
+    } else if (aAttributeName === '${EXCLUDE_FROM_POS_FILES}') {
+      attrChanged = aRef.GetSymbolExcludedFromPosFiles(aVariantName) !== newValue;
+      if (attrChanged) aRef.SetSymbolExcludedFromPosFiles(newValue, aVariantName);
+    }
+
+    return attrChanged;
+  }
+
+  EnableRebuilds(): void {
+    this.m_rebuildsEnabled = true;
+  }
+
+  DisableRebuilds(): void {
+    this.m_rebuildsEnabled = false;
+  }
+
+  /** `RebuildRows()` (fields_data_model.cpp:1099). */
+  RebuildRows(): void {
+    if (!this.m_rebuildsEnabled) return;
+
+    const view = this.GetView();
+
+    if (view) {
+      // Commit any pending in-place edits before the row gets moved out from under
+      // the editor.
+      (view as WX_GRID).CommitPendingChanges?.(true);
+
+      this.notify(wxGridTableRequest.wxGRIDTABLE_NOTIFY_ROWS_DELETED, 0, this.m_rows.length);
+    }
+
+    this.m_rows = [];
+
+    const matcher = new EdaCombinedMatcher(
+      this.m_filter.toLowerCase(),
+      CombinedMatcherContext.SEARCH,
+    );
+
+    for (let i = 0; i < this.m_symbolsList.GetCount(); ++i) {
+      const ref = this.m_symbolsList.GetItem(i);
+
+      if (this.m_filter !== '' && matcher.find(ref.GetFullRef().toLowerCase()) < 0) continue;
+
+      const symbol = ref.GetSymbol()!;
+      const path = ref.GetSheetPath();
+      const variants = this.m_variantNames.length ? this.m_variantNames : [this.m_currentVariant];
+
+      if (this.m_excludeDNP) {
+        const isDNP = variants.some((v) => symbol.ResolveDNP(path, v) || path.GetDNP(v));
+
+        if (isDNP) continue;
+      }
+
+      if (!this.m_includeExcluded) {
+        const isExcluded = variants.some(
+          (v) => symbol.ResolveExcludedFromBOM(path, v) || path.GetExcludedFromBOM(v),
+        );
+
+        if (isExcluded) continue;
+      }
+
+      // Check if the symbol if on the current sheet or, in the sheet path somewhere
+      // depending on scope
+      if (
+        (this.m_scope === FIELDS_EDITOR_GRID_DATA_MODEL.SCOPE.SCOPE_SHEET &&
+          !path.equals(this.m_path)) ||
+        (this.m_scope === FIELDS_EDITOR_GRID_DATA_MODEL.SCOPE.SCOPE_SHEET_RECURSIVE &&
+          !path.IsContainedWithin(this.m_path))
+      ) {
+        continue;
+      }
+
+      let matchFound = false;
+
+      // Performance optimization for ungrouped case to skip the N^2 for loop
+      if (!this.m_groupingEnabled && !ref.IsMultiUnit()) {
+        this.m_rows.push(new DATA_MODEL_ROW(ref, GROUP_TYPE.GROUP_SINGLETON));
+        continue;
+      }
+
+      // See if we already have a row which this symbol fits into
+      for (const row of this.m_rows) {
+        // all group members must have identical refs so just use the first one
+        const rowRef = row.m_Refs[0]!;
+
+        if (this.unitMatch(ref, rowRef)) {
+          matchFound = true;
+          row.m_Refs.push(ref);
+          break;
+        } else if (this.m_groupingEnabled && this.groupMatch(ref, rowRef)) {
+          matchFound = true;
+          row.m_Refs.push(ref);
+          row.m_Flag = GROUP_TYPE.GROUP_COLLAPSED;
+          break;
+        }
+      }
+
+      if (!matchFound) this.m_rows.push(new DATA_MODEL_ROW(ref, GROUP_TYPE.GROUP_SINGLETON));
+    }
+
+    if (view) this.notify(wxGridTableRequest.wxGRIDTABLE_NOTIFY_ROWS_APPENDED, this.m_rows.length);
+
+    this.Sort();
+  }
+
+  ExpandRow(aRow: number): void {
+    const children: DATA_MODEL_ROW[] = [];
+
+    for (const ref of this.m_rows[aRow]!.m_Refs) {
+      let matchFound = false;
+
+      // See if we already have a child group which this symbol fits into
+      for (const child of children) {
+        // group members are by definition all matching, so just check
+        // against the first member
+        if (this.unitMatch(ref, child.m_Refs[0]!)) {
+          matchFound = true;
+          child.m_Refs.push(ref);
+          break;
+        }
+      }
+
+      if (!matchFound) children.push(new DATA_MODEL_ROW(ref, GROUP_TYPE.CHILD_ITEM));
+    }
+
+    if (children.length < 2) return;
+
+    this.sortRows(children);
+
+    this.m_rows[aRow]!.m_Flag = GROUP_TYPE.GROUP_EXPANDED;
+    this.m_rows.splice(aRow + 1, 0, ...children);
+
+    this.notify(wxGridTableRequest.wxGRIDTABLE_NOTIFY_ROWS_INSERTED, aRow, children.length);
+  }
+
+  CollapseRow(aRow: number): void {
+    let deleted = 0;
+
+    while (
+      aRow + 1 + deleted < this.m_rows.length &&
+      this.m_rows[aRow + 1 + deleted]!.m_Flag === GROUP_TYPE.CHILD_ITEM
+    ) {
+      deleted++;
+    }
+
+    this.m_rows[aRow]!.m_Flag = GROUP_TYPE.GROUP_COLLAPSED;
+    this.m_rows.splice(aRow + 1, deleted);
+
+    this.notify(wxGridTableRequest.wxGRIDTABLE_NOTIFY_ROWS_DELETED, aRow + 1, deleted);
+  }
+
+  ExpandCollapseRow(aRow: number): void {
+    const group = this.m_rows[aRow]!;
+
+    if (group.m_Flag === GROUP_TYPE.GROUP_COLLAPSED) this.ExpandRow(aRow);
+    else if (group.m_Flag === GROUP_TYPE.GROUP_EXPANDED) this.CollapseRow(aRow);
+  }
+
+  CollapseForSort(): void {
+    for (let i = 0; i < this.m_rows.length; ++i) {
+      if (this.m_rows[i]!.m_Flag === GROUP_TYPE.GROUP_EXPANDED) {
+        this.CollapseRow(i);
+        this.m_rows[i]!.m_Flag = GROUP_TYPE.GROUP_COLLAPSED_DURING_SORT;
+      }
+    }
+  }
+
+  ExpandAfterSort(): void {
+    for (let i = 0; i < this.m_rows.length; ++i) {
+      if (this.m_rows[i]!.m_Flag === GROUP_TYPE.GROUP_COLLAPSED_DURING_SORT) this.ExpandRow(i);
+    }
+  }
+
+  /** `ApplyData( aCommit, aTemplateFieldnames, aVariantName )` (fields_data_model.cpp:1326). */
+  ApplyData(aCommit: SCH_COMMIT, aTemplateFieldnames: TEMPLATES, aVariantName: string): void {
+    let symbolModified = false;
+    let symbolCopy: SCH_SYMBOL | null = null;
+
+    for (let i = 0; i < this.m_symbolsList.GetCount(); i++) {
+      const ref = this.m_symbolsList.GetItem(i);
+      const symbol = ref.GetSymbol()!;
+      const nextSymbol =
+        i + 1 < this.m_symbolsList.GetCount()
+          ? this.m_symbolsList.GetItem(i + 1).GetSymbol()
+          : null;
+
+      if (i === 0) symbolCopy = symbol.Clone() as SCH_SYMBOL;
+
+      const fieldStore = this.store(makeDataStoreKey(ref.GetSheetPath(), symbol));
+
+      for (const [srcName, srcValue] of fieldStore) {
+        // Attributes bypass the field logic, so handle them first
+        if (this.isAttribute(srcName)) {
+          symbolModified =
+            this.setAttributeValue(ref, srcName, srcValue, aVariantName) || symbolModified;
+          continue;
+        }
+
+        // Skip generated fields with variables as names (e.g. ${QUANTITY});
+        // they can't be edited
+        if (IsGeneratedField(srcName)) continue;
+
+        let destField = symbol.GetField(srcName);
+
+        if (destField?.IsPrivate()) {
+          if (srcValue === '') continue;
+          else destField.SetPrivate(false);
+        }
+
+        const col = this.GetFieldNameCol(srcName);
+        const userAdded = col !== -1 && this.m_cols[col]!.m_userAdded;
+
+        // Add a not existing field if it has a value for this symbol
+        const createField = !destField && (srcValue !== '' || userAdded);
+
+        if (createField) {
+          destField = symbol.AddField(new SCH_FIELD(symbol, FIELD_T.USER, srcName));
+          destField.SetTextAngle(symbol.GetField(FIELD_T.REFERENCE)!.GetTextAngle());
+
+          const srcTemplate = aTemplateFieldnames.GetFieldName(srcName);
+
+          if (srcTemplate) destField.SetVisible(srcTemplate.m_Visible);
+          else destField.SetVisible(false);
+
+          destField.SetTextPos(symbol.GetPosition());
+          symbolModified = true;
+        }
+
+        if (!destField) continue;
+
+        // Reference is not editable from this dialog
+        if (destField.GetId() === FIELD_T.REFERENCE) continue;
+
+        const previousValue = destField.GetText(ref.GetSheetPath(), aVariantName);
+
+        destField.SetText(
+          symbol.Schematic()!.ConvertRefsToKIIDs(srcValue),
+          ref.GetSheetPath(),
+          aVariantName,
+        );
+
+        if (!createField && previousValue !== srcValue) symbolModified = true;
+      }
+
+      const fields = symbol.GetFields();
+
+      for (let ii = fields.length - 1; ii >= 0; ii--) {
+        const field = fields[ii]!;
+
+        if (field.IsMandatory() || field.IsPrivate()) continue;
+
+        if (!fieldStore.has(field.GetName())) {
+          symbol.RemoveField(field);
+          symbolModified = true;
+        }
+      }
+
+      if (symbolModified && symbol !== nextSymbol)
+        aCommit.Modified(symbol, symbolCopy!, ref.GetSheetPath().LastScreen());
+
+      // Only reset the modified flag and next symbol copy if the next symbol is different from
+      // the current one.
+      if (symbol !== nextSymbol) {
+        symbolCopy = nextSymbol ? (nextSymbol.Clone() as SCH_SYMBOL) : null;
+        symbolModified = false;
+      }
+    }
+
+    this.m_edited = false;
+  }
+
+  IsEdited(): boolean {
+    return this.m_edited;
+  }
+
+  GetDataWidth(aCol: number): number {
+    let width = 0;
+
+    if (this.ColIsReference(aCol)) {
+      for (let row = 0; row < this.GetNumberRows(); ++row)
+        width = Math.max(width, GetTextExtent(this.GetValue(row, aCol)));
+    } else {
+      const fieldName = this.GetColFieldName(aCol); // symbol fieldName or Qty string
+
+      for (let i = 0; i < this.m_symbolsList.GetCount(); ++i) {
+        const ref = this.m_symbolsList.GetItem(i);
+        const text =
+          this.store(makeDataStoreKey(ref.GetSheetPath(), ref.GetSymbol()!)).get(fieldName) ?? '';
+
+        width = Math.max(width, GetTextExtent(text));
+      }
+    }
+
     return width;
   }
 
-  // --- presets -------------------------------------------------------------
-
-  applyBomPreset(preset: BomPresetSpec): void {
-    for (let i = 0; i < this.cols.length; i++) {
-      this.setShowColumn(i, false);
-      this.setGroupColumn(i, false);
-    }
-    const seen = new Set<string>();
-    const order: string[] = [];
-    for (const field of preset.fieldsOrdered) {
-      if (!field.name || seen.has(field.name)) continue;
-      seen.add(field.name);
-      order.push(field.name);
-      let col = this.getFieldNameCol(field.name);
-      if (col === -1) {
-        // Missing fields are added; with no data entered they never reach the symbols.
-        this.addColumn(field.name, field.label, true);
-        col = this.getFieldNameCol(field.name);
-      } else {
-        this.setColLabelValue(col, field.label);
-      }
-      this.setGroupColumn(col, field.groupBy);
-      this.setShowColumn(col, field.show);
-    }
-    this.setGroupingEnabled(preset.groupSymbols);
-    this.setFieldsOrder(order);
-    let sortCol = this.getFieldNameCol(preset.sortField);
-    if (sortCol === -1) sortCol = this.getFieldNameCol('Reference');
-    this.setSorting(sortCol, preset.sortAsc);
-    this.setFilter(preset.filterString);
-    this.setExcludeDNP(preset.excludeDNP);
-    this.setIncludeExcludedFromBOM(preset.includeExcludedFromBOM);
-    this.rebuildRows();
+  SetFilter(aFilter: string): void {
+    this.m_filter = aFilter;
+  }
+  GetFilter(): string {
+    return this.m_filter;
   }
 
-  getBomSettings(): BomPresetSpec {
+  SetScope(aScope: number): void {
+    this.m_scope = aScope;
+  }
+  GetScope(): number {
+    return this.m_scope;
+  }
+
+  SetPath(aPath: SCH_SHEET_PATH): void {
+    this.m_path = aPath;
+  }
+  GetPath(): SCH_SHEET_PATH {
+    return this.m_path;
+  }
+
+  SetGroupingEnabled(group: boolean): void {
+    this.m_groupingEnabled = group;
+  }
+  GetGroupingEnabled(): boolean {
+    return this.m_groupingEnabled;
+  }
+
+  SetIncludeExcludedFromBOM(include: boolean): void {
+    this.m_includeExcluded = include;
+  }
+  GetIncludeExcludedFromBOM(): boolean {
+    return this.m_includeExcluded;
+  }
+
+  SetExcludeDNP(exclude: boolean): void {
+    this.m_excludeDNP = exclude;
+  }
+  GetExcludeDNP(): boolean {
+    return this.m_excludeDNP;
+  }
+
+  SetGroupColumn(aCol: number, group: boolean): void {
+    if (aCol < 0 || aCol >= this.m_cols.length) return;
+    this.m_cols[aCol]!.m_group = group;
+  }
+  GetGroupColumn(aCol: number): boolean {
+    if (aCol < 0 || aCol >= this.m_cols.length) return false;
+    return this.m_cols[aCol]!.m_group;
+  }
+
+  SetShowColumn(aCol: number, show: boolean): void {
+    if (aCol < 0 || aCol >= this.m_cols.length) return;
+    this.m_cols[aCol]!.m_show = show;
+  }
+  GetShowColumn(aCol: number): boolean {
+    if (aCol < 0 || aCol >= this.m_cols.length) return false;
+    return this.m_cols[aCol]!.m_show;
+  }
+
+  /** `ApplyBomPreset( aPreset )` (fields_data_model.cpp:1472). */
+  ApplyBomPreset(aPreset: BOM_PRESET): void {
+    // Hide and un-group everything by default
+    for (let i = 0; i < this.m_cols.length; i++) {
+      this.SetShowColumn(i, false);
+      this.SetGroupColumn(i, false);
+    }
+
+    const seen = new Set<string>();
+    const order: string[] = [];
+
+    // Set columns that are present and shown
+    for (const field of aPreset.fieldsOrdered) {
+      // Ignore empty fields
+      if (!field.name || seen.has(field.name)) continue;
+
+      seen.add(field.name);
+      order.push(field.name);
+
+      let col = this.GetFieldNameCol(field.name);
+
+      // Add any missing fields, if the user doesn't add any data
+      // they won't be saved to the symbols anyway
+      if (col === -1) {
+        this.AddColumn(field.name, field.label, true);
+        col = this.GetFieldNameCol(field.name);
+      } else {
+        this.SetColLabelValue(col, field.label);
+      }
+
+      this.SetGroupColumn(col, field.groupBy);
+      this.SetShowColumn(col, field.show);
+    }
+
+    // Set grouping columns
+    this.SetGroupingEnabled(aPreset.groupSymbols);
+
+    this.SetFieldsOrder(order);
+
+    // Set our sorting
+    let sortCol = this.GetFieldNameCol(aPreset.sortField);
+
+    if (sortCol === -1) sortCol = this.GetFieldNameCol(GetCanonicalFieldName(FIELD_T.REFERENCE));
+
+    this.SetSorting(sortCol, aPreset.sortAsc);
+
+    this.SetFilter(aPreset.filterString);
+    this.SetExcludeDNP(aPreset.excludeDNP);
+    this.SetIncludeExcludedFromBOM(aPreset.includeExcludedFromBOM);
+
+    this.RebuildRows();
+  }
+
+  GetBomSettings(): BOM_PRESET {
     return {
       name: '',
       readOnly: false,
-      fieldsOrdered: this.getFieldsOrdered(),
+      fieldsOrdered: this.GetFieldsOrdered(),
       sortField:
-        this.sortColumn >= 0 && this.sortColumn < this.cols.length
-          ? this.getColFieldName(this.sortColumn)
+        this.GetSortCol() >= 0 && this.GetSortCol() < this.GetNumberCols()
+          ? this.GetColFieldName(this.GetSortCol())
           : '',
-      sortAsc: this.sortAscending,
-      filterString: this.filter,
-      groupSymbols: this.groupingEnabled,
-      excludeDNP: this.excludeDNP,
-      includeExcludedFromBOM: this.includeExcluded,
+      sortAsc: this.GetSortAsc(),
+      filterString: this.GetFilter(),
+      groupSymbols: this.GetGroupingEnabled(),
+      excludeDNP: this.GetExcludeDNP(),
+      includeExcludedFromBOM: this.GetIncludeExcludedFromBOM(),
     };
   }
 
-  /** FIELDS_EDITOR_GRID_DATA_MODEL::Export, the shown columns, delimited. */
-  export(settings: BomOutputFormat): string {
-    if (this.cols.length === 0) return '';
-    let lastCol = -1;
-    for (let col = 0; col < this.cols.length; col++) {
-      if (this.cols[col]!.show) lastCol = col;
-    }
-    if (lastCol === -1) return '';
+  /** `Export( settings )` (fields_data_model.cpp:1552). */
+  Export(settings: BOM_FMT_PRESET): string {
+    let out = '';
 
-    const formatField = (field: string, last: boolean): string => {
-      let out = field;
-      if (!settings.keepLineBreaks) out = out.replace(/[\r\n]/g, '');
-      if (!settings.keepTabs) out = out.replace(/\t/g, '');
+    if (this.m_cols.length === 0) return out;
+
+    let last_col = -1;
+
+    // Find the location for the line terminator
+    for (let col = 0; col < this.m_cols.length; col++) {
+      if (this.m_cols[col]!.m_show) last_col = col;
+    }
+
+    // No shown columns
+    if (last_col === -1) return out;
+
+    const formatField = (aField: string, last: boolean): string => {
+      let field = aField;
+
+      if (!settings.keepLineBreaks) field = field.replaceAll('\r', '').replaceAll('\n', '');
+
+      if (!settings.keepTabs) field = field.replaceAll('\t', '');
+
       if (settings.stringDelimiter !== '')
-        out = out.split(settings.stringDelimiter).join(settings.stringDelimiter.repeat(2));
+        field = field.replaceAll(
+          settings.stringDelimiter,
+          settings.stringDelimiter + settings.stringDelimiter,
+        );
+
       return (
         settings.stringDelimiter +
-        out +
+        field +
         settings.stringDelimiter +
         (last ? '\n' : settings.fieldDelimiter)
       );
     };
 
-    let out = '';
-    for (let col = 0; col < this.cols.length; col++) {
-      if (!this.cols[col]!.show) continue;
-      out += formatField(this.cols[col]!.label, col === lastCol);
+    // Column names
+    for (let col = 0; col < this.m_cols.length; col++) {
+      if (!this.m_cols[col]!.m_show) continue;
+
+      out += formatField(this.m_cols[col]!.m_label, col === last_col);
     }
-    for (let row = 0; row < this.rows.length; row++) {
-      if (this.rows[row]!.flag === 'child') continue; // child rows never export
-      for (let col = 0; col < this.cols.length; col++) {
-        if (!this.cols[col]!.show) continue;
+
+    // Data rows
+    for (let row = 0; row < this.m_rows.length; row++) {
+      // Don't output child rows
+      if (this.GetRowFlags(row) === GROUP_TYPE.CHILD_ITEM) continue;
+
+      for (let col = 0; col < this.m_cols.length; col++) {
+        if (!this.m_cols[col]!.m_show) continue;
+
+        // Get the unannotated version of the field, e.g. no ">   " or "v   " by
         out += formatField(
-          this.getExportValue(row, col, settings.refDelimiter, settings.refRangeDelimiter),
-          col === lastCol,
+          this.GetExportValue(row, col, settings.refDelimiter, settings.refRangeDelimiter),
+          col === last_col,
         );
       }
     }
+
     return out;
   }
 
-  // --- apply ---------------------------------------------------------------
+  AddReferences(aRefs: SCH_REFERENCE_LIST): void {
+    let refListChanged = false;
 
-  /**
-   * ApplyData, the store's changed cells as per-sheet edits. Field values that
-   * differ from the symbol are written; a tracked field the store no longer
-   * carries (its column was removed) is cleared, which drops it from the
-   * symbol; attribute columns become symbol flag changes.
-   */
-  applyData(): FieldsTableEdits {
-    const fields = new Map<string, Map<string, Record<string, string>>>();
-    const attrs = new Map<string, Map<string, SymbolAttrEdit>>();
+    for (const ref of aRefs) {
+      if (!this.m_symbolsList.Contains(ref)) {
+        const symbol = ref.GetSymbol()!;
 
-    const fieldEdit = (ref: FieldsRef, name: string, value: string): void => {
-      let perFile = fields.get(ref.file);
-      if (!perFile) {
-        perFile = new Map();
-        fields.set(ref.file, perFile);
-      }
-      const cur = perFile.get(ref.id) ?? {};
-      cur[name] = value;
-      perFile.set(ref.id, cur);
-    };
-    const attrEdit = (ref: FieldsRef, key: keyof SymbolAttrEdit, value: boolean): void => {
-      let perFile = attrs.get(ref.file);
-      if (!perFile) {
-        perFile = new Map();
-        attrs.set(ref.file, perFile);
-      }
-      perFile.set(ref.id, { ...(perFile.get(ref.id) ?? {}), [key]: value });
-    };
+        this.m_symbolsList.AddItem(ref);
 
-    const seen = new Set<string>();
-    for (const ref of this.refs) {
-      const key = storeKey(ref);
-      // Instances of one file share the symbol, so apply each symbol once.
-      if (seen.has(key)) continue;
-      seen.add(key);
-      const stored = this.store.get(key);
-      if (!stored) continue;
+        const fields = this.store(makeDataStoreKey(ref.GetSheetPath(), symbol));
 
-      for (const [name, value] of stored) {
-        if (isAttributeField(name)) {
-          if (value !== attributeValue(ref.symbol, name)) {
-            attrEdit(ref, ATTR_EDIT_KEY[name]!, value === '1');
-          }
-          continue;
+        // Update the fields of every reference
+        for (const field of symbol.GetFields()) {
+          if (!field.IsPrivate())
+            fields.set(
+              field.GetCanonicalName(),
+              symbol.Schematic()!.ConvertKIIDsToRefs(field.GetText()),
+            );
         }
-        // Generated fields (${QUANTITY} …) are read-only.
-        if (IsGeneratedField(name)) continue;
-        // Reference is not editable from this dialog.
-        if (name === 'Reference') continue;
-        const col = this.getFieldNameCol(name);
-        const userAdded = col !== -1 && this.cols[col]!.userAdded;
-        const previous = fieldValue(ref.symbol, name);
-        if (previous === undefined) {
-          // A field the symbol lacks is created when it has a value (or the
-          // user added the column deliberately).
-          if (value !== '' || userAdded) fieldEdit(ref, name, value);
-        } else if (previous !== value) {
-          fieldEdit(ref, name, value);
-        }
-      }
 
-      // Fields dropped from the table (column removed) are removed from the symbol.
-      for (const f of ref.symbol.fields) {
-        if (isMandatoryField(f.key)) continue;
-        if (!stored.has(f.key)) fieldEdit(ref, f.key, '');
+        for (const col of this.m_cols)
+          if (!fields.has(col.m_fieldName)) fields.set(col.m_fieldName, '');
+
+        refListChanged = true;
       }
     }
 
-    this.edited = false;
-    return { fields, attrs };
+    if (refListChanged) this.m_symbolsList.SortBySymbolPtr();
+  }
+
+  RemoveSymbol(aSymbol: SCH_SYMBOL): void {
+    // The schematic event listener passes us the symbol after it has been removed, so we can't
+    // just work with a SCH_REFERENCE_LIST like the other handlers as the references are already
+    // gone. Instead we need to prune our list.
+    const uuid = aSymbol.m_Uuid;
+
+    for (const key of [...this.m_dataStore.keys()]) {
+      if (key.endsWith(uuid)) this.m_dataStore.delete(key);
+    }
+
+    for (let i = this.m_symbolsList.GetCount() - 1; i >= 0; i--) {
+      if (this.m_symbolsList.GetItem(i).GetSymbol()!.m_Uuid === uuid)
+        this.m_symbolsList.RemoveItem(i);
+    }
+  }
+
+  RemoveReferences(aRefs: SCH_REFERENCE_LIST): void {
+    for (const ref of aRefs) {
+      const index = this.m_symbolsList.FindRefByFullPath(ref.GetFullPath());
+
+      if (index !== -1) {
+        this.m_dataStore.delete(makeDataStoreKey(ref.GetSheetPath(), ref.GetSymbol()!));
+        this.m_symbolsList.RemoveItem(index);
+      }
+    }
+  }
+
+  UpdateReferences(aRefs: SCH_REFERENCE_LIST): void {
+    let refListChanged = false;
+
+    for (const ref of aRefs) {
+      // Update the fields of every reference. Do this by iterating through the data model
+      // columns; we must have all fields in the symbol added to the data model at this point,
+      // and some of the data model columns may be variables that are not present in the symbol
+      for (const col of this.m_cols) this.updateDataStoreSymbolField(ref, col.m_fieldName);
+
+      const listRef = this.m_symbolsList.FindItem(ref);
+
+      if (listRef) {
+        Object.assign(listRef, ref);
+      } else {
+        this.m_symbolsList.AddItem(ref);
+        refListChanged = true;
+      }
+    }
+
+    if (refListChanged) this.m_symbolsList.SortBySymbolPtr();
+  }
+
+  override HasUndoStateSerialization(): boolean {
+    return true;
+  }
+
+  override SerializeUndoState(): string {
+    // Serialize the un-applied edit store keyed by symbol identity (sheet path + UUID), so that
+    // restoring it is independent of the current row grouping/order.
+    const j: Record<string, Record<string, string>> = {};
+
+    for (const [key, fields] of this.m_dataStore) j[key] = Object.fromEntries(fields);
+
+    return JSON.stringify(j);
+  }
+
+  override RestoreUndoState(aState: string): void {
+    let j: unknown;
+
+    try {
+      j = JSON.parse(aState);
+    } catch {
+      return;
+    }
+
+    if (!j || typeof j !== 'object' || Array.isArray(j)) return;
+
+    for (const [key, value] of Object.entries(j as Record<string, Record<string, string>>)) {
+      const fields = this.store(key);
+
+      for (const [name, v] of Object.entries(value)) fields.set(name, v);
+    }
+
+    this.m_edited = true;
+    this.RebuildRows();
+
+    this.GetView()?.ForceRefresh();
+  }
+
+  override DeleteRows(aPosition = 0, aNumRows = 1): boolean {
+    const curNumRows = this.m_rows.length;
+
+    if (aPosition >= curNumRows) return false;
+
+    if (aNumRows > curNumRows - aPosition) aNumRows = curNumRows - aPosition;
+
+    if (aNumRows >= curNumRows) {
+      this.m_rows = [];
+      this.m_dataStore.clear();
+    } else {
+      const dataMapRefs = this.m_rows[aPosition]!.m_Refs;
+      this.m_rows.splice(aPosition, aNumRows);
+
+      for (const ref of dataMapRefs) this.m_dataStore.delete(ref.GetSheetPath().Path().AsString());
+    }
+
+    this.notify(wxGridTableRequest.wxGRIDTABLE_NOTIFY_ROWS_DELETED, aPosition, aNumRows);
+
+    return true;
+  }
+
+  GetReferenceList(): SCH_REFERENCE_LIST {
+    return this.m_symbolsList;
+  }
+
+  SetCurrentVariant(aVariantName: string): void {
+    this.m_currentVariant = aVariantName;
+  }
+  GetCurrentVariant(): string {
+    return this.m_currentVariant;
+  }
+
+  SetVariantNames(aVariantNames: readonly string[]): void {
+    this.m_variantNames = [...aVariantNames];
+  }
+  GetVariantNames(): readonly string[] {
+    return this.m_variantNames;
   }
 }

@@ -856,7 +856,9 @@ const BASELINE: Record<string, { colours: number; metrics: number }> = {
   // colours 125 -> 119, metrics 542 -> 516 (10-11): ERC's .ze-erc-* rules.
   // colours 119 -> 116, metrics 516 -> 504 (10-12): the old Print, Text, Shape, Import Graphics
   // and Zone-shared forms' .ze-printdlg-* / .ze-txt-* / .ze-tvp-* rules, gone with their _ui files.
-  'common/widgets': { colours: 116, metrics: 504 },
+  // colours 116 -> 113, metrics 504 -> 488 (10-15): the record Symbol Fields Table's dead
+  // .ze-sft-* block, gone with its live port.
+  'common/widgets': { colours: 113, metrics: 488 },
   // 10-10: metrics 1 -> 0, the menu drawing's one literal went to external/wx with it.
   'common/tool': { colours: 0, metrics: 0 },
   // metrics 0 -> 15 on 09-26: the stage-1 moves, 8 from `dialogs` and 7 from
@@ -1477,7 +1479,8 @@ describe('the scan totals, so the numbers in the PR stay true', () => {
     // 263 -> 257: ERC.
     // 257 -> 254 (10-12): the common/widgets row above.
     // 254 -> 252 (10-12): the editors/pcb row above. 252 -> 251 (10-15): common/dialogs.
-    expect(SITES.filter((s) => s.kind === 'colours').length).toBe(251);
+    // 251 -> 248 (10-15): the common/widgets row above.
+    expect(SITES.filter((s) => s.kind === 'colours').length).toBe(248);
     // 1657 -> 1649: the same sweep. A native colour input has no useful
     // default size, so eight of the sixteen sites gave theirs an inline
     // width and height; the shared swatch takes --swatch-*-w/h. Rescanned.
@@ -1720,7 +1723,8 @@ describe('the scan totals, so the numbers in the PR stay true', () => {
     // 751 -> 730 (10-12): the editors/pcb row above.
     // 730 -> 729 (10-12): the .ze-display-opts rules, gone with Display Options' pair.
     // 729 -> 727 (10-12): Physical Stackup's pair. 727 -> 721 (10-15): common/dialogs.
-    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(721);
+    // 721 -> 705 (10-15): the common/widgets row above.
+    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(705);
   });
 
   it('and the two agree with the per-area table, which is where they come from', () => {

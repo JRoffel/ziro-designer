@@ -8,6 +8,9 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { PGM_BASE, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
+import { KICAD_T } from '@ziroeda/core/typeinfo.js';
+import type { SCH_ITEM } from '@ziroeda/eeschema/sch_item.js';
+import { SCH_SCREENS, type SCH_SCREEN } from '@ziroeda/eeschema/sch_screen.js';
 import { SCH_EDIT_FRAME, type SCH_EDIT_FRAME_HOOKS } from '@ziroeda/eeschema/sch_edit_frame.js';
 import { SCH_IO_KICAD_SEXPR } from '@ziroeda/eeschema/sch_io/kicad_sexpr/sch_io_kicad_sexpr.js';
 import { readSchematic } from '@ziroeda/eeschema/sch_io/sexpr/read-schematic.js';
@@ -88,5 +91,44 @@ describe('the record -> live bridge', () => {
     const second = mirror.get();
     expect(second === first).toBe(false);
     expect(second!.RootScreen()!.GetTitleBlock().GetTitle()).toBe(title);
+  });
+});
+
+describe('the screens a live commit touched', () => {
+  /** SCH_COMMIT::pushSchEdit ends in SCHEMATIC::OnItemsChanged; the mirror hears it. */
+  it('names every sheet a commit reached, once', () => {
+    const frame = new SCH_EDIT_FRAME(hooks);
+    const mirror = new LIVE_SCHEMATIC_MIRROR(frame, () => records());
+    const sch = mirror.get()!;
+    const screens = new SCH_SCREENS(sch.Root());
+    const all: SCH_SCREEN[] = [];
+    for (let s = screens.GetFirst(); s; s = screens.GetNext()) all.push(s);
+    // The root sheet holds sheets and labels, ampli_ht symbols: any item on each will do.
+    const itemOf = (aScreen: SCH_SCREEN) => [...aScreen.Items()][0] as SCH_ITEM;
+    const sub = all.find((s) => s.GetFileName().endsWith('ampli_ht.kicad_sch'))!;
+    const root = all.find((s) => s !== sub)!;
+
+    sch.OnItemsChanged([itemOf(sub), itemOf(root)]);
+    sch.OnItemsRemoved([itemOf(sub)]);
+    expect([...mirror.TakeCommittedScreens()].map((s) => s.GetFileName()).sort()).toStrictEqual(
+      [root.GetFileName(), sub.GetFileName()].sort(),
+    );
+    // Taken: the next read starts empty.
+    expect(mirror.TakeCommittedScreens().size).toBe(0);
+  });
+
+  it('stops listening to a schematic once a rebuild replaced it', () => {
+    const frame = new SCH_EDIT_FRAME(hooks);
+    let project = records();
+    const mirror = new LIVE_SCHEMATIC_MIRROR(frame, () => project);
+    const old = mirror.get()!;
+    const docs = new Map(project.docs);
+    docs.set(SHEETS[1]!, readSchematic(parse(pass1(SHEETS[1]!))));
+    project = { ...project, docs };
+    expect(mirror.get() === old).toBe(false);
+    const screens = new SCH_SCREENS(old.Root());
+    const symbol = [...screens.GetFirst()!.Items().OfType(KICAD_T.SCH_SYMBOL_T)][0] as SCH_ITEM;
+    old.OnItemsChanged([symbol]);
+    expect(mirror.TakeCommittedScreens().size).toBe(0);
   });
 });

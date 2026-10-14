@@ -11,7 +11,7 @@ import { describe, it, expect } from 'vitest';
 import { parse } from '@ziroeda/sexpr/index.js';
 import { readSchematic, serializeSchematic, refId } from '@ziroeda/eeschema';
 import { bulkEditFieldsCommand } from '@ziroeda/eeschema/tools/properties.js';
-import { History } from '@ziroeda/eeschema/tools/command.js';
+import { History, composeCommands } from '@ziroeda/eeschema/tools/command.js';
 
 const SCH = `(kicad_sch (version 20231120) (generator "test") (lib_symbols)
   (symbol (lib_id "Device:R") (at 10 10 0) (unit 1) (uuid "r1")
@@ -74,5 +74,24 @@ describe('bulkEditFieldsCommand', () => {
     const back = h.undo(after)!;
     expect(fieldValue(back, 'r1', 'Value')).toBe('1k');
     expect(fieldValue(back, 'r2', 'Value')).toBe('2k');
+  });
+});
+
+describe('composeCommands', () => {
+  /** Each inverse is taken on the document its command saw, and they undo in reverse order. */
+  it('runs its commands in order as one step and undoes them in reverse', () => {
+    const doc = load();
+    const r1 = idOf(doc, 'r1');
+    const step = composeCommands('Two edits', [
+      bulkEditFieldsCommand(new Map([[r1, { Value: '10k' }]])),
+      bulkEditFieldsCommand(new Map([[r1, { Value: '20k', MPN: '' }]])),
+    ]);
+    const h = new History();
+    const after = h.execute(doc, step);
+    expect(fieldValue(after, 'r1', 'Value')).toBe('20k');
+    expect(fieldValue(after, 'r1', 'MPN')).toBeUndefined();
+    const back = h.undo(after)!;
+    expect(fieldValue(back, 'r1', 'Value')).toBe('1k');
+    expect(fieldValue(back, 'r1', 'MPN')).toBe('OLD-MPN');
   });
 });

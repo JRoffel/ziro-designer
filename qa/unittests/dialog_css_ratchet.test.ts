@@ -51,7 +51,8 @@ const BASELINE: Record<string, number> = {
   // 32 -> 21 (10-11): ERC's pair; the .ze-erc-* block it held since DRC converted.
   // 21 -> 22 (10-12): not new CSS. .ze-selfilter was shared with pcbnew's selection filter; with
   // that on its _base pair, eeschema's panel is its only user.
-  eeschema: 22,
+  // 22 -> 14 (10-15): the record Symbol Fields Table's grid, gone with the live dialog on WX_GRID.
+  eeschema: 14,
   // 31 -> 27 (10-12): Print on DIALOG_PRINT_GENERIC_BASE.
   // 27 -> 28 (10-12): not new CSS. ze-pref-help was also named in Mask & Paste; with that page on
   // its _base pair, the Excellon panel is its only user.
