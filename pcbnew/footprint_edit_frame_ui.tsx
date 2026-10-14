@@ -348,6 +348,8 @@ export function FootprintEditFrame({
   const [aboutOpen, setAboutOpen] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState<null | true | 'fp-grids'>(null);
   const [checkerOpen, setCheckerOpen] = useState(false);
+  // `Show( false )` after a double click: the dialog lives on, hidden, until shown again.
+  const [checkerShown, setCheckerShown] = useState(true);
   const [fpOpenDlg, setFpOpenDlg] = useState<
     null | { kind: 'addLibrary' } | { kind: 'import'; done: (f: OpenedFile | null) => void }
   >(null);
@@ -419,6 +421,14 @@ export function FootprintEditFrame({
   });
   const itemDialogHooksRef = useRef(itemDialogs.hooks);
   itemDialogHooksRef.current = itemDialogs.hooks;
+  // COMMON_TOOLS::GridOrigin's WX_PT_ENTRY_DIALOG, the frame's point-entry presenter.
+  const pointEntryRef = useRef(itemDialogs.pointEntry);
+  pointEntryRef.current = itemDialogs.pointEntry;
+  useEffect(() => {
+    const frame = frameRef.current;
+    frame?.SetPointEntryPresenter((...aArgs) => pointEntryRef.current(...aArgs));
+    return () => frame?.SetPointEntryPresenter(null);
+  }, []);
 
   const fpEditRef = useRef<(aFile: string) => void>(() => {});
   const [frame] = useState(() => {
@@ -445,7 +455,11 @@ export function FootprintEditFrame({
       toggleLibraryTree: () => onLeftToggleRef.current('showLibraryTree'),
       toggleLayersManager: () => onLeftToggleRef.current('showLayersManager'),
       toggleProperties: () => onLeftToggleRef.current('showProperties'),
-      showFootprintChecker: () => setCheckerOpen(true),
+      // ShowFootprintChecker: create it, or Show( true ) the hidden one.
+      showFootprintChecker: () => {
+        setCheckerOpen(true);
+        setCheckerShown(true);
+      },
       confirmRevert: (aMessage) =>
         askKiDialogRef
           .current({
@@ -483,7 +497,12 @@ export function FootprintEditFrame({
       updateUserInterface: () => repaint(),
       showPadPropertiesDialog: (d) => h().showPadPropertiesDialog(d),
       showTextPropertiesDialog: (d) => h().showTextPropertiesDialog(d),
-      showGraphicItemPropertiesDialog: (d) => h().showGraphicItemPropertiesDialog(d),
+      showGraphicItemPropertiesDialog: (d, onOK) => h().showGraphicItemPropertiesDialog(d, onOK),
+      // PAD_TOOL's window half: Renumber Pads, Pad Table, Push Pad Properties.
+      showPushPadPropertiesDialog: (d) => h().showPushPadPropertiesDialog(d),
+      showEnumPadsDialog: (d) => h().showEnumPadsDialog(d),
+      showPadTableDialog: (d) => h().showPadTableDialog(d),
+      showGlobalEditTextAndGraphicsDialog: (d) => h().showGlobalEditTextAndGraphicsDialog(d),
       showDimensionPropertiesDialog: (d) => h().showDimensionPropertiesDialog(d),
       showTextBoxPropertiesDialog: (d) => h().showTextBoxPropertiesDialog(d),
       showReferenceImagePropertiesDialog: (d) => h().showReferenceImagePropertiesDialog(d),
@@ -1490,7 +1509,13 @@ export function FootprintEditFrame({
         <ShowAboutDialog title={ABOUT_TITLES.footprint} onClose={() => setAboutOpen(false)} />
       )}
       {checkerOpen && frameRef.current && (
-        <DialogFootprintChecker frame={frameRef.current} onClose={() => setCheckerOpen(false)} />
+        <div hidden={!checkerShown}>
+          <DialogFootprintChecker
+            frame={frameRef.current}
+            onClose={() => setCheckerOpen(false)}
+            onHide={() => setCheckerShown(false)}
+          />
+        </div>
       )}
       {prefsOpen &&
         app.Preferences(() => setPrefsOpen(null), prefsOpen === true ? undefined : prefsOpen)}

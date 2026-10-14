@@ -269,7 +269,7 @@ export function buildPcbMenus(
         { label: 'Swap Layers...', action: () => h.action('swapLayers') },
         // `ACTIONS::gridOrigin` — the DIALOG ("Grid Origin..."), not
         // `gridSetOrigin`, which is the interactive tool the Place menu has.
-        { label: 'Grid Origin...', disabled: dis },
+        { label: 'Grid Origin...', icon: 'gridOrigin', action: () => h.action('gridOrigin') },
         { sep: true },
         // `PCB_ACTIONS::zoneFillAll` — B, and the frame has run it since the
         // key was bound; it simply had no row.
@@ -797,7 +797,11 @@ export function buildPcbMenus(
           disabled: !st.hasFootprintEditor,
         },
         { label: 'Update Footprints from Library...', action: () => h.action('updateFootprints') },
-        { label: 'Migrate 3D Models...', disabled: dis },
+        {
+          label: 'Migrate 3D Models...',
+          icon: 'migrate3DModels',
+          action: () => h.action('migrate3DModels'),
+        },
         { sep: true },
         { label: 'Zone Manager...', icon: 'zonesManager', action: () => h.action('zonesManager') },
         { sep: true },
@@ -813,8 +817,16 @@ export function buildPcbMenus(
         {
           label: 'Multi-Channel',
           submenu: [
-            { label: 'Generate Placement Rule Areas...', disabled: dis },
-            { label: 'Repeat Layout...', disabled: dis },
+            {
+              label: 'Generate Placement Rule Areas...',
+              icon: 'generatePlacementRuleAreas',
+              action: () => h.action('generatePlacementRuleAreas'),
+            },
+            {
+              label: 'Repeat Layout...',
+              icon: 'repeatLayout',
+              action: () => h.action('repeatLayout'),
+            },
           ],
         },
         { sep: true },

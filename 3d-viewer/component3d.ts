@@ -38,15 +38,21 @@ import { VRMLLoader } from 'three/addons/loaders/VRMLLoader.js';
 import type { BOARD } from '@ziroeda/pcbnew/board.js';
 import type { FOOTPRINT, FP_3DMODEL } from '@ziroeda/pcbnew/footprint.js';
 import { PROJECT_PCB } from '@ziroeda/pcbnew/project_pcb.js';
-import { PATHS } from '@ziroeda/common/paths.js';
 import { PgmOrNull } from '@ziroeda/common/pgm_base.js';
-import {
-  type wxFileSystemMount,
-  wxFindMount,
-  wxMountFileSystem,
-  wxReadFileSync,
-} from '@ziroeda/wx/filefn.js';
+import { wxFindMount, wxMountFileSystem, wxReadFileSync } from '@ziroeda/wx/filefn.js';
 import { loadCadModel } from './loadmodel.js';
+import {
+  HostedLibraryMount,
+  mountHostedLibrary,
+  PROJECT_FILES_MOUNT,
+} from './3d_cache/3d_cache.js';
+
+export {
+  LoadHosted3DCatalog,
+  mountHostedLibrary,
+  PROJECT_FILES_MOUNT,
+  SetHosted3DCatalog,
+} from './3d_cache/3d_cache.js';
 import { stepFaceMaterial, type SMaterial, type Vec3 } from './gl_fixed_function.js';
 
 const VRML_UNIT_MM = 2.54; // legacy VRML model unit = 0.1 inch (WRL2BASE)
@@ -121,50 +127,6 @@ function vrmlIntoMm(o: THREE.Object3D): THREE.Object3D {
 }
 
 const extOf = (name: string): string => name.split('.').pop()?.toLowerCase() ?? '';
-
-/** The model extensions KiCad's 3D plugins register (plugins/3d/vrml, oce). */
-const MODEL_FILE = /\.(wrl|wrz|x3d|step|stp|stpz|step\.gz|stp\.gz|iges|igs)$/i;
-
-/**
- * The hosted 3D library, mounted where the Linux build installs it -
- * `${KICAD10_3DMODEL_DIR}` (`PATHS::GetStock3dmodelsPath`) - so a model path
- * resolves as it does on that machine. A bucket cannot be listed without a
- * round trip, so any model-shaped name is taken to exist: a model that is not
- * there fails its fetch, as a missing file fails its load upstream.
- */
-class HOSTED_3D_LIBRARY implements wxFileSystemMount {
-  FileExists(aRelPath: string): boolean {
-    return MODEL_FILE.test(aRelPath);
-  }
-
-  DirExists(aRelPath: string): boolean {
-    return /^[^/]+\.3dshapes$/i.test(aRelPath);
-  }
-}
-
-const s_hostedLibrary = new HOSTED_3D_LIBRARY();
-let s_libraryMounted = false;
-
-function mountHostedLibrary(): void {
-  if (s_libraryMounted) return;
-  wxMountFileSystem(PATHS.GetStock3dmodelsPath(), s_hostedLibrary);
-  s_libraryMounted = true;
-}
-
-/** The open project's files, mounted at its directory (`Prj().GetProjectPath()`). */
-class PROJECT_FILES_MOUNT implements wxFileSystemMount {
-  constructor(private readonly m_names: ReadonlySet<string>) {}
-
-  FileExists(aRelPath: string): boolean {
-    return this.m_names.has(aRelPath);
-  }
-
-  DirExists(aRelPath: string): boolean {
-    const dir = `${aRelPath}/`;
-    for (const n of this.m_names) if (n.startsWith(dir)) return true;
-    return false;
-  }
-}
 
 /** Library files are hosted as `.glb`; the path keeps its KiCad name. */
 const hostedExt = (rel: string): string =>
@@ -379,7 +341,7 @@ export function mountComponents(
 
       let key: string;
       let load: () => Promise<THREE.Object3D | null>;
-      if (where.mount === s_hostedLibrary) {
+      if (where.mount === HostedLibraryMount()) {
         const url = joinUrl(libBase, hostedExt(where.rel));
         key = url;
         load = () => loadUrl(url);

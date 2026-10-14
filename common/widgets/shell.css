@@ -5012,6 +5012,11 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
   background: var(--grid-label-bg);
   border-bottom: 1px solid var(--grid-line);
 }
+/* SetItemFont( row, font.Bold() ). */
+.ze-listctrl-row.bold {
+  font-weight: bold;
+}
+
 .ze-listctrl-row.selected {
   background: var(--selection-bg);
   color: var(--selection-fg);

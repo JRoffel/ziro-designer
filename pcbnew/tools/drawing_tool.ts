@@ -406,13 +406,22 @@ export class DRAWING_TOOL extends PCB_TOOL_BASE {
   /** The layer we last drew on. */
   private m_layer: PCB_LAYER_ID = PCB_LAYER_ID.UNDEFINED_LAYER;
   /** Current stroke for multi-segment drawing. */
-  private readonly m_stroke = new STROKE_PARAMS(1, LINE_STYLE.DEFAULT, COLOR4D_UNSPECIFIED);
+  private m_stroke = new STROKE_PARAMS(1, LINE_STYLE.DEFAULT, COLOR4D_UNSPECIFIED);
   private readonly m_textAttrs = new TEXT_ATTRIBUTES();
 
   private readonly m_preview = new PCB_SELECTION();
 
   constructor() {
     super('pcbnew.InteractiveDrawing');
+  }
+
+  /**
+   * `SetStroke( aStroke, aLayer )`: the stroke the next shape on `aLayer` is drawn with, as a
+   * Shape Properties OK leaves it.
+   */
+  SetStroke(aStroke: STROKE_PARAMS, aLayer: PCB_LAYER_ID): void {
+    this.m_layer = aLayer;
+    this.m_stroke = aStroke.clone();
   }
 
   override Init(): boolean {

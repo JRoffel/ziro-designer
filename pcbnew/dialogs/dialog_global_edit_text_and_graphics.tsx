@@ -36,6 +36,7 @@ import { INDETERMINATE_ACTION } from '@ziroeda/common/widgets/ui_common.js';
 import { UNIT_BINDER } from '@ziroeda/common/widgets/unit_binder.js';
 import { BaseType, KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { BOARD_COMMIT } from '../board_commit.js';
+import { LAYER_CLASS } from '../board_design_settings.js';
 import type { BOARD_ITEM } from '../board_item.js';
 import type { PCB_BARCODE } from '../pcb_barcode.js';
 import type { PCB_BASE_EDIT_FRAME } from '../pcb_base_edit_frame.js';
@@ -102,6 +103,45 @@ export class DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS {
     this.m_textWidth = new UNIT_BINDER(provider, 'Text width:');
     this.m_textHeight = new UNIT_BINDER(provider, 'Text height:');
     this.m_thickness = new UNIT_BINDER(provider, 'Text thickness:');
+  }
+
+  /**
+   * The read-only layer-defaults grid of DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS
+   * (dialog_global_edit_text_and_graphics.cpp:213-284): Board Setup's per-class
+   * line and text defaults. Edge Cuts and Courtyards have line thickness only.
+   */
+  LayerDefaultsRows(): LAYER_DEFAULTS_ROW[] {
+    const aFrame = this.m_parent;
+    const bds = aFrame.GetBoard()!.GetDesignSettings();
+    const str = (v: number): string => aFrame.GetUnitsProvider().StringFromValue(v, true);
+    const C = LAYER_CLASS;
+    const full = (name: string, c: LAYER_CLASS): LAYER_DEFAULTS_ROW => ({
+      name,
+      line: str(bds.m_LineThickness[c]!),
+      width: str(bds.m_TextSize[c]!.x),
+      height: str(bds.m_TextSize[c]!.y),
+      thickness: str(bds.m_TextThickness[c]!),
+      italic: bds.m_TextItalic[c]!,
+      upright: bds.m_TextUpright[c]!,
+    });
+    const lineOnly = (name: string, c: LAYER_CLASS): LAYER_DEFAULTS_ROW => ({
+      name,
+      line: str(bds.m_LineThickness[c]!),
+      width: '',
+      height: '',
+      thickness: '',
+      italic: null,
+      upright: null,
+    });
+
+    return [
+      full('Silk Layers', C.LAYER_CLASS_SILK),
+      full('Copper Layers', C.LAYER_CLASS_COPPER),
+      lineOnly('Edge Cuts', C.LAYER_CLASS_EDGES),
+      lineOnly('Courtyards', C.LAYER_CLASS_COURTYARD),
+      full('Fab Layers', C.LAYER_CLASS_FAB),
+      full('Other Layers', C.LAYER_CLASS_OTHERS),
+    ];
   }
 
   /** The scope labels, which the footprint editor changes (:110-113). */
@@ -503,17 +543,15 @@ function layerDefaultsGrid(aRows: readonly LAYER_DEFAULTS_ROW[]): wxGrid {
 export function DialogGlobalEditTextAndGraphics({
   dialog,
   layers,
-  defaults,
   onClose,
 }: {
   dialog: DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS;
   layers: readonly TEXT_GFX_LAYER_CHOICE[];
-  defaults: readonly LAYER_DEFAULTS_ROW[];
   onClose: () => void;
 }): JSX.Element {
   const [, redraw] = useReducer((n: number) => n + 1, 0);
   const [error, setError] = useState<string | null>(null);
-  const [grid] = useState(() => layerDefaultsGrid(defaults));
+  const [grid] = useState(() => layerDefaultsGrid(dialog.LayerDefaultsRows()));
 
   // OnInitDialog -> TransferDataToWindow
   useState(() => dialog.TransferDataToWindow());

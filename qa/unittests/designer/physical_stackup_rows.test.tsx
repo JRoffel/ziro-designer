@@ -18,6 +18,7 @@
  * other way round. Ours had both of those wrong, which is invisible to any
  * check that only counts columns — so these assert per row, by layer name.
  */
+import { SetMessageDialogPresenter } from '@ziroeda/common/confirm.js';
 import { afterEach, describe, expect, it } from 'vitest';
 import { useState, type JSX } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
@@ -331,9 +332,10 @@ describe('the material dialog', () => {
 
   it('refuses a negative or non-numeric Epsilon R / Loss Tan with the wxMessageBox text', () => {
     const alerts: string[] = [];
-    window.alert = (m: string): void => {
-      alerts.push(m);
-    };
+    SetMessageDialogPresenter(async (a) => {
+      alerts.push(a.message);
+      return 0;
+    });
     render(<Harness initial={freshBoardSetup().physicalStackup} />);
     open('Dielectric 1');
     fireEvent.click(listRows()[1]!); // FR4

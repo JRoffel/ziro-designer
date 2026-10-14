@@ -143,9 +143,19 @@ interface Props {
   layers: readonly string[];
   value: ZoneLayerPropertiesMap;
   onChange: (next: ZoneLayerPropertiesMap) => void;
+  /**
+   * `m_layerSpecificOverrides->OnDeleteRows( ... DeleteRows( row, 1 ) )`: the selected rows (or
+   * the cursor's) deleted, answering the layers whose rows went.
+   */
+  deleteRowsRef?: { current: (() => string[]) | null };
 }
 
-export function ZoneLayerPropertiesGrid({ layers, value, onChange }: Props): JSX.Element {
+export function ZoneLayerPropertiesGrid({
+  layers,
+  value,
+  onChange,
+  deleteRowsRef,
+}: Props): JSX.Element {
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   const valueRef = useRef(value);
@@ -160,6 +170,17 @@ export function ZoneLayerPropertiesGrid({ layers, value, onChange }: Props): JSX
     g.SetColAttr(0, attr);
     return { grid: g, table: t, tricks: new GRID_TRICKS(g) };
   });
+
+  if (deleteRowsRef) {
+    deleteRowsRef.current = () => {
+      const before = table.GetItems().map(([layer]) => layer);
+      grid.OnDeleteRows((aRow) => {
+        table.DeleteRows(aRow, 1);
+      });
+      const after = new Set(table.GetItems().map(([layer]) => layer));
+      return before.filter((l) => !after.has(l));
+    };
+  }
 
   // TransferDataToWindow.
   const key = JSON.stringify([layers, layers.map((l) => value[l]?.hatchingOffset ?? null)]);

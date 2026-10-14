@@ -870,7 +870,9 @@ const BASELINE: Record<string, { colours: number; metrics: number }> = {
   // The total is unchanged.
   // 10-10: colours 2 -> 3, the Preferences kit's colour left external/wx/controls.tsx with it
   // (common/dialogs/pref_controls.tsx); not a new literal.
-  'common/dialogs': { colours: 3, metrics: 18 },
+  // colours 3 -> 2, metrics 18 -> 12 (10-15): the library tables' Add Existing popup and
+  // path-substitution box were inline styles; both are now KiCad's base sizer trees.
+  'common/dialogs': { colours: 2, metrics: 12 },
   // 09-26 (stage 3b): external/wx/controls.tsx (common/wx until 10-10), the wx controls the panels'
   // `_base` files instantiate, with the one colour `dialogs` gave up.
   // 10-10: colours 1 -> 0 (the kit's, to common/dialogs); metrics 0 -> 1 (menu_ui.tsx's, from
@@ -1474,8 +1476,8 @@ describe('the scan totals, so the numbers in the PR stay true', () => {
     // 264 -> 263: the Symbol Fields Table.
     // 263 -> 257: ERC.
     // 257 -> 254 (10-12): the common/widgets row above.
-    // 254 -> 252 (10-12): the editors/pcb row above.
-    expect(SITES.filter((s) => s.kind === 'colours').length).toBe(252);
+    // 254 -> 252 (10-12): the editors/pcb row above. 252 -> 251 (10-15): common/dialogs.
+    expect(SITES.filter((s) => s.kind === 'colours').length).toBe(251);
     // 1657 -> 1649: the same sweep. A native colour input has no useful
     // default size, so eight of the sixteen sites gave theirs an inline
     // width and height; the shared swatch takes --swatch-*-w/h. Rescanned.
@@ -1717,8 +1719,8 @@ describe('the scan totals, so the numbers in the PR stay true', () => {
     // 763 -> 751 (10-12): the common/widgets row above.
     // 751 -> 730 (10-12): the editors/pcb row above.
     // 730 -> 729 (10-12): the .ze-display-opts rules, gone with Display Options' pair.
-    // 729 -> 727 (10-12): Physical Stackup's pair.
-    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(727);
+    // 729 -> 727 (10-12): Physical Stackup's pair. 727 -> 721 (10-15): common/dialogs.
+    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(721);
   });
 
   it('and the two agree with the per-area table, which is where they come from', () => {

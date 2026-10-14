@@ -11,6 +11,7 @@
  */
 import { parse, serialize, type SList, type SNode } from '@ziroeda/sexpr';
 import { Prettify } from './io/kicad/kicad_io_utils.js';
+import { wxDirEnumerate } from '@ziroeda/wx/filefn.js';
 
 /** `traverseSEXPR` (gestfich.cpp): depth first, the node before its children. */
 function traverseSEXPR(aNode: SNode, aVisitor: (aNode: SNode) => void): void {
@@ -69,4 +70,24 @@ export function CopySexprFile(
   }
 
   return out;
+}
+
+/**
+ * `CollectFilesLoopSafe( aRoot, aFiles, aFileSpec, aFlags )` (gestfich.cpp): every file under
+ * `aRoot`, descending into subdirectories, each directory visited once. `aFileSpec` is not
+ * carried: no caller here passes one.
+ */
+export function CollectFilesLoopSafe(aRoot: string, aFiles: string[]): void {
+  const visited = new Set<string>();
+  const walk = (aDir: string): void => {
+    const dir = aDir.replace(/\/+$/, '');
+    if (visited.has(dir)) return;
+    visited.add(dir);
+    for (const e of wxDirEnumerate(dir) ?? []) {
+      const path = `${dir}/${e.name}`;
+      if (e.isDir) walk(path);
+      else aFiles.push(path);
+    }
+  };
+  walk(aRoot);
 }

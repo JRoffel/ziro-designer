@@ -17,6 +17,7 @@ import {
 } from '@ziroeda/pcbnew/dialogs/dialog_non_copper_zones_properties.js';
 import { ParseBoard } from '@ziroeda/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.js';
 import type { ZONE } from '@ziroeda/pcbnew/zone.js';
+import { CONVERT_SETTINGS, CONVERT_STRATEGY } from '@ziroeda/pcbnew/pcbnew_settings.js';
 import { TEST_PCB_FRAME } from '../support/test_pcb_frame.js';
 
 afterEach(cleanup);
@@ -99,5 +100,35 @@ describe('DIALOG_NON_COPPER_ZONES_EDITOR window', () => {
     fireEvent.click(screen.getByRole('button', { name: 'OK' }));
     expect(onResult).not.toHaveBeenCalled();
     expect(screen.getByText('No layer selected.')).toBeTruthy();
+  });
+});
+
+describe('DIALOG_NON_COPPER_ZONES_EDITOR converting (CONVERT_TOOL)', () => {
+  it('carries the Conversion Settings box, retitled, and OK writes the strategy back', () => {
+    const settings = new CONVERT_SETTINGS();
+    settings.m_Strategy = CONVERT_STRATEGY.CENTERLINE;
+    const zoneSettings = frame.GetDesignSettings().GetDefaultZoneSettings().clone();
+    const onResult = vi.fn();
+    render(
+      <DialogNonCopperZonesProperties
+        dialog={new DIALOG_NON_COPPER_ZONES_EDITOR(frame, null, zoneSettings, settings)}
+        units="mm"
+        layers={LAYERS}
+        onResult={onResult}
+      />,
+    );
+    expect(screen.getByText('Convert to Non Copper Zone')).toBeTruthy();
+    expect(screen.getByText('Conversion Settings')).toBeTruthy();
+    fireEvent.click(screen.getByLabelText('Create bounding hull'));
+    fireEvent.click(screen.getByLabelText('F.SilkS'));
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+    expect(onResult).toHaveBeenCalledWith(true);
+    expect(settings.m_Strategy).toBe(CONVERT_STRATEGY.BOUNDING_HULL);
+  });
+
+  it('has no Conversion Settings box when only editing a zone', () => {
+    show();
+    expect(screen.queryByText('Conversion Settings')).toBeNull();
+    expect(screen.getByText('Non Copper Zone Properties')).toBeTruthy();
   });
 });

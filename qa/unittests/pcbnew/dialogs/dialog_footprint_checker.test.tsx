@@ -44,15 +44,25 @@ const markers = () => frame.GetBoard()!.Markers().length;
 
 describe('DIALOG_FOOTPRINT_CHECKER', () => {
   it('Run Checks reports a hole-less through-hole pad as a marker in the tree', () => {
-    render(<DialogFootprintChecker frame={frame} onClose={() => {}} />);
+    render(<DialogFootprintChecker frame={frame} onClose={() => {}} onHide={() => {}} />);
     expect(markers()).toBe(0);
     fireEvent.click(screen.getByRole('button', { name: 'Run Checks' }));
     expect(markers()).toBeGreaterThan(0);
     expect(document.body.textContent).toContain('Through hole pad has no hole');
   });
 
+  it('a double click on a marker hides the window, which stays alive (OnLeftDClickItem)', () => {
+    let hidden = 0;
+    render(<DialogFootprintChecker frame={frame} onClose={() => {}} onHide={() => hidden++} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Run Checks' }));
+    const item = screen.getAllByText(/Through hole pad has no hole/)[0]!;
+    fireEvent.click(item);
+    fireEvent.doubleClick(item);
+    expect(hidden).toBe(1);
+  });
+
   it('Delete All Markers takes them off the board and out of the tree', () => {
-    render(<DialogFootprintChecker frame={frame} onClose={() => {}} />);
+    render(<DialogFootprintChecker frame={frame} onClose={() => {}} onHide={() => {}} />);
     fireEvent.click(screen.getByRole('button', { name: 'Run Checks' }));
     fireEvent.click(screen.getByRole('button', { name: 'Delete All Markers' }));
     expect(markers()).toBe(0);

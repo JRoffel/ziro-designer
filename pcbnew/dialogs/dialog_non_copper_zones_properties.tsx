@@ -23,6 +23,12 @@
  */
 
 import { type JSX, useState } from 'react';
+import type { CONVERT_SETTINGS } from '../pcbnew_settings.js';
+import {
+  CONVERSION_BOX,
+  type ConversionBoxValues,
+  ConversionSettingsBox,
+} from '../tools/convert_settings_dialog.js';
 import { MessageDialogError } from '@ziroeda/common/dialogs/dialog_message.js';
 import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
 import { pcbUnitText, pcbUnitValue, unitLabel } from '../pcb_unit_binder.js';
@@ -125,14 +131,19 @@ export class DIALOG_NON_COPPER_ZONES_EDITOR {
    * `aSettings` alone, as `InvokeNonCopperZonesEditor( frame, &zoneInfo )` does
    * for ZONE_CREATE_HELPER - no commit, the settings come back through `*m_ptr`.
    */
+  /** `m_convertSettings`: CONVERT_TOOL's, when it opens the dialog. */
+  readonly m_convertSettings: CONVERT_SETTINGS | null;
+
   constructor(
     aFrame: PCB_BASE_EDIT_FRAME,
     aZone: ZONE | null,
     aSettings: ZONE_SETTINGS | null = null,
+    aConvertSettings: CONVERT_SETTINGS | null = null,
   ) {
     this.m_frame = aFrame;
     this.m_zone = aZone;
     this.m_ptr = aSettings;
+    this.m_convertSettings = aConvertSettings;
 
     if (aZone) {
       this.m_settings = aFrame.GetDesignSettings().GetDefaultZoneSettings().clone();
@@ -177,6 +188,17 @@ export class DIALOG_NON_COPPER_ZONES_EDITOR {
       hatchSmoothingLevel: s.m_HatchSmoothingLevel,
       hatchSmoothingValue: s.m_HatchSmoothingValue,
     };
+  }
+
+  /** The "Conversion Settings" box's controls, or null when there is none. */
+  TransferConversionToWindow(): ConversionBoxValues | null {
+    return this.m_convertSettings ? CONVERSION_BOX.ToWindow(this.m_convertSettings, false) : null;
+  }
+
+  /** The box's half of TransferDataFromWindow: `m_convertSettings` from its controls. */
+  TransferConversionFromWindow(aConversion: ConversionBoxValues | null): void {
+    if (this.m_convertSettings && aConversion)
+      CONVERSION_BOX.FromWindow(this.m_convertSettings, aConversion, false);
   }
 
   TransferDataFromWindow(v: NonCopperZoneValues): TransferResult {
@@ -251,6 +273,9 @@ export function DialogNonCopperZonesProperties({
   // Lengths held as text while typed, so a half-typed number survives the caret.
   const [texts, setTexts] = useState<Partial<Record<string, string>>>({});
   const [error, setError] = useState<string | null>(null);
+  const [conv, setConv] = useState<ConversionBoxValues | null>(() =>
+    dialog.TransferConversionToWindow(),
+  );
 
   const set = (patch: Partial<NonCopperZoneValues>): void => setV((p) => ({ ...p, ...patch }));
   const hatch = v.fillMode === 'hatch';
@@ -273,6 +298,17 @@ export function DialogNonCopperZonesProperties({
   return (
     <>
       <DIALOG_NONCOPPER_ZONES_PROPERTIES_BASE
+        title={conv ? 'Convert to Non Copper Zone' : 'Non Copper Zone Properties'}
+        conversionBox={
+          conv ? (
+            <ConversionSettingsBox
+              values={conv}
+              units={units}
+              gapBorders="copperZone"
+              onChange={setConv}
+            />
+          ) : null
+        }
         m_layers={layers.map((l) => ({
           toggle: v.layers.includes(l.name),
           text: l.name,
@@ -320,8 +356,10 @@ export function DialogNonCopperZonesProperties({
         }}
         onOK={() => {
           const r = dialog.TransferDataFromWindow(v);
-          if (r.ok) onResult(true);
-          else setError(r.message ?? 'A value is out of range.');
+          if (r.ok) {
+            dialog.TransferConversionFromWindow(conv);
+            onResult(true);
+          } else setError(r.message ?? 'A value is out of range.');
         }}
         onCancel={() => onResult(false)}
       />

@@ -8,6 +8,7 @@
  * (`TransferDataFromWindow`), and the "No substrate specified" early return
  * upstream's caller makes after `GetSelectedSubstrate()`.
  */
+import { SetMessageDialogPresenter } from '@ziroeda/common/confirm.js';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -109,7 +110,12 @@ describe('DialogDielectricMaterial', () => {
 
   it('TransferDataFromWindow: rejects a non-numeric Epsilon R', () => {
     const onSubmit = vi.fn();
-    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+    const alertSpy = vi.fn();
+    SetMessageDialogPresenter(async (a) => {
+      alertSpy(a.message);
+      expect(a.caption).toBe('Message');
+      return 0;
+    });
     render(<DialogDielectricMaterial materialList={dielectricList()} onSubmit={onSubmit} />);
 
     fireEvent.click(screen.getByText('FR4'));
@@ -118,12 +124,16 @@ describe('DialogDielectricMaterial', () => {
 
     expect(alertSpy).toHaveBeenCalledWith('Incorrect value for Epsilon R');
     expect(onSubmit).not.toHaveBeenCalled();
-    alertSpy.mockRestore();
   });
 
   it('TransferDataFromWindow: rejects a negative Epsilon R', () => {
     const onSubmit = vi.fn();
-    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+    const alertSpy = vi.fn();
+    SetMessageDialogPresenter(async (a) => {
+      alertSpy(a.message);
+      expect(a.caption).toBe('Message');
+      return 0;
+    });
     render(<DialogDielectricMaterial materialList={dielectricList()} onSubmit={onSubmit} />);
 
     fireEvent.click(screen.getByText('FR4'));
@@ -132,12 +142,16 @@ describe('DialogDielectricMaterial', () => {
 
     expect(alertSpy).toHaveBeenCalledWith('Incorrect value for Epsilon R');
     expect(onSubmit).not.toHaveBeenCalled();
-    alertSpy.mockRestore();
   });
 
   it('TransferDataFromWindow: rejects an invalid Loss Tan, checked after Epsilon R', () => {
     const onSubmit = vi.fn();
-    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+    const alertSpy = vi.fn();
+    SetMessageDialogPresenter(async (a) => {
+      alertSpy(a.message);
+      expect(a.caption).toBe('Message');
+      return 0;
+    });
     render(<DialogDielectricMaterial materialList={dielectricList()} onSubmit={onSubmit} />);
 
     fireEvent.click(screen.getByText('FR4'));
@@ -146,7 +160,6 @@ describe('DialogDielectricMaterial', () => {
 
     expect(alertSpy).toHaveBeenCalledWith('Incorrect value for Loss Tangent');
     expect(onSubmit).not.toHaveBeenCalled();
-    alertSpy.mockRestore();
   });
 
   it('onListKeyDown( WXK_DELETE ): removes the row from the caller’s list', () => {

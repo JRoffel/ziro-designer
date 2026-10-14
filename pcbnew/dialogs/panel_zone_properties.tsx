@@ -16,7 +16,7 @@
  * The zone's *outline* is not edited here; that is the point editor's job.
  */
 
-import { type JSX, useState } from 'react';
+import { type JSX, useRef, useState } from 'react';
 import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
 import { pcbUnitText, pcbUnitValue, unitLabel } from '../pcb_unit_binder.js';
 import { ZoneLayerPropertiesGrid } from '../zone_layer_properties_grid.js';
@@ -538,8 +538,8 @@ export interface PanelZonePropertiesProps {
  *
  * The overrides grid is the shared LAYER_PROPERTIES_GRID_TABLE. OnAddLayerItem is its
  * AppendRows: the zone's next layer, in UI order, that has no row, or "All zone layers already
- * overridden." on the infobar. OnDeleteLayerItem deletes the last row: WX_GRID's OnDeleteRows
- * deletes the selected ones, which this grid does not report yet.
+ * overridden." on the infobar. OnDeleteLayerItem is WX_GRID's OnDeleteRows: the selected rows,
+ * or the cursor's.
  */
 export function PanelZoneProperties({
   values: v,
@@ -555,6 +555,7 @@ export function PanelZoneProperties({
   const [text, setText] = useState<Record<string, string>>({});
   // ShowMessageFor( _( "All zone layers already overridden." ), 8000, wxICON_WARNING ).
   const [overridden, setOverridden] = useState(false);
+  const deleteOverrideRows = useRef<(() => string[]) | null>(null);
 
   const dist = (aKey: keyof ZoneValues, aEnabled = true): UNIT_FIELD => ({
     value: text[aKey] ?? pcbUnitText(v[aKey] as number, units),
@@ -644,6 +645,7 @@ export function PanelZoneProperties({
       }}
       m_layerSpecificOverrides={
         <ZoneLayerPropertiesGrid
+          deleteRowsRef={deleteOverrideRows}
           layers={overrideLayers}
           value={Object.fromEntries(
             overrideLayers.map((l) => [l, { hatchingOffset: v.layerProperties[l]! }]),
@@ -669,10 +671,13 @@ export function PanelZoneProperties({
         set({ layerProperties: { ...v.layerProperties, [next]: { x: 0, y: 0 } } });
       }}
       OnDeleteLayerItem={() => {
-        const last = overrideLayers[overrideLayers.length - 1];
-        if (last === undefined) return;
-        const { [last]: _drop, ...rest } = v.layerProperties;
-        set({ layerProperties: rest });
+        const gone = deleteOverrideRows.current?.() ?? [];
+        if (gone.length === 0) return;
+        set({
+          layerProperties: Object.fromEntries(
+            Object.entries(v.layerProperties).filter(([l]) => !gone.includes(l)),
+          ),
+        });
       }}
       m_cornerSmoothingChoice={{
         ...choice(CORNER_SMOOTHING, v.cornerSmoothing, (aSmoothing) =>

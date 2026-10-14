@@ -312,3 +312,35 @@ describe('the cold frame', () => {
     });
   });
 });
+
+describe('Edit menu rows the footprint editor runs (menubar_footprint_editor.cpp:116-130)', () => {
+  it('runs Text & Graphics, Pad Table, Default Pad Properties, Renumber Pads and Grid Origin', () => {
+    const ran: string[] = [];
+    const bar = footprintEditorMenus({ ...handlers(), action: (id) => ran.push(id) }, {}, ALL);
+    for (const label of [
+      'Edit Text & Graphics Properties...',
+      'Pad Table...',
+      'Default Pad Properties...',
+      'Renumber Pads...',
+      'Grid Origin...',
+    ]) {
+      const row = find(bar, label);
+      expect(row.disabled, label).toBeFalsy();
+      row.action!();
+    }
+    expect(ran).toEqual([
+      'editTextAndGraphics',
+      'padTable',
+      'defaultPadProperties',
+      'enumeratePads',
+      'gridOrigin',
+    ]);
+  });
+
+  it('greys Text & Graphics and Pad Table with no footprint loaded (haveFootprintCond)', () => {
+    const bar = menus({ haveFootprint: false });
+    expect(find(bar, 'Edit Text & Graphics Properties...').disabled).toBe(true);
+    expect(find(bar, 'Pad Table...').disabled).toBe(true);
+    expect(find(bar, 'Default Pad Properties...').disabled).toBeFalsy();
+  });
+});

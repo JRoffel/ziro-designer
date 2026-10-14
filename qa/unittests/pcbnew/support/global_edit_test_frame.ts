@@ -24,6 +24,10 @@ export class GLOBAL_EDIT_TEST_FRAME extends TEST_PCB_FRAME implements GLOBAL_EDI
     return Promise.resolve({ ok: false, repour: false });
   }
 
+  ShowMigrate3DModelsDialog(): Promise<void> {
+    return Promise.resolve();
+  }
+
   ShowCleanupTracksAndViasDialog(_aDialog: DIALOG_CLEANUP_TRACKS_AND_VIAS): void {}
 
   ShowCleanupGraphicsDialog(_aDialog: DIALOG_CLEANUP_GRAPHICS): void {}
@@ -32,7 +36,9 @@ export class GLOBAL_EDIT_TEST_FRAME extends TEST_PCB_FRAME implements GLOBAL_EDI
 
   ShowGlobalEditTracksAndViasDialog(_aDialog: DIALOG_GLOBAL_EDIT_TRACKS_AND_VIAS): void {}
 
-  ShowGlobalEditTextAndGraphicsDialog(_aDialog: DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS): void {}
+  override ShowGlobalEditTextAndGraphicsDialog(
+    _aDialog: DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS,
+  ): void {}
 
   ShowGlobalEditTeardropsDialog(_aDialog: DIALOG_GLOBAL_EDIT_TEARDROPS): void {}
 

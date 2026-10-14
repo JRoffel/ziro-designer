@@ -7,13 +7,14 @@
  * The members are props; the behaviour is DIALOG_NON_COPPER_ZONES_EDITOR's
  * (dialog_non_copper_zones_properties.tsx).
  */
-import type { JSX } from 'react';
+import type { JSX, ReactNode } from 'react';
 import { DialogShim } from '@ziroeda/common/dialog_shim.js';
 import {
   type CHECK,
   type CHOICE,
   CheckBox,
   Choice,
+  StaticLine,
   StaticText,
   TextCtrl,
 } from '@ziroeda/wx/controls.js';
@@ -67,6 +68,13 @@ export interface DIALOG_NONCOPPER_ZONES_PROPERTIES_BASE_PROPS {
   m_spinCtrlSmoothValue: { value: number; enabled: boolean; onChange: (aValue: number) => void };
   onOK: () => void;
   onCancel: () => void;
+  /**
+   * The "Conversion Settings" box the class Insert()s at 0, its wxStaticLine at 1, when
+   * CONVERT_TOOL opens it; null otherwise.
+   */
+  conversionBox?: ReactNode | null;
+  /** `SetTitle( _( "Convert to Non Copper Zone" ) )` when converting. */
+  title?: string;
 }
 
 const CV = wxALIGN_CENTER_VERTICAL;
@@ -96,9 +104,19 @@ export function DIALOG_NONCOPPER_ZONES_PROPERTIES_BASE(
   );
 
   return (
-    <DialogShim title="Non Copper Zone Properties" onClose={p.onCancel}>
+    <DialogShim title={p.title ?? 'Non Copper Zone Properties'} onClose={p.onCancel}>
       {/* m_MainSizer */}
       <BoxSizer orient={wxVERTICAL}>
+        {p.conversionBox != null && (
+          <SizerItem flag={wxALL | wxEXPAND} border={10}>
+            {p.conversionBox}
+          </SizerItem>
+        )}
+        {p.conversionBox != null && (
+          <SizerItem flag={wxLEFT | wxRIGHT | wxEXPAND} border={10}>
+            <StaticLine />
+          </SizerItem>
+        )}
         <SizerItem proportion={1} flag={wxEXPAND | wxALL} border={5}>
           {/* m_UpperSizer */}
           <BoxSizer orient={wxHORIZONTAL}>

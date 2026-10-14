@@ -42,6 +42,7 @@ import {
   libNotFound,
 } from '@ziroeda/common/dialogs/lib_table_panel.js';
 
+import { PANEL_SYM_LIB_TABLE_BASE } from '@ziroeda/eeschema/dialogs/panel_sym_lib_table_base.js';
 interface Props {
   /** The open project's files (`.kicad_sym`, the table, the `.kicad_pro`). */
   projectFiles: readonly { name: string; text: string }[];
@@ -91,6 +92,7 @@ export function DialogSymLibTable({
 
   return (
     <LibTablePanel
+      Base={PANEL_SYM_LIB_TABLE_BASE}
       title="Symbol Libraries"
       type={LIBRARY_TABLE_TYPE.SYMBOL}
       preamble="(sym_lib_table"

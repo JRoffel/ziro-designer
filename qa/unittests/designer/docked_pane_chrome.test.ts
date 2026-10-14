@@ -155,7 +155,7 @@ describe('APPEARANCE_CONTROLS', () => {
     expect(body(APPEAR, '.ze-appearance > .ze-nb-frame')).toMatch(/margin:\s*5px 0/);
     // The shared notebook box, the same one PANEL_SYMBOL_PROPS takes.
     expect(SHELL).toContain('.ze-nb-frame {');
-    const tsx = read('../../pcbnew/widgets/appearance_controls.tsx');
+    const tsx = read('../../pcbnew/widgets/appearance_controls_base.tsx');
     expect(tsx).toContain('className="ze-nb-frame ze-appearance-nb"');
   });
 
@@ -230,7 +230,8 @@ describe('the three pages, and the controls on them', () => {
     // `m_netsTabSplitter->SplitHorizontally( m_panelNets, m_panelNetclasses,
     // 300 )` with `SetMinimumPaneSize( 80 )` (appearance_controls_base.cpp:52,
     // :144). Without it a 220-net board pushed Net Classes off the pane.
-    const tsx = read('../../pcbnew/widgets/appearance_controls.tsx');
+    // The splitter is APPEARANCE_CONTROLS_BASE's.
+    const tsx = read('../../pcbnew/widgets/appearance_controls_base.tsx');
     expect(tsx).toContain("import { Sash } from '@ziroeda/common/widgets/wx_splitter_window.js'");
     expect(tsx).toMatch(/const NETS_SASH_POS = 300;/);
     expect(tsx).toMatch(/const NETS_MIN_PANE = 80;/);

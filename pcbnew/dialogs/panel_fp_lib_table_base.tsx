@@ -1,0 +1,82 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 ZiroEDA and contributors.
+// Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
+/**
+ * `PANEL_FP_LIB_TABLE_BASE` (pcbnew/dialogs/panel_fp_lib_table_base.cpp): the tables' notebook, the row buttons, and the read-only grid of path
+ * substitutions. PANEL_FP_LIB_TABLE fills it through the shared LibTablePanel (common/dialogs/lib_table_panel.tsx).
+ *
+ * Web deltas: m_resetGlobal ("Reset Libraries") and m_migrate_libs_button ("Migrate Libraries") are left
+ * out, because the global table is the hosted library set and cannot be reset or migrated here.
+ */
+import type { JSX } from 'react';
+import type { LIB_TABLE_BASE_PROPS } from '@ziroeda/common/dialogs/lib_table_panel.js';
+import { SplitButton } from '@ziroeda/common/widgets/split_button.js';
+import { StdBitmapButton } from '@ziroeda/common/widgets/std_bitmap_button.js';
+import { StaticText } from '@ziroeda/wx/controls.js';
+import {
+  wxALL,
+  wxBOTTOM,
+  wxEXPAND,
+  wxHORIZONTAL,
+  wxLEFT,
+  wxRIGHT,
+  wxTOP,
+  wxVERTICAL,
+} from '@ziroeda/wx/defs.js';
+import { BoxSizer, SizerItem, Spacer } from '@ziroeda/wx/sizer.js';
+
+export function PANEL_FP_LIB_TABLE_BASE(p: LIB_TABLE_BASE_PROPS): JSX.Element {
+  return (
+    // bMainSizer
+    <BoxSizer orient={wxVERTICAL}>
+      <SizerItem proportion={1} flag={wxEXPAND | wxTOP | wxRIGHT | wxLEFT} border={5}>
+        {p.m_notebook}
+      </SizerItem>
+      <SizerItem flag={wxEXPAND | wxBOTTOM | wxRIGHT | wxLEFT} border={8}>
+        {/* bButtonsSizer */}
+        <BoxSizer orient={wxHORIZONTAL}>
+          <SizerItem flag={wxTOP | wxBOTTOM | wxRIGHT} border={5}>
+            <StdBitmapButton
+              bitmap="small_plus"
+              title="Add empty row to table"
+              onClick={p.onAppend}
+            />
+          </SizerItem>
+          <SizerItem flag={wxTOP | wxBOTTOM | wxRIGHT} border={5}>
+            <SplitButton
+              label="Add Existing"
+              onClick={() => {}}
+              clickOpensMenu
+              menu={p.browseMenu}
+              disabled={p.browseMenu.length === 0}
+            />
+          </SizerItem>
+          <SizerItem flag={wxTOP | wxBOTTOM | wxRIGHT} border={5}>
+            <StdBitmapButton bitmap="small_up" title="Move up" onClick={p.onMoveUp} />
+          </SizerItem>
+          <SizerItem flag={wxTOP | wxBOTTOM | wxRIGHT} border={5}>
+            <StdBitmapButton bitmap="small_down" title="Move down" onClick={p.onMoveDown} />
+          </SizerItem>
+          <Spacer width={20} height={0} flag={wxEXPAND} border={5} />
+          <SizerItem flag={wxTOP | wxBOTTOM | wxRIGHT} border={5}>
+            <StdBitmapButton
+              bitmap="small_trash"
+              title="Remove library from table"
+              onClick={p.onDelete}
+            />
+          </SizerItem>
+          <Spacer width={20} height={0} proportion={1} flag={wxEXPAND} border={5} />
+        </BoxSizer>
+      </SizerItem>
+      <SizerItem flag={wxTOP | wxRIGHT | wxLEFT | wxEXPAND} border={8}>
+        <StaticText label="Available path substitutions:" />
+      </SizerItem>
+      <Spacer width={0} height={2} flag={wxEXPAND} border={5} />
+      <SizerItem flag={wxEXPAND | wxBOTTOM | wxRIGHT | wxLEFT} border={5}>
+        <div title="This is a read-only table which shows pertinent environment variables.">
+          {p.m_path_subs_grid}
+        </div>
+      </SizerItem>
+    </BoxSizer>
+  );
+}

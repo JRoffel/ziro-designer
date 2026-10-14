@@ -17,6 +17,11 @@
 export interface wxFileSystemMount {
   FileExists(aRelPath: string): boolean;
   DirExists(aRelPath: string): boolean;
+  /**
+   * `wxDir::GetFirst`/`GetNext` over one directory, for a read-only mount that can be listed
+   * (the hosted 3D library, from its catalogue).
+   */
+  List?(aRelDir: string): { name: string; isDir: boolean }[] | null;
 }
 
 /**
@@ -414,7 +419,7 @@ export function wxRenameFile(aOld: string, aNew: string, aOverwrite = true): boo
 export function wxDirEnumerate(aPath: string): { name: string; isDir: boolean }[] | null {
   const hit = wxFindMount(trimDir(wxNormalizePath(aPath)));
 
-  if (!hit || !IsWritableMount(hit.mount)) return null;
+  if (!hit?.mount.List) return null;
 
   return hit.mount.List(hit.rel);
 }

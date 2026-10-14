@@ -46,6 +46,7 @@ import { PCB_ACTIONS } from './pcb_actions.js';
 import { PCB_TOOL_BASE } from './pcb_tool_base.js';
 import { BOARD, BOARD_USE } from '../board.js';
 import { DIALOG_FOOTPRINT_PROPERTIES_FP_EDITOR } from '../dialogs/dialog_footprint_properties_fp_editor.js';
+import { DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS } from '../dialogs/dialog_global_edit_text_and_graphics.js';
 import type { MenuItem } from '@ziroeda/wx/menu.js';
 import { CheckPinnedStatus } from '@ziroeda/common/tool/library_editor_control.js';
 import {
@@ -213,8 +214,7 @@ export function footprintTreeContextMenu(
  * - `OpenDirectory` / `OpenWithTextEditor`: their rows exist only under
  *   `m_EnableLibDir` / `m_EnableLibWithText`, both off by default, and a
  *   browser has neither a file manager nor a text editor to launch.
- * - `Properties`, `DefaultPadProperties`, `EditTextAndGraphics`,
- *   `CleanupGraphics` and `CrossProbe`: the dialogs, which
+ * - `Properties`, `CleanupGraphics` and `CrossProbe`: the dialogs, which
  *   arrive with `OnEditItemRequest` on the frame.
  */
 export class FOOTPRINT_EDITOR_CONTROL extends PCB_TOOL_BASE {
@@ -658,6 +658,21 @@ export class FOOTPRINT_EDITOR_CONTROL extends PCB_TOOL_BASE {
    * loaded footprint's, through OnEditItemRequest.
    */
   /** `CheckFootprint` (:871-884): the modeless checker, created once and shown. */
+  /** `EditTextAndGraphics` (dialog_global_edit_text_and_graphics.cpp:646). */
+  EditTextAndGraphics(_aEvent: TOOL_EVENT): number {
+    const editFrame = this.getEditFrame<FOOTPRINT_EDIT_FRAME>();
+    editFrame.ShowGlobalEditTextAndGraphicsDialog(
+      new DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS(editFrame, false),
+    );
+    return 0;
+  }
+
+  /** `DefaultPadProperties`: the pad dialog on the Add Pad tool's master pad. */
+  DefaultPadProperties(_aEvent: TOOL_EVENT): number {
+    this.getEditFrame<FOOTPRINT_EDIT_FRAME>().ShowPadPropertiesDialog(null);
+    return 0;
+  }
+
   CheckFootprint(_aEvent: TOOL_EVENT): number {
     this.m_frame!.ShowFootprintChecker();
     return 0;
@@ -818,7 +833,9 @@ export class FOOTPRINT_EDITOR_CONTROL extends PCB_TOOL_BASE {
 
     this.Go(S(this.ShowDatasheet), ACTIONS.showDatasheet.MakeEvent());
 
+    this.Go(S(this.EditTextAndGraphics), PCB_ACTIONS.editTextAndGraphics.MakeEvent());
     this.Go(S(this.CheckFootprint), PCB_ACTIONS.checkFootprint.MakeEvent());
+    this.Go(S(this.DefaultPadProperties), PCB_ACTIONS.defaultPadProperties.MakeEvent());
     this.Go(S(this.RepairFootprint), PCB_ACTIONS.repairFootprint.MakeEvent());
 
     this.Go(S(this.Properties), PCB_ACTIONS.footprintProperties.MakeEvent());

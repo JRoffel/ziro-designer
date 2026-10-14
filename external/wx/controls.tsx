@@ -478,6 +478,7 @@ export function ListCtrl({
   selectedRows,
   onSelectRows,
   onActivate,
+  boldRows,
 }: {
   rows: readonly (readonly string[])[];
   columnWidths: readonly number[];
@@ -497,6 +498,8 @@ export function ListCtrl({
   onSelectRows?: (aRows: number[], aClicked: number) => void;
   /** wxEVT_LIST_ITEM_ACTIVATED: a double click. */
   onActivate?: (aRow: number) => void;
+  /** `SetItemFont( row, font.Bold() )`: the rows drawn bold. */
+  boldRows?: readonly number[];
 }): JSX.Element {
   const columns = { gridTemplateColumns: columnWidths.map((w) => `${w}px`).join(' ') };
   const [anchor, setAnchor] = useState(-1);
@@ -542,7 +545,7 @@ export function ListCtrl({
           key={i}
           role="listitem"
           aria-selected={selection === undefined && !selectedRows ? undefined : isSelected(i)}
-          className={`ze-listctrl-row${isSelected(i) ? ' selected' : ''}`}
+          className={`ze-listctrl-row${isSelected(i) ? ' selected' : ''}${boldRows?.includes(i) ? ' bold' : ''}`}
           style={columns}
           onClick={onSelect || onSelectRows ? (e) => click(i, e) : undefined}
           onDoubleClick={onActivate ? () => onActivate(i) : undefined}

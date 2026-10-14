@@ -10,7 +10,7 @@
  * TransferDataFromWindow.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { act, cleanup, fireEvent, render } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { JSX } from 'react';
 import { LIB_ID } from '@ziroeda/common/lib_id.js';
 import { DIALOG_PAD_PROPERTIES } from '@ziroeda/pcbnew/dialogs/dialog_pad_properties.js';
@@ -31,6 +31,7 @@ const FP = `(footprint "R" (layer "F.Cu") (uuid "${U(10)}")
 
 let frame: FOOTPRINT_EDIT_FRAME;
 let hooks: ReturnType<typeof usePcbItemDialogs>['hooks'];
+let pointEntry: ReturnType<typeof usePcbItemDialogs>['pointEntry'];
 
 function Host(): JSX.Element {
   const dialogs = usePcbItemDialogs({
@@ -40,6 +41,7 @@ function Host(): JSX.Element {
     background: '#000000',
   });
   hooks = dialogs.hooks;
+  pointEntry = dialogs.pointEntry;
   return <>{dialogs.node}</>;
 }
 
@@ -101,5 +103,25 @@ describe('usePcbItemDialogs', () => {
 
     act(() => fireEvent.click(button('Cancel')));
     expect(document.querySelector('.ze-modal')).toBeNull();
+  });
+});
+
+describe('the point-entry presenter (COMMON_TOOLS::GridOrigin)', () => {
+  it('opens WX_PT_ENTRY_DIALOG with its title and value, and resolves with the point typed', async () => {
+    render(<Host />);
+    let answer: { x: number; y: number } | null | undefined;
+    act(() => {
+      void pointEntry('Grid Origin', 'X:', 'Y:', { x: 1_000_000, y: 2_000_000 }, true).then(
+        (v) => (answer = v),
+      );
+    });
+    expect(document.body.textContent).toContain('Grid Origin');
+    const x = screen.getByRole('textbox', { name: 'X:' }) as HTMLInputElement;
+    expect(x.value).toBe('1');
+    fireEvent.change(x, { target: { value: '3' } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+    });
+    expect(answer).toEqual({ x: 3_000_000, y: 2_000_000 });
   });
 });

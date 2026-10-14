@@ -14,7 +14,7 @@
  */
 import type { EDA_ITEM } from '@ziroeda/common/eda_item.js';
 import type { PICKED_ITEMS_LIST, UNDO_REDO } from '@ziroeda/common/undo_redo_container.js';
-import type { GAL_LAYER_ID } from '@ziroeda/common/layer_id.js';
+import type { GAL_LAYER_ID, PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import type { DIALOG_TEXT_PROPERTIES } from './dialogs/dialog_text_properties.js';
 import type { PCB_TABLECELL } from './pcb_tablecell.js';
 import {
@@ -28,6 +28,13 @@ import { DIALOG_REFERENCE_IMAGE_PROPERTIES } from './dialogs/dialog_reference_im
 import { DIALOG_PAD_PROPERTIES } from './dialogs/dialog_pad_properties.js';
 import { DIALOG_DIMENSION_PROPERTIES } from './dialogs/dialog_dimension_properties.js';
 import { DIALOG_SHAPE_PROPERTIES } from './dialogs/dialog_shape_properties.js';
+import {
+  type DIALOG_PUSH_PAD_PROPERTIES,
+  wxID_CANCEL,
+} from './dialogs/dialog_push_pad_properties.js';
+import type { DIALOG_ENUM_PADS } from './dialogs/dialog_enum_pads.js';
+import type { DIALOG_FP_EDIT_PAD_TABLE } from './dialogs/dialog_fp_edit_pad_table.js';
+import type { DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS } from './dialogs/dialog_global_edit_text_and_graphics.js';
 import type { PAD } from './pad.js';
 import type { PCB_REFERENCE_IMAGE } from './pcb_reference_image.js';
 import type { PCB_DIMENSION_BASE } from './pcb_dimension.js';
@@ -158,8 +165,16 @@ export interface PCB_BASE_EDIT_FRAME_DIALOG_HOOKS {
   showPadPropertiesDialog?(aDialog: DIALOG_PAD_PROPERTIES): void;
   /** `DIALOG_DIMENSION_PROPERTIES dlg( this, dim ); dlg.ShowModal()`. */
   showDimensionPropertiesDialog?(aDialog: DIALOG_DIMENSION_PROPERTIES): void;
-  /** `ShowGraphicItemPropertiesDialog`: DIALOG_SHAPE_PROPERTIES, modal. */
-  showGraphicItemPropertiesDialog?(aDialog: DIALOG_SHAPE_PROPERTIES): void;
+  /** `ShowGraphicItemPropertiesDialog`: DIALOG_SHAPE_PROPERTIES, modal; `aOnOK` on wxID_OK. */
+  showGraphicItemPropertiesDialog?(aDialog: DIALOG_SHAPE_PROPERTIES, aOnOK?: () => void): void;
+  /** PAD_TOOL's DIALOG_PUSH_PAD_PROPERTIES: 0 OK, 1 Apply, wxID_CANCEL dismissed. */
+  showPushPadPropertiesDialog?(aDialog: DIALOG_PUSH_PAD_PROPERTIES): Promise<number>;
+  /** PAD_TOOL's DIALOG_ENUM_PADS: true on OK. */
+  showEnumPadsDialog?(aDialog: DIALOG_ENUM_PADS): Promise<boolean>;
+  /** PAD_TOOL's DIALOG_FP_EDIT_PAD_TABLE, quasi-modal. */
+  showPadTableDialog?(aDialog: DIALOG_FP_EDIT_PAD_TABLE): void;
+  /** DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS, modal, from either editor. */
+  showGlobalEditTextAndGraphicsDialog?(aDialog: DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS): void;
 }
 
 // biome-ignore lint/suspicious/noUnsafeDeclarationMerging: TS multiple inheritance (UNDO_REDO_MIXIN mixin, see libs/core/mixins.ts)
@@ -353,7 +368,7 @@ export abstract class PCB_BASE_EDIT_FRAME extends PCB_BASE_FRAME {
   }
 
   /** `PCB_BASE_FRAME::ShowPadPropertiesDialog( PAD* aPad )`. */
-  ShowPadPropertiesDialog(aPad: PAD): void {
+  ShowPadPropertiesDialog(aPad: PAD | null): void {
     this.dialogHooks().showPadPropertiesDialog?.(new DIALOG_PAD_PROPERTIES(this, aPad));
   }
 
@@ -364,9 +379,40 @@ export abstract class PCB_BASE_EDIT_FRAME extends PCB_BASE_FRAME {
     );
   }
 
+  // ---- PAD_TOOL's window half (PAD_TOOL_FRAME), in both editors -----------
+
+  ShowPushPadPropertiesDialog(aDialog: DIALOG_PUSH_PAD_PROPERTIES): Promise<number> {
+    return (
+      this.dialogHooks().showPushPadPropertiesDialog?.(aDialog) ?? Promise.resolve(wxID_CANCEL)
+    );
+  }
+
+  ShowEnumPadsDialog(aDialog: DIALOG_ENUM_PADS): Promise<boolean> {
+    return this.dialogHooks().showEnumPadsDialog?.(aDialog) ?? Promise.resolve(false);
+  }
+
+  ShowPadTableDialog(aDialog: DIALOG_FP_EDIT_PAD_TABLE): void {
+    this.dialogHooks().showPadTableDialog?.(aDialog);
+  }
+
+  /** `DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS dlg( editFrame ); dlg.ShowModal()`. */
+  ShowGlobalEditTextAndGraphicsDialog(aDialog: DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS): void {
+    this.dialogHooks().showGlobalEditTextAndGraphicsDialog?.(aDialog);
+  }
+
   /** `PCB_BASE_EDIT_FRAME::ShowGraphicItemPropertiesDialog( PCB_SHAPE* aShape )`. */
   ShowGraphicItemPropertiesDialog(aShape: PCB_SHAPE): void {
-    this.dialogHooks().showGraphicItemPropertiesDialog?.(new DIALOG_SHAPE_PROPERTIES(this, aShape));
+    this.dialogHooks().showGraphicItemPropertiesDialog?.(
+      new DIALOG_SHAPE_PROPERTIES(this, aShape),
+      () => {
+        if (aShape.IsOnLayer(this.GetActiveLayer())) {
+          const drawingTool = this.m_toolManager?.FindTool('pcbnew.InteractiveDrawing') as {
+            SetStroke(aStroke: ReturnType<PCB_SHAPE['GetStroke']>, aLayer: PCB_LAYER_ID): void;
+          } | null;
+          drawingTool?.SetStroke(aShape.GetStroke(), this.GetActiveLayer());
+        }
+      },
+    );
   }
 
   /** `SetObjectVisible` (pcb_base_edit_frame.cpp:271-275): through the Appearance panel. */

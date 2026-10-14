@@ -26,7 +26,8 @@ const BASELINE: Record<string, number> = {
   // those on _base pairs, lib_table_panel is its only user.
   // 153 -> 154 (10-12): not new CSS. ze-pref-radiorow was also Component Classes'; with that page
   // on its _base pairs, pref_controls is its only user.
-  common: 154, // -11 (10-11): the shared Table Properties form, replaced by one pair per editor
+  // 154 -> 153 (10-15): the library tables on their bases.
+  common: 153, // -11 (10-11): the shared Table Properties form, replaced by one pair per editor
   cvpcb: 8,
   designer: 138,
   // 114 -> 122 (10-11): not new CSS. ze-lp-* classes the old Table Cell and Label forms shared

@@ -38,11 +38,18 @@
  * one place that knows what "apply" means for a given row, so it stays the
  * one place that decides; this component only ever closes.
  */
+import { ShowKicadMessageDialog } from '@ziroeda/common/confirm.js';
+import { wxCENTER, wxOK } from '@ziroeda/wx/defs.js';
 import { type JSX, useState } from 'react';
 import { DIALOG_DIELECTRIC_MATERIAL_BASE } from './dialog_dielectric_list_manager_base.js';
 import type { DIELECTRIC_SUBSTRATE_LIST } from './dielectric_material.js';
 
 /** One row of the material list, as the `wxListCtrl` shows it, and the draft fields. */
+
+/** `wxMessageBox( aMessage )`: wxOK | wxCENTER under the caption "Message". */
+function messageBox(aMessage: string): void {
+  void ShowKicadMessageDialog({ message: aMessage, caption: 'Message', style: wxOK | wxCENTER });
+}
 export interface Substrate {
   name: string;
   epsilonR: string;
@@ -103,12 +110,12 @@ export function DialogDielectricMaterial({
   const commit = (): void => {
     const eps = draft.epsilonR.trim() === '' ? Number.NaN : Number(draft.epsilonR);
     if (!Number.isFinite(eps) || eps < 0.0) {
-      window.alert('Incorrect value for Epsilon R');
+      messageBox('Incorrect value for Epsilon R');
       return;
     }
     const tan = draft.lossTan.trim() === '' ? Number.NaN : Number(draft.lossTan);
     if (!Number.isFinite(tan) || tan < 0.0) {
-      window.alert('Incorrect value for Loss Tangent');
+      messageBox('Incorrect value for Loss Tangent');
       return;
     }
     if (draft.name === '') {

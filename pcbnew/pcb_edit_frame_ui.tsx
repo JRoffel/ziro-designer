@@ -289,27 +289,15 @@ import { DialogExchangeFootprints } from './dialogs/dialog_exchange_footprints.j
 import { DialogNonCopperZonesProperties } from './dialogs/dialog_non_copper_zones_properties.js';
 import { DIALOG_NON_COPPER_ZONES_EDITOR } from './dialogs/dialog_non_copper_zones_properties.js';
 import type { DIALOG_EXCHANGE_FOOTPRINTS } from './dialogs/dialog_exchange_footprints.js';
-import {
-  DialogGlobalEditTextAndGraphics,
-  type LAYER_DEFAULTS_ROW,
-} from './dialogs/dialog_global_edit_text_and_graphics.js';
-import type { DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS } from './dialogs/dialog_global_edit_text_and_graphics.js';
-import { LAYER_CLASS } from './board_design_settings.js';
 import type { DIALOG_GLOBAL_EDIT_TRACKS_AND_VIAS } from './dialogs/dialog_global_edit_tracks_and_vias.js';
 import type { DIALOG_GLOBAL_DELETION } from './dialogs/dialog_global_deletion.js';
 import type { DIALOG_UNUSED_PAD_LAYERS } from './dialogs/dialog_unused_pad_layers.js';
 import type { DIALOG_CLEANUP_TRACKS_AND_VIAS } from './dialogs/dialog_cleanup_tracks_and_vias.js';
 import type { DIALOG_SWAP_LAYERS } from './dialogs/dialog_swap_layers.js';
-import { DialogPushPadProperties } from './dialogs/dialog_push_pad_properties.js';
-import { DialogEnumPads } from './dialogs/dialog_enum_pads.js';
 import {
   type DIALOG_TARGET_PROPERTIES,
   DialogTargetProperties,
 } from './dialogs/dialog_target_properties.js';
-import { DialogFpEditPadTable } from './dialogs/dialog_fp_edit_pad_table.js';
-import type { DIALOG_PUSH_PAD_PROPERTIES } from './dialogs/dialog_push_pad_properties.js';
-import type { DIALOG_ENUM_PADS } from './dialogs/dialog_enum_pads.js';
-import type { DIALOG_FP_EDIT_PAD_TABLE } from './dialogs/dialog_fp_edit_pad_table.js';
 import type { DIALOG_OFFSET_ITEM } from './dialogs/dialog_offset_item.js';
 import { DialogBookReporterModeless } from '@ziroeda/common/dialogs/dialog_book_reporter_ui.js';
 import type { DIALOG_BOOK_REPORTER } from '@ziroeda/common/dialogs/dialog_book_reporter.js';
@@ -383,6 +371,10 @@ import {
   type ZonePreviewCanvasFactory,
 } from './zone_manager/dialog_zone_manager.js';
 import { ZONE_PREVIEW_CANVAS } from './zone_manager/zone_preview_canvas.js';
+import { DialogMigrate3DModels } from './dialogs/dialog_migrate_3d_models.js';
+import { DialogMultichannelGenerateRuleAreas } from './dialogs/dialog_multichannel_generate_rule_areas.js';
+import { DialogMultichannelRepeatLayout } from './dialogs/dialog_multichannel_repeat_layout.js';
+import type { MULTICHANNEL_TOOL } from './tools/multichannel_tool.js';
 import { drawPanelWindow } from '@ziroeda/common/gal/gal_window.js';
 import { GAL_TYPE } from '@ziroeda/common/draw_panel_gal.js';
 import { wxEVT_SIZE } from '@ziroeda/wx/wx_event.js';
@@ -991,44 +983,6 @@ export function PcbBottomDock({
 }
 
 /**
- * The read-only layer-defaults grid of DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS
- * (dialog_global_edit_text_and_graphics.cpp:213-284): Board Setup's per-class
- * line and text defaults. Edge Cuts and Courtyards have line thickness only.
- */
-function layerDefaultsRows(aFrame: PCB_EDIT_FRAME): LAYER_DEFAULTS_ROW[] {
-  const bds = aFrame.GetBoard()!.GetDesignSettings();
-  const str = (v: number): string => aFrame.GetUnitsProvider().StringFromValue(v, true);
-  const C = LAYER_CLASS;
-  const full = (name: string, c: LAYER_CLASS): LAYER_DEFAULTS_ROW => ({
-    name,
-    line: str(bds.m_LineThickness[c]!),
-    width: str(bds.m_TextSize[c]!.x),
-    height: str(bds.m_TextSize[c]!.y),
-    thickness: str(bds.m_TextThickness[c]!),
-    italic: bds.m_TextItalic[c]!,
-    upright: bds.m_TextUpright[c]!,
-  });
-  const lineOnly = (name: string, c: LAYER_CLASS): LAYER_DEFAULTS_ROW => ({
-    name,
-    line: str(bds.m_LineThickness[c]!),
-    width: '',
-    height: '',
-    thickness: '',
-    italic: null,
-    upright: null,
-  });
-
-  return [
-    full('Silk Layers', C.LAYER_CLASS_SILK),
-    full('Copper Layers', C.LAYER_CLASS_COPPER),
-    lineOnly('Edge Cuts', C.LAYER_CLASS_EDGES),
-    lineOnly('Courtyards', C.LAYER_CLASS_COURTYARD),
-    full('Fab Layers', C.LAYER_CLASS_FAB),
-    full('Other Layers', C.LAYER_CLASS_OTHERS),
-  ];
-}
-
-/**
  * The window's handle on the frame's BOARD. A new object whenever the board
  * changed (a commit, an undo, a load), which is what has React re-read it;
  * the BOARD itself is the one model.
@@ -1612,7 +1566,6 @@ export function PcbEditor({
     resolve: (aOk: boolean) => void;
   } | null>(null);
   /** GLOBAL_EDIT_TOOL's DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS. */
-  const [editTgDlg, setEditTgDlg] = useState<DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS | null>(null);
   /** PCB_EDIT_FRAME::ShowExchangeFootprintsDialog's DIALOG_EXCHANGE_FOOTPRINTS. */
   const [exchangeDlg, setExchangeDlg] = useState<DIALOG_EXCHANGE_FOOTPRINTS | null>(null);
   /** GLOBAL_EDIT_TOOL's DIALOG_GLOBAL_EDIT_TRACKS_AND_VIAS. */
@@ -1633,16 +1586,6 @@ export function PcbEditor({
     dialog: DIALOG_SWAP_LAYERS;
     resolve: (aOk: boolean) => void;
   } | null>(null);
-  /** PAD_TOOL's dialogs, each with the promise the tool waits on. */
-  const [pushPadDlg, setPushPadDlg] = useState<{
-    dialog: DIALOG_PUSH_PAD_PROPERTIES;
-    resolve: (aReturnCode: number) => void;
-  } | null>(null);
-  const [enumPadsDlg, setEnumPadsDlg] = useState<{
-    dialog: DIALOG_ENUM_PADS;
-    resolve: (aOk: boolean) => void;
-  } | null>(null);
-  const [padTableDlg, setPadTableDlg] = useState<DIALOG_FP_EDIT_PAD_TABLE | null>(null);
   const [targetDlg, setTargetDlg] = useState<DIALOG_TARGET_PROPERTIES | null>(null);
   /** CONVERT_TOOL's modal dialogs, each with the promise the tool waits on. */
   const [getFpDlg, setGetFpDlg] = useState<{
@@ -2221,6 +2164,8 @@ export function PcbEditor({
     ) => Promise<string | null>;
     polygonDialog: () => Promise<boolean>;
     showZoneManager: () => Promise<{ ok: boolean; repour: boolean }>;
+    showMigrate3DModels: () => Promise<void>;
+    multichannel: (aTool: MULTICHANNEL_TOOL, aKind: 'repeat' | 'generate') => Promise<boolean>;
     fillAllZones: () => void;
   } | null>(null);
   /**
@@ -2336,8 +2281,8 @@ export function PcbEditor({
         drcWindowRef.current!.showFootprintPropertiesDialog(aDialog),
       showDimensionPropertiesDialog: (aDialog) =>
         itemDialogsRef.current!.hooks.showDimensionPropertiesDialog(aDialog),
-      showGraphicItemPropertiesDialog: (aDialog) =>
-        itemDialogsRef.current!.hooks.showGraphicItemPropertiesDialog(aDialog),
+      showGraphicItemPropertiesDialog: (aDialog, aOnOK) =>
+        itemDialogsRef.current!.hooks.showGraphicItemPropertiesDialog(aDialog, aOnOK),
       selectCopperLayerPair: () => drcWindowRef.current!.selectCopperLayerPair(),
       showInfoBarError: (aMsg) => drcWindowRef.current?.showInfoBarError(aMsg),
       /** `m_appearancePanel->OnLayerChanged()`: the layer combo follows a layer a tool chose. */
@@ -2377,6 +2322,18 @@ export function PcbEditor({
         mwWindowRef.current!.textEntry(aPrompt, aCaption, aValue, aValidator),
       mwavePolygonalShapeDialog: () => mwWindowRef.current!.polygonDialog(),
       showZoneManager: () => mwWindowRef.current!.showZoneManager(),
+      showMigrate3DModels: () => mwWindowRef.current!.showMigrate3DModels(),
+      showRepeatLayout: (aTool) => mwWindowRef.current!.multichannel(aTool, 'repeat'),
+      showGenerateRuleAreas: (aTool) => mwWindowRef.current!.multichannel(aTool, 'generate'),
+      showTopologyMismatch: (aSummary, aDetails) =>
+        void askKiDialogRef.current({
+          caption: 'Topology mismatch',
+          message: aSummary,
+          icon: 'error',
+          okOnly: true,
+          detailedText: aDetails,
+        }),
+      projectFileNames: () => (projectFilesRef.current ?? []).map((f) => f.name),
       // PCB_SELECTION_TOOL's window half: filled in below, once the editor's
       // state and callbacks exist (`selWindowRef`).
       showInfoBarWarning: (aMsg) => selWindowRef.current?.showInfoBarWarning(aMsg),
@@ -2436,7 +2393,8 @@ export function PcbEditor({
       showCleanupGraphicsDialog: (aDialog) => setCleanupGfxDlg(aDialog),
       showUnusedPadLayersDialog: (aDialog) => setUnusedPadsDlg(aDialog),
       showGlobalEditTracksAndViasDialog: (aDialog) => setEditTvDlg(aDialog),
-      showGlobalEditTextAndGraphicsDialog: (aDialog) => setEditTgDlg(aDialog),
+      showGlobalEditTextAndGraphicsDialog: (aDialog) =>
+        itemDialogsRef.current!.hooks.showGlobalEditTextAndGraphicsDialog(aDialog),
       // The "Choose Image" dialog: a file input, read as bytes. Cancel answers
       // null (the input's `cancel` event), which leaves the tool armed, as
       // upstream's `continue` does.
@@ -2462,12 +2420,11 @@ export function PcbEditor({
       askKiDialog: (aRequest) => askKiDialogRef.current(aRequest),
       showSwapLayersDialog: (aDialog) =>
         new Promise<boolean>((resolve) => setSwapLayersDlg({ dialog: aDialog, resolve })),
-      // PAD_TOOL's window half.
+      // PAD_TOOL's window half, the shared item dialogs'.
       showPushPadPropertiesDialog: (aDialog) =>
-        new Promise<number>((resolve) => setPushPadDlg({ dialog: aDialog, resolve })),
-      showEnumPadsDialog: (aDialog) =>
-        new Promise<boolean>((resolve) => setEnumPadsDlg({ dialog: aDialog, resolve })),
-      showPadTableDialog: (aDialog) => setPadTableDlg(aDialog),
+        itemDialogsRef.current!.hooks.showPushPadPropertiesDialog(aDialog),
+      showEnumPadsDialog: (aDialog) => itemDialogsRef.current!.hooks.showEnumPadsDialog(aDialog),
+      showPadTableDialog: (aDialog) => itemDialogsRef.current!.hooks.showPadTableDialog(aDialog),
       // PCB_EDIT_FRAME::ShowTargetOptionsDialog: DIALOG_TARGET_PROPERTIES, modal.
       showTargetOptionsDialog: (aDialog) => setTargetDlg(aDialog),
       dismissInfoBar: () => editWindowRef.current?.dismissInfoBar(),
@@ -2615,6 +2572,8 @@ export function PcbEditor({
   // Folders that already exist in the project, relative to the project's own
   // folder, the Plot dialog's "Output directory:" choices (the cloud file
   // manager stands in for upstream's wxDirDialog).
+  const projectFilesRef = useRef(projectFiles);
+  projectFilesRef.current = projectFiles;
   const projectFolders = useMemo(() => {
     const files = projectFiles ?? [];
     const pro = files.find((f) => /\.kicad_pro$/i.test(f.name))?.name.replace(/\\/g, '/');
@@ -2847,6 +2806,14 @@ export function PcbEditor({
     layers: readonly INPUT_LAYER_DESC[];
     done: (aMap: Map<string, MapLayersLayerId>, aKeep: boolean) => void;
   } | null>(null);
+  /** MULTICHANNEL_TOOL's two dialogs, open: `ShowModal() == wxID_OK`. */
+  const [multichannel, setMultichannel] = useState<{
+    tool: MULTICHANNEL_TOOL;
+    kind: 'repeat' | 'generate';
+    resolve: (aOk: boolean) => void;
+  } | null>(null);
+  /** `DIALOG_MIGRATE_3D_MODELS`, open: `ShowModal()` returning. */
+  const [migrate3D, setMigrate3D] = useState<{ resolve: () => void } | null>(null);
   /** `DIALOG_ZONE_MANAGER`, open: `ShowQuasiModal()`'s answer. */
   const [zoneManager, setZoneManager] = useState<{
     resolve: (r: { ok: boolean; repour: boolean }) => void;
@@ -4295,6 +4262,20 @@ export function PcbEditor({
         setZoneManager((prev) => {
           prev?.resolve({ ok: false, repour: false });
           return { resolve };
+        });
+      }),
+    showMigrate3DModels: () =>
+      new Promise<void>((resolve) => {
+        setMigrate3D((prev) => {
+          prev?.resolve();
+          return { resolve };
+        });
+      }),
+    multichannel: (aTool, aKind) =>
+      new Promise<boolean>((resolve) => {
+        setMultichannel((prev) => {
+          prev?.resolve(false);
+          return { tool: aTool, kind: aKind, resolve };
         });
       }),
     fillAllZones: () => fillAllZonesRef.current(),
@@ -5910,14 +5891,6 @@ export function PcbEditor({
   const leftDisabled = useMemo(() => {
     const s = new Set<string>();
     if (selectedNets.size === 0 && highlightNets.size === 0) s.add('toggleNetHighlight');
-    // The Show Grid button's right-click menu carries `ACTIONS::gridOrigin`
-    // under `ACTIONS::gridProperties` (`pcbnew/toolbars_pcb_editor.cpp:150-161`).
-    // `COMMON_TOOLS::GridOrigin` is a WX_PT_ENTRY_DIALOG that writes
-    // `SetGridOrigin` (`common/tool/common_tools.cpp:637-651`), and we do not
-    // have it: the Place menu's own Grid Origin row is greyed for the same
-    // reason. Shown in its upstream position rather than dropped, which is what
-    // the rest of this frame does with an entry it cannot run yet.
-    s.add('gridOrigin');
     return s;
   }, [selectedNets, highlightNets]);
 
@@ -6374,6 +6347,21 @@ export function PcbEditor({
       case 'zonesManager':
         runAction(PCB_ACTIONS.zonesManager);
         break;
+      // `PCB_ACTIONS::migrate3DModels` -> `GLOBAL_EDIT_TOOL::Migrate3DModels`.
+      case 'migrate3DModels':
+        runAction(PCB_ACTIONS.migrate3DModels);
+        break;
+      // `PCB_ACTIONS::generatePlacementRuleAreas` / `repeatLayout` -> MULTICHANNEL_TOOL.
+      case 'generatePlacementRuleAreas':
+        runAction(PCB_ACTIONS.generatePlacementRuleAreas);
+        break;
+      case 'repeatLayout':
+        runAction(PCB_ACTIONS.repeatLayout);
+        break;
+      // `ACTIONS::gridOrigin` -> `COMMON_TOOLS::GridOrigin`'s WX_PT_ENTRY_DIALOG.
+      case 'gridOrigin':
+        runAction(ACTIONS.gridOrigin);
+        break;
       // `PCB_ACTIONS::swapLayers` -> `GLOBAL_EDIT_TOOL::SwapLayers`.
       case 'swapLayers':
         runAction(PCB_ACTIONS.swapLayers);
@@ -6608,6 +6596,14 @@ export function PcbEditor({
     background: PCB_BACKGROUND,
   });
   itemDialogsRef.current = itemDialogs;
+  // COMMON_TOOLS::GridOrigin's WX_PT_ENTRY_DIALOG, the frame's point-entry presenter.
+  const pointEntryRef = useRef(itemDialogs.pointEntry);
+  pointEntryRef.current = itemDialogs.pointEntry;
+  useEffect(() => {
+    const frame = frameRef.current;
+    frame?.SetPointEntryPresenter((...aArgs) => pointEntryRef.current(...aArgs));
+    return () => frame?.SetPointEntryPresenter(null);
+  }, []);
 
   // ----- menus (menubar_pcb_editor.cpp structure, working subset active) ------
 
@@ -8024,29 +8020,26 @@ export function PcbEditor({
             />
           );
         })()}
-      {/* TRANSITIONAL (#636 stage 3): DIALOG_NON_COPPER_ZONES_EDITOR has no
-          window yet (its transfers are ported), so a non-copper conversion
-          asks only the conversion settings and keeps the board's default
-          zone settings on the active layer. */}
-      {zoneConvertDlg &&
-        zoneConvertDlg.kind === 'nonCopper' &&
-        (() => {
-          const dlg = new CONVERT_SETTINGS_DIALOG(zoneConvertDlg.convertSettings, {
-            copyLineWidth: false,
-            centerline: true,
-            boundingHull: true,
-          });
-          return (
-            <ConvertSettingsDialog
-              dialog={dlg}
-              units={unitLabel}
-              onClose={(aOk) => {
-                setZoneConvertDlg(null);
-                zoneConvertDlg.resolve(aOk);
-              }}
-            />
-          );
-        })()}
+      {/* CONVERT_TOOL on a non-copper layer: InvokeNonCopperZonesEditor( frame, &zoneInfo,
+          &m_userSettings ), the editor with its Conversion Settings box. */}
+      {zoneConvertDlg && frameRef.current && zoneConvertDlg.kind === 'nonCopper' && (
+        <DialogNonCopperZonesProperties
+          dialog={
+            new DIALOG_NON_COPPER_ZONES_EDITOR(
+              frameRef.current,
+              null,
+              zoneConvertDlg.zoneSettings,
+              zoneConvertDlg.convertSettings,
+            )
+          }
+          units={unitLabel}
+          layers={ruleAreaLayers.filter((l) => !/\.Cu$/.test(l.name))}
+          onResult={(aOk) => {
+            setZoneConvertDlg(null);
+            zoneConvertDlg.resolve(aOk);
+          }}
+        />
+      )}
       {reannotateOpen && frameRef.current?.GetBoard() && (
         <DialogBoardReannotate frame={frameRef.current} onClose={() => setReannotateOpen(false)} />
       )}
@@ -8351,6 +8344,35 @@ export function PcbEditor({
           }}
         />
       )}
+      {multichannel?.kind === 'repeat' && board && (
+        <DialogMultichannelRepeatLayout
+          board={frameRef.current!.GetBoard()!}
+          tool={multichannel.tool}
+          onClose={(ok) => {
+            multichannel.resolve(ok);
+            setMultichannel(null);
+          }}
+        />
+      )}
+      {multichannel?.kind === 'generate' && (
+        <DialogMultichannelGenerateRuleAreas
+          tool={multichannel.tool}
+          onClose={(ok) => {
+            multichannel.resolve(ok);
+            setMultichannel(null);
+          }}
+        />
+      )}
+      {migrate3D && frameRef.current && (
+        <DialogMigrate3DModels
+          frame={frameRef.current}
+          Preview={ModelPreview3D}
+          onClose={() => {
+            migrate3D.resolve();
+            setMigrate3D(null);
+          }}
+        />
+      )}
       {zoneManager && frameRef.current && board && (
         <DialogZoneManager
           frame={{
@@ -8441,20 +8463,6 @@ export function PcbEditor({
           onClose={() => setExchangeDlg(null)}
         />
       )}
-      {editTgDlg && frameRef.current?.GetBoard() && (
-        <DialogGlobalEditTextAndGraphics
-          dialog={editTgDlg}
-          layers={LSET.AllLayersMask()
-            .UIOrder()
-            .filter((l) => frameRef.current!.GetBoard()!.IsLayerEnabled(l))
-            .map((l) => {
-              const c = choiceOf(l);
-              return { layer: l, label: c.label, swatch: c.swatch };
-            })}
-          defaults={layerDefaultsRows(frameRef.current)}
-          onClose={() => setEditTgDlg(null)}
-        />
-      )}
       {editTvDlg && (
         <DialogGlobalEditTracksAndVias
           dialog={editTvDlg}
@@ -8502,29 +8510,8 @@ export function PcbEditor({
           }}
         />
       )}
-      {pushPadDlg && (
-        <DialogPushPadProperties
-          dialog={pushPadDlg.dialog}
-          onResult={(aReturnCode) => {
-            setPushPadDlg(null);
-            pushPadDlg.resolve(aReturnCode);
-          }}
-        />
-      )}
-      {enumPadsDlg && (
-        <DialogEnumPads
-          dialog={enumPadsDlg.dialog}
-          onResult={(aOk) => {
-            setEnumPadsDlg(null);
-            enumPadsDlg.resolve(aOk);
-          }}
-        />
-      )}
       {targetDlg && (
         <DialogTargetProperties dialog={targetDlg} onClose={() => setTargetDlg(null)} />
-      )}
-      {padTableDlg && (
-        <DialogFpEditPadTable dialog={padTableDlg} onClose={() => setPadTableDlg(null)} />
       )}
       {offsetDlg && (
         <DialogOffsetItem

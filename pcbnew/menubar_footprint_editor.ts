@@ -248,15 +248,19 @@ export function footprintEditorMenus(
           ],
         },
         SEP,
-        stub('Edit Text & Graphics Properties...', 'editTextAndGraphics'),
-        stub('Pad Table...', 'padTable'),
-        stub('Default Pad Properties...', 'defaultPadProperties'),
+        // `ENABLE( haveFootprintCond )` (:1436).
+        act('Edit Text & Graphics Properties...', 'editTextAndGraphics', {
+          disabled: !conds.haveFootprint,
+        }),
+        // `ENABLE( haveFootprintCond )` (:1435).
+        act('Pad Table...', 'padTable', { disabled: !conds.haveFootprint }),
+        act('Default Pad Properties...', 'defaultPadProperties'),
         // pcb_actions.cpp:1152 — FriendlyName "Renumber Pads...", not
         // "Enumerate Pads".
-        stub('Renumber Pads...', 'enumeratePads'),
+        act('Renumber Pads...', 'enumeratePads'),
         // ACTIONS::gridOrigin (actions.cpp:1102) — the DIALOG. Distinct from
         // Place's `gridSetOrigin`, which is the click-to-place tool.
-        stub('Grid Origin...', 'gridOrigin'),
+        act('Grid Origin...', 'gridOrigin'),
       ],
     },
     {

@@ -45,6 +45,7 @@ import {
   libNotFound,
 } from '@ziroeda/common/dialogs/lib_table_panel.js';
 
+import { PANEL_FP_LIB_TABLE_BASE } from './panel_fp_lib_table_base.js';
 interface Props {
   /** The open project's files (footprints, the table, the `.kicad_pro`). */
   projectFiles: readonly { name: string; text: string }[];
@@ -103,6 +104,7 @@ export function DialogFpLibTable({
 
   return (
     <LibTablePanel
+      Base={PANEL_FP_LIB_TABLE_BASE}
       title="Footprint Libraries"
       type={LIBRARY_TABLE_TYPE.FOOTPRINT}
       preamble="(fp_lib_table"

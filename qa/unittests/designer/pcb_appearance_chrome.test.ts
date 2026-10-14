@@ -22,7 +22,11 @@ const SHELL = read('../../../common/widgets/shell.css');
 // The panel is now ONE widget both frames construct, so what used to be read
 // out of `PcbEditor.tsx` is read out of the widget — see
 // `appearance_controls_shared.test.tsx` for the per-frame assertions.
-const PCB = read('../../../pcbnew/widgets/appearance_controls.tsx');
+// APPEARANCE_CONTROLS is its base's sizer tree (the notebook, the Nets page's two headers)
+// and the rows the class builds into it.
+const PCB =
+  read('../../../pcbnew/widgets/appearance_controls_base.tsx') +
+  read('../../../pcbnew/widgets/appearance_controls.tsx');
 // The frame that fills it. The wrench button's action is the frame's — upstream
 // it is `m_frame->ShowBoardSetupDialog( _( "Net Classes" ) )`, a PCB_EDIT_FRAME
 // call the panel makes through its m_frame pointer.
@@ -149,7 +153,7 @@ describe('the Nets tab carries the controls KiCad carries', () => {
   });
 
   it('opens Board Setup on Net Classes, as ShowBoardSetupDialog does', () => {
-    expect(classes).toContain('onClick={nets.onConfigureNetclasses}');
+    expect(classes).toContain('onClick={n.onConfigureNetclasses}');
     expect(FRAME).toContain("setBoardSetupPage('netclasses');");
   });
 

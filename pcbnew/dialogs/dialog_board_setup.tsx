@@ -21,6 +21,8 @@
  * (shared PANEL_SETUP_NETCLASSES) and Text Variables (shared PANEL_TEXT_VARIABLES).
  * Values seed from the project's .kicad_pro and commit on OK.
  */
+import { DisplayErrorMessage, ShowKicadMessageDialog } from '@ziroeda/common/confirm.js';
+import { wxICON_WARNING, wxNO, wxNO_DEFAULT, wxYES } from '@ziroeda/wx/defs.js';
 import { useLayoutEffect, useRef, useState, type JSX } from 'react';
 import type { WX_GRID } from '@ziroeda/common/widgets/wx_grid.js';
 import {
@@ -430,6 +432,49 @@ interface Props {
   onClose: () => void;
 }
 
+/**
+ * Each panel's `ImportSettingsFrom( otherBoard )` for the groups DIALOG_IMPORT_SETTINGS ticked:
+ * the working values with those groups taken from the other board's.
+ */
+export function ImportBoardSetupSettings(
+  v: BoardSetupValues,
+  other: BoardSetupValues,
+  opts: ImportSettingsOpts,
+): BoardSetupValues {
+  const next = structuredClone(v);
+  if (opts.layers) {
+    // Stackup, layers and board finish import together (they are linked).
+    next.physicalStackup = structuredClone(other.physicalStackup);
+    next.layers = structuredClone(other.layers);
+    next.boardFinish = structuredClone(other.boardFinish);
+  }
+  // PANEL_SETUP_DEFAULTS::ImportSettingsFrom: its TransferDataToWindow refills all three
+  // panels, text & graphics, dimensions and the zone defaults.
+  if (opts.textAndGraphics) {
+    next.textGraphics = structuredClone(other.textGraphics);
+    next.dimensions = structuredClone(other.dimensions);
+    next.zones = structuredClone(other.zones);
+  }
+  if (opts.formatting) next.formatting = structuredClone(other.formatting);
+  if (opts.constraints) next.constraints = structuredClone(other.constraints);
+  if (opts.netclasses) next.netClasses = structuredClone(other.netClasses);
+  if (opts.componentClasses) next.componentClasses = structuredClone(other.componentClasses);
+  if (opts.tracksAndVias) {
+    next.trackWidthsMM = [...other.trackWidthsMM];
+    next.viaSizesMM = structuredClone(other.viaSizesMM);
+    next.diffPairsMM = structuredClone(other.diffPairsMM);
+  }
+  if (opts.zoneHatchingOffsets)
+    next.zoneLayerProperties = structuredClone(other.zoneLayerProperties);
+  if (opts.teardrops) next.teardrops = structuredClone(other.teardrops);
+  if (opts.tuningPatterns) next.tuning = structuredClone(other.tuning);
+  if (opts.maskAndPaste) next.maskPaste = structuredClone(other.maskPaste);
+  if (opts.customRules) next.customRules = structuredClone(other.customRules);
+  if (opts.severities) next.drcSeverities = structuredClone(other.drcSeverities);
+  if (opts.tuningProfiles) next.tuningProfiles = structuredClone(other.tuningProfiles);
+  return next;
+}
+
 export function DialogBoardSetup({
   value,
   units,
@@ -448,15 +493,19 @@ export function DialogBoardSetup({
   // and copy the selected groups into the working values (each panel's
   // ImportSettingsFrom). Layers, physical stackup and board finish are
   // linked and import together, like upstream.
-  const applyImport = (files: { name: string; text: string }[], opts: ImportSettingsOpts): void => {
+  const applyImport = async (
+    files: { name: string; text: string }[],
+    opts: ImportSettingsOpts,
+  ): Promise<void> => {
     const pcb = files.find((f) => /\.kicad_pcb$/i.test(f.name));
     const pro = files.find((f) => /\.kicad_pro$/i.test(f.name));
     const dru = files.find((f) => /\.kicad_dru$/i.test(f.name));
-    if (!pcb || !pro) {
-      // KiCad refuses when the associated project file cannot be loaded.
-      window.alert(
+    if (!pcb) return;
+    if (!pro) {
+      // `LoadProject( projectFn )` failed.
+      DisplayErrorMessage(
         'Error importing settings from board:\n' +
-          `Associated ${pcb ? 'project (.kicad_pro)' : 'board (.kicad_pcb)'} file could not be loaded`,
+          `Associated project file ${pcb.name.replace(/\.kicad_pcb$/i, '.kicad_pro')} could not be loaded`,
       );
       return;
     }
@@ -471,51 +520,28 @@ export function DialogBoardSetup({
       const otherProject = manager.GetProject(pro.name)!;
       otherBoard.SetProject(otherProject);
       other = BoardSetupToWindow(otherBoard, otherProject, dru?.text ?? '');
-    } catch {
-      window.alert(`Error loading board file:\n${pcb.name}`);
+    } catch (e) {
+      DisplayErrorMessage(
+        `Error loading board file:\n${pcb.name}`,
+        e instanceof Error ? e.message : '',
+      );
       return;
     }
 
-    // PANEL_SETUP_LAYERS::CheckCopperLayerCount: warn when the import would
-    // drop inner copper layers of the current board.
+    // PANEL_SETUP_LAYERS::CheckCopperLayerCount. Upstream compares the answer with wxID_ANY,
+    // which ShowModal() never returns, so the import goes on whichever button is pressed.
     if (opts.layers && other.physicalStackup.copperCount < v.physicalStackup.copperCount) {
-      const ok = window.confirm(
-        'Imported settings have fewer copper layers than the current board. ' +
-          'Items on the vanishing layers will be deleted.\n\nContinue?',
-      );
-      if (!ok) return;
+      await ShowKicadMessageDialog({
+        message:
+          'Imported settings have fewer copper layers than the current board ' +
+          `(${other.physicalStackup.copperCount} instead of ${v.physicalStackup.copperCount}).\n\n` +
+          'Continue and delete the extra inner copper layers from the current board?',
+        caption: 'Inner Layers to Be Deleted',
+        style: wxICON_WARNING | wxYES | wxNO | wxNO_DEFAULT,
+      });
     }
 
-    const next = structuredClone(v);
-    if (opts.layers) {
-      // Stackup, layers and board finish import together (they are linked).
-      next.physicalStackup = structuredClone(other.physicalStackup);
-      next.layers = structuredClone(other.layers);
-      next.boardFinish = structuredClone(other.boardFinish);
-    }
-    // PANEL_SETUP_DEFAULTS::ImportSettingsFrom: text & graphics and dimensions.
-    if (opts.textAndGraphics) {
-      next.textGraphics = structuredClone(other.textGraphics);
-      next.dimensions = structuredClone(other.dimensions);
-    }
-    if (opts.formatting) next.formatting = structuredClone(other.formatting);
-    if (opts.constraints) next.constraints = structuredClone(other.constraints);
-    if (opts.netclasses) next.netClasses = structuredClone(other.netClasses);
-    if (opts.componentClasses) next.componentClasses = structuredClone(other.componentClasses);
-    if (opts.tracksAndVias) {
-      next.trackWidthsMM = [...other.trackWidthsMM];
-      next.viaSizesMM = structuredClone(other.viaSizesMM);
-      next.diffPairsMM = structuredClone(other.diffPairsMM);
-    }
-    if (opts.zoneHatchingOffsets)
-      next.zoneLayerProperties = structuredClone(other.zoneLayerProperties);
-    if (opts.teardrops) next.teardrops = structuredClone(other.teardrops);
-    if (opts.tuningPatterns) next.tuning = structuredClone(other.tuning);
-    if (opts.maskAndPaste) next.maskPaste = structuredClone(other.maskPaste);
-    if (opts.customRules) next.customRules = structuredClone(other.customRules);
-    if (opts.severities) next.drcSeverities = structuredClone(other.drcSeverities);
-    if (opts.tuningProfiles) next.tuningProfiles = structuredClone(other.tuningProfiles);
-    setV(next);
+    setV(ImportBoardSetupSettings(v, other, opts));
     setImportOpen(false);
   };
 
@@ -708,7 +734,7 @@ export function DialogBoardSetup({
                   name: board ? board.GetLayerName(LSET.NameToLayer(id) as PCB_LAYER_ID) : id,
                 }))}
               stackup={board ? board.GetStackupOrDefault() : null}
-              onError={(message) => window.alert(message)}
+              onError={(message) => DisplayErrorMessage(message)}
             />
           ),
         },

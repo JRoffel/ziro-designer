@@ -34,6 +34,10 @@
 
 import { Button, CheckBox, Choice, StaticText, TextCtrl } from '@ziroeda/wx/controls.js';
 import { type JSX, useRef, useState } from 'react';
+import { ShowKicadMessageDialog } from '@ziroeda/common/confirm.js';
+import { unitLabelText } from '@ziroeda/common/eda_units.js';
+import { wxCENTER, wxOK } from '@ziroeda/wx/defs.js';
+import { WxTextEntryDialog } from '@ziroeda/wx/textdlg.js';
 import { pcbIUScale, pcbIuToMM, pcbMmToIU } from '@ziroeda/common/eda_units.js';
 import { bitmapUrl } from '@ziroeda/common/bitmap_store.js';
 import {
@@ -449,6 +453,11 @@ interface Props {
 type MaterialTarget = { layer: number; sub: number }; // sub 0 = main
 type ListPick = { title: string; label: string; items: string[]; onPick: (index: number) => void };
 
+/** `wxMessageBox( aMessage )`: wxOK | wxCENTER under the caption "Message". */
+function messageBox(aMessage: string): void {
+  void ShowKicadMessageDialog({ message: aMessage, caption: 'Message', style: wxOK | wxCENTER });
+}
+
 export function PanelPcbStackup({ value, onChange, finish, units }: Props): JSX.Element {
   const [texts, setTexts] = useState<Record<string, string>>({});
   const num = (s: string): number => (Number.isFinite(Number(s)) ? Number(s) : 0);
@@ -589,6 +598,14 @@ export function PanelPcbStackup({ value, onChange, finish, units }: Props): JSX.
     });
   };
 
+  // onAdjustDielectricThickness's wxTextEntryDialog, open.
+  const [adjust, setAdjust] = useState<{
+    title: string;
+    minThickness: number;
+    minText: string;
+    candidates: number;
+  } | null>(null);
+
   // onAdjustDielectricThickness + setDefaultLayerWidths.
   const onAdjustThickness = (): void => {
     // Min thickness = every thickness the algorithm may not change: layers
@@ -608,20 +625,31 @@ export function PanelPcbStackup({ value, onChange, finish, units }: Props): JSX.
       eachThickness(l, l, isDielectric(l));
       for (const sub of l.sublayers ?? []) eachThickness(l, sub, true);
     }
-    const title =
-      minThickness === 0
-        ? 'Enter board thickness in mm:'
-        : `Enter expected board thickness (min value ${trimNum(minThickness)} mm):`;
-    const answer = window.prompt(`Adjust Unlocked Dielectric Layers\n\n${title}`);
-    if (answer === null) return;
-    const target = Number(answer);
+    const minText = stringFromValue(pcbMmToIU(minThickness), units, true, pcbIUScale);
+    // wxTextEntryDialog( this, title, _( "Adjust Unlocked Dielectric Layers" ) ).
+    setAdjust({
+      title:
+        minThickness === 0
+          ? `Enter board thickness in ${unitLabelText(units).trim()}:`
+          : `Enter expected board thickness (min value ${minText}):`,
+      minThickness,
+      minText,
+      candidates,
+    });
+  };
+
+  /** After `ShowModal() == wxID_OK`: the checks, then setDefaultLayerWidths. */
+  const onAdjustEntered = (aText: string): void => {
+    const a = adjust!;
+    setAdjust(null);
+    const target = parseUnitValue(aText, units, pcbIUScale);
     if (!Number.isFinite(target)) return;
-    if (target < minThickness) {
-      window.alert(`Value too small (min value ${trimNum(minThickness)} mm).`);
+    if (target < a.minThickness) {
+      messageBox(`Value too small (min value ${a.minText}).`);
       return;
     }
-    if (candidates === 0) {
-      window.alert('All dielectric  thickness layers are locked');
+    if (a.candidates === 0) {
+      messageBox('All dielectric  thickness layers are locked');
       return;
     }
 
@@ -969,6 +997,14 @@ export function PanelPcbStackup({ value, onChange, finish, units }: Props): JSX.
             <DialogDielectricMaterial materialList={matLists()[lt]} onSubmit={onMaterialSubmit} />
           );
         })()}
+      {adjust && (
+        <WxTextEntryDialog
+          caption="Adjust Unlocked Dielectric Layers"
+          message={adjust.title}
+          onCancel={() => setAdjust(null)}
+          onConfirm={onAdjustEntered}
+        />
+      )}
     </>
   );
 }

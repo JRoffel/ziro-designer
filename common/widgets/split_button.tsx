@@ -42,6 +42,11 @@ export interface SplitButtonProps {
   disabled?: boolean;
   /** The arrow half's accessible name; it has no label of its own. */
   menuLabel?: string;
+  /**
+   * The wide half opens the menu too. A browser has no directory picker over the project's
+   * folders, so where KiCad's wide half opens one, ours lists them.
+   */
+  clickOpensMenu?: boolean;
 }
 
 export function SplitButton({
@@ -50,13 +55,18 @@ export function SplitButton({
   menu,
   disabled,
   menuLabel = 'More',
+  clickOpensMenu,
 }: SplitButtonProps): JSX.Element {
   const arrowRef = useRef<HTMLButtonElement>(null);
   const [at, setAt] = useState<{ x: number; y: number } | null>(null);
+  const openMenu = (): void => {
+    const r = arrowRef.current?.parentElement?.getBoundingClientRect();
+    if (r) setAt({ x: r.left, y: r.bottom });
+  };
 
   return (
     <span className="ze-splitbtn">
-      <Button label={label} disabled={disabled} onClick={onClick} />
+      <Button label={label} disabled={disabled} onClick={clickOpensMenu ? openMenu : onClick} />
       <button
         ref={arrowRef}
         type="button"

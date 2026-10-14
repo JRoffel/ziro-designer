@@ -60,6 +60,7 @@ export interface GLOBAL_EDIT_TOOL_FRAME {
   ShowCleanupTracksAndViasDialog(aDialog: DIALOG_CLEANUP_TRACKS_AND_VIAS): void;
   /** `DIALOG_ZONE_MANAGER dlg( editFrame ); dlg.ShowQuasiModal()`, and its repour box. */
   ShowZoneManagerDialog(): Promise<{ ok: boolean; repour: boolean }>;
+  ShowMigrate3DModelsDialog(): Promise<void>;
 }
 
 type FRAME = PCB_BASE_EDIT_FRAME & GLOBAL_EDIT_TOOL_FRAME;
@@ -319,6 +320,12 @@ export class GLOBAL_EDIT_TOOL extends PCB_TOOL_BASE {
     return 0;
   }
 
+  /** `Migrate3DModels` (global_edit_tool.cpp:294). */
+  Migrate3DModels(_aEvent: TOOL_EVENT): number {
+    void this.editFrame().ShowMigrate3DModelsDialog();
+    return 0;
+  }
+
   protected override setTransitions(): void {
     const S = SYNC_HANDLER<GLOBAL_EDIT_TOOL>;
 
@@ -335,5 +342,6 @@ export class GLOBAL_EDIT_TOOL extends PCB_TOOL_BASE {
     this.Go(S(this.ExchangeFootprints), PCB_ACTIONS.changeFootprints.MakeEvent());
     this.Go(S(this.GlobalDeletions), PCB_ACTIONS.globalDeletions.MakeEvent());
     this.Go(S(this.ZonesManager), PCB_ACTIONS.zonesManager.MakeEvent());
+    this.Go(S(this.Migrate3DModels), PCB_ACTIONS.migrate3DModels.MakeEvent());
   }
 }

@@ -36,6 +36,7 @@
  *   Putting it on all twenty is what parked a stray tooltip over the list.
  */
 
+import { DisplayErrorMessage } from '@ziroeda/common/confirm.js';
 import { Fragment, type JSX, useState } from 'react';
 import { CheckBox, Choice, StaticText, TextCtrl } from '@ziroeda/wx/controls.js';
 import {
@@ -338,7 +339,7 @@ export function PanelPcbLayers({ value, onChange }: Props): JSX.Element {
   const openAdd = (): void => {
     if (availableUserLayers.length === 0) {
       // DisplayErrorMessage( …, _( "All user-defined layers have already been added." ) )
-      window.alert('All user-defined layers have already been added.');
+      DisplayErrorMessage('All user-defined layers have already been added.');
       return;
     }
     setAddOpen(true);

@@ -58,22 +58,7 @@ function show() {
   h.mgr.RunAction(PCB_ACTIONS.editTextAndGraphics);
   const onClose = vi.fn();
   render(
-    <DialogGlobalEditTextAndGraphics
-      dialog={h.frame.dialog!}
-      layers={[]}
-      defaults={[
-        {
-          name: 'Silk Layers',
-          line: '0.1 mm',
-          width: '1 mm',
-          height: '1 mm',
-          thickness: '0.1 mm',
-          italic: false,
-          upright: true,
-        },
-      ]}
-      onClose={onClose}
-    />,
+    <DialogGlobalEditTextAndGraphics dialog={h.frame.dialog!} layers={[]} onClose={onClose} />,
   );
   return { onClose };
 }

@@ -28,10 +28,9 @@
  * dialog is a caller whose `await` simply resolved at once. That is what
  * `ShowModal`'s early return does.
  *
- * There is no `ShowDetailedText` here. Three upstream call sites use it and
- * none of them is a dialog this port has yet (sheet properties' colour-theme
- * note, the router's malformed-zone warning, Configure Paths' restart notice);
- * a collapsible details pane nothing opens is a widget written on speculation.
+ * `ShowDetailedText` is wxGenericRichMessageDialog's collapsible pane, "See details" /
+ * "Hide details" (wx/richmsgdlg.h), under the message; MULTICHANNEL_TOOL's topology
+ * mismatch is its first caller here.
  *
  * **It does NOT look like `MessageDialogYesNo`, and that was the surprise.**
  * `KICAD_MESSAGE_DIALOG` is `wxMessageDialog`, which on GTK is the platform's
@@ -45,7 +44,8 @@
  * (`.ze-kidialog`), measured by `qa/probes/kidialog_probe.cpp`, rather than
  * borrowing `.ze-msgdlg`'s.
  */
-import { CheckBox } from '@ziroeda/wx/controls.js';
+import { CheckBox, StaticText } from '@ziroeda/wx/controls.js';
+import { WxCollapsiblePane } from './widgets/wx_collapsible_pane.js';
 import { useCallback, useEffect, useRef, useState, type JSX } from 'react';
 import { DialogIcon } from './dialogs/dialog_message.js';
 import { type MessageDialogIcon, okCancelButtons } from './confirm_types.js';
@@ -82,7 +82,15 @@ export interface KiDialogRequest {
    * that never calls it has none.
    */
   doNotShowKey?: DoNotShowKey;
+  /** `ShowDetailedText( aText )`: the text behind the "See details" pane. */
+  detailedText?: string;
+  /** `wxOK` without `wxCANCEL`: one OK button. */
+  okOnly?: boolean;
 }
+
+/** wxGenericRichMessageDialog's expander labels (wx/richmsgdlg.h). [data] */
+const DETAILS_COLLAPSED_LABEL = 'See details';
+const DETAILS_EXPANDED_LABEL = 'Hide details';
 
 /**
  * The dialog itself. `.ze-msgdlg` is `KICAD_MESSAGE_DIALOG`'s shell; the
@@ -97,6 +105,7 @@ export function KiDialog({
   onResult: (result: KiDialogResult, checked: boolean) => void;
 }): JSX.Element {
   const [checked, setChecked] = useState(false);
+  const [detailsShown, setDetailsShown] = useState(false);
   // wxOK|wxCANCEL has a Cancel button, so Esc is that button.
 
   const defaultRef = useRef<HTMLButtonElement>(null);
@@ -106,7 +115,7 @@ export function KiDialog({
 
   // `wxOK | wxCANCEL` in GTK order — the affirmative LAST, and each button at
   // its own stock label unless this dialog renamed it.
-  const buttons = okCancelButtons(request.labels);
+  const buttons = okCancelButtons(request.labels).filter((b) => !request.okOnly || b.id === 'ok');
 
   return (
     <DialogShim
@@ -123,6 +132,15 @@ export function KiDialog({
           )}
         </div>
       </div>
+      {request.detailedText !== undefined && (
+        <WxCollapsiblePane
+          label={detailsShown ? DETAILS_EXPANDED_LABEL : DETAILS_COLLAPSED_LABEL}
+          collapsed={!detailsShown}
+          onChange={(aCollapsed) => setDetailsShown(!aCollapsed)}
+        >
+          <StaticText label={request.detailedText} />
+        </WxCollapsiblePane>
+      )}
       {request.doNotShowKey !== undefined && (
         <CheckBox
           label={DO_NOT_SHOW_AGAIN_LABEL}

@@ -17,6 +17,7 @@ import type { PRINTING } from '@ziroeda/common/settings/app_settings.js';
 import { ROUTER_TOOL } from './router/router_tool.js';
 import { PCB_ACTIONS } from './tools/pcb_actions.js';
 import { AUTOPLACE_TOOL } from './autorouter/autoplace_tool.js';
+import { MULTICHANNEL_TOOL } from './tools/multichannel_tool.js';
 import type { BOARD_NETLIST_UPDATER } from './netlist_reader/board_netlist_updater.js';
 import { PCB_TRACK } from './pcb_track.js';
 import { SpreadFootprints } from './autorouter/spread_footprints.js';
@@ -73,6 +74,7 @@ import {
 } from './dialogs/dialog_footprint_properties.js';
 import type { FOOTPRINT_EDIT_FRAME } from './footprint_edit_frame.js';
 import { DIALOG_DIMENSION_PROPERTIES } from './dialogs/dialog_dimension_properties.js';
+import { MigrateWrlModelsOnLoad } from './dialogs/dialog_migrate_3d_models.js';
 import { DIALOG_SHAPE_PROPERTIES } from './dialogs/dialog_shape_properties.js';
 import { DIALOG_TARGET_PROPERTIES } from './dialogs/dialog_target_properties.js';
 import { DIALOG_FIND } from './dialogs/dialog_find.js';
@@ -854,6 +856,16 @@ export interface PCB_EDIT_FRAME_HOOKS extends PCB_BASE_EDIT_FRAME_DIALOG_HOOKS {
    * with `GetRepourOnClose()`. Optional: absent answers cancel.
    */
   showZoneManager?(): Promise<{ ok: boolean; repour: boolean }>;
+  /** `DIALOG_MIGRATE_3D_MODELS dlg( this ); dlg.ShowModal()`: resolves when it closes. */
+  showMigrate3DModels?(): Promise<void>;
+  /** `DIALOG_MULTICHANNEL_REPEAT_LAYOUT dialog( frame(), this ).ShowModal() == wxID_OK`. */
+  showRepeatLayout?(aTool: MULTICHANNEL_TOOL): Promise<boolean>;
+  /** `DIALOG_MULTICHANNEL_GENERATE_RULE_AREAS dialog( frame(), this ).ShowModal() == wxID_OK`. */
+  showGenerateRuleAreas?(aTool: MULTICHANNEL_TOOL): Promise<boolean>;
+  /** `wxRichMessageDialog( aSummary, "Topology mismatch", wxICON_ERROR | wxOK )` + details. */
+  showTopologyMismatch?(aSummary: string, aDetails: string): void;
+  /** The open project's file names, relative to its directory. */
+  projectFileNames?(): readonly string[];
   /**
    * TRANSITIONAL (#636): `m_auimgr.GetPane( aName ).IsShown()`. The docked
    * panes are still the window's, which knows which are shown.
@@ -903,7 +915,6 @@ export interface PCB_EDIT_FRAME_HOOKS extends PCB_BASE_EDIT_FRAME_DIALOG_HOOKS {
   /** GLOBAL_EDIT_TOOL's DIALOG_GLOBAL_EDIT_TEARDROPS, quasi-modal; it closes itself. */
   showGlobalEditTeardropsDialog?(aDialog: DIALOG_GLOBAL_EDIT_TEARDROPS): void;
   /** GLOBAL_EDIT_TOOL's DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS, modal; it closes itself. */
-  showGlobalEditTextAndGraphicsDialog?(aDialog: DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS): void;
   /** GLOBAL_EDIT_TOOL's DIALOG_GLOBAL_EDIT_TRACKS_AND_VIAS, quasi-modal; it closes itself. */
   showGlobalEditTracksAndViasDialog?(aDialog: DIALOG_GLOBAL_EDIT_TRACKS_AND_VIAS): void;
   /** GLOBAL_EDIT_TOOL's DIALOG_GLOBAL_DELETION: true on OK. */
@@ -916,12 +927,6 @@ export interface PCB_EDIT_FRAME_HOOKS extends PCB_BASE_EDIT_FRAME_DIALOG_HOOKS {
   showCleanupTracksAndViasDialog?(aDialog: DIALOG_CLEANUP_TRACKS_AND_VIAS): void;
   /** GLOBAL_EDIT_TOOL's DIALOG_SWAP_LAYERS: true on OK. */
   showSwapLayersDialog?(aDialog: DIALOG_SWAP_LAYERS): Promise<boolean>;
-  /** PAD_TOOL's DIALOG_PUSH_PAD_PROPERTIES: 0 OK, 1 Apply, wxID_CANCEL dismissed. */
-  showPushPadPropertiesDialog?(aDialog: DIALOG_PUSH_PAD_PROPERTIES): Promise<number>;
-  /** PAD_TOOL's DIALOG_ENUM_PADS: true on OK. */
-  showEnumPadsDialog?(aDialog: DIALOG_ENUM_PADS): Promise<boolean>;
-  /** PAD_TOOL's DIALOG_FP_EDIT_PAD_TABLE, quasi-modal. */
-  showPadTableDialog?(aDialog: DIALOG_FP_EDIT_PAD_TABLE): void;
   /** `WX_INFOBAR::Dismiss()`. */
   dismissInfoBar?(): void;
   /** `PromptConnectedPadDecision`'s wxRichMessageDialog. */
@@ -1547,10 +1552,6 @@ export class PCB_EDIT_FRAME extends PCB_BASE_EDIT_FRAME {
     this.hooks.showGlobalEditTeardropsDialog?.(aDialog);
   }
 
-  ShowGlobalEditTextAndGraphicsDialog(aDialog: DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS): void {
-    this.hooks.showGlobalEditTextAndGraphicsDialog?.(aDialog);
-  }
-
   ShowGlobalEditTracksAndViasDialog(aDialog: DIALOG_GLOBAL_EDIT_TRACKS_AND_VIAS): void {
     this.hooks.showGlobalEditTracksAndViasDialog?.(aDialog);
   }
@@ -1617,18 +1618,6 @@ export class PCB_EDIT_FRAME extends PCB_BASE_EDIT_FRAME {
   }
 
   // ---- PAD_TOOL's window half (PAD_TOOL_FRAME) ------------------------------
-
-  ShowPushPadPropertiesDialog(aDialog: DIALOG_PUSH_PAD_PROPERTIES): Promise<number> {
-    return this.hooks.showPushPadPropertiesDialog?.(aDialog) ?? Promise.resolve(wxID_CANCEL);
-  }
-
-  ShowEnumPadsDialog(aDialog: DIALOG_ENUM_PADS): Promise<boolean> {
-    return this.hooks.showEnumPadsDialog?.(aDialog) ?? Promise.resolve(false);
-  }
-
-  ShowPadTableDialog(aDialog: DIALOG_FP_EDIT_PAD_TABLE): void {
-    this.hooks.showPadTableDialog?.(aDialog);
-  }
 
   /** `GetInfoBar()->Dismiss()`. */
   DismissInfoBar(): void {
@@ -2290,6 +2279,7 @@ export class PCB_EDIT_FRAME extends PCB_BASE_EDIT_FRAME {
     // Not yet a TOOL: ARRAY_TOOL.
     this.m_toolManager.RegisterTool(new ZONE_FILLER_TOOL());
     this.m_toolManager.RegisterTool(new AUTOPLACE_TOOL());
+    this.m_toolManager.RegisterTool(new MULTICHANNEL_TOOL());
     this.m_toolManager.RegisterTool(new DRC_TOOL());
     this.m_toolManager.RegisterTool(new PCB_VIEWER_TOOLS());
     this.m_toolManager.RegisterTool(new CONVERT_TOOL());
@@ -3268,6 +3258,36 @@ export class PCB_EDIT_FRAME extends PCB_BASE_EDIT_FRAME {
     }
 
     this.GetBoard()!.InitializeClearanceCache();
+
+    // Migrate obsolete WRL 3D model references to current STEP models.  Only
+    // runs in the GUI: CLI and scripting load paths must not mutate board
+    // state on load.
+    if (this.hooks.projectFileNames) void MigrateWrlModelsOnLoad(this);
+  }
+
+  /** MULTICHANNEL_TOOL's Repeat Layout dialog: true for wxID_OK. */
+  ShowRepeatLayoutDialog(aTool: MULTICHANNEL_TOOL): Promise<boolean> {
+    return this.hooks.showRepeatLayout?.(aTool) ?? Promise.resolve(false);
+  }
+
+  /** MULTICHANNEL_TOOL's Generate Placement Rule Areas dialog: true for wxID_OK. */
+  ShowGenerateRuleAreasDialog(aTool: MULTICHANNEL_TOOL): Promise<boolean> {
+    return this.hooks.showGenerateRuleAreas?.(aTool) ?? Promise.resolve(false);
+  }
+
+  /** `ShowTopologyMismatchReasons`. */
+  ShowTopologyMismatch(aSummary: string, aDetails: string): void {
+    this.hooks.showTopologyMismatch?.(aSummary, aDetails);
+  }
+
+  /** `DIALOG_MIGRATE_3D_MODELS dlg( this ); dlg.ShowModal()`. */
+  ShowMigrate3DModelsDialog(): Promise<void> {
+    return this.hooks.showMigrate3DModels?.() ?? Promise.resolve();
+  }
+
+  /** The open project's file names, relative to `Prj().GetProjectPath()`. */
+  GetProjectFileNames(): readonly string[] {
+    return this.hooks.projectFileNames?.() ?? [];
   }
 
   /**

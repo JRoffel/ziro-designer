@@ -33,7 +33,11 @@ cat glb/failed-*.log 2>/dev/null  # should be empty
 # 3. Upload to the R2 bucket (keys = <Lib>.3dshapes/<Model>.glb at bucket root)
 rclone copy glb r2:ziro-3dmodels --transfers 16
 
-# 4. Point the app at it
+# 4. Write the catalogue the app serves itself (DIALOG_MIGRATE_3D_MODELS's
+#    STEP_CATALOG: a bucket cannot be listed from a page)
+node catalog.mjs step ../../designer/public/models3d_catalog.json
+
+# 5. Point the app at it
 #    VITE_MODELS3D_URL=https://<public-r2-host>  (no trailing slash needed)
 ```
 

@@ -36,8 +36,8 @@
  *    global table and legacy files on disk, and are not here.
  *  - The page shown first is the project's, as this dialog always opened.
  */
-import { Button } from '@ziroeda/wx/controls.js';
-import { type JSX, useLayoutEffect, useReducer, useRef, useState } from 'react';
+import { type JSX, type ReactNode, useLayoutEffect, useReducer, useRef, useState } from 'react';
+import type { MenuItem } from '@ziroeda/wx/menu.js';
 import { DIALOG_EDIT_LIBRARY_TABLES } from './dialog_edit_library_tables.js';
 import { DIALOG_PLUGIN_OPTIONS } from './dialog_plugin_options.js';
 import { DisplayInfoMessage } from '../confirm.js';
@@ -73,7 +73,6 @@ import {
   type LIBRARY_TABLE_TYPE,
 } from '../libraries/library_table.js';
 import { PROJECT_VAR_NAME } from '../project.js';
-import { StdBitmapButton } from '../widgets/std_bitmap_button.js';
 import { WX_GRID } from '../widgets/wx_grid.js';
 import { wxAuiNotebook } from '@ziroeda/wx/aui_notebook.js';
 import { wxGridStringTable } from '@ziroeda/wx/grid.js';
@@ -94,6 +93,21 @@ export interface ExistingLibrary {
 }
 
 /** What one library-table dialog is, beyond the shared panel. */
+/**
+ * What PANEL_SYM_LIB_TABLE and PANEL_FP_LIB_TABLE hand their bases: the members each base
+ * declares, built by the shared class. The two bases differ only in borders and spacers.
+ */
+export interface LIB_TABLE_BASE_PROPS {
+  m_notebook: ReactNode;
+  onAppend: () => void;
+  /** m_browseButton's menu: the project's libraries no row names yet. */
+  browseMenu: MenuItem[];
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  onDelete: () => void;
+  m_path_subs_grid: ReactNode;
+}
+
 export interface LibTablePanelSpec {
   /** DIALOG_EDIT_LIBRARY_TABLES' title: "Symbol Libraries", "Footprint Libraries". */
   title: string;
@@ -120,6 +134,8 @@ export interface LibTablePanelSpec {
   /** OK with a changed project table. */
   onSave: (aTable: LIBRARY_TABLE) => void;
   onClose: () => void;
+  /** PANEL_SYM_LIB_TABLE_BASE or PANEL_FP_LIB_TABLE_BASE. */
+  Base: (p: LIB_TABLE_BASE_PROPS) => JSX.Element;
 }
 
 /**
@@ -241,7 +257,6 @@ export function LibTablePanel(spec: LibTablePanelSpec): JSX.Element {
 
   // The row whose DIALOG_PLUGIN_OPTIONS is up (optionsEditor).
   const [options, setOptions] = useState<{ grid: WX_GRID; row: number } | null>(null);
-  const [browseOpen, setBrowseOpen] = useState(false);
   const [, bump] = useReducer((n: number) => n + 1, 0);
   const bumpRef = useRef(bump);
 
@@ -338,8 +353,6 @@ export function LibTablePanel(spec: LibTablePanelSpec): JSX.Element {
 
   /** `browseLibrariesHandler`, over the project's own files. */
   const addExisting = (aLib: ExistingLibrary): void => {
-    setBrowseOpen(false);
-
     const grid = cur_grid();
 
     if (!grid.CommitPendingChanges()) return;
@@ -394,77 +407,19 @@ export function LibTablePanel(spec: LibTablePanelSpec): JSX.Element {
 
   return (
     <DIALOG_EDIT_LIBRARY_TABLES title={spec.title} onCancel={spec.onClose} onOK={onOK}>
-      <LibTableNotebookView notebook={notebook} ariaLabel={spec.title} />
-
-      <div className="ze-grid-btns" style={{ position: 'relative' }}>
-        <StdBitmapButton
-          bitmap="small_plus"
-          title="Add empty row to table"
-          onClick={() => LIB_TABLE_GRID_TRICKS.AppendRowHandler(cur_grid())}
-        />
-        <Button
-          label="Add Existing"
-          disabled={unregistered.length === 0}
-          title="Add Existing"
-          className="sm"
-          onClick={() => setBrowseOpen((v) => !v)}
-        />
-        {browseOpen && unregistered.length > 0 && (
-          <div
-            style={{
-              position: 'absolute',
-              bottom: '100%',
-              left: 34,
-              zIndex: 20,
-              minWidth: 240,
-              marginBottom: 4,
-              background: 'var(--chrome-bg2)',
-              border: '1px solid var(--chrome-border)',
-              borderRadius: 3,
-              fontSize: 12,
-              boxShadow: '0 6px 20px rgba(0,0,0,0.4)',
-            }}
-          >
-            {unregistered.map((lib) => (
-              <div
-                key={lib.uri}
-                className="ze-menu-item"
-                style={{ padding: '4px 12px', cursor: 'default' }}
-                onClick={() => addExisting(lib)}
-              >
-                {lib.label}
-              </div>
-            ))}
-          </div>
-        )}
-        <StdBitmapButton
-          bitmap="small_up"
-          title="Move up"
-          onClick={() => LIB_TABLE_GRID_TRICKS.MoveUpHandler(cur_grid())}
-        />
-        <StdBitmapButton
-          bitmap="small_down"
-          title="Move down"
-          onClick={() => LIB_TABLE_GRID_TRICKS.MoveDownHandler(cur_grid())}
-        />
-        {/* `bButtonsSizer->Add( 20, 0, 0, wxEXPAND, 5 )`. */}
-        <span className="ze-fieldnames-gap" />
-        <StdBitmapButton
-          bitmap="small_trash"
-          title="Remove library from table"
-          onClick={() => LIB_TABLE_GRID_TRICKS.DeleteRowHandler(cur_grid())}
-        />
-      </div>
-
-      <div>
-        <div style={{ fontSize: 12, marginBottom: 3 }}>Available path substitutions:</div>
-        <div
-          className="ze-grid-pane"
-          style={{ maxHeight: 92, overflow: 'auto' }}
-          title="This is a read-only table which shows pertinent environment variables."
-        >
-          {/* SetColLabelSize( 0 ), SetRowLabelSize( 0 ); column 1 takes the
-              rest (adjustPathSubsGridColumns). */}
+      <spec.Base
+        m_notebook={<LibTableNotebookView notebook={notebook} ariaLabel={spec.title} />}
+        onAppend={() => LIB_TABLE_GRID_TRICKS.AppendRowHandler(cur_grid())}
+        browseMenu={unregistered.map((lib) => ({
+          label: lib.label,
+          action: () => addExisting(lib),
+        }))}
+        onMoveUp={() => LIB_TABLE_GRID_TRICKS.MoveUpHandler(cur_grid())}
+        onMoveDown={() => LIB_TABLE_GRID_TRICKS.MoveDownHandler(cur_grid())}
+        onDelete={() => LIB_TABLE_GRID_TRICKS.DeleteRowHandler(cur_grid())}
+        m_path_subs_grid={
+          // SetColLabelSize( 0 ), SetRowLabelSize( 0 ); column 1 takes the rest
+          // (adjustPathSubsGridColumns).
           <WxGridView
             grid={pathSubsGrid}
             tricks={pathSubsTricks}
@@ -473,8 +428,8 @@ export function LibTablePanel(spec: LibTablePanelSpec): JSX.Element {
             flexCol={1}
             ariaLabel="Available path substitutions"
           />
-        </div>
-      </div>
+        }
+      />
 
       {options && optionsRow && optionsRow.GetNumberRows() > options.row && (
         // optionsEditor: the KiCad s-expression plugin appends no choices

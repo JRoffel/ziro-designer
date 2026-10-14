@@ -6,6 +6,7 @@
  * What each control on the selection filter, Board Finish and Physical Stackup writes, and the
  * stackup's labels: a sublayer's "(i/n)", thicknesses in the frame's units, Remove's enable.
  */
+import { SetMessageDialogPresenter } from '@ziroeda/common/confirm.js';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { type JSX, useState } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -104,5 +105,59 @@ describe('PANEL_SETUP_BOARD_STACKUP', () => {
       (screen.getByRole('button', { name: 'Remove Dielectric Layer...' }) as HTMLButtonElement)
         .disabled,
     ).toBe(false);
+  });
+});
+
+describe('Adjust Dielectric Thickness (onAdjustDielectricThickness)', () => {
+  function Harness({ units = 'mm' as 'mm' | 'mils' }): JSX.Element {
+    const [v, setV] = useState(freshBoardSetup().physicalStackup);
+    return (
+      <>
+        <PanelPcbStackup value={v} onChange={setV} units={units} />
+        <output data-testid="core">
+          {v.layers.find((l) => l.type === 'Core')?.thicknessMM ?? ''}
+        </output>
+      </>
+    );
+  }
+
+  it('asks in a wxTextEntryDialog in the frame units, then spreads the rest over the cores', () => {
+    render(<Harness />);
+    fireEvent.click(screen.getByRole('button', { name: 'Adjust Dielectric Thickness' }));
+    expect(screen.getByText('Adjust Unlocked Dielectric Layers')).toBeTruthy();
+    expect(
+      screen.getByText(/^Enter expected board thickness \(min value [\d.]+ mm\):$/),
+    ).toBeTruthy();
+    const before = screen.getByTestId('core').textContent;
+    fireEvent.change(screen.getByRole('textbox', { name: /Enter expected board thickness/ }), {
+      target: { value: '2' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+    expect(screen.queryByText('Adjust Unlocked Dielectric Layers')).toBeNull();
+    expect(screen.getByTestId('core').textContent).not.toBe(before);
+  });
+
+  it('states the minimum in the frame units, as m_frame->StringFromValue does', () => {
+    render(<Harness units="mils" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Adjust Dielectric Thickness' }));
+    expect(
+      screen.getByText(/^Enter expected board thickness \(min value [\d.]+ mils\):$/),
+    ).toBeTruthy();
+  });
+
+  it('refuses a thickness under the fixed layers with the wxMessageBox text', () => {
+    const msgs: string[] = [];
+    SetMessageDialogPresenter(async (a) => {
+      msgs.push(a.message);
+      return 0;
+    });
+    render(<Harness />);
+    fireEvent.click(screen.getByRole('button', { name: 'Adjust Dielectric Thickness' }));
+    fireEvent.change(screen.getByRole('textbox', { name: /Enter expected board thickness/ }), {
+      target: { value: '0.01' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0]).toMatch(/^Value too small \(min value [\d.]+ mm\)\.$/);
   });
 });

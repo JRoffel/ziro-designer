@@ -163,12 +163,12 @@ class PAD_FRAME extends TEST_PCB_FRAME implements PAD_TOOL_FRAME {
     this.edited.push(aItem);
   }
 
-  ShowPushPadPropertiesDialog(aDialog: DIALOG_PUSH_PAD_PROPERTIES): Promise<number> {
+  override ShowPushPadPropertiesDialog(aDialog: DIALOG_PUSH_PAD_PROPERTIES): Promise<number> {
     this.pushAsked++;
     return Promise.resolve(this.pushAnswer ? this.pushAnswer(aDialog) : wxID_CANCEL);
   }
 
-  ShowEnumPadsDialog(aDialog: DIALOG_ENUM_PADS): Promise<boolean> {
+  override ShowEnumPadsDialog(aDialog: DIALOG_ENUM_PADS): Promise<boolean> {
     this.enumAsked++;
 
     if (!this.enumAnswer) return Promise.resolve(false);
@@ -177,7 +177,7 @@ class PAD_FRAME extends TEST_PCB_FRAME implements PAD_TOOL_FRAME {
     return Promise.resolve(ok && aDialog.TransferDataFromWindow());
   }
 
-  ShowPadTableDialog(aDialog: DIALOG_FP_EDIT_PAD_TABLE): void {
+  override ShowPadTableDialog(aDialog: DIALOG_FP_EDIT_PAD_TABLE): void {
     this.tables.push(aDialog);
   }
 

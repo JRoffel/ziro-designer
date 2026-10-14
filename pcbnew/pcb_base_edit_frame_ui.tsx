@@ -34,6 +34,9 @@ import { PcbVertexEditorPane } from './widgets/vertex_editor_pane.js';
 
 import { DisplayErrorMessage, IsOK } from '@ziroeda/common/confirm.js';
 import { LSET } from '@ziroeda/common/lset.js';
+import { WX_PT_ENTRY_DIALOG } from '@ziroeda/common/dialogs/dialog_unit_entry.js';
+import { pcbIUScale } from '@ziroeda/common/eda_units.js';
+import type { VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
 import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
 import type { BOARD } from './board.js';
 import {
@@ -79,6 +82,20 @@ import type {
 import { DialogTextBoxProperties } from './dialogs/dialog_textbox_properties.js';
 import { DIALOG_COPPER_ZONE } from './dialogs/dialog_copper_zones.js';
 import type { PCB_BASE_EDIT_FRAME_DIALOG_HOOKS } from './pcb_base_edit_frame.js';
+import {
+  type DIALOG_PUSH_PAD_PROPERTIES,
+  DialogPushPadProperties,
+} from './dialogs/dialog_push_pad_properties.js';
+import { type DIALOG_ENUM_PADS, DialogEnumPads } from './dialogs/dialog_enum_pads.js';
+import {
+  type DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS,
+  DialogGlobalEditTextAndGraphics,
+} from './dialogs/dialog_global_edit_text_and_graphics.js';
+import { choiceOf } from './grid_layer_box_helpers.js';
+import {
+  type DIALOG_FP_EDIT_PAD_TABLE,
+  DialogFpEditPadTable,
+} from './dialogs/dialog_fp_edit_pad_table.js';
 import type { PCB_TABLE } from './pcb_table.js';
 
 /** [data] `.FloatingSize( 320, 360 )`, `.MinSize( 260, 200 )` (`pcb_base_edit_frame.cpp:452-454`). */
@@ -200,14 +217,40 @@ export function usePcbItemDialogs(aEnv: PCB_ITEM_DIALOGS_ENV): {
       | 'showBarcodePropertiesDialog'
       | 'showZoneSettingsDialog'
       | 'showImageFileDialog'
+      | 'showPushPadPropertiesDialog'
+      | 'showEnumPadsDialog'
+      | 'showPadTableDialog'
+      | 'showGlobalEditTextAndGraphicsDialog'
     >
   >;
+  /**
+   * `WX_PT_ENTRY_DIALOG( frame, title, labelX, labelY, value, showReset ).ShowModal()`: what each
+   * editor installs as its frame's point-entry presenter (COMMON_TOOLS::GridOrigin's dialog).
+   */
+  pointEntry: (
+    aTitle: string,
+    aLabelX: string,
+    aLabelY: string,
+    aValue: VECTOR2I,
+    aShowResetButton: boolean,
+  ) => Promise<VECTOR2I | null>;
   node: ReactNode;
 } {
   const { units, board, layerColor, background } = aEnv;
+  const [ptEntry, setPtEntry] = useState<{
+    title: string;
+    labelX: string;
+    labelY: string;
+    value: VECTOR2I;
+    reset: boolean;
+    resolve: (aValue: VECTOR2I | null) => void;
+  } | null>(null);
 
   const [pad, setPad] = useState<DIALOG_PAD_PROPERTIES | null>(null);
-  const [shape, setShape] = useState<DIALOG_SHAPE_PROPERTIES | null>(null);
+  const [shape, setShape] = useState<{
+    dialog: DIALOG_SHAPE_PROPERTIES;
+    onOK?: () => void;
+  } | null>(null);
   const [dimension, setDimension] = useState<DIALOG_DIMENSION_PROPERTIES | null>(null);
   const [text, setText] = useState<{ dialog: DIALOG_TEXT_PROPERTIES; resolve: Resolve } | null>(
     null,
@@ -240,9 +283,28 @@ export function usePcbItemDialogs(aEnv: PCB_ITEM_DIALOGS_ENV): {
     resolve: Resolve;
   } | null>(null);
 
+  /** PAD_TOOL's dialogs, each with the promise the tool waits on. */
+  const [pushPad, setPushPad] = useState<{
+    dialog: DIALOG_PUSH_PAD_PROPERTIES;
+    resolve: (aReturnCode: number) => void;
+  } | null>(null);
+  const [enumPads, setEnumPads] = useState<{ dialog: DIALOG_ENUM_PADS; resolve: Resolve } | null>(
+    null,
+  );
+  const [padTable, setPadTable] = useState<DIALOG_FP_EDIT_PAD_TABLE | null>(null);
+  const [editTg, setEditTg] = useState<DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS | null>(null);
+
   const hooks = {
+    showPushPadPropertiesDialog: (aDialog: DIALOG_PUSH_PAD_PROPERTIES) =>
+      new Promise<number>((resolve) => setPushPad({ dialog: aDialog, resolve })),
+    showEnumPadsDialog: (aDialog: DIALOG_ENUM_PADS) =>
+      new Promise<boolean>((resolve) => setEnumPads({ dialog: aDialog, resolve })),
+    showPadTableDialog: (aDialog: DIALOG_FP_EDIT_PAD_TABLE) => setPadTable(aDialog),
+    showGlobalEditTextAndGraphicsDialog: (aDialog: DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS) =>
+      setEditTg(aDialog),
     showPadPropertiesDialog: (aDialog: DIALOG_PAD_PROPERTIES) => setPad(aDialog),
-    showGraphicItemPropertiesDialog: (aDialog: DIALOG_SHAPE_PROPERTIES) => setShape(aDialog),
+    showGraphicItemPropertiesDialog: (aDialog: DIALOG_SHAPE_PROPERTIES, aOnOK?: () => void) =>
+      setShape({ dialog: aDialog, ...(aOnOK ? { onOK: aOnOK } : {}) }),
     showDimensionPropertiesDialog: (aDialog: DIALOG_DIMENSION_PROPERTIES) => setDimension(aDialog),
     showTextPropertiesDialog: (aDialog: DIALOG_TEXT_PROPERTIES) =>
       new Promise<boolean>((resolve) => setText({ dialog: aDialog, resolve })),
@@ -366,12 +428,62 @@ export function usePcbItemDialogs(aEnv: PCB_ITEM_DIALOGS_ENV): {
           }}
         />
       )}
+      {pushPad && (
+        <DialogPushPadProperties
+          dialog={pushPad.dialog}
+          onResult={(aReturnCode) => {
+            setPushPad(null);
+            pushPad.resolve(aReturnCode);
+          }}
+        />
+      )}
+      {enumPads && (
+        <DialogEnumPads
+          dialog={enumPads.dialog}
+          onResult={(aOk) => {
+            setEnumPads(null);
+            enumPads.resolve(aOk);
+          }}
+        />
+      )}
+      {padTable && <DialogFpEditPadTable dialog={padTable} onClose={() => setPadTable(null)} />}
+      {ptEntry && (
+        <WX_PT_ENTRY_DIALOG
+          caption={ptEntry.title}
+          labelX={ptEntry.labelX}
+          labelY={ptEntry.labelY}
+          defaultValue={ptEntry.value}
+          showResetButton={ptEntry.reset}
+          units={units}
+          iuScale={pcbIUScale}
+          onResult={(aValue) => {
+            setPtEntry(null);
+            ptEntry.resolve(aValue);
+          }}
+        />
+      )}
+      {editTg && board() && (
+        <DialogGlobalEditTextAndGraphics
+          dialog={editTg}
+          layers={LSET.AllLayersMask()
+            .UIOrder()
+            .filter((l) => board()!.IsLayerEnabled(l))
+            .map((l) => {
+              const c = choiceOf(l);
+              return { layer: l, label: c.label, swatch: c.swatch };
+            })}
+          onClose={() => setEditTg(null)}
+        />
+      )}
       {shape && (
         <DialogShapeProperties
-          dialog={shape}
+          dialog={shape.dialog}
           layers={layers}
           layerColor={layerColor}
-          onApplied={() => setShape(null)}
+          onApplied={() => {
+            shape.onOK?.();
+            setShape(null);
+          }}
           onClose={() => setShape(null)}
         />
       )}
@@ -462,5 +574,23 @@ export function usePcbItemDialogs(aEnv: PCB_ITEM_DIALOGS_ENV): {
     </>
   );
 
-  return { hooks, node };
+  const pointEntry = (
+    aTitle: string,
+    aLabelX: string,
+    aLabelY: string,
+    aValue: VECTOR2I,
+    aShowResetButton: boolean,
+  ): Promise<VECTOR2I | null> =>
+    new Promise((resolve) =>
+      setPtEntry({
+        title: aTitle,
+        labelX: aLabelX,
+        labelY: aLabelY,
+        value: aValue,
+        reset: aShowResetButton,
+        resolve,
+      }),
+    );
+
+  return { hooks, pointEntry, node };
 }

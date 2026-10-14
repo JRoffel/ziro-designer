@@ -258,10 +258,13 @@ export class DIALOG_FOOTPRINT_CHECKER {
 export function DialogFootprintChecker({
   frame,
   onClose,
+  onHide,
 }: {
   frame: FOOTPRINT_EDIT_FRAME;
   /** OnCancelClick: DestroyCheckerDialog. */
   onClose: () => void;
+  /** `Show( false )`: hidden, not destroyed, so the list keeps its cursor. */
+  onHide: () => void;
 }): JSX.Element {
   const [, repaint] = useReducer((n: number) => n + 1, 0);
   const [d] = useState(() => new DIALOG_FOOTPRINT_CHECKER(frame));
@@ -284,8 +287,11 @@ export function DialogFootprintChecker({
       m_markersDataView={{
         model: d.m_markersTreeModel,
         view: d.m_markersDataView,
-        // OnLeftDClickItem: a modeless checker hides itself; ours stays, the editor showing behind.
-        onDClick: () => {},
+        // OnLeftDClickItem: turn control over to the frame and hide this window, no destruction
+        // so we can preserve the listbox cursor.
+        onDClick: () => {
+          if (d.m_markersDataView.GetCurrentItem()) onHide();
+        },
         onRClick: () => {},
       }}
       m_showAll={check(d.m_showAll, 'all')}

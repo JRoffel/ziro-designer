@@ -312,4 +312,21 @@ describe('the Hatched Fill tab', () => {
     expect(add().disabled).toBe(false);
     expect(screen.getByText('All zone layers already overridden.')).toBeTruthy();
   });
+
+  it('Delete removes the row the cursor is on, not the last one (WX_GRID::OnDeleteRows)', () => {
+    open({ fillMode: 'hatch', layers: ['F.Cu', 'B.Cu'], net: 1 });
+    fireEvent.click(tab('Hatched Fill'));
+    const add = screen.getByRole('button', { name: 'Add a layer override' });
+    fireEvent.click(add);
+    fireEvent.click(add);
+    const grid = within(page('Hatched Fill'));
+    expect(grid.getByText('F.Cu')).toBeTruthy();
+    expect(grid.getByText('B.Cu')).toBeTruthy();
+
+    // The cursor onto the first row, F.Cu, then Delete.
+    fireEvent.mouseDown(grid.getByText('F.Cu').closest('td, [role="gridcell"]') as HTMLElement);
+    fireEvent.click(screen.getByRole('button', { name: 'Delete a layer override' }));
+    expect(grid.queryByText('F.Cu')).toBeNull();
+    expect(grid.getByText('B.Cu')).toBeTruthy();
+  });
 });
