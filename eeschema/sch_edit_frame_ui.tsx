@@ -295,6 +295,9 @@ import {
   type SHEET_DIALOG_VALUES,
 } from './dialogs/dialog_sheet_properties.js';
 import { useKiDialog } from '@ziroeda/common/kidialog.js';
+import type { PROJECT_FILE } from '@ziroeda/common/project/project_file.js';
+import type { JsonValue } from '@ziroeda/common/settings/json_settings_internals.js';
+import { BUS_ALIAS } from './bus_alias.js';
 import {
   DIALOG_SHAPE_PROPERTIES,
   DialogShapeProperties,
@@ -325,6 +328,7 @@ import { gridSizeToIU } from './eeschema_settings.js';
 import {
   findProjectPro,
   readSchematicSetup,
+  readSchematicSetupText,
   writeEquivalenceFilesText,
   writeSchematicSetupText,
 } from './project_settings.js';
@@ -2686,28 +2690,50 @@ export function SchematicEditor({
     return noExt || doc?.titleBlock?.title || 'schematic';
   }, [currentFile, fileName, doc]);
 
-  // Commit a new SchematicSetup: adopt it and write the project's .kicad_pro
-  // (SCHEMATIC_SETTINGS / ERC_SETTINGS / NET_SETTINGS all live there),
-  // preserving every key the dialog does not own, same flow as the
-  // drawing-sheet reference in applyPageSettings. Used by the Schematic Setup
-  // dialog's OK and by dialogs that write single settings back (Annotate).
-  const commitSetup = useCallback(
-    (next: SchematicSetup) => {
-      setSetup(next);
-      setRawFiles((prev) => {
-        const pro = findProjectPro(prev, rootPro ?? undefined);
-        if (!pro) return prev;
-        const updated = writeSchematicSetupText(pro.text, next);
-        if (updated === null || updated === pro.text) return prev;
-        const changed = { name: pro.name, text: updated };
-        // Persist now (not via the debounced autosave) so a reopen straight
-        // after the dialog reads the new settings back.
-        onPersistFiles?.([changed]);
-        return prev.map((f) => (f.name === pro.name ? changed : f));
-      });
-    },
-    [rootPro, onPersistFiles],
-  );
+  // Commit a new SchematicSetup: into the live project's PROJECT_FILE - SCHEMATIC_SETTINGS,
+  // ERC_SETTINGS, NET_SETTINGS and the text variables all nest there - then
+  // SETTINGS_MANAGER::SaveProject, as KiCad saves after DIALOG_SCHEMATIC_SETUP. The file is what
+  // the window's own copy and its `setup` are re-read from (the project mount's write listener),
+  // so the live settings are the only writer. The panels still edit the `.kicad_pro` shape, which
+  // is the interchange until each becomes its own live panel. Used by the Schematic Setup dialog's
+  // OK and by the dialogs that write single settings back (Annotate, BOM presets, net classes).
+  const commitSetup = useCallback((next: SchematicSetup) => {
+    const frame = schFrameRef.current;
+    if (!frame || !syncLiveRef.current()) {
+      console.warn('Schematic Setup: no live project to write the settings to');
+      return;
+    }
+    const projectFile = frame.Prj().GetProjectFile() as PROJECT_FILE;
+    const updated = writeSchematicSetupText(JSON.stringify(projectFile.SaveToJson()), next);
+    if (updated === null) return;
+    projectFile.LoadFromFile(JSON.parse(updated) as JsonValue);
+    // SCHEMATIC::SetBusAliases, as PANEL_SETUP_BUSES::TransferDataFromWindow ends.
+    frame.Schematic().SetBusAliases(
+      [...projectFile.m_BusAliases].map(([name, members]) => {
+        const alias = new BUS_ALIAS();
+        alias.SetName(name);
+        alias.SetMembers(members);
+        return alias;
+      }),
+    );
+    Pgm().GetSettingsManager().SaveProject();
+  }, []);
+  /** DIALOG_SCHEMATIC_SETUP's TransferDataToWindow: the live project's settings, as the panels edit them. */
+  const liveSetup = useCallback((): SchematicSetup => {
+    const frame = schFrameRef.current;
+    if (!frame || !syncLiveRef.current()) return setup;
+    const projectFile = frame.Prj().GetProjectFile() as PROJECT_FILE;
+    return {
+      ...readSchematicSetupText(JSON.stringify(projectFile.SaveToJson())),
+      embeddedFiles: setup.embeddedFiles,
+    };
+  }, [setup]);
+  /** The dialog's starting values, taken once as it opens. */
+  const [setupValue, setSetupValue] = useState<SchematicSetup | null>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: opening is the trigger; liveSetup reads the project then
+  useEffect(() => {
+    setSetupValue(setupOpen ? liveSetup() : null);
+  }, [setupOpen]);
 
   // Per-item netclass render fallbacks (wire colour/width/style, junction
   // clamp) for the current sheet, reuses the connectivity memo; undefined
@@ -6505,9 +6531,9 @@ export function SchematicEditor({
                 onClose={() => setPlotOpen(false)}
               />
             )}
-            {setupOpen && (
+            {setupOpen && setupValue && (
               <DialogSchematicSetup
-                value={setup}
+                value={setupValue}
                 onOk={(next) => {
                   commitSetup(next);
                   // The Embedded Files page edits the schematic itself (EMBEDDED_FILES lives in
