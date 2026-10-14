@@ -223,3 +223,21 @@ describe('the left toolbar and this page are one value', () => {
     }
   });
 });
+
+describe('the cross-probing checkboxes each write their own field', () => {
+  it(
+    'Zoom to fit cross-probed items is zoom_to_fit, not center_on_items',
+    async () => {
+      const before = { ...settings.pcbnew.cross_probing };
+      await openPage();
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Zoom to fit cross-probed items' }));
+      fireEvent.click(screen.getByText('OK'));
+      expect(settings.pcbnew.cross_probing.zoom_to_fit).toBe(!before.zoom_to_fit);
+      expect(settings.pcbnew.cross_probing.center_on_items).toBe(before.center_on_items);
+      settings.updatePcbnew((s) => {
+        s.cross_probing = before;
+      });
+    },
+    SLOW,
+  );
+});

@@ -600,7 +600,9 @@ describe('the Selection Filter panel', () => {
    * the identical widget — there is no `aFpEditor` here at all — and ours
    * existed only in the PCB editor.
    */
-  it('lists All items then the twelve categories, in grid order', () => {
+  // Add() order, which is the window's child (and tab) order: Points at (6,0) is added before
+  // Other items at (5,1); the wxGridBagSizer positions place them.
+  it('lists All items then the twelve categories, in Add() order', () => {
     const { container } = render(
       <SelectionFilterPanel filter={DEFAULT_SELECTION_FILTER_OPTIONS} onChange={noop} />,
     );
@@ -616,8 +618,8 @@ describe('the Selection Filter panel', () => {
       'Zones',
       'Rule Areas',
       'Dimensions',
-      'Other items',
       'Points',
+      'Other items',
     ]);
     expect(SELECTION_FILTER_ITEMS).toHaveLength(12);
   });

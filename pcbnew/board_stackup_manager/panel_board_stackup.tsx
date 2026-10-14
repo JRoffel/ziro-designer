@@ -32,9 +32,24 @@
  * solderMaskMaterial / silkscreenMaterial).
  */
 
-import { Button, CheckBox, TextCtrl } from '@ziroeda/wx/controls.js';
-import { useRef, useState, type JSX } from 'react';
-import { pcbIUScale } from '@ziroeda/common/eda_units.js';
+import { Button, CheckBox, Choice, StaticText, TextCtrl } from '@ziroeda/wx/controls.js';
+import { type JSX, useRef, useState } from 'react';
+import { pcbIUScale, pcbIuToMM, pcbMmToIU } from '@ziroeda/common/eda_units.js';
+import { bitmapUrl } from '@ziroeda/common/bitmap_store.js';
+import {
+  wxALIGN_CENTER_HORIZONTAL,
+  wxALIGN_CENTER_VERTICAL,
+  wxALIGN_RIGHT,
+  wxEXPAND,
+  wxHORIZONTAL,
+  wxLEFT,
+  wxRIGHT,
+} from '@ziroeda/wx/defs.js';
+import { BoxSizer, SizerItem } from '@ziroeda/wx/sizer.js';
+import {
+  COPPER_LAYER_CHOICES,
+  PANEL_SETUP_BOARD_STACKUP_BASE,
+} from './panel_board_stackup_base.js';
 import type { Color4d } from '@ziroeda/common/gal/color4d.js';
 import { BOARD_STACKUP_ITEM_TYPE } from './board_stackup.js';
 import {
@@ -47,7 +62,7 @@ import { BuildStackupReport } from './board_stackup_reporter.js';
 import { DialogDielectricMaterial, type Substrate } from './dialog_dielectric_list_manager.js';
 import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
 import { Combo } from '@ziroeda/wx/combobox.js';
-import { stringFromValue } from '@ziroeda/common/widgets/unit_binder.js';
+import { parseUnitValue, stringFromValue } from '@ziroeda/common/widgets/unit_binder.js';
 import { EdaListDialog } from '@ziroeda/common/dialogs/eda_list_dialog.js';
 import type { PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import { LSET } from '@ziroeda/common/lset.js';
@@ -292,8 +307,6 @@ export const PANEL_SETUP_BOARD_STACKUP = {
   },
 };
 
-const COPPER_COUNTS = [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32];
-
 // Which editable fields a row's type carries (Solder Paste rows carry none).
 /**
  * `BOARD_STACKUP_ITEM`'s four editability predicates, one per column group
@@ -432,26 +445,12 @@ interface Props {
   units: StatusUnits;
 }
 
-// KiCad's 12-column wxFlexGridSizer (borderless form; Material has a browse
-// button in its own column). Content-sized columns, no cell borders/gridlines.
-const HEADERS = [
-  'Layer',
-  'Id',
-  'Type',
-  'Material',
-  '',
-  'Thickness',
-  '',
-  'Color',
-  'Epsilon R',
-  'Loss Tan',
-];
-const GRID_COLS = '40px 96px 138px 118px 26px 84px 26px 150px 64px 64px';
 /** A picked material-browse / add / remove target. */
 type MaterialTarget = { layer: number; sub: number }; // sub 0 = main
 type ListPick = { title: string; label: string; items: string[]; onPick: (index: number) => void };
 
 export function PanelPcbStackup({ value, onChange, finish, units }: Props): JSX.Element {
+  const [texts, setTexts] = useState<Record<string, string>>({});
   const num = (s: string): number => (Number.isFinite(Number(s)) ? Number(s) : 0);
   const setLayer = (i: number, patch: Partial<StackupLayer>): void =>
     onChange({ ...value, layers: value.layers.map((l, j) => (j === i ? { ...l, ...patch } : l)) });
@@ -723,23 +722,26 @@ export function PanelPcbStackup({ value, onChange, finish, units }: Props): JSX.
     else setSub(target.layer, target.sub - 1, patch);
   };
 
-  const txt = (
-    v: string | number | undefined,
-    onText: (s: string) => void,
-    numeric: boolean,
-  ): JSX.Element => (
-    <input
-      className="ze-search"
-      type="text"
-      style={{ width: '100%', boxSizing: 'border-box' }}
-      value={v ?? ''}
-      onChange={(e) => onText(e.target.value)}
-      data-numeric={numeric || undefined}
-    />
+  /** m_numericTextCtrlSize / m_numericFieldsSize: GetTextExtent of these. */
+  const NUMERIC_TEXT_CTRL = 'XXX.XXXXXXX mils';
+  const NUMERIC_FIELD = 'X.XXXXXXX';
+  /** The text a field holds while it is typed, by row and column. */
+  const field = (aKey: string, aShown: string, aOn: (aText: string) => void) => ({
+    value: texts[aKey] ?? aShown,
+    onChange: (aText: string) => {
+      setTexts((t) => ({ ...t, [aKey]: aText }));
+      aOn(aText);
+    },
+    onBlur: () => setTexts(({ [aKey]: _, ...rest }) => rest),
+  });
+  /** `addSpacer`: an empty wxStaticText, Insert()ed wxALIGN_CENTER_VERTICAL. */
+  const spacer = (aKey: string) => (
+    <SizerItem key={aKey} flag={wxALIGN_CENTER_VERTICAL} border={0}>
+      <StaticText label="" />
+    </SizerItem>
   );
-  const blank = <span />;
 
-  // One grid row (10 cells: the 9 columns, Material split into field + browse).
+  /** `lazyBuildRowUI`: one row, nine cells, as the class Insert()s them. */
   const renderRow = (l: StackupLayer, i: number, sub: number): JSX.Element[] => {
     const diel = isDielectric(l);
     const p = sub === 0 ? l : l.sublayers![sub - 1]!;
@@ -748,81 +750,133 @@ export function PanelPcbStackup({ value, onChange, finish, units }: Props): JSX.
       if (sub === 0) setLayer(i, patch as Partial<StackupLayer>);
       else setSub(i, sub - 1, patch as Partial<DielectricSublayer>);
     };
-    return [
-      // Layer: colour swatch (main rows only)
-      <div key={`${key}-sw`} className="ze-stackup-swcell">
-        {/* `lazyBuildRowUI` inserts a wxStaticBitmap for EVERY row
-            (`panel_board_stackup.cpp:807-810`) and `updateIconColor` fills it
-            with a `m_colorIconsSize.x` x `m_colorIconsSize.y / 2` bitmap —
-            24 x 7, a bar, not the 14 x 14 square the Color combo uses. */}
+    const cells: JSX.Element[] = [];
+
+    // The colour swatch: a 24 x 7 bar (m_colorIconsSize.x by .y / 2).
+    cells.push(
+      <SizerItem
+        key={`${key}-sw`}
+        flag={wxRIGHT | wxALIGN_CENTER_VERTICAL | wxALIGN_RIGHT}
+        border={4}
+      >
         <span className="ze-stackup-swatch" style={{ background: iconColorOf(l) }} />
-      </div>,
-      // Id: name; sublayers show their "i/n" ordinal, like the C++ rows.
-      <div key={`${key}-id`} style={sub ? { paddingLeft: 12 } : undefined}>
-        {sub === 0 ? l.name : `sublayer ${sub + 1}/${subCountOf(l)}`}
-      </div>,
-      // Type. A dielectric's main row is a `wxChoice` of Core / Prepreg — the
-      // one editable Type cell on the page; its sublayers get `addSpacer()` and
-      // every other layer a `wxStaticText` (`panel_board_stackup.cpp:828-861`).
-      // This drew all of them as text, so Core/Prepreg could not be changed.
-      <div key={`${key}-ty`}>
-        {sub !== 0 ? (
-          blank
-        ) : diel ? (
-          <Combo
-            value={l.type}
-            ariaLabel={`${l.name} type`}
-            options={DIELECTRIC_TYPES.map(([v, label]) => ({ value: v, label }))}
-            onChange={(t) => setLayer(i, { type: t })}
-          />
-        ) : (
-          l.type
-        )}
-      </div>,
-      // Material
-      <div key={`${key}-mat`}>
-        {hasField(l.type, 'mat') ? txt(p.material, (s) => setP({ material: s }), false) : blank}
-      </div>,
-      // Material browse button
-      <div key={`${key}-matb`}>
-        {hasField(l.type, 'mat') ? (
-          <button
-            type="button"
-            className="ze-gridbtn"
-            style={{ width: 24, height: 24 }}
-            title="Select material"
-            onClick={() => openMaterial(i, sub)}
+      </SizerItem>,
+    );
+
+    if (diel) {
+      // FormatDielectricLayerName, and "  (i/n)" on a layer of several.
+      const n = subCountOf(l);
+      cells.push(
+        <SizerItem key={`${key}-nm`} flag={wxRIGHT | wxALIGN_CENTER_VERTICAL} border={2}>
+          <StaticText label={n > 1 ? `${l.name}  (${sub + 1}/${n})` : l.name} />
+        </SizerItem>,
+      );
+      cells.push(
+        sub === 0 ? (
+          <SizerItem
+            key={`${key}-ty`}
+            proportion={1}
+            flag={wxEXPAND | wxLEFT | wxRIGHT | wxALIGN_CENTER_VERTICAL}
+            border={2}
           >
-            ...
-          </button>
+            <Choice
+              choices={DIELECTRIC_TYPES.map(([, label]) => label)}
+              choice={{
+                value: DIELECTRIC_TYPES.findIndex(([v]) => v === l.type),
+                onChange: (k) => setLayer(i, { type: DIELECTRIC_TYPES[k]![0] }),
+              }}
+              ariaLabel={`${l.name} type`}
+            />
+          </SizerItem>
         ) : (
-          blank
-        )}
-      </div>,
-      // Thickness
-      <div key={`${key}-th`}>
-        {hasField(l.type, 'thick')
-          ? txt(p.thicknessMM, (s) => setP({ thicknessMM: num(s) }), true)
-          : blank}
-      </div>,
-      // Lock (dielectric main + sublayers)
-      <div key={`${key}-lk`} style={{ textAlign: 'center' }}>
-        {diel ? (
-          <input
-            type="checkbox"
-            title="Locked thickness"
-            checked={!!p.locked}
-            onChange={(e) => setP({ locked: e.target.checked })}
+          spacer(`${key}-ty`)
+        ),
+      );
+    } else {
+      cells.push(
+        <SizerItem key={`${key}-nm`} flag={wxLEFT | wxRIGHT | wxALIGN_CENTER_VERTICAL} border={1}>
+          <StaticText label={l.name} />
+        </SizerItem>,
+      );
+      cells.push(
+        <SizerItem key={`${key}-ty`} flag={wxLEFT | wxRIGHT | wxALIGN_CENTER_VERTICAL} border={2}>
+          <StaticText label={l.type} />
+        </SizerItem>,
+      );
+    }
+
+    if (hasField(l.type, 'mat')) {
+      cells.push(
+        <SizerItem key={`${key}-mat`} proportion={1} flag={wxRIGHT | wxEXPAND} border={4}>
+          {/* bSizerMat: the material and its "..." button */}
+          <BoxSizer orient={wxHORIZONTAL}>
+            <SizerItem flag={wxALIGN_CENTER_VERTICAL | wxLEFT} border={5}>
+              <TextCtrl
+                {...field(`${key}-mat`, p.material || 'Not specified', (aText) =>
+                  setP({ material: aText }),
+                )}
+                minWidthText={NUMERIC_TEXT_CTRL}
+                ariaLabel={`${l.name} material`}
+              />
+            </SizerItem>
+            <SizerItem flag={wxALIGN_CENTER_VERTICAL} border={2}>
+              <Button label="..." exactFit onClick={() => openMaterial(i, sub)} />
+            </SizerItem>
+          </BoxSizer>
+        </SizerItem>,
+      );
+    } else cells.push(spacer(`${key}-mat`));
+
+    if (hasField(l.type, 'thick')) {
+      // m_frame->StringFromValue( thickness, true ), read back in the frame's units.
+      cells.push(
+        <SizerItem key={`${key}-th`} flag={wxLEFT | wxRIGHT | wxALIGN_CENTER_VERTICAL} border={2}>
+          <TextCtrl
+            {...field(
+              `${key}-th`,
+              stringFromValue(pcbMmToIU(p.thicknessMM ?? 0), units, true, pcbIUScale),
+              (aText) =>
+                setP({
+                  thicknessMM: pcbIuToMM(pcbMmToIU(parseUnitValue(aText, units, pcbIUScale))),
+                }),
+            )}
+            minWidthText={NUMERIC_TEXT_CTRL}
+            ariaLabel={`${l.name} thickness`}
           />
+        </SizerItem>,
+      );
+      cells.push(
+        diel ? (
+          <SizerItem
+            key={`${key}-lk`}
+            flag={wxALIGN_CENTER_VERTICAL | wxALIGN_CENTER_HORIZONTAL}
+            border={2}
+          >
+            <CheckBox
+              label=""
+              ariaLabel={`${l.name} thickness locked`}
+              checked={!!p.locked}
+              onChange={(b) => setP({ locked: b })}
+            />
+          </SizerItem>
         ) : (
-          blank
-        )}
-      </div>,
-      // Color (main rows only)
-      <div key={`${key}-cl`}>
-        {sub === 0 && hasField(l.type, 'color') ? (
-          // A `wxBitmapComboBox`: every entry carries its own colour swatch,
-          // which is exactly `ComboOption.swatch`.
+          spacer(`${key}-lk`)
+        ),
+      );
+    } else {
+      cells.push(spacer(`${key}-th`));
+      cells.push(spacer(`${key}-lk`));
+    }
+
+    if (sub === 0 && hasField(l.type, 'color')) {
+      // createColorBox: a wxBitmapComboBox, a swatch on every entry.
+      cells.push(
+        <SizerItem
+          key={`${key}-cl`}
+          proportion={1}
+          flag={wxLEFT | wxRIGHT | wxALIGN_CENTER_VERTICAL | wxEXPAND}
+          border={2}
+        >
           <Combo
             value={l.color || 'Not specified'}
             ariaLabel={`${l.name} color`}
@@ -833,93 +887,63 @@ export function PanelPcbStackup({ value, onChange, finish, units }: Props): JSX.
             }))}
             onChange={(c) => setLayer(i, { color: c })}
           />
-        ) : (
-          blank
-        )}
-      </div>,
-      // Epsilon R
-      <div key={`${key}-ep`}>
-        {hasField(l.type, 'eps') ? txt(p.epsilonR, (s) => setP({ epsilonR: num(s) }), true) : blank}
-      </div>,
-      // Loss Tan
-      <div key={`${key}-lt`}>
-        {hasField(l.type, 'eps') ? txt(p.lossTan, (s) => setP({ lossTan: num(s) }), true) : blank}
-      </div>,
-    ];
+        </SizerItem>,
+      );
+    } else cells.push(spacer(`${key}-cl`));
+
+    for (const [k, field2] of [
+      ['ep', 'epsilonR'],
+      ['lt', 'lossTan'],
+    ] as const) {
+      if (hasField(l.type, 'eps')) {
+        // UIDouble2Str
+        cells.push(
+          <SizerItem
+            key={`${key}-${k}`}
+            flag={wxLEFT | wxRIGHT | wxALIGN_CENTER_VERTICAL}
+            border={2}
+          >
+            <TextCtrl
+              {...field(`${key}-${k}`, String(p[field2] ?? ''), (aText) =>
+                setP({ [field2]: num(aText) }),
+              )}
+              minWidthText={NUMERIC_FIELD}
+              ariaLabel={`${l.name} ${field2 === 'epsilonR' ? 'epsilon R' : 'loss tangent'}`}
+            />
+          </SizerItem>,
+        );
+      } else cells.push(spacer(`${key}-${k}`));
+    }
+
+    return cells;
   };
 
   return (
-    <div className="ze-stackup">
-      {/* Top options */}
-      <div className="ze-stackup-bar">
-        <span>Copper layers:</span>
-        <Combo
-          value={String(value.copperCount)}
-          ariaLabel="Copper layers"
-          options={COPPER_COUNTS.map((c) => ({ value: String(c), label: String(c) }))}
-          onChange={(c) => setCount(Number(c))}
-        />
-        {/* `bTopSizer->Add( 40, 0, 1, wxEXPAND, 5 )` appears TWICE — once before
-            the checkbox and once after (`panel_board_stackup_base.cpp:37`,
-            `:46`). Only the second one was here, so the checkbox sat against
-            the copper-layers choice instead of centred between the two. */}
-        <span className="ze-stackup-spacer" />
-        <CheckBox
-          label="Impedance controlled"
-          checked={value.impedanceControlled}
-          className="ze-pref-check"
-          onChange={(aChecked) => onChange({ ...value, impedanceControlled: aChecked })}
-        />
-        <span className="ze-stackup-spacer" />
-        <Button label="Add Dielectric Layer..." onClick={onAddDielectric} />
-        <Button
-          label="Remove Dielectric Layer..."
-          disabled={!removableExists}
-          onClick={onRemoveDielectric}
-        />
-      </div>
-
-      {/* Stackup grid: borderless flexgrid (no table/cell borders), like KiCad. */}
-      <div className="ze-stackup-scroll">
-        <div className="ze-stackup-grid" style={{ gridTemplateColumns: GRID_COLS }}>
-          {/* Header row */}
-          {HEADERS.map((h, i) => (
-            <div key={`h${i}`} className="ze-stackup-head">
-              {h}
-            </div>
-          ))}
-
-          {/* Layer rows + dielectric sublayer rows */}
-          {value.layers.flatMap((l, i) => [
-            ...renderRow(l, i, 0),
-            ...(l.sublayers ?? []).flatMap((_, si) => renderRow(l, i, si + 1)),
-          ])}
-        </div>
-      </div>
-
-      {/* Bottom: board thickness + actions */}
-      <div className="ze-stackup-bar">
-        <span>Board thickness from stackup:</span>
-        {/* `m_tcCTValue->ChangeValue( m_frame->StringFromValue( thickness, true ) )`
-            (`panel_board_stackup.cpp:590-594`) — the unit is IN the field, so
-            there is no separate label beside it, and the value is trimmed of
-            trailing zeros rather than fixed at three decimals ("1.6 mm", not
-            "1.620"). It is `wxTE_READONLY`. */}
-        <TextCtrl
-          value={stringFromValue(boardThickness, 'mm', true, pcbIUScale)}
-          readOnly
-          className="ze-search ze-stackup-thickness"
-          ariaLabel="Board thickness from stackup"
-        />
-        {/* `bBottomSizer->Add( 10, 0, 0, wxEXPAND )` — a FIXED 10px gap, then
-            Adjust; the growable spacer comes after it, which is what puts
-            Export hard right and Adjust beside the field (`:139-148`). This had
-            the growable spacer first, so both buttons bunched on the right. */}
-        <span className="ze-stackup-gap10" />
-        <Button label="Adjust Dielectric Thickness" onClick={onAdjustThickness} />
-        <span className="ze-stackup-spacer" />
-        <Button label="Export to Clipboard" onClick={onExport} />
-      </div>
+    <>
+      <PANEL_SETUP_BOARD_STACKUP_BASE
+        m_choiceCopperLayers={{
+          value: COPPER_LAYER_CHOICES.indexOf(String(value.copperCount)),
+          onChange: (k) => setCount(Number(COPPER_LAYER_CHOICES[k])),
+        }}
+        m_impedanceControlled={{
+          value: value.impedanceControlled,
+          onChange: (b) => onChange({ ...value, impedanceControlled: b }),
+        }}
+        onAddDielectricLayer={onAddDielectric}
+        onRemoveDielectricLayer={onRemoveDielectric}
+        // onRemoveDielUI: only while some dielectric has sublayers.
+        removeEnabled={removableExists}
+        lockBitmap={bitmapUrl('locked')}
+        rows={value.layers.flatMap((l, i) => [
+          ...renderRow(l, i, 0),
+          ...(l.sublayers ?? []).flatMap((_, si) => renderRow(l, i, si + 1)),
+        ])}
+        // m_tcCTValue->ChangeValue( m_frame->StringFromValue( thickness, true ) )
+        m_tcCTValue={stringFromValue(boardThickness, units, true, pcbIUScale)}
+        minWidthText={NUMERIC_TEXT_CTRL}
+        onAdjustDielectricThickness={onAdjustThickness}
+        onExportToClipboard={onExport}
+      />
 
       {/* EDA_LIST_DIALOG for add/remove dielectric — the shared component, so
           this picker and the Add User Defined Layer picker are one widget. */}
@@ -945,6 +969,6 @@ export function PanelPcbStackup({ value, onChange, finish, units }: Props): JSX.
             <DialogDielectricMaterial materialList={matLists()[lt]} onSubmit={onMaterialSubmit} />
           );
         })()}
-    </div>
+    </>
   );
 }

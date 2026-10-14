@@ -35,22 +35,26 @@ function Harness({ initial }: { initial: PhysicalStackup }): JSX.Element {
   return <PanelPcbStackup value={v} onChange={setV} units="mm" />;
 }
 
-/** The grid cells of the row whose Id cell reads `name`. */
+/** The rebuilt m_fgGridSizer: the nine-column flex grid the titles head. */
+const grid = (): HTMLElement =>
+  screen.getByText('Loss Tan').closest('.ze-szi')!.parentElement as HTMLElement;
+
+/** The nine cells lazyBuildRowUI Insert()s for the row whose name cell reads `name`. */
 function cellsOf(name: string): HTMLElement[] {
-  const cells = [...document.querySelectorAll('.ze-stackup-grid > div')];
+  const cells = [...grid().children] as HTMLElement[];
   const idIdx = cells.findIndex((c) => c.textContent === name);
   if (idIdx === -1) throw new Error(`no stackup row named ${name}`);
-  // The Id cell is the 2nd of the row's cells; a row is one repeat of the grid.
-  return cells.slice(idIdx - 1, idIdx - 1 + 10) as HTMLElement[];
+  // The name is the 2nd of the row's cells, after the swatch.
+  return cells.slice(idIdx - 1, idIdx - 1 + 9);
 }
 
 const has = (name: string, cellIndex: number): boolean =>
   cellsOf(name)[cellIndex]!.querySelector('input, .ze-combo') !== null;
 
-// Cell order inside a row, from renderRow: swatch, id, type, material,
-// material-browse, thickness, lock, color, epsilon, loss-tan, …
+// Cell order inside a row, from lazyBuildRowUI: swatch, name, type, material (with its "..."),
+// thickness, lock, color, epsilon, loss tangent.
 const MATERIAL = 3;
-const THICKNESS = 5;
+const THICKNESS = 4;
 
 describe('which cells each row type draws', () => {
   it('gives copper a thickness and no material', () => {
@@ -140,29 +144,32 @@ describe('board thickness from stackup', () => {
 });
 
 describe('the option and thickness bars are single wx rows', () => {
+  /** The children of the sizer that holds `aText`'s control. */
+  const barOf = (aText: string): Element[] => [
+    ...screen.getByText(aText).closest('.ze-szi')!.parentElement!.children,
+  ];
+
   it('puts two growable spacers in the top bar', () => {
-    // `bTopSizer` adds `40, 0, 1, wxEXPAND` before AND after the checkbox
-    // (`panel_board_stackup_base.cpp:37`, `:46`); only one was here.
+    // `bTopSizer` adds `40, 0, 1, wxEXPAND` before AND after the checkbox.
     render(<Harness initial={freshBoardSetup().physicalStackup} />);
-    const bar = document.querySelector('.ze-stackup-bar')!;
-    expect(bar.querySelectorAll(':scope > .ze-stackup-spacer')).toHaveLength(2);
+    expect(
+      barOf('Add Dielectric Layer...').filter((k) => k.classList.contains('ze-szspacer')),
+    ).toHaveLength(2);
   });
 
   it('puts the bottom bar spacer between Adjust and Export', () => {
-    // `bBottomSizer`: value, fixed 10px, Adjust, growable spacer, Export
-    // (`:139-148`) — which is what holds Export hard right on its own.
+    // `bBottomSizer`: value, fixed 10px, Adjust, growable spacer, Export.
     render(<Harness initial={freshBoardSetup().physicalStackup} />);
-    const bars = document.querySelectorAll('.ze-stackup-bar');
-    const bottom = bars[bars.length - 1]!;
-    const kids = [...bottom.children];
+    const kids = barOf('Export to Clipboard');
     const adjust = kids.findIndex((k) => k.textContent === 'Adjust Dielectric Thickness');
-    const spacer = kids.findIndex((k) => k.classList.contains('ze-stackup-spacer'));
+    const spacers = kids
+      .map((k, i) => (k.classList.contains('ze-szspacer') ? i : -1))
+      .filter((i) => i >= 0);
     const exportBtn = kids.findIndex((k) => k.textContent === 'Export to Clipboard');
-    expect(adjust).toBeGreaterThan(-1);
-    expect(spacer).toBeGreaterThan(adjust);
-    expect(exportBtn).toBeGreaterThan(spacer);
-    // and the fixed 10px gap sits before Adjust, not after.
-    expect(kids.findIndex((k) => k.classList.contains('ze-stackup-gap10'))).toBeLessThan(adjust);
+    expect(spacers).toHaveLength(2);
+    expect(spacers[0]).toBeLessThan(adjust);
+    expect(spacers[1]).toBeGreaterThan(adjust);
+    expect(exportBtn).toBeGreaterThan(spacers[1]!);
   });
 });
 
@@ -254,17 +261,20 @@ describe('the material dialog', () => {
   afterEach(cleanup);
 
   const open = (row: string): void => {
-    const btn = cellsOf(row)[MATERIAL + 1]!.querySelector('button')!;
+    const btn = cellsOf(row)[MATERIAL]!.querySelector('button')!;
     fireEvent.click(btn);
   };
-  const listRows = (): HTMLTableRowElement[] => [
-    ...document.querySelectorAll<HTMLTableRowElement>('.ze-dielmat-list tbody tr'),
-  ];
-  const field = (label: string): HTMLInputElement => {
-    const spans = [...document.querySelectorAll('.ze-dielmat-grid span')];
-    const span = spans.find((s) => s.textContent === label)!;
-    return span.nextElementSibling as HTMLInputElement;
-  };
+  /** m_lcMaterials' rows, each a row of cells (the header excluded). */
+  const listRows = (): (HTMLElement & { cells: HTMLElement[] })[] =>
+    [
+      ...document.querySelectorAll<HTMLElement>(
+        '[aria-label="Common materials"] [role="listitem"]',
+      ),
+    ].map((r) => Object.assign(r, { cells: [...r.children] as HTMLElement[] }));
+  const field = (label: string): HTMLInputElement =>
+    screen.getByRole('textbox', {
+      name: label.replace(/:$/, '') === 'Material' ? 'Name' : label.replace(/:$/, ''),
+    }) as HTMLInputElement;
 
   it('opens with Material empty, Epsilon R 1 and Loss Tan 0, on the type’s own list', () => {
     render(<Harness initial={freshBoardSetup().physicalStackup} />);
@@ -332,7 +342,7 @@ describe('the material dialog', () => {
     fireEvent.click(screen.getByText('OK'));
     expect(alerts).toEqual(['Incorrect value for Epsilon R']);
     // The dialog stays open.
-    expect(document.querySelector('.ze-dielmat-list')).not.toBeNull();
+    expect(document.querySelector('[aria-label="Common materials"]')).not.toBeNull();
   });
 
   it('Delete on a selected row drops it from the panel’s list, but never row 0', () => {
@@ -340,7 +350,7 @@ describe('the material dialog', () => {
     open('Dielectric 1');
     const before = listRows().length;
     fireEvent.click(listRows()[2]!); // FR408-HR
-    const pane = document.querySelector<HTMLElement>('.ze-dielmat-list')!;
+    const pane = document.querySelector<HTMLElement>('.ze-listctrl')!;
     fireEvent.keyDown(pane, { key: 'Delete' });
     expect(listRows().length).toBe(before - 1);
     expect(listRows().map((r) => r.cells[0]!.textContent)).not.toContain('FR408-HR');

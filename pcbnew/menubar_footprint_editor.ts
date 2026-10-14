@@ -379,7 +379,7 @@ export function footprintEditorMenus(
         },
         SEP,
         // pcb_actions.cpp:954 — FriendlyName "Footprint Checker", no ellipsis.
-        stub('Footprint Checker', 'checkFootprint'),
+        act('Footprint Checker', 'checkFootprint'),
         SEP,
         // `PCB_ACTIONS::showDatasheet` is inherited: PCB_ACTIONS derives from
         // ACTIONS (`pcb_actions.h:50`) and defines no showDatasheet of its own,

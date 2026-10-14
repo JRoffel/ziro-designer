@@ -18,7 +18,7 @@
  */
 
 import type { JSX } from 'react';
-import { Check, Sel } from '@ziroeda/common/dialogs/pref_controls.js';
+import { PANEL_SETUP_BOARD_FINISH_BASE } from './panel_board_finish_base.js';
 import { GetStandardCopperFinishes } from './stackup_predefined_prms.js';
 import type { BOARD } from '../board.js';
 import type { BS_EDGE_CONNECTOR_CONSTRAINTS } from './board_stackup.js';
@@ -63,40 +63,32 @@ export const PANEL_SETUP_BOARD_FINISH = {
 };
 
 // [data] `m_choiceEdgeConnChoices` (panel_board_finish_base.cpp:41).
-const EDGE_CARD = ['None', 'Yes', 'Yes, bevelled'];
 
 interface Props {
   value: BoardFinish;
   onChange: (next: BoardFinish) => void;
 }
 
+/** PANEL_SETUP_BOARD_FINISH's window: its base over the stackup's finish fields. */
 export function PanelPcbBoardFinish({ value, onChange }: Props): JSX.Element {
   const set = <K extends keyof BoardFinish>(k: K, v: BoardFinish[K]): void =>
     onChange({ ...value, [k]: v });
+  const finishes = GetStandardCopperFinishes();
 
   return (
-    <div className="ze-pref-page-natural">
-      <Check
-        label="Plated board edge"
-        checked={value.platedBoardEdge}
-        onChange={(b) => set('platedBoardEdge', b)}
-      />
-      {/* [data] `bMargins->Add( fgSizer2, 1, wxEXPAND|wxTOP, 10 )`. */}
-      <div className="ze-pref-group-body ze-pcb-finish-grid">
-        <Sel
-          label="Copper finish:"
-          value={value.copperFinish}
-          options={GetStandardCopperFinishes().map((f) => [f, f] as [string, string])}
-          onChange={(f) => set('copperFinish', f)}
-        />
-        <Sel
-          label="Edge card connectors:"
-          title="Options for edge card connectors."
-          value={value.edgeCardConnectors}
-          options={EDGE_CARD.map((e) => [e, e] as [string, string])}
-          onChange={(e) => set('edgeCardConnectors', e)}
-        />
-      </div>
-    </div>
+    <PANEL_SETUP_BOARD_FINISH_BASE
+      m_cbEgdesPlated={{ value: value.platedBoardEdge, onChange: (b) => set('platedBoardEdge', b) }}
+      m_choiceFinish={{
+        choices: finishes,
+        value: finishes.indexOf(value.copperFinish),
+        onChange: (i) => set('copperFinish', finishes[i]!),
+      }}
+      m_choiceEdgeConn={{
+        value: EDGE_CONNECTORS.indexOf(
+          value.edgeCardConnectors as (typeof EDGE_CONNECTORS)[number],
+        ),
+        onChange: (i) => set('edgeCardConnectors', EDGE_CONNECTORS[i]!),
+      }}
+    />
   );
 }

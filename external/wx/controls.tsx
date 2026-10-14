@@ -7,7 +7,7 @@
  * wxComboBox re-exported from `combobox.tsx`. ONE file for wx's core controls, by decision
  * (10-10): wx is outside KiCad's tree, so splitting it per wx header buys no KiCad match.
  */
-import type { JSX, MouseEvent, ReactNode, Ref } from 'react';
+import { type JSX, type MouseEvent, type ReactNode, type Ref, useState } from 'react';
 
 /** wxChoice and wxComboBox, part of the wx layer like the controls below. */
 import { Combo } from './combobox.js';
@@ -79,11 +79,17 @@ export function CheckBox({
   title,
   className,
   ariaLabel,
+  onContextMenu,
+  font,
 }: {
   /** Its text; a wxDataViewListCtrl toggle row puts its icon-text cell here. */
   label: ReactNode;
+  /** `SetFont( KIUI::GetInfoFont( this ) )`. */
+  font?: 'info';
   /** The accessible name of a box whose label is wxEmptyString. */
   ariaLabel?: string;
+  /** wxEVT_RIGHT_DOWN on the box. */
+  onContextMenu?: (aX: number, aY: number) => void;
   checked?: boolean;
   onChange?: (aChecked: boolean) => void;
   /** The `_base` member instead of `checked` / `onChange` / `disabled`. */
@@ -97,7 +103,18 @@ export function CheckBox({
   const change = check ? check.onChange : onChange;
 
   return (
-    <label className={`ze-check${className ? ` ${className}` : ''}`} title={title}>
+    <label
+      className={`ze-check${font === 'info' ? ' info' : ''}${className ? ` ${className}` : ''}`}
+      title={title}
+      onContextMenu={
+        onContextMenu
+          ? (e) => {
+              e.preventDefault();
+              onContextMenu(e.clientX, e.clientY);
+            }
+          : undefined
+      }
+    >
       <input
         type="checkbox"
         checked={value}
@@ -253,8 +270,14 @@ export function TextCtrl({
   autoFocus,
   maxLength,
   foregroundColour,
+  minWidthText,
 }: {
   value: string;
+  /**
+   * `SetMinSize( GetTextExtent( text ) )`: the whole control exactly as wide as that text would
+   * be, as the stackup's fields are.
+   */
+  minWidthText?: string;
   onChange?: (aValue: string) => void;
   onEnter?: () => void;
   /** wxEVT_KILL_FOCUS. */
@@ -294,7 +317,7 @@ export function TextCtrl({
     onChange: (e: { target: { value: string } }) => onChange?.(e.target.value),
   };
   if (multiLine) return <textarea ref={textAreaRef} {...common} />;
-  return (
+  const input = (
     <input
       ref={inputRef}
       type="text"
@@ -306,6 +329,13 @@ export function TextCtrl({
         }
       }}
     />
+  );
+  if (minWidthText === undefined) return input;
+  return (
+    <span className="ze-textctrl-minw">
+      {input}
+      <span aria-hidden="true">{minWidthText}</span>
+    </span>
   );
 }
 
@@ -412,6 +442,26 @@ export function Gauge({ value, range }: { value: number; range: number }): JSX.E
   return <progress className="ze-gauge" max={range} value={value} />;
 }
 
+let g_measureCtx: CanvasRenderingContext2D | null | undefined;
+
+/**
+ * `wxWindow::GetTextExtent( text ).x`: the text's width in the dialog font. Without a canvas (a
+ * test DOM) it is an estimate of 7 px a character.
+ */
+export function GetTextExtent(aText: string): number {
+  if (g_measureCtx === undefined) {
+    try {
+      g_measureCtx = document.createElement('canvas').getContext('2d');
+    } catch {
+      g_measureCtx = null;
+    }
+  }
+  if (!g_measureCtx) return aText.length * 7;
+  const app = document.querySelector('.ze-app') ?? document.body;
+  g_measureCtx.font = getComputedStyle(app).font || '13px sans-serif';
+  return Math.ceil(g_measureCtx.measureText(aText).width);
+}
+
 /**
  * `wxListCtrl( …, wxLC_REPORT | wxLC_NO_HEADER )`: rows of columns at the widths
  * `InsertColumn` / `SetColumnWidth` gave them. `onRightClick` is wxEVT_LIST_ITEM_RIGHT_CLICK.
@@ -421,24 +471,81 @@ export function ListCtrl({
   columnWidths,
   onRightClick,
   ariaLabel,
+  headers,
+  selection,
+  onSelect,
+  onKeyDown,
+  selectedRows,
+  onSelectRows,
+  onActivate,
 }: {
   rows: readonly (readonly string[])[];
   columnWidths: readonly number[];
   onRightClick?: (aRow: number, aEvent: MouseEvent) => void;
   ariaLabel?: string;
+  /** wxLC_REPORT without wxLC_NO_HEADER: the AppendColumn() titles. */
+  headers?: readonly string[];
+  /** wxLC_SINGLE_SEL: the selected row, -1 for none. */
+  selection?: number;
+  /** wxEVT_LIST_ITEM_SELECTED. */
+  onSelect?: (aRow: number) => void;
+  /** wxEVT_LIST_KEY_DOWN. */
+  onKeyDown?: (aKey: string) => void;
+  /** Without wxLC_SINGLE_SEL: the selected rows. */
+  selectedRows?: readonly number[];
+  /** A click's new selection: plain replaces, Ctrl toggles, Shift extends from the anchor. */
+  onSelectRows?: (aRows: number[], aClicked: number) => void;
+  /** wxEVT_LIST_ITEM_ACTIVATED: a double click. */
+  onActivate?: (aRow: number) => void;
 }): JSX.Element {
   const columns = { gridTemplateColumns: columnWidths.map((w) => `${w}px`).join(' ') };
-
+  const [anchor, setAnchor] = useState(-1);
+  const isSelected = (i: number): boolean =>
+    selectedRows ? selectedRows.includes(i) : i === selection;
+  const click = (i: number, e: MouseEvent): void => {
+    if (onSelectRows && selectedRows) {
+      let next: number[];
+      if (e.shiftKey && anchor >= 0) {
+        const [a, b] = anchor < i ? [anchor, i] : [i, anchor];
+        next = Array.from({ length: b - a + 1 }, (_, k) => a + k);
+      } else if (e.ctrlKey)
+        next = selectedRows.includes(i)
+          ? selectedRows.filter((r) => r !== i)
+          : [...selectedRows, i];
+      else next = [i];
+      if (!e.shiftKey) setAnchor(i);
+      onSelectRows(next, i);
+    }
+    onSelect?.(i);
+  };
   return (
-    <div className="ze-listctrl" role="list" aria-label={ariaLabel}>
+    // biome-ignore lint/a11y/noNoninteractiveTabindex: the list window takes the focus, as wx's does
+    <div
+      className="ze-listctrl"
+      role="list"
+      aria-label={ariaLabel}
+      tabIndex={onKeyDown ? 0 : undefined}
+      onKeyDown={onKeyDown ? (e) => onKeyDown(e.key) : undefined}
+    >
+      {headers && (
+        <div className="ze-listctrl-row ze-listctrl-header" style={columns}>
+          {headers.map((h, c) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: the column index is the header's identity
+            <span key={c}>{h}</span>
+          ))}
+        </div>
+      )}
       {rows.map((row, i) => (
         // A row is its index, as wxListCtrl items are.
         // biome-ignore lint/suspicious/noArrayIndexKey: InsertItem order is the row's identity
         <div
           key={i}
           role="listitem"
-          className="ze-listctrl-row"
+          aria-selected={selection === undefined && !selectedRows ? undefined : isSelected(i)}
+          className={`ze-listctrl-row${isSelected(i) ? ' selected' : ''}`}
           style={columns}
+          onClick={onSelect || onSelectRows ? (e) => click(i, e) : undefined}
+          onDoubleClick={onActivate ? () => onActivate(i) : undefined}
           onContextMenu={(e) => {
             if (!onRightClick) return;
             e.preventDefault();

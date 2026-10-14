@@ -133,6 +133,8 @@ export interface FOOTPRINT_EDIT_FRAME_HOOKS extends PCB_BASE_EDIT_FRAME_DIALOG_H
   toggleLayersManager?(): void;
   /** `ToggleProperties()`'s pane half. */
   toggleProperties?(): void;
+  /** FOOTPRINT_EDITOR_CONTROL::CheckFootprint: show the modeless DIALOG_FOOTPRINT_CHECKER. */
+  showFootprintChecker?(): void;
   /**
    * `ConfirmRevertDialog( this, aMessage )` (confirm.cpp): Revert or Cancel,
    * with "Your current changes will be permanently lost." under it.
@@ -463,6 +465,11 @@ export class FOOTPRINT_EDIT_FRAME extends PCB_BASE_EDIT_FRAME {
 
   override ToggleProperties(): void {
     this.hooks.toggleProperties?.();
+  }
+
+  /** `m_checkerDialog->Show( true )`, creating it the first time. */
+  ShowFootprintChecker(): void {
+    this.hooks.showFootprintChecker?.();
   }
 
   /**

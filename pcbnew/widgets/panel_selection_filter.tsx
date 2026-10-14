@@ -15,6 +15,7 @@
  */
 import type { JSX } from 'react';
 import { ContextMenu } from '@ziroeda/wx/menu_ui.js';
+import { type FILTER_CHECK, PANEL_SELECTION_FILTER_BASE } from './panel_selection_filter_base.js';
 
 /** One category checkbox. */
 export interface SelectionFilterItem {
@@ -107,59 +108,50 @@ export interface SelectionFilterPanelProps {
   onContextMenu?: (x: number, y: number, item: SelectionFilterItem) => void;
 }
 
+/** PANEL_SELECTION_FILTER's window: its base over the tool's filter options. */
 export function SelectionFilterPanel({
   filter,
   onChange,
   onContextMenu,
 }: SelectionFilterPanelProps): JSX.Element {
+  const item = (aKey: string): FILTER_CHECK => {
+    const it = SELECTION_FILTER_ITEMS.find((i) => i.key === aKey)!;
+    return {
+      value: filter.has(aKey),
+      onChange: () => {
+        const next = new Set(filter);
+        if (next.has(aKey)) next.delete(aKey);
+        else next.add(aKey);
+        onChange(next);
+      },
+      // onRightClick: a single "Only <label>" entry.
+      onRightClick: onContextMenu ? (x, y) => onContextMenu(x, y, it) : undefined,
+    };
+  };
+
   return (
-    // PANEL_SELECTION_FILTER_BASE's wxGridBagSizer: "All items" at (0,0), then
-    // the categories two per row in upstream order.
-    <div className="ze-selfilter">
-      <label>
-        <input
-          type="checkbox"
-          checked={selectionFilterAll(filter)}
-          onChange={() => onChange(toggleSelectionFilterAll(filter))}
-        />
-        All items
-      </label>
-      {SELECTION_FILTER_ITEMS.map((item) => (
-        <label
-          key={item.key}
-          title={item.tooltip}
-          onContextMenu={(e) => {
-            if (!onContextMenu) return;
-            e.preventDefault();
-            onContextMenu(e.clientX, e.clientY, item);
-          }}
-        >
-          <input
-            type="checkbox"
-            checked={filter.has(item.key)}
-            onChange={() => {
-              const next = new Set(filter);
-              if (next.has(item.key)) next.delete(item.key);
-              else next.add(item.key);
-              onChange(next);
-            }}
-          />
-          {item.label}
-        </label>
-      ))}
-    </div>
+    <PANEL_SELECTION_FILTER_BASE
+      // OnFilterChanged on m_cbAllItems: everything on or everything off.
+      m_cbAllItems={{
+        value: selectionFilterAll(filter),
+        onChange: () => onChange(toggleSelectionFilterAll(filter)),
+      }}
+      m_cbLockedItems={item('lockedItems')}
+      m_cbFootprints={item('footprints')}
+      m_cbText={item('text')}
+      m_cbTracks={item('tracks')}
+      m_cbVias={item('vias')}
+      m_cbPads={item('pads')}
+      m_cbGraphics={item('graphics')}
+      m_cbZones={item('zones')}
+      m_cbKeepouts={item('keepouts')}
+      m_cbDimensions={item('dimensions')}
+      m_cbPoints={item('points')}
+      m_cbOtherItems={item('otherItems')}
+    />
   );
 }
 
-/**
- * `PANEL_SELECTION_FILTER::onRightClick` (`panel_selection_filter.cpp:167-190`).
- *
- * An ordinary `wxMenu` with a single item, `wxString::Format( _( "Only %s" ),
- * cb->GetLabel().Lower() )`, whose handler unchecks every other category. Both
- * frames get it, so it is drawn here rather than hand-rolled at each call site
- * — pcbnew's copy was a bespoke `<div>` with its own border, radius, shadow and
- * `#26262b` fill, none of which a wxMenu has.
- */
 export function SelectionFilterOnlyMenu({
   at,
   onOnly,

@@ -7266,7 +7266,7 @@ export function PcbEditor({
                 this is the pane that declares it does not. */}
               <div className="ze-panel fixed">
                 <div className="ze-panel-header">Selection Filter</div>
-                <div className="ze-panel-body">
+                <div className="ze-panel-body no-inset">
                   {/* PANEL_SELECTION_FILTER — the same widget the footprint
                     editor docks. Right-clicking a category pops "Only <label>". */}
                   <SelectionFilterPanel

@@ -250,3 +250,24 @@ describe('Validate and GetDelayProfileNames', () => {
     expect(delayProfileNames(d)).toEqual(['DDR', 'X']);
   });
 });
+
+describe('PANEL_SETUP_TUNING_PROFILES: the remove button and the type', () => {
+  it('Remove is disabled with no profile to remove', () => {
+    render(<Harness initial={{ profiles: [] }} />);
+    expect(
+      (screen.getByRole('button', { name: 'Remove tuning profile' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+  });
+
+  it('the Type choice writes the profile type', () => {
+    let last: TuningProfilesData | null = null;
+    render(<Harness initial={oneProfile()} onState={(v) => (last = v)} />);
+    const combo = screen.getByLabelText('Type').closest('.ze-combo') as HTMLElement;
+    fireEvent.click(combo);
+    const option = [...document.querySelectorAll('[role="option"]')].find(
+      (o) => o.textContent === 'Differential',
+    );
+    fireEvent.mouseDown(option as HTMLElement);
+    expect(last!.profiles[0]!.type).toBe('Differential');
+  });
+});

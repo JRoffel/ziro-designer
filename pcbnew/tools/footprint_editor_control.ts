@@ -214,7 +214,7 @@ export function footprintTreeContextMenu(
  *   `m_EnableLibDir` / `m_EnableLibWithText`, both off by default, and a
  *   browser has neither a file manager nor a text editor to launch.
  * - `Properties`, `DefaultPadProperties`, `EditTextAndGraphics`,
- *   `CleanupGraphics`, `CheckFootprint` and `CrossProbe`: the dialogs, which
+ *   `CleanupGraphics` and `CrossProbe`: the dialogs, which
  *   arrive with `OnEditItemRequest` on the frame.
  */
 export class FOOTPRINT_EDITOR_CONTROL extends PCB_TOOL_BASE {
@@ -657,6 +657,12 @@ export class FOOTPRINT_EDITOR_CONTROL extends PCB_TOOL_BASE {
    * one on the canvas, its properties straight out of the library; else the
    * loaded footprint's, through OnEditItemRequest.
    */
+  /** `CheckFootprint` (:871-884): the modeless checker, created once and shown. */
+  CheckFootprint(_aEvent: TOOL_EVENT): number {
+    this.m_frame!.ShowFootprintChecker();
+    return 0;
+  }
+
   Properties(aEvent: TOOL_EVENT): number {
     const frame = this.m_frame!;
 
@@ -812,6 +818,7 @@ export class FOOTPRINT_EDITOR_CONTROL extends PCB_TOOL_BASE {
 
     this.Go(S(this.ShowDatasheet), ACTIONS.showDatasheet.MakeEvent());
 
+    this.Go(S(this.CheckFootprint), PCB_ACTIONS.checkFootprint.MakeEvent());
     this.Go(S(this.RepairFootprint), PCB_ACTIONS.repairFootprint.MakeEvent());
 
     this.Go(S(this.Properties), PCB_ACTIONS.footprintProperties.MakeEvent());

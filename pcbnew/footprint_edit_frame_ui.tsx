@@ -19,6 +19,7 @@
  * `designer/src/editors/footprint/footprint_edit_frame_app.tsx` answers it.
  */
 
+import { DialogFootprintChecker } from './dialogs/dialog_footprint_checker.js';
 import {
   type JSX,
   type ReactNode,
@@ -79,7 +80,7 @@ import { kicadFootprintLibWildcard } from '@ziroeda/common/wildcards_and_files_e
 import type { CrosshairMode, GridStyle } from '@ziroeda/common/draw_panel_gal_grid_cursor.js';
 import '@ziroeda/common/widgets/shell.css';
 import type { PCBNEW_APP } from './browser/pcbnew_app.js';
-import { DIALOG_FOOTPRINT_PROPERTIES_FP_EDITOR } from './dialogs/dialog_footprint_properties_fp_editor.js';
+import type { DIALOG_FOOTPRINT_PROPERTIES_FP_EDITOR } from './dialogs/dialog_footprint_properties_fp_editor.js';
 import { DialogFootprintPropertiesFpEditor } from './dialogs/dialog_footprint_properties_fp_editor.js';
 import type { SELECTED_3D_MODEL } from './dialogs/panel_fp_properties_3d_model.js';
 import { FOOTPRINT } from './footprint.js';
@@ -346,6 +347,7 @@ export function FootprintEditFrame({
   } | null>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState<null | true | 'fp-grids'>(null);
+  const [checkerOpen, setCheckerOpen] = useState(false);
   const [fpOpenDlg, setFpOpenDlg] = useState<
     null | { kind: 'addLibrary' } | { kind: 'import'; done: (f: OpenedFile | null) => void }
   >(null);
@@ -443,6 +445,7 @@ export function FootprintEditFrame({
       toggleLibraryTree: () => onLeftToggleRef.current('showLibraryTree'),
       toggleLayersManager: () => onLeftToggleRef.current('showLayersManager'),
       toggleProperties: () => onLeftToggleRef.current('showProperties'),
+      showFootprintChecker: () => setCheckerOpen(true),
       confirmRevert: (aMessage) =>
         askKiDialogRef
           .current({
@@ -1290,7 +1293,7 @@ export function FootprintEditFrame({
             </div>
             <div className="ze-panel fixed">
               <div className="ze-panel-header">Selection Filter</div>
-              <div className="ze-panel-body">
+              <div className="ze-panel-body no-inset">
                 <SelectionFilterPanel
                   filter={selFilter}
                   onChange={setSelFilter}
@@ -1485,6 +1488,9 @@ export function FootprintEditFrame({
 
       {aboutOpen && (
         <ShowAboutDialog title={ABOUT_TITLES.footprint} onClose={() => setAboutOpen(false)} />
+      )}
+      {checkerOpen && frameRef.current && (
+        <DialogFootprintChecker frame={frameRef.current} onClose={() => setCheckerOpen(false)} />
       )}
       {prefsOpen &&
         app.Preferences(() => setPrefsOpen(null), prefsOpen === true ? undefined : prefsOpen)}

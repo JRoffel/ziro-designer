@@ -2618,6 +2618,25 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
 }
 /* StaticText minWidthText: an invisible line of the stated text, so the label is at least that
    wide (`SetMinSize( GetTextExtent( text ) )`). */
+/* TextCtrl minWidthText: the entry and an invisible line of the stated text share one grid cell,
+   so the cell is the text's width and the entry fills it. */
+.ze-textctrl-minw {
+  display: inline-grid;
+}
+.ze-textctrl-minw > * {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+.ze-textctrl-minw > input {
+  width: 100%;
+  box-sizing: border-box;
+}
+.ze-textctrl-minw > span {
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  white-space: pre;
+}
 .ze-statictext-minw {
   display: block;
   height: 0;
@@ -4477,6 +4496,10 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
 .ze-panel-body:has(> .ze-selfilter) {
   padding: 0;
 }
+/* A docked pane whose wxPanel IS the sizer (PANEL_SELECTION_FILTER): no pane inset of ours. */
+.ze-panel-body.no-inset {
+  padding: 0;
+}
 /* ONE rule for both editors' filter panels, because upstream states the same
    layout twice: eeschema's panel_sch_selection_filter_base.cpp:14-66 and
    pcbnew's panel_selection_filter_base.cpp:15-71 differ only in which
@@ -4983,6 +5006,15 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
 }
 .ze-listctrl-row:hover {
   background: var(--chrome-hover);
+}
+/* wxLC_REPORT's column header, in the grid's label colours; a wxLC_SINGLE_SEL row, the grid's. */
+.ze-listctrl-header {
+  background: var(--grid-label-bg);
+  border-bottom: 1px solid var(--grid-line);
+}
+.ze-listctrl-row.selected {
+  background: var(--selection-bg);
+  color: var(--selection-fg);
 }
 /* RC_TREE_NODE::COMMENT rows are plain text under the excluded marker. */
 .ze-erc-subrow.comment {
@@ -10899,6 +10931,10 @@ fieldset.ze-sbox-sizer > .ze-sizer {
 .ze-statictext.info {
   font-size: var(--ui-font-size-info);
 }
+/* wxCheckBox SetFont( KIUI::GetInfoFont( this ) ). */
+.ze-check.info {
+  font-size: var(--ui-font-size-info);
+}
 .ze-statictext.small-info {
   font-size: var(--ui-font-size-small);
 }
@@ -13196,12 +13232,6 @@ td.ze-grid-bool {
    spacing, their label columns and their controls come from `.ze-pref-*` and
    are not restated here. */
 
-/* PANEL_SETUP_BOARD_FINISH's `fgSizer2`, added `wxEXPAND|wxTOP, 10` under the
-   Plated-board-edge checkbox (`panel_board_finish_base.cpp:50`). */
-.ze-pcb-finish-grid {
-  margin-top: 10px; /* [data] `bMargins->Add( fgSizer2, 1, wxEXPAND|wxTOP, 10 )`. */
-}
-
 /* ---- EDA_LIST_DIALOG (common/dialogs/eda_list_dialog_base.cpp) -------------
 
    No font size and no colour: the label, the list and the filter are a
@@ -13459,86 +13489,6 @@ td.ze-grid-bool {
   display: flex;
   flex-direction: column;
 }
-/* The option row above the grid and the thickness row below it — both bare
-   `wxBoxSizer( wxHORIZONTAL )`s of controls with their own borders. */
-.ze-stackup-bar {
-  display: flex;
-  align-items: center;
-  /* A `wxBoxSizer( wxHORIZONTAL )` has no second line to wrap onto: it shrinks
-     its growable spacers to zero and, past that, overflows. `wrap` here is what
-     dropped "Remove Dielectric Layer..." onto a row of its own. */
-  flex-wrap: nowrap;
-  /* [data] adjoining wxLEFT/wxRIGHT 5 borders, met. */
-  gap: 10px;
-  padding: 5px 0; /* [data] the wxTOP|wxBOTTOM 5 the bar's children carry. */
-}
-/* Buttons and fields keep their natural width; only the spacers give. */
-.ze-stackup-bar > .ze-btn,
-.ze-stackup-bar > .ze-pref-check,
-.ze-stackup-bar > span:not(.ze-stackup-spacer) {
-  flex: 0 0 auto;
-  white-space: nowrap;
-}
-.ze-stackup-spacer {
-  /* [data] `Add( 40, 0, 1, wxEXPAND )` — proportion 1, minimum width 40. */
-  flex: 1 1 auto;
-  min-width: 40px;
-}
-/* [data] `bBottomSizer->Add( 10, 0, 0, wxEXPAND )` — a fixed spacer, not a
-   growable one, so it never absorbs the row's slack. */
-.ze-stackup-gap10 {
-  flex: 0 0 10px;
-}
-.ze-stackup-thickness {
-  width: 90px; /* [px] the read-only thickness field's width; upstream sizes it to its text. */
-  flex: 0 0 auto;
-}
-/* `m_scGridWin`, the `wxScrolledWindow` the grid lives in — created with
-   `wxHSCROLL|wxVSCROLL` (`panel_board_stackup_base.cpp:66`), so it scrolls in
-   BOTH axes and imposes no width of its own on the page. That is why a real
-   Board Setup is about 1070 wide and not the ~1280 the twelve columns would
-   need: the grid scrolls, the two bars do not.
-
-   `contain: inline-size` is the load-bearing line, and `min-width: 0` alone is
-   NOT enough — that was the wrong fix first time round. `min-width` sets a
-   LOWER bound; it does not stop `.ze-paged-panel`'s `min-width: min-content`
-   from walking into this box and picking up the grid's full 1050 px of
-   columns, which is what dragged the dialog out to ~1280. `contain:
-   inline-size` makes the box's intrinsic inline size independent of its
-   contents, which is precisely what a wxScrolledWindow's best size is: small,
-   with the content reachable by scrolling. The width still comes from the
-   flex stretch, and `overflow: auto` still scrolls the grid. */
-.ze-stackup-scroll {
-  flex: 1;
-  min-height: 0;
-  min-width: 0;
-  contain: inline-size;
-  overflow: auto;
-}
-/* The layer table. A wxFlexGridSizer of controls, not a wxGrid — it draws no
-   cell borders, which is why this is a bare CSS grid and not `.ze-grid`. */
-.ze-stackup-grid {
-  display: grid;
-  align-items: center;
-  column-gap: 4px; /* [data] `wxFlexGridSizer( 0, 9, 0, 4 )`'s hgap. */
-  row-gap: 0; /* [data] the same sizer's vgap, which is 0 — this said 6. */
-  width: max-content;
-}
-/* The column captions are `wxStaticText`s, and `panel_board_stackup_base.cpp`
-   calls SetFont on none of them — so the dialog font at the dialog's weight.
-   This drew them at 600. */
-.ze-stackup-head {
-  padding: 2px 2px 6px; /* [data] the column captions' wxTOP|wxBOTTOM|wxLEFT|wxRIGHT borders. */
-  text-align: center;
-}
-/* [data] the icon's `wxRIGHT|wxALIGN_CENTER_VERTICAL|wxALIGN_RIGHT, 4`
-   (`panel_board_stackup.cpp:809`) — right-aligned in its cell, not centred. */
-.ze-stackup-swcell {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  padding-right: 4px; /* [data] the same wxRIGHT, 4. */
-}
 /* The Layer column's `wxStaticBitmap`, filled by `updateIconColor()` with a
    `wxBitmap( m_colorIconsSize.x, m_colorIconsSize.y / 2 )`. That is the ICON
    size (24 x 14) HALVED in height, so the swatch is a wide flat bar. This was
@@ -13548,25 +13498,6 @@ td.ze-grid-bool {
   display: inline-block;
   width: 24px; /* [data] `m_colorIconsSize.x` (`panel_board_stackup.cpp:101`). */
   height: 7px; /* [data] `m_colorIconsSize.y / 2` (`:1608`). */
-}
-
-/* DIALOG_DIELECTRIC_MATERIAL. */
-.ze-dielmat-body {
-  display: block;
-  padding: 10px 14px; /* [data] the dialog body's wxALL 5 meeting its sizer's wxRIGHT|wxLEFT 5. */
-}
-.ze-dielmat-grid {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  align-items: center;
-  gap: 6px 8px; /* [data] the material grid's vgap 6 and hgap 8. */
-  margin-bottom: 8px; /* [data] the wxBOTTOM 8 under it. */
-}
-.ze-dielmat-list {
-  max-height: 220px; /* [px] the material list's own height floor; upstream fits the dialog to it. */
-}
-.ze-dielmat-list .ze-grid {
-  width: 100%;
 }
 
 /* PANEL_SETUP_CONSTRAINTS (`panel_setup_constraints_base.cpp`). No font size
@@ -13776,74 +13707,6 @@ td.ze-grid-bool {
 }
 .ze-modal-footer.ze-items-list-foot {
   margin: 10px; /* [data] `mainSizer->Add( buttonsSizer, 0, wxEXPAND | wxALL, 10 )`. */
-}
-
-/* ---------------------------------------------------------------------------
-   DIALOG_MAP_LAYERS (dialog_imported_layers_base.cpp) -- see the sizer tree in
-   dialog_map_layers.tsx. Every margin is that Add()'s own border. */
-.ze-modal.ze-maplayers .ze-modal-body.ze-maplayers-body {
-  flex-direction: column;
-  padding: 0;
-}
-.ze-maplayers-top {
-  display: flex;
-  flex: 1;
-  margin: 0 5px; /* [data] `bSizerMain->Add( bSizerTop, 1, wxEXPAND|wxRIGHT|wxLEFT, 5 )`, `_base.cpp:70`. */
-}
-/* fieldset.ze-sbox is (0,1,1) and sets margin: 0, so this must be as specific. */
-fieldset.ze-maplayers-box {
-  display: flex;
-  flex: 1;
-  margin: 5px 5px 0; /* [data] both static boxes: `wxEXPAND|…|wxTOP|wxRIGHT|wxLEFT, 5`. */
-  min-width: 0;
-}
-.ze-maplayers-unmatched {
-  flex: 1;
-}
-.ze-maplayers-fg {
-  display: grid;
-  grid-template-columns: 1fr 1fr; /* [data] `wxFlexGridSizer( 0, 2, 0, 0 )`, both columns growable. */
-  grid-template-rows: max-content 1fr; /* [data] `AddGrowableRow( 1 )`. */
-  flex: 1;
-}
-.ze-maplayers-lbl {
-  margin: 5px; /* [data] `Add( m_lblImportedLayers, 0, wxALL, 5 )`. */
-}
-.ze-maplayers-fg > .ze-maplayers-list {
-  margin: 0 5px 5px; /* [data] `wxBOTTOM|wxEXPAND|wxLEFT|wxRIGHT, 5`. */
-}
-.ze-maplayers-list {
-  min-width: 120px; /* [data] `SetMinSize( wxSize( 120,-1 ) )`, `_base.cpp:38,42,71`. */
-  overflow: auto;
-}
-.ze-maplayers-matched > .ze-maplayers-list {
-  flex: 1;
-  margin: 0 5px 5px; /* [data] `Add( m_matched_layers_list, 1, wxBOTTOM|wxEXPAND|wxLEFT|wxRIGHT, 5 )`. */
-}
-.ze-maplayers-arrows {
-  display: flex;
-  flex-direction: column;
-  margin-top: 10px; /* [data] `bSizerTop->Add( bSizer6, 0, wxEXPAND|wxTOP, 10 )`. */
-}
-.ze-maplayers-arrows > button {
-  margin: 5px; /* [data] `bSizer6->Add( …, 0, wxALL, 5 )`. */
-  width: 36px; /* [data] `wxSize( 36,100 )` and `wxSize( 36,50 )`, `_base.cpp:52,56,60`. */
-}
-.ze-maplayers-add,
-.ze-maplayers-remove {
-  height: 100px; /* [data] `wxSize( 36,100 )`. */
-}
-.ze-maplayers-removeall {
-  height: 50px; /* [data] `wxSize( 36,50 )`. */
-}
-.ze-maplayers-bottom {
-  display: flex;
-  align-items: center;
-  margin: 5px 0 5px 5px; /* [data] `bSizerMain->Add( bSizerBottom, 0, wxBOTTOM|wxEXPAND|wxLEFT|wxTOP, 5 )`. */
-}
-.ze-maplayers-bottom > button:first-child,
-.ze-maplayers-bottom > .ze-pref-check {
-  margin: 5px; /* [data] `wxALL, 5` on the Auto-Match button and the checkbox. */
 }
 
 .ze-fp3d {

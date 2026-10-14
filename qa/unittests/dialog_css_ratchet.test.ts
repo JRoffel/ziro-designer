@@ -48,7 +48,9 @@ const BASELINE: Record<string, number> = {
   // 31 -> 32 (10-11): not new CSS; appeared on rebasing onto the Copper Zones pairs, a class
   // that batch left to eeschema alone.
   // 32 -> 21 (10-11): ERC's pair; the .ze-erc-* block it held since DRC converted.
-  eeschema: 21,
+  // 21 -> 22 (10-12): not new CSS. .ze-selfilter was shared with pcbnew's selection filter; with
+  // that on its _base pair, eeschema's panel is its only user.
+  eeschema: 22,
   // 31 -> 27 (10-12): Print on DIALOG_PRINT_GENERIC_BASE.
   // 27 -> 28 (10-12): not new CSS. ze-pref-help was also named in Mask & Paste; with that page on
   // its _base pair, the Excellon panel is its only user.
@@ -86,7 +88,10 @@ const BASELINE: Record<string, number> = {
   // 65 -> 61 (10-12): Display Options' pair.
   // 61 -> 59 (10-12): Edit Options' pair.
   // 59 -> 39 (10-12): Tuning Profiles' two pairs.
-  pcbnew: 39,
+  // 39 -> 35 (10-12): Board Finish and Dielectric Material pairs.
+  // 35 -> 26 (10-12): Physical Stackup's pair.
+  // 26 -> 12 (10-14): Import Layer Mapping on DIALOG_IMPORTED_LAYERS_BASE.
+  pcbnew: 12,
 };
 
 const git = (...aSpecs: string[]): string[] =>

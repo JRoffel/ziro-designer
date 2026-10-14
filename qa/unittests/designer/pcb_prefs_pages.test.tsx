@@ -206,6 +206,17 @@ describe('PCB Editor > Editing Options', () => {
   );
 
   it(
+    'the Flip radios store left/right and top/bottom',
+    async () => {
+      await openPage('pcb-editing');
+      fireEvent.click(screen.getByRole('radio', { name: 'Top/bottom' }));
+      fireEvent.click(screen.getByText('OK'));
+      expect(settings.pcbnew.editing.flip_left_right).toBe(false);
+    },
+    SLOW,
+  );
+
+  it(
     'stores the magnetic choices, which the cursor snap reads',
     async () => {
       await openPage('pcb-editing');

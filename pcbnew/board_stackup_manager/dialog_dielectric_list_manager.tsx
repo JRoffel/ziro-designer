@@ -38,9 +38,8 @@
  * one place that knows what "apply" means for a given row, so it stays the
  * one place that decides; this component only ever closes.
  */
-import { Button, TextCtrl } from '@ziroeda/wx/controls.js';
-import { useState, type JSX } from 'react';
-import { DialogShim } from '@ziroeda/common/dialog_shim.js';
+import { type JSX, useState } from 'react';
+import { DIALOG_DIELECTRIC_MATERIAL_BASE } from './dialog_dielectric_list_manager_base.js';
 import type { DIELECTRIC_SUBSTRATE_LIST } from './dielectric_material.js';
 
 /** One row of the material list, as the `wxListCtrl` shows it, and the draft fields. */
@@ -119,67 +118,32 @@ export function DialogDielectricMaterial({
     onSubmit({ name: draft.name, epsilonR: String(eps), lossTan: String(tan) });
   };
 
+  // GetColumnWidth( 1 ) is the generic list's default 80; column 0 is SetColumnWidth( … * 3 / 2 ).
+  const DEFAULT_COL_WIDTH = 80;
+
   return (
-    <DialogShim title="Dielectric Material Characteristics" onClose={() => onSubmit(null)}>
-      <div className="ze-modal-body ze-dielmat-body">
-        <div className="ze-dielmat-grid">
-          <span>Material:</span>
-          <TextCtrl
-            value={draft.name}
-            onChange={(aValue) => setDraft({ ...draft, name: aValue })}
-            className="ze-search"
-          />
-          <span>Epsilon R:</span>
-          <TextCtrl
-            value={draft.epsilonR}
-            onChange={(aValue) => setDraft({ ...draft, epsilonR: aValue })}
-            className="ze-search"
-          />
-          <span>Loss Tan:</span>
-          <TextCtrl
-            value={draft.lossTan}
-            onChange={(aValue) => setDraft({ ...draft, lossTan: aValue })}
-            className="ze-search"
-          />
-        </div>
-        <div
-          className="ze-grid-pane ze-dielmat-list"
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === 'Delete') {
-              e.preventDefault();
-              deleteMaterial();
-            }
-          }}
-        >
-          <table className="ze-grid">
-            <thead>
-              <tr>
-                <th>Material</th>
-                <th>Epsilon R</th>
-                <th>Loss Tan</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((m, idx) => (
-                <tr
-                  key={`${idx}:${m.name}`}
-                  className={idx === sel ? 'selected' : undefined}
-                  onClick={() => selectMaterial(idx)}
-                >
-                  <td>{m.name}</td>
-                  <td>{m.epsilonR}</td>
-                  <td>{m.lossTan}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-      <div className="ze-modal-footer">
-        <Button label="Cancel" onClick={() => onSubmit(null)} />
-        <Button label="OK" isDefault onClick={commit} />
-      </div>
-    </DialogShim>
+    <DIALOG_DIELECTRIC_MATERIAL_BASE
+      m_tcMaterial={{
+        value: draft.name,
+        onChange: (aValue) => setDraft({ ...draft, name: aValue }),
+      }}
+      m_tcEpsilonR={{
+        value: draft.epsilonR,
+        onChange: (aValue) => setDraft({ ...draft, epsilonR: aValue }),
+      }}
+      m_tcLossTg={{
+        value: draft.lossTan,
+        onChange: (aValue) => setDraft({ ...draft, lossTan: aValue }),
+      }}
+      m_lcMaterials={{
+        rows: rows.map((m) => [m.name, m.epsilonR, m.lossTan]),
+        columnWidths: [(DEFAULT_COL_WIDTH * 3) / 2, DEFAULT_COL_WIDTH, DEFAULT_COL_WIDTH],
+        selection: sel,
+        onListItemSelected: selectMaterial,
+        onListKeyDown: (aKey) => aKey === 'Delete' && deleteMaterial(),
+      }}
+      onOK={commit}
+      onCancel={() => onSubmit(null)}
+    />
   );
 }

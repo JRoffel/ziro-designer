@@ -156,7 +156,7 @@ describe('DialogDielectricMaterial', () => {
     render(<DialogDielectricMaterial materialList={list} onSubmit={onSubmit} />);
 
     fireEvent.click(screen.getByText('FR4'));
-    fireEvent.keyDown(screen.getByText('FR4').closest('.ze-dielmat-list')!, { key: 'Delete' });
+    fireEvent.keyDown(screen.getByText('FR4').closest('.ze-listctrl')!, { key: 'Delete' });
 
     expect(list.GetCount()).toBe(before - 1);
     expect(screen.queryByText('FR4')).toBeNull();
@@ -169,7 +169,7 @@ describe('DialogDielectricMaterial', () => {
 
     const lastRowCell = screen.getByText(lastRow.name);
     fireEvent.click(lastRowCell);
-    fireEvent.keyDown(lastRowCell.closest('.ze-dielmat-list')!, { key: 'Delete' });
+    fireEvent.keyDown(lastRowCell.closest('.ze-listctrl')!, { key: 'Delete' });
 
     // The delete must not throw, and the list must be one shorter.
     expect(list.GetCount()).toBe(substrateRows(list).length);
@@ -183,7 +183,7 @@ describe('DialogDielectricMaterial', () => {
     render(<DialogDielectricMaterial materialList={list} onSubmit={vi.fn()} />);
 
     fireEvent.click(screen.getByText('Custom Test Material'));
-    fireEvent.keyDown(screen.getByText('Custom Test Material').closest('.ze-dielmat-list')!, {
+    fireEvent.keyDown(screen.getByText('Custom Test Material').closest('.ze-listctrl')!, {
       key: 'Delete',
     });
 
