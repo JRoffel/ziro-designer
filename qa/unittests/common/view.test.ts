@@ -368,3 +368,99 @@ describe('VIEW draws through the GAL', () => {
     expect(countItemEntries(view, new BOX2I({ x: 0, y: 0 }, { x: 10, y: 10 }), item)).toBe(0);
   });
 });
+
+describe('VIEW and a hidden item', () => {
+  const setup = () => {
+    const gal = new RECORDING_GAL();
+    const painter = new RECORDING_PAINTER(null);
+    const view = new VIEW();
+    view.SetGAL(gal);
+    view.SetPainter(painter);
+    view.SetLayerDisplayOnly(LAYER_SELECT_OVERLAY);
+    view.UpdateItems();
+    // Bystanders keep one changed item under UpdateItems' 30% full-rebuild ratio.
+    view.SetLayerTarget(6, RENDER_TARGET.TARGET_NONCACHED);
+    for (let i = 0; i < 4; i++)
+      view.Add(new NAMED_ITEM('other', new BOX2I({ x: 500, y: 500 }, { x: 1, y: 1 }), [6]));
+    const item = new NAMED_ITEM('track', new BOX2I({ x: 0, y: 0 }, { x: 100, y: 100 }), [5]);
+    view.Add(item);
+    view.UpdateItems();
+    gal.log = [];
+    painter.drawn = [];
+    return { gal, painter, view, item };
+  };
+
+  it('drops its cache on a geometry update instead of painting it, while hidden', () => {
+    const { gal, painter, view, item } = setup();
+    view.Hide(item, true);
+    view.UpdateItems();
+
+    // A dragged selection: hidden, moved, updated on every pointer move.
+    for (let i = 0; i < 3; i++) {
+      item.SetBBox(new BOX2I({ x: i * 10, y: 0 }, { x: 100, y: 100 }));
+      view.Update(item, VIEW_UPDATE_FLAGS.GEOMETRY);
+      view.UpdateItems();
+    }
+
+    expect(painter.drawn).toEqual([]);
+    expect(gal.log).toEqual(['delete 2']);
+    // The R-tree still follows it.
+    expect(countItemEntries(view, new BOX2I({ x: 20, y: 0 }, { x: 100, y: 100 }), item)).toBe(1);
+  });
+
+  it('paints it once, before it shows again', () => {
+    const { gal, painter, view, item } = setup();
+    view.Hide(item, true);
+    view.Update(item, VIEW_UPDATE_FLAGS.GEOMETRY);
+    view.UpdateItems();
+    gal.log = [];
+
+    view.Hide(item, false);
+    view.UpdateItems();
+    expect(painter.drawn).toEqual(['track@5']);
+    expect(gal.log).toEqual(['begin 3 depth 5', 'end']);
+
+    // Shown with its cache intact, nothing is repainted.
+    view.Hide(item, true);
+    view.UpdateItems();
+    view.Hide(item, false);
+    view.UpdateItems();
+    expect(painter.drawn).toEqual(['track@5']);
+  });
+
+  it('still recolours a hidden item, which needs no painting', () => {
+    const { gal, view, item } = setup();
+    view.Hide(item, true);
+    view.Update(item, VIEW_UPDATE_FLAGS.COLOR);
+    view.UpdateItems();
+    expect(gal.log).toEqual(['color 2 5']);
+  });
+});
+
+describe('VIEW::redrawRect and empty layers', () => {
+  it('asks no empty layer whether its required layers are on, and still draws the rest', () => {
+    const gal = new RECORDING_GAL();
+    const painter = new RECORDING_PAINTER(null);
+    const view = new VIEW();
+    view.SetGAL(gal);
+    view.SetPainter(painter);
+    view.SetLayerDisplayOnly(LAYER_SELECT_OVERLAY);
+    view.SetLayerTarget(3, RENDER_TARGET.TARGET_NONCACHED);
+    view.Add(new NAMED_ITEM('pad', new BOX2I({ x: 0, y: 0 }, { x: 100, y: 100 }), [3]));
+    view.UpdateItems();
+
+    const asked: number[] = [];
+    const v = view as unknown as { areRequiredLayersEnabled(l: number): boolean };
+    const orig = v.areRequiredLayersEnabled.bind(view);
+    v.areRequiredLayersEnabled = (l: number) => (asked.push(l), orig(l));
+
+    view.SetCenter({ x: 50, y: 50 });
+    view.Redraw();
+
+    expect(painter.drawn).toContain('pad@3');
+    expect(asked).toContain(3);
+    expect(asked).toContain(LAYER_SELECT_OVERLAY);
+    // Layer 4 holds nothing.
+    expect(asked).not.toContain(4);
+  });
+});

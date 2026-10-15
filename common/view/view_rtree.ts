@@ -21,6 +21,11 @@ export class VIEW_RTREE extends RTree<VIEW_ITEM> {
     super(2);
   }
 
+  /** True when the tree holds nothing: its root has no entries. Count() walks every node. */
+  IsEmpty(): boolean {
+    return this.m_root.m_count === 0;
+  }
+
   /**
    * Insert an item into the tree.
    *

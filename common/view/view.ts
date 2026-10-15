@@ -535,7 +535,11 @@ export class VIEW {
     if (aHide) viewData.m_flags |= HIDDEN;
     else viewData.m_flags &= ~(HIDDEN | OVERLAY_HIDDEN);
 
-    this.Update(aItem, APPEARANCE);
+    // A cache dropped while hidden (invalidateItem) is drawn again before it is shown.
+    const stale =
+      !aHide && aItem.ViewGetLayers().some((l) => this.IsCached(l) && viewData.getGroup(l) < 0);
+
+    this.Update(aItem, stale ? APPEARANCE | REPAINT : APPEARANCE);
   }
 
   /**
@@ -1680,6 +1684,11 @@ export class VIEW {
   /// Redraw contents within rectangle \a aRect.
   protected redrawRect(aRect: BOX2I): void {
     for (const l of this.m_orderedLayers) {
+      // Most of the ~2,000 layers hold nothing (1,481 of 1,545 on a full board); a query of an
+      // empty tree draws nothing, so skip the visitor and the required-layer walk for it.
+      // Upstream asks each one (view.cpp:1027-1043); the picture is the same.
+      if (l.items.IsEmpty() && !l.diffLayer && !l.hasNegatives) continue;
+
       if (l.visible && this.IsTargetDirty(l.target) && this.areRequiredLayersEnabled(l.id)) {
         const drawFunc = new DRAW_ITEM_VISITOR(
           this,
@@ -1830,12 +1839,21 @@ export class VIEW {
     }
 
     const layers = aItem.ViewGetLayers();
+    const viewData = aItem.viewPrivData()!;
+
+    // A hidden item is not drawn, so a recache now would only be thrown away by the next: a
+    // dragged selection is hidden (the overlay draws it) and recached on every pointer move.
+    // Its stale cache is dropped instead, and Hide( false ) recaches it before it shows again.
+    // Upstream recaches at once (view.cpp:1284-1292); what reaches the screen is the same.
+    const hidden = (viewData.m_flags & HIDDEN) !== 0;
 
     // Iterate through layers used by the item and recache it immediately
     for (const layer of layers) {
       if (this.IsCached(layer)) {
-        if (aUpdateFlags & (GEOMETRY | LAYERS | REPAINT)) this.updateItemGeometry(aItem, layer);
-        else if (aUpdateFlags & COLOR) this.updateItemColor(aItem, layer);
+        if (aUpdateFlags & (GEOMETRY | LAYERS | REPAINT)) {
+          if (hidden) this.dropItemGeometry(aItem, layer);
+          else this.updateItemGeometry(aItem, layer);
+        } else if (aUpdateFlags & COLOR) this.updateItemColor(aItem, layer);
       }
 
       // Mark those layers as dirty, so the VIEW will be refreshed
@@ -1888,6 +1906,17 @@ export class VIEW {
     if (!this.m_painter!.Draw(aItem, aLayer)) aItem.ViewDraw(aLayer, this); // Alternative drawing method
 
     this.m_gal!.EndGroup();
+  }
+
+  /** Free \a aItem's cached drawing on \a aLayer, for invalidateItem's hidden item. */
+  private dropItemGeometry(aItem: VIEW_ITEM, aLayer: number): void {
+    const viewData = aItem.viewPrivData()!;
+    const group = viewData.getGroup(aLayer);
+
+    if (group < 0) return;
+
+    this.m_gal!.DeleteGroup(group);
+    viewData.setGroup(aLayer, -1);
   }
 
   /// Update bounding box of an item.

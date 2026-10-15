@@ -100,7 +100,24 @@ export interface EDA_DRAW_FRAME_LIKE extends UNITS_PROVIDER {
  * A base class for most all the KiCad significant classes used in schematics and boards.
  */
 export abstract class EDA_ITEM extends VIEW_ITEM {
-  readonly m_Uuid: KIID;
+  /**
+   * `m_Uuid`, drawn from `KIID()` the first time it is read. Upstream's default constructor
+   * stamps one at once, but a copy (`EDA_ITEM( const EDA_ITEM& )`) takes the source's and makes
+   * none; our copies are default-constructed and then assigned the source's id, so an eager
+   * draw here was thrown away on every copy - and SCH_PAINTER::draw copies the library symbol
+   * on every draw. Read first or assigned first, the item ends with the same id either way.
+   */
+  private m_uuidValue?: KIID;
+
+  get m_Uuid(): KIID {
+    if (this.m_uuidValue === undefined) this.m_uuidValue = newKiid();
+
+    return this.m_uuidValue;
+  }
+
+  set m_Uuid(aUuid: KIID) {
+    this.m_uuidValue = aUuid;
+  }
 
   /**
    * Run time identification, _keep private_ so it can never be changed after a ctor sets it.
@@ -167,7 +184,6 @@ export abstract class EDA_ITEM extends VIEW_ITEM {
     }
 
     super(isSCH_ITEM, isBOARD_ITEM);
-    this.m_Uuid = newKiid();
     this.m_structType = idType;
     this.m_flags = 0;
     this.m_parent = parent;

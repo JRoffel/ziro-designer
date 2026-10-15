@@ -96,6 +96,22 @@ describe('EDA_DRAW_PANEL_GAL::onSize', () => {
     expect([canvas.width, canvas.height]).toEqual([800, 600]);
     expect(paints()).toBe(0);
   });
+
+  /** A ResizeObserver fires on sub-pixel changes; the GAL already holds client + 1. */
+  it('does nothing when the GAL already has the size the +1 would give it', () => {
+    const { panel, paints, canvas } = panelOn({ x: 800, y: 600 }, { x: 801, y: 601 });
+    const gal = (panel as unknown as { m_gal: GAL }).m_gal;
+    const resized: number[][] = [];
+    gal.ResizeScreen = (w: number, h: number) => void resized.push([w, h]);
+    const view = { MarkTargetDirty: (t: number) => void resized.push([-1, t]) };
+    (panel as unknown as { m_view: unknown }).m_view = view;
+
+    panel.onSize(new wxSizeEvent({ x: 800, y: 600 }));
+
+    expect(resized).toEqual([]);
+    expect([canvas.width, canvas.height]).toEqual([801, 601]);
+    expect(paints()).toBe(0);
+  });
 });
 
 /**

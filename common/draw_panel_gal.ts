@@ -1124,6 +1124,13 @@ export class EDA_DRAW_PANEL_GAL
       clientSize.x = Math.max(10, clientSize.x + 1);
       clientSize.y = Math.max(10, clientSize.y + 1);
 
+      // The test above compares the client size before the +1 with a GAL sized after it, so
+      // after the first resize it never holds (draw_panel_gal.cpp:453); wx sends wxEVT_SIZE only
+      // on a real resize, so that costs KiCad nothing. A ResizeObserver also fires on sub-pixel
+      // layout changes that leave the client size where it was, and each one re-allocated the
+      // buffers and redrew everything. The size the GAL already has is no resize.
+      if (clientSize.x === screen.x && clientSize.y === screen.y) return;
+
       let bottom: VECTOR2D = { x: 0, y: 0 };
 
       if (this.m_view) bottom = this.m_view.ToWorld(this.m_gal!.GetScreenPixelSize(), true);
