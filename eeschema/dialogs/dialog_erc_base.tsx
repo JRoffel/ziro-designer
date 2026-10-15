@@ -8,7 +8,7 @@
  * its badges and Save...; and Delete Marker / Delete All Markers beside the standard pair. A
  * modeless dialog: the schematic stays live behind it. The behaviour is DIALOG_ERC's.
  */
-import type { JSX, ReactNode } from 'react';
+import type { JSX, MouseEvent, ReactNode } from 'react';
 import { DialogShim } from '@ziroeda/common/dialog_shim.js';
 import { NumberBadge } from '@ziroeda/common/widgets/number_badge.js';
 import { StdBitmapButton } from '@ziroeda/common/widgets/std_bitmap_button.js';
@@ -74,6 +74,8 @@ export interface DIALOG_ERC_BASE_PROPS {
   m_markerDataView: ReactNode;
   /** m_ignoredList: one column, no header. */
   ignoredRows: readonly string[];
+  /** wxEVT_LIST_ITEM_RIGHT_CLICK on m_ignoredList: OnIgnoredItemRClick. */
+  onIgnoredRightClick?: (aRow: number, aEvent: MouseEvent) => void;
   onEditIgnoredTests?: () => void;
   m_showAll: CHECK;
   m_showErrors: SEVERITY;
@@ -202,6 +204,7 @@ export function DIALOG_ERC_BASE(p: DIALOG_ERC_BASE_PROPS): JSX.Element {
                             >
                               <ListCtrl
                                 rows={p.ignoredRows.map((r) => [r])}
+                                onRightClick={p.onIgnoredRightClick}
                                 columnWidths={[660]}
                                 ariaLabel="Ignored tests"
                               />

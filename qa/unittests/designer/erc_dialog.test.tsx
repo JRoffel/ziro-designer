@@ -22,7 +22,7 @@
 import { resolve } from 'node:path';
 import { bitmapUrl } from '@ziroeda/common/bitmap_store.js';
 import { PGM_BASE, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
-import { RPT_SEVERITY_IGNORE } from '@ziroeda/common/reporter.js';
+import { RPT_SEVERITY_IGNORE, RPT_SEVERITY_WARNING } from '@ziroeda/common/reporter.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import {
   DIALOG_ERC,
@@ -383,6 +383,48 @@ describe('DIALOG_ERC: the marker tree', () => {
     });
     expect(screen.getByText('• Pin not connected')).toBeTruthy();
     expect(screen.getByText('Edit ignored tests')).toBeTruthy();
+  });
+
+  /**
+   * OnIgnoredItemRClick: a radio Error / Warning / Ignore menu checked at the code's severity;
+   * a different choice goes into ERC_SETTINGS and modifies the project, the same one does not.
+   */
+  it('right-clicking an ignored test offers its severity and sets it', async () => {
+    let modified = 0;
+    const { frame, dialog, run } = open({ projectModified: () => modified++ });
+    const settings = frame.Schematic().ErcSettings();
+    // Pin not connected heads allItemTypes, so the row clicked (Pin not driven) is the second.
+    settings.SetSeverity(ERCE_T.ERCE_PIN_NOT_CONNECTED, RPT_SEVERITY_IGNORE);
+    settings.SetSeverity(ERCE_T.ERCE_PIN_NOT_DRIVEN, RPT_SEVERITY_IGNORE);
+    await run();
+    expect(dialog.m_ignoredList.slice(0, 2).map((r) => r.code)).toStrictEqual([
+      ERCE_T.ERCE_PIN_NOT_CONNECTED,
+      ERCE_T.ERCE_PIN_NOT_DRIVEN,
+    ]);
+    act(() => {
+      fireEvent.click(screen.getByRole('tab', { name: /^Ignored Tests/ }));
+    });
+    const menu = () =>
+      Array.from(document.querySelectorAll('.ze-mitem')).map(
+        (m) => `${m.querySelector('.mcheck') ? '✓' : ' '}${m.querySelector('.lbl')!.textContent}`,
+      );
+    const pick = (aLabel: string) =>
+      act(() => {
+        const item = Array.from(document.querySelectorAll('.ze-mitem')).find(
+          (m) => m.querySelector('.lbl')!.textContent === aLabel,
+        )!;
+        fireEvent.click(item);
+      });
+    fireEvent.contextMenu(screen.getByText('• Input pin not driven by any Output pins'));
+    expect(menu()).toStrictEqual([' Error', ' Warning', '✓Ignore']);
+    pick('Ignore');
+    expect(modified).toBe(0);
+    fireEvent.contextMenu(screen.getByText('• Input pin not driven by any Output pins'));
+    pick('Warning');
+    expect(settings.GetSeverity(ERCE_T.ERCE_PIN_NOT_DRIVEN)).toBe(RPT_SEVERITY_WARNING);
+    expect(modified).toBe(1);
+    fireEvent.contextMenu(screen.getByText('• Input pin not driven by any Output pins'));
+    expect(menu()).toStrictEqual([' Error', '✓Warning', ' Ignore']);
   });
 });
 

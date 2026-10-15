@@ -11,9 +11,8 @@
  * file dialog, showing and hiding the window - is the window's ({@link DIALOG_ERC_WINDOW}).
  *
  * Not here yet: the row menu's Inspect / Fix entries (SCH_INSPECTION_TOOL::InspectERCError and
- * SCH_EDIT_TOOL::FixERCError are tool coroutines, and nothing runs one from outside its tool), the
- * Ignored Tests list's severity menu (OnIgnoredItemRClick), and the drawing sheet TestTextVars
- * would read (ERC_TESTER::RunTests takes no drawing sheet yet).
+ * SCH_EDIT_TOOL::FixERCError are tool coroutines, and nothing runs one from outside its tool), and
+ * the drawing sheet TestTextVars would read (ERC_TESTER::RunTests takes no drawing sheet yet).
  */
 import { useEffect, useState, type JSX } from 'react';
 import { ACTIONS } from '@ziroeda/common/tool/actions.js';
@@ -817,6 +816,50 @@ export class DIALOG_ERC extends PROGRESS_REPORTER_BASE implements DIALOG_ERC_FRA
     return rows;
   }
 
+  /**
+   * `OnIgnoredItemRClick( event )` (dialog_erc.cpp:993): the Ignored Tests row's radio menu
+   * over the error code the row carries. A changed severity goes into ERC_SETTINGS and the
+   * project is modified.
+   */
+  OnIgnoredItemRClick(aRow: number): ErcMenuRow[] {
+    const row = this.m_ignoredList[aRow];
+
+    if (!row) return [];
+
+    const settings = this.m_parent.Schematic().ErcSettings();
+    const errorCode = row.code;
+    const current = settings.GetSeverity(errorCode);
+
+    const choose = (severity: number): void => {
+      if (settings.GetSeverity(errorCode) !== severity) {
+        settings.SetSeverity(errorCode, severity);
+
+        this.updateDisplayedCounts();
+        this.redrawDrawPanel();
+        this.m_parent.OnModify();
+        this.m_window.projectModified();
+      }
+    };
+
+    return [
+      {
+        label: 'Error',
+        checked: current === RPT_SEVERITY_ERROR,
+        action: () => choose(RPT_SEVERITY_ERROR),
+      },
+      {
+        label: 'Warning',
+        checked: current === RPT_SEVERITY_WARNING,
+        action: () => choose(RPT_SEVERITY_WARNING),
+      },
+      {
+        label: 'Ignore',
+        checked: current === RPT_SEVERITY_IGNORE,
+        action: () => choose(RPT_SEVERITY_IGNORE),
+      },
+    ];
+  }
+
   /** `PrevMarker()` (dialog_erc.cpp:1021). */
   PrevMarker(): void {
     if (this.m_notebookSelection !== 0) this.m_notebookSelection = 0;
@@ -1003,6 +1046,9 @@ export function DialogErc({ dialog }: { dialog: DIALOG_ERC }): JSX.Element {
           />
         }
         ignoredRows={d.m_ignoredList.map((r) => r.text)}
+        onIgnoredRightClick={(aRow, e) =>
+          setMenu({ x: e.clientX, y: e.clientY, items: toMenuItems(d.OnIgnoredItemRClick(aRow)) })
+        }
         onEditIgnoredTests={() => d.OnEditViolationSeverities()}
         m_showAll={{ value: d.m_showAll, onChange: (aOn) => d.OnSeverity('all', aOn) }}
         m_showErrors={{
