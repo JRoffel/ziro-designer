@@ -3855,7 +3855,10 @@ export class PCB_SELECTION_TOOL extends SELECTION_TOOL {
   /**
    * @return true if the given point is contained in any of selected items' bounding boxes.
    */
-  private selectionContains(aPoint: VECTOR2I): boolean {
+  private selectionContains(aWorldPoint: VECTOR2I): boolean {
+    // `const VECTOR2I& aPoint`: both callers pass the event's VECTOR2D, which C++ narrows on the
+    // way in. A fractional point reaches SEG::SquaredDistance's BigInt arithmetic otherwise.
+    const aPoint = toVECTOR2I(aWorldPoint);
     const GRIP_MARGIN = 20;
     const view = this.getView();
 

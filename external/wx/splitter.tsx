@@ -33,17 +33,17 @@ export function SplitterWindow({
   const vertical = split === 'vertical';
 
   return (
-    <div className={`ze-splitter ${vertical ? 'vertical' : 'horizontal'}`}>
+    <div className={`ze-wxsplitter ${vertical ? 'vertical' : 'horizontal'}`}>
       {!unsplit && (
         <>
           <div
-            className="ze-splitter-pane"
+            className="ze-wxsplitter-pane"
             style={vertical ? { width: sashPosition } : { height: sashPosition }}
           >
             {window1}
           </div>
           <div
-            className="ze-splitter-sash"
+            className="ze-wxsplitter-sash"
             role="separator"
             aria-orientation={vertical ? 'vertical' : 'horizontal'}
             onMouseDown={(e) => {
@@ -66,7 +66,7 @@ export function SplitterWindow({
           />
         </>
       )}
-      <div className="ze-splitter-pane grow">{window2}</div>
+      <div className="ze-wxsplitter-pane grow">{window2}</div>
     </div>
   );
 }

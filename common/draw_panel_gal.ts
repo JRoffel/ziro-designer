@@ -1309,7 +1309,13 @@ export class EDA_DRAW_PANEL_GAL
     });
     on('pointermove', (e) => mouse(e, 'move'));
     on('pointerenter', (e) => mouse(e, 'enter'));
-    on('pointerleave', (e) => mouse(e, 'leave'));
+    on('pointerleave', (e) => {
+      // GTK sends a motion for nearly every pixel, so KiCad's last one before wxEVT_LEAVE_WINDOW
+      // is at the edge. A browser coalesces motions to one a frame: a quick exit left the
+      // crosshair wherever that frame's was, mid-canvas. The exit point is that last motion.
+      mouse(e, 'move');
+      mouse(e, 'leave');
+    });
     on(
       'wheel',
       (e) => {

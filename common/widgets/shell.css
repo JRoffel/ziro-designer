@@ -5538,37 +5538,39 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
 .ze-mono {
   font-family: monospace;
 }
-/* wxSplitterWindow (external/wx/splitter.tsx): two panes and the sash between them. */
-.ze-splitter {
+/* wxSplitterWindow (external/wx/splitter.tsx): two panes and the sash between them.
+   Not `.ze-splitter`: that is the AUI dock sash, a 5 px bar this rule's `flex: 1`
+   stretched across the project manager. */
+.ze-wxsplitter {
   display: flex;
   min-height: 0;
   flex: 1;
 }
-.ze-splitter.horizontal {
+.ze-wxsplitter.horizontal {
   flex-direction: column;
 }
-.ze-splitter-pane {
+.ze-wxsplitter-pane {
   display: flex;
   flex-direction: column;
   flex: 0 0 auto;
   min-width: 0;
   min-height: 0;
 }
-.ze-splitter-pane.grow {
+.ze-wxsplitter-pane.grow {
   flex: 1;
 }
 /* [data] wxSplitterWindow's GTK sash: wxRendererGTK::GetSplitterParams' 5 px. */
-.ze-splitter-sash {
+.ze-wxsplitter-sash {
   flex: 0 0 5px;
   background: transparent;
 }
-.ze-splitter.vertical > .ze-splitter-sash {
+.ze-wxsplitter.vertical > .ze-wxsplitter-sash {
   cursor: col-resize;
 }
-.ze-splitter.horizontal > .ze-splitter-sash {
+.ze-wxsplitter.horizontal > .ze-wxsplitter-sash {
   cursor: row-resize;
 }
-.ze-splitter-sash:hover {
+.ze-wxsplitter-sash:hover {
   background: var(--chrome-active);
 }
 

@@ -33,6 +33,7 @@ import {
   TA_MOUSE_DBLCLICK,
   TA_MOUSE_DOWN,
   TA_MOUSE_DRAG,
+  TA_MOUSE_MOTION,
   TA_MOUSE_UP,
   TC_COMMAND,
   TC_MOUSE,
@@ -284,6 +285,25 @@ describe('PCB_SELECTION_TOOL::Main, a left click (pcb_selection_tool.cpp:315-358
     h.board.Add(diag, ADD_MODE.APPEND);
     h.view.Add(diag);
     click(h, { x: 65 * MM + 0.37, y: 65 * MM + 0.81 });
+    expect(h.tool.GetSelection().GetItems()).toEqual([diag]);
+  });
+
+  it('a motion at a fractional position over the selection hit-tests it (selectionContains)', () => {
+    // selectionContains( evt->Position() ) (:598) narrows the event's VECTOR2D to its
+    // `const VECTOR2I&` too: moving over a selected diagonal track threw on the BigInt.
+    const diag = new PCB_TRACK(h.board);
+    diag.SetStart({ x: 60 * MM, y: 60 * MM });
+    diag.SetEnd({ x: 70 * MM, y: 70 * MM });
+    diag.SetWidth(0.25 * MM);
+    diag.SetLayer(PCB_LAYER_ID.F_Cu);
+    h.board.Add(diag, ADD_MODE.APPEND);
+    h.view.Add(diag);
+    click(h, mm(65, 65));
+    expect(h.tool.GetSelection().GetItems()).toEqual([diag]);
+    // The move-cursor prediction only runs under drag-moves-selected, pcbnew's default.
+    (h.frame as unknown as { m_dragAction: MOUSE_DRAG_ACTION }).m_dragAction =
+      MOUSE_DRAG_ACTION.DRAG_SELECTED;
+    expect(() => mouse(h, TA_MOUSE_MOTION, { x: 65 * MM + 0.37, y: 65 * MM + 0.81 })).not.toThrow();
     expect(h.tool.GetSelection().GetItems()).toEqual([diag]);
   });
 

@@ -6809,7 +6809,9 @@ export function PcbEditor({
   const zoomNow = zoomFactorForScale(scale, window.devicePixelRatio || 1);
   const zoomPreset = ZOOM_LIST.pcbnew.find((z) => isZoomSelectPreset(z, zoomNow));
   const zoomCustom = scale > 0 && zoomPreset === undefined ? Number(zoomNow.toFixed(2)) : null;
-  const zoomSelValue: string | number = zoomPreset ?? zoomCustom ?? 'auto';
+  // The custom entry is its own row (`m_zoomCustomEntry`), not a zoom value: an off-preset 1.004
+  // reads "Zoom 1.00" beside the 1.00 preset, and sharing its value made the two one React key.
+  const zoomSelValue: string | number = zoomPreset ?? (zoomCustom !== null ? 'custom' : 'auto');
   // Field 6 (EDA_DRAW_FRAME::DisplayToolMsg, the "Current Tool" panel): the
   // friendly name of the active right-toolbar tool, blank in the selection tool.
   const toolMsg = PCB_TOOL_MSGS[activeTool] ?? '';
@@ -7027,7 +7029,7 @@ export function PcbEditor({
               options={[
                 { value: 'auto', label: ZOOM_AUTO_LABEL },
                 ...(zoomCustom !== null
-                  ? [{ value: String(zoomCustom), label: zoomSelectLabel(zoomCustom) }]
+                  ? [{ value: 'custom', label: zoomSelectLabel(zoomCustom) }]
                   : []),
                 ...ZOOM_LIST.pcbnew.map((z) => ({
                   value: String(z),
@@ -7035,6 +7037,8 @@ export function PcbEditor({
                 })),
               ]}
               onChange={(v) => {
+                // "Picking the custom entry means keep the current zoom, so nothing to do."
+                if (v === 'custom') return;
                 if (v === 'auto') zoomToFit();
                 else setZoomPreset(Number(v));
               }}
