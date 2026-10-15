@@ -466,6 +466,25 @@ export function pcbnewSettingsOf(json: PCBNEW_JSON_SETTINGS_LIKE): PCBNEW_SETTIN
 }
 
 /**
+ * Whether `storePcbnewSettings` would move anything in a slice, without
+ * touching the slice. The store asks after every canvas event, wheel steps
+ * included, so the copy it writes into is made once per slice, not per ask.
+ */
+export class PCBNEW_SETTINGS_DRY_RUN {
+  private m_src: PCBNEW_JSON_SETTINGS_LIKE | null = null;
+  private m_copy: PCBNEW_JSON_SETTINGS_LIKE | null = null;
+
+  Changed(aSettings: PCBNEW_SETTINGS, aJson: PCBNEW_JSON_SETTINGS_LIKE): boolean {
+    if (this.m_src !== aJson || !this.m_copy) {
+      this.m_src = aJson;
+      this.m_copy = structuredClone(aJson);
+    }
+
+    return storePcbnewSettings(aSettings, this.m_copy);
+  }
+}
+
+/**
  * `JSON_SETTINGS::Store()` for the same PARAMs: what a tool changed in the
  * settings object, written back into the `pcbnew.json` slice. True when
  * anything moved.

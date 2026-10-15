@@ -19,6 +19,7 @@ import { installPgm } from '@ziroeda/designer/src/editors/pcb/pcb_canvas.js';
 import { PCBNEW_DEFAULTS, deepMerge } from '@ziroeda/designer/src/prefs/settings.js';
 import {
   loadPcbnewSettings,
+  PCBNEW_SETTINGS_DRY_RUN,
   pcbnewSettingsOf,
   storePcbnewSettings,
 } from '@ziroeda/pcbnew/pcb_edit_frame.js';
@@ -231,5 +232,35 @@ describe('PCBNEW_SETTINGS load / store over the pcbnew.json slice', () => {
     const second = PgmOrNull()!.GetSettingsManager().GetAppSettings<PCBNEW_SETTINGS>('pcbnew');
     expect(first).not.toBeNull();
     expect(second).toBe(first);
+  });
+});
+
+describe('PCBNEW_SETTINGS_DRY_RUN', () => {
+  it('answers as the store would, and never writes the slice it is asked about', () => {
+    const json = fresh();
+    const cfg = pcbnewSettingsOf(json);
+    const dry = new PCBNEW_SETTINGS_DRY_RUN();
+    expect(dry.Changed(cfg, json)).toBe(false);
+
+    cfg.m_AngleSnapMode = LEADER_MODE.DEG90;
+    expect(dry.Changed(cfg, json)).toBe(true);
+    expect(json).toEqual(PCBNEW_DEFAULTS);
+  });
+
+  it('asks against the slice it is given, not one it copied earlier', () => {
+    // The object starts free, Preferences moves the slice to 90 degrees and
+    // loads it, then a tool moves the object back to free: the slice must hear.
+    const a = fresh();
+    const cfg = pcbnewSettingsOf(a);
+    const dry = new PCBNEW_SETTINGS_DRY_RUN();
+    expect(dry.Changed(cfg, a)).toBe(false);
+
+    const b = fresh();
+    b.editing.pcb_angle_snap_mode = 2;
+    loadPcbnewSettings(cfg, b);
+    expect(dry.Changed(cfg, b)).toBe(false);
+
+    cfg.m_AngleSnapMode = LEADER_MODE.DIRECT;
+    expect(dry.Changed(cfg, b)).toBe(true);
   });
 });

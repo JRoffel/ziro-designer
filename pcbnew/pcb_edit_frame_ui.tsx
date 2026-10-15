@@ -409,6 +409,7 @@ import {
   PCB_EDIT_FRAME,
   REACT_BOARD_LISTENER,
   storePcbnewSettings,
+  PCBNEW_SETTINGS_DRY_RUN,
 } from './pcb_edit_frame.js';
 import { LIB_ID } from '@ziroeda/common/lib_id.js';
 import type { BOARD_EDITOR_CONTROL } from './tools/board_editor_control.js';
@@ -1872,6 +1873,7 @@ export function PcbEditor({
   const loadedPcbCfgRef = useRef<typeof pcbCfg | null>(null);
   const commonCfgRef = useRef(commonCfg);
   commonCfgRef.current = commonCfg;
+  const storeDryRunRef = useRef(new PCBNEW_SETTINGS_DRY_RUN());
   const storePcbnewSettingsRef = useRef((): void => {
     // COMMON_SETTINGS' `do_not_show_again.*`, which a tool sets in the object.
     const common = PgmOrNull()?.GetCommonSettings();
@@ -1900,7 +1902,7 @@ export function PcbEditor({
     // coordinates, panes - into the object, then the object into the store.
     frameRef.current?.SaveSettings(cfg);
 
-    if (!storePcbnewSettings(cfg, structuredClone(pcbCfgRef.current))) return;
+    if (!storeDryRunRef.current.Changed(cfg, pcbCfgRef.current)) return;
 
     updatePcbnewSettings((json) => {
       storePcbnewSettings(cfg, json);

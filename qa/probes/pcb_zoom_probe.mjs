@@ -66,6 +66,11 @@ await send('Emulation.setEmulatedMedia', {
     { name: 'any-pointer', value: 'fine' },
   ],
 });
+// COUNT_GL=1: count every WebGL call during the zoom, by method.
+if (process.env.COUNT_GL)
+  await send('Page.addScriptToEvaluateOnNewDocument', {
+    source: `(() => { window.__gl = {}; window.__glOn = false; for (const C of [WebGL2RenderingContext, WebGLRenderingContext]) for (const k of Object.getOwnPropertyNames(C.prototype)) { const d = Object.getOwnPropertyDescriptor(C.prototype, k); if (typeof d.value !== 'function') continue; const f = d.value; C.prototype[k] = function (...a) { if (window.__glOn) window.__gl[k] = (window.__gl[k] ?? 0) + 1; return f.apply(this, a); }; } })()`,
+  });
 await send('Page.navigate', { url });
 // A `/pcb` URL opens the editor itself; anything else is the project manager, whose launcher
 // opens it.
@@ -105,7 +110,14 @@ if (!rect) {
 }
 for (let i = 0; i < 600; i++) {
   await sleep(500);
-  if (!(await evalJs(`document.body.innerText.includes('Load PCB')`))) break;
+  // The board's own load ("Loading x.kicad_pcb...", zone triangulation, connectivity) runs
+  // behind a progress dialog after the canvas is up; a zoom measured over it measures the load.
+  if (
+    !(await evalJs(
+      `document.body.innerText.includes('Load PCB') || /Loading .*\\.kicad_pcb|Triangulat|connectivity/i.test(document.body.innerText) || !!document.querySelector('.ze-progress-dialog')`,
+    ))
+  )
+    break;
 }
 await sleep(3000);
 {
@@ -144,22 +156,77 @@ await evalJs(
 );
 await sleep(200);
 await evalJs('window.__resizes.length = 0');
-await send('Profiler.setSamplingInterval', { interval: 200 });
-await send('Profiler.start');
+// TRACE_OUT=x.json: a Chrome trace of the zoom instead of a CPU profile - what the renderer's
+// main thread, the compositor and the GPU process each ran, native work included.
+const tracing = process.env.TRACE_OUT;
+const traceEvents = [];
+let traceDone = null;
+if (tracing) {
+  const prev = ws.onmessage;
+  ws.onmessage = (e) => {
+    const m = JSON.parse(e.data);
+    if (m.method === 'Tracing.dataCollected') traceEvents.push(...m.params.value);
+    else if (m.method === 'Tracing.tracingComplete') traceDone?.();
+    else prev(e);
+  };
+  await send('Tracing.start', {
+    traceConfig: {
+      includedCategories: [
+        'toplevel',
+        'devtools.timeline',
+        'disabled-by-default-devtools.timeline',
+        'disabled-by-default-devtools.timeline.frame',
+        'gpu',
+        'viz',
+        'cc',
+        'blink',
+        'v8',
+        'disabled-by-default-gpu.service',
+        // TRACE_CPU=1: JS samples in the trace too, which slows every frame down.
+        ...(process.env.TRACE_CPU ? ['disabled-by-default-v8.cpu_profiler'] : []),
+      ],
+    },
+    transferMode: 'ReportEvents',
+  });
+} else {
+  await send('Profiler.setSamplingInterval', { interval: 200 });
+  await send('Profiler.start');
+}
+// EVAL_BEFORE / EVAL_AFTER: an expression run in the page around the zoom, the second printed.
+if (process.env.EVAL_BEFORE) await evalJs(process.env.EVAL_BEFORE);
+if (process.env.COUNT_GL) await evalJs('window.__glOn = true');
 const t0 = await evalJs('performance.now()');
-for (let i = 0; i < 120; i++) {
+// STEPS=n: wheel steps (half in, half out); 0 asks for full redraws with no zoom at all.
+const steps = Number(process.env.STEPS ?? 120);
+for (let i = 0; i < steps; i++) {
   await send('Input.dispatchMouseEvent', {
     type: 'mouseWheel',
     x: rect.x + (i % 10) * 3,
     y: rect.y,
     deltaX: 0,
-    deltaY: i < 60 ? -100 : 100,
+    deltaY: i < steps / 2 ? -100 : 100,
   });
   await sleep(16);
 }
 await sleep(500);
 const t1 = await evalJs('performance.now()');
-const { result } = await send('Profiler.stop');
+if (process.env.EVAL_AFTER) console.log(await evalJs(process.env.EVAL_AFTER));
+if (process.env.COUNT_GL) {
+  const gl = await evalJs('(window.__glOn = false, window.__gl)');
+  const n = Object.values(gl).reduce((a, b) => a + b, 0);
+  console.log(`WebGL calls during the zoom: ${n}; by method:`);
+  for (const [k, v] of Object.entries(gl)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 20))
+    console.log(`  ${String(v).padStart(9)}  ${k}`);
+}
+if (tracing) {
+  const done = new Promise((r) => (traceDone = r));
+  await send('Tracing.end');
+  await done;
+  (await import('node:fs')).writeFileSync(tracing, JSON.stringify(traceEvents));
+}
+const { result } = tracing ? { result: null } : await send('Profiler.stop');
 const frames = await evalJs(`window.__frames.filter(t => t >= ${t0} && t <= ${t1})`);
 const d = frames
   .slice(1)
@@ -172,6 +239,11 @@ console.log(
 {
   const rs = await evalJs('window.__resizes');
   console.log(`canvas resizes during the zoom: ${rs.length}`, rs.slice(0, 12).join(' | '));
+}
+if (tracing) {
+  console.log(`trace: ${traceEvents.length} events -> ${tracing}`);
+  chrome.kill();
+  process.exit(0);
 }
 const p = result.profile;
 // PROFILE_OUT=x.cpuprofile: the raw profile, for DevTools or a deeper stack walk.

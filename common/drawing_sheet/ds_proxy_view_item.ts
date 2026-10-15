@@ -58,6 +58,14 @@ import {
 import { type DsTextItem, layoutDrawingSheet } from './layout.js';
 import type { WksSheet } from './types.js';
 
+/**
+ * The built-in drawing sheet the view draws, made once: `DS_DATA_MODEL::GetTheInstance()`
+ * holds KiCad's for the life of the program, and the view reads it on every frame.
+ * layoutDrawingSheet only reads it.
+ */
+let s_defaultSheet: WksSheet | null = null;
+const theDefaultSheet = (): WksSheet => (s_defaultSheet ??= defaultDrawingSheet());
+
 /** `COLOR4D::UNSPECIFIED`. */
 const COLOR4D_UNSPECIFIED: Color4d = { r: 0, g: 0, b: 0, a: 0 };
 
@@ -519,7 +527,7 @@ export class DS_PROXY_VIEW_ITEM extends EDA_ITEM {
 
     if (titleBlock) for (let i = 0; i < 9; ++i) comments.push(titleBlock.GetComment(i));
 
-    const sheet = this.m_project?.GetDrawingSheet?.() ?? defaultDrawingSheet();
+    const sheet = this.m_project?.GetDrawingSheet?.() ?? theDefaultSheet();
 
     const items = layoutDrawingSheet(
       sheet,
@@ -603,7 +611,7 @@ export class DS_PROXY_VIEW_ITEM extends EDA_ITEM {
 
     if (titleBlock) for (let i = 0; i < 9; ++i) comments.push(titleBlock.GetComment(i));
 
-    const sheet = this.m_project?.GetDrawingSheet?.() ?? defaultDrawingSheet();
+    const sheet = this.m_project?.GetDrawingSheet?.() ?? theDefaultSheet();
 
     const items = layoutDrawingSheet(
       sheet,
@@ -690,6 +698,10 @@ export class DS_PROXY_VIEW_ITEM extends EDA_ITEM {
     return text;
   }
 
+  /** The painter ViewDraw keeps, and the GAL it was made for. */
+  private m_wsPainter: DS_PAINTER | null = null;
+  private m_wsPainterGal: GAL | null = null;
+
   /// @copydoc VIEW_ITEM::ViewDraw()
   override ViewDraw(_aLayer: number, aView: VIEW): void {
     const gal = aView.GetGAL();
@@ -714,7 +726,16 @@ export class DS_PROXY_VIEW_ITEM extends EDA_ITEM {
       viewport = v;
     }
 
-    const ws_painter = new DS_PAINTER(gal);
+    // `DS_PAINTER ws_painter( gal )`: KiCad makes one per draw, which costs it nothing. Here
+    // its DS_RENDER_SETTINGS' update() over every layer id was most of a full-board frame, so
+    // the painter is kept per GAL. It only reads its settings, and every one it reads is set
+    // again below, so a kept painter draws what a new one would.
+    if (!this.m_wsPainter || this.m_wsPainterGal !== gal) {
+      this.m_wsPainter = new DS_PAINTER(gal);
+      this.m_wsPainterGal = gal;
+    }
+
+    const ws_painter = this.m_wsPainter;
     const ws_settings = ws_painter.GetSettings();
 
     ws_settings.SetNormalColor(settings.GetLayerColor(this.m_colorLayer));
