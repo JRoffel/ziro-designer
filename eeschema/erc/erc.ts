@@ -13,6 +13,7 @@ import {
   ExpandEnvVarSubstitutions,
   ResolveShownText,
   type TextVarResolverFn,
+  FOR_ERC_DRC,
 } from '@ziroeda/common/common.js';
 import { electricalPinTypeGetText } from '../pin_type.js';
 import {
@@ -58,6 +59,11 @@ import { Pgm } from '@ziroeda/common/pgm_base.js';
 import { LIBRARY_TABLE_TYPE } from '@ziroeda/common/libraries/library_table.js';
 import { UNITS_PROVIDER } from '@ziroeda/common/units_provider.js';
 import { schIUScale } from '@ziroeda/common/eda_units.js';
+import {
+  DS_DRAW_ITEM_LIST,
+  DS_DRAW_ITEM_TEXT,
+} from '@ziroeda/common/drawing_sheet/ds_draw_item.js';
+import type { DS_PROXY_VIEW_ITEM } from '@ziroeda/common/drawing_sheet/ds_proxy_view_item.js';
 import { SymbolLibAdapter } from '../project_sch.js';
 import { CheckDuplicatePins } from '../symbol_checker.js';
 import { SIM_LIB_MGR } from '../sim/sim_lib_mgr.js';
@@ -935,9 +941,11 @@ export class ERC_TESTER {
    * `TestTextVars( aDrawingSheet )` (erc.cpp:186): every field, text, text box, sheet pin and
    * symbol body text whose shown text still holds a `${...}` gets ERCE_UNRESOLVED_VARIABLE, and a
    * `${ERC_WARNING msg}` / `${ERC_ERROR msg}` assertion anywhere in a text raises that generic
-   * marker instead. The drawing-sheet half waits for RunTests to be handed the drawing sheet.
+   * marker instead; \a aDrawingSheet's texts are checked on every sheet too.
    */
-  TestTextVars(): void {
+  TestTextVars(aDrawingSheet: DS_PROXY_VIEW_ITEM | null): void {
+    const wsItems = new DS_DRAW_ITEM_LIST(schIUScale, FOR_ERC_DRC);
+
     const project = this.m_schematic.Project();
     const resolver = (aToken: { value: string }) => project.TextVarResolver(aToken);
 
@@ -1005,6 +1013,16 @@ export class ERC_TESTER {
         }
       }
     };
+
+    if (aDrawingSheet) {
+      wsItems.SetPageNumber('1');
+      wsItems.SetSheetCount(1);
+      wsItems.SetFileName('dummyFilename');
+      wsItems.SetSheetName('dummySheet');
+      wsItems.SetSheetLayer('dummyLayer');
+      wsItems.SetProject(project);
+      wsItems.BuildDrawItemsList(aDrawingSheet.GetPageInfo(), aDrawingSheet.GetTitleBlock());
+    }
 
     for (const sheet of this.m_sheetList) {
       const screen = sheet.LastScreen()!;
@@ -1074,6 +1092,21 @@ export class ERC_TESTER {
           } else if (hasVar(textBox.GetShownText(null, sheet, true))) {
             report(textBox, sheet, screen, textBox.GetPosition());
           }
+        }
+      }
+
+      for (let item = wsItems.GetFirst(); item; item = wsItems.GetNext()) {
+        if (!(item instanceof DS_DRAW_ITEM_TEXT)) continue;
+
+        const text = item;
+
+        if (testAssertion(null, sheet, screen, text.GetText(), text.GetPosition())) {
+          // Don't run unresolved test
+        } else if (hasVar(text.GetShownText(true))) {
+          const ercItem = ERC_ITEM.Create(ERCE.ERCE_UNRESOLVED_VARIABLE)!;
+          ercItem.SetErrorMessage('Unresolved text variable in drawing sheet');
+          ercItem.SetSheetSpecificPath(sheet);
+          screen.Append(new SCH_MARKER_LIVE(ercItem, text.GetPosition()));
         }
       }
     }
@@ -1793,10 +1826,10 @@ export class ERC_TESTER {
 
   /**
    * Run the ERC tests the settings enable. \a aEditFrame, when given, rebuilds connectivity
-   * first. Not here: the drawing sheet (TestTextVars), CvPcb (TestFootprintLinkIssues) and
-   * the progress reporter.
+   * first; \a aDrawingSheet, when given, has its texts checked by TestTextVars.
    */
   RunTests(
+    aDrawingSheet: DS_PROXY_VIEW_ITEM | null = null,
     aEditFrame: SCH_EDIT_FRAME | null = null,
     aCvPcb: KIFACE | null = null,
     aProject: PROJECT | null = null,
@@ -1876,7 +1909,7 @@ export class ERC_TESTER {
 
     if (this.m_settings.IsTestEnabled(ERCE.ERCE_UNRESOLVED_VARIABLE)) {
       phase('Checking for unresolved variables...');
-      this.TestTextVars();
+      this.TestTextVars(aDrawingSheet);
     }
 
     if (this.m_settings.IsTestEnabled(ERCE.ERCE_FIELD_NAME_WHITESPACE)) {

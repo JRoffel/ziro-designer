@@ -28,6 +28,10 @@ import { ERCE_T, SHEETLIST_ERC_ITEMS_PROVIDER } from '@ziroeda/eeschema/erc/erc_
 import { SCH_MARKER as SCH_MARKER_CLASS, type SCH_MARKER } from '@ziroeda/eeschema/sch_marker.js';
 import { ERC_ITEM } from '@ziroeda/eeschema/erc/erc_item.js';
 import type { SCH_SHEET } from '@ziroeda/eeschema/sch_sheet.js';
+import { DS_PROXY_VIEW_ITEM } from '@ziroeda/common/drawing_sheet/ds_proxy_view_item.js';
+import { schIUScale } from '@ziroeda/common/eda_units.js';
+import { PAGE_INFO, PAGE_SIZE_TYPE } from '@ziroeda/common/page_info.js';
+import { TITLE_BLOCK } from '@ziroeda/common/title_block.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { PGM_BASE, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
 
@@ -323,5 +327,70 @@ describe('ERC_TESTER::RunTests and the report', () => {
     expect(text).toContain('\n***** Sheet /Subsheet 1/\n');
     expect(text).toMatch(/\n \*\* ERC messages: \d+ {2}Errors \d+ {2}Warnings \d+\n/);
     expect(text).toContain('\n ** Ignored checks:\n');
+  });
+});
+
+describe('ERC_TESTER::TestTextVars on the drawing sheet', () => {
+  /** complex_hierarchy checked against a drawing sheet whose title block says \a aTitle. */
+  const withTitle = (aTitle: string) => {
+    const schematic = load();
+    const titleBlock = new TITLE_BLOCK();
+    titleBlock.SetTitle(aTitle);
+    const drawingSheet = new DS_PROXY_VIEW_ITEM(
+      schIUScale,
+      new PAGE_INFO(PAGE_SIZE_TYPE.A4),
+      null,
+      titleBlock,
+      null,
+    );
+    new ERC_TESTER(schematic).TestTextVars(drawingSheet);
+    return schematic;
+  };
+
+  /** Every marker on every screen (a screen two sheets share counted once), as [code, message]. */
+  const all = (aSchematic: ReturnType<typeof load>) =>
+    [...new Set(aSchematic.Hierarchy().map((path) => path.LastScreen()!))].flatMap((screen) =>
+      (screen.Items().OfType(KICAD_T.SCH_MARKER_T) as unknown as SCH_MARKER[]).map((m) => [
+        m.GetRCItem()!.GetErrorCode(),
+        m.GetRCItem()!.GetErrorMessage(false),
+      ]),
+    );
+
+  it('raises a ${ERC_WARNING} in the title block once per sheet, marked as the drawing sheet', () => {
+    const schematic = withTitle('${ERC_WARNING check me}');
+    const sheets = schematic.Hierarchy().length;
+    expect(sheets).toBeGreaterThan(1);
+    expect(all(schematic)).toEqual(
+      Array(sheets).fill([ERCE_T.ERCE_GENERIC_WARNING, 'check me (in drawing sheet)']),
+    );
+  });
+
+  it('reports an unresolved variable in the title block', () => {
+    const schematic = withTitle('${NO_SUCH_VAR}');
+    expect(all(schematic)).toEqual(
+      Array(schematic.Hierarchy().length).fill([
+        ERCE_T.ERCE_UNRESOLVED_VARIABLE,
+        'Unresolved text variable in drawing sheet',
+      ]),
+    );
+
+    // One marker per sheet instance, each naming its own sheet path.
+    const paths = [...new Set(schematic.Hierarchy().map((p) => p.LastScreen()!))]
+      .flatMap((screen) => screen.Items().OfType(KICAD_T.SCH_MARKER_T) as unknown as SCH_MARKER[])
+      .map((m) => (m.GetRCItem() as ERC_ITEM).GetSpecificSheetPath().PathAsString())
+      .sort();
+    expect(paths).toEqual(
+      schematic
+        .Hierarchy()
+        .map((p) => p.PathAsString())
+        .sort(),
+    );
+  });
+
+  it('finds nothing in a plain title, nor without a drawing sheet', () => {
+    expect(all(withTitle('Plain'))).toEqual([]);
+    const schematic = load();
+    new ERC_TESTER(schematic).TestTextVars(null);
+    expect(all(schematic)).toEqual([]);
   });
 });

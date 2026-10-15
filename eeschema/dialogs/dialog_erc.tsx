@@ -9,9 +9,6 @@
  * the markers land on the screens, and the Violations tab is an RC_TREE_MODEL over a
  * SHEETLIST_ERC_ITEMS_PROVIDER. What wx gives a dialog for free - the modal sub-dialogs, the save
  * file dialog, showing and hiding the window - is the window's ({@link DIALOG_ERC_WINDOW}).
- *
- * Not here yet: the drawing sheet TestTextVars would read (ERC_TESTER::RunTests takes no
- * drawing sheet yet).
  */
 import { useEffect, useState, type JSX } from 'react';
 import { ACTIONS } from '@ziroeda/common/tool/actions.js';
@@ -565,6 +562,7 @@ export class DIALOG_ERC extends PROGRESS_REPORTER_BASE implements DIALOG_ERC_FRA
     const tester = new ERC_TESTER(sch, this.m_showAllErrors);
 
     tester.RunTests(
+      this.m_parent.GetCanvas()?.GetView().GetDrawingSheet() ?? null,
       this.m_parent,
       this.m_parent.Kiway()?.KiFACE(FACE_T.FACE_CVPCB) ?? null,
       this.m_parent.Prj(),

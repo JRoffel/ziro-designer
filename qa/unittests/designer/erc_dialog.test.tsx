@@ -31,13 +31,14 @@ import {
   ERC_BADGE_MAX,
   ercBadge,
 } from '@ziroeda/eeschema/dialogs/dialog_erc.js';
+import { ERC_TESTER } from '@ziroeda/eeschema/erc/erc.js';
 import { ERC_ITEM } from '@ziroeda/eeschema/erc/erc_item.js';
 import { ERCE_T } from '@ziroeda/eeschema/erc/erc_settings.js';
 import { SCH_MARKER } from '@ziroeda/eeschema/sch_marker.js';
 import { SCH_EDIT_TOOL } from '@ziroeda/eeschema/tools/sch_edit_tool.js';
 import { SCH_INSPECTION_TOOL } from '@ziroeda/eeschema/tools/sch_inspection_tool.js';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { openProject, schFrame, schToolHarness } from '../eeschema/support/sch_tool_harness.js';
 
 const DIR = resolve(__dirname, '../../data/eeschema/erc_cases/quirks');
@@ -558,5 +559,22 @@ describe('DIALOG_ERC: chrome', () => {
     expect(written[0]).toMatch(/^ERC report \(/);
     expect(JSON.parse(written[1]!).$schema).toBe('https://schemas.kicad.org/erc.v1.json');
     expect(dialog.m_messages.at(-1)).toBe("Report file 'ERC.rpt' created.");
+  });
+});
+
+describe('DIALOG_ERC::testErc', () => {
+  /** dialog_erc.cpp:613: RunTests( m_parent->GetCanvas()->GetView()->GetDrawingSheet(), ... ). */
+  it("hands ERC_TESTER the canvas's drawing sheet", async () => {
+    const { frame, run } = open({}, true);
+    const drawingSheet = frame.GetCanvas()?.GetView().GetDrawingSheet() ?? null;
+    expect(drawingSheet).not.toBeNull();
+
+    const seen: unknown[] = [];
+    const spy = vi.spyOn(ERC_TESTER.prototype, 'TestTextVars').mockImplementation((aDs) => {
+      seen.push(aDs);
+    });
+    await run();
+    spy.mockRestore();
+    expect(seen).toEqual([drawingSheet]);
   });
 });

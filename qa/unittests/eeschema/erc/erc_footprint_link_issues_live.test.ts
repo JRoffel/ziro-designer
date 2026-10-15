@@ -76,7 +76,7 @@ function run(
   const schematic = LoadSchematic('/sch/p.kicad_sch', project, (p) =>
     p === '/sch/p.kicad_sch' ? SCH : null,
   )!;
-  new ERC_TESTER(schematic).RunTests(null, aCvPcb, project);
+  new ERC_TESTER(schematic).RunTests(null, null, aCvPcb, project);
 
   const out: [string, string][] = [];
   for (const m of schematic.RootScreen()!.Items().OfType(KICAD_T.SCH_MARKER_T)) {
