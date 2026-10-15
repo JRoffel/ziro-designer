@@ -8,25 +8,26 @@
  * status column shows), `LibraryError`, and the per-library configuration
  * dialog hooks.
  *
- * Not here: `LIBRARY_MANAGER`'s table loading and its async loads. How
- * libraries load and preload is still the editors' own: footprint libraries
- * resolve through `common/fp_lib_table.ts`'s plain records, not through this
- * class (design blocks are the one caller of `Rows`). Upstream keeps a second, process-wide map for
+ * Not here: the global tables' loading and the async loads. Project tables
+ * load through `LoadProjectTables`; footprint and symbol libraries still
+ * resolve through the editors' own stores (`common/fp_lib_table.ts`'s plain
+ * records), not through this class (design blocks are the one caller of `Rows`). Upstream keeps a second, process-wide map for
  * the global libraries (`globalLibs()`); an adapter here has the one map,
  * which is where both scopes' statuses are looked up in the same order.
  */
 import { ExpandEnvVarSubstitutions } from '../common.js';
 import { strNumCmp } from '../string_utils.js';
 import { PgmOrNull } from '../pgm_base.js';
+import { wxFileExists, wxReadFileSync } from '@ziroeda/wx/filefn.js';
 import type { PROJECT } from '../project.js';
 import {
   LIBRARY_ERROR,
   type LIBRARY_RESULT,
-  type LIBRARY_TABLE,
+  LIBRARY_TABLE,
   LIBRARY_TABLE_OK,
   type LIBRARY_TABLE_ROW,
   LIBRARY_TABLE_SCOPE,
-  type LIBRARY_TABLE_TYPE,
+  LIBRARY_TABLE_TYPE,
 } from './library_table.js';
 
 /**
@@ -68,6 +69,66 @@ export class LIBRARY_MANAGER {
   /** `Adapter( aType )`: the registered adapter, if any. */
   Adapter(aType: LIBRARY_TABLE_TYPE): LIBRARY_MANAGER_ADAPTER | undefined {
     return this.m_adapters.get(aType);
+  }
+
+  /** `tableFileName( aType )` (library_manager.cpp:268-283): the FILEEXT table file name. [data] */
+  static TableFileName(aType: LIBRARY_TABLE_TYPE): string {
+    switch (aType) {
+      case LIBRARY_TABLE_TYPE.SYMBOL:
+        return 'sym-lib-table';
+      case LIBRARY_TABLE_TYPE.FOOTPRINT:
+        return 'fp-lib-table';
+      case LIBRARY_TABLE_TYPE.DESIGN_BLOCK:
+        return 'design-block-lib-table';
+      default:
+        return '';
+    }
+  }
+
+  /**
+   * `LoadProjectTables( aProjectPath, aTablesToLoad )` (library_manager.cpp:893-935): each
+   * named table (all three when none is named) read from the project directory, replacing the
+   * project table of that type; a table file that is missing, or of another type, leaves none.
+   * The adapters drop their project libraries first and reconcile after, as upstream's two
+   * phases do. Nested tables are not followed (see the class comment).
+   */
+  LoadProjectTables(aProjectPath: string, aTablesToLoad: readonly LIBRARY_TABLE_TYPE[] = []): void {
+    for (const adapter of this.m_adapters.values()) adapter.ProjectTablesChanged(aTablesToLoad);
+
+    const types =
+      aTablesToLoad.length === 0
+        ? [LIBRARY_TABLE_TYPE.SYMBOL, LIBRARY_TABLE_TYPE.FOOTPRINT, LIBRARY_TABLE_TYPE.DESIGN_BLOCK]
+        : aTablesToLoad;
+
+    for (const type of types) {
+      this.m_projectTables.delete(type);
+
+      const fn = `${aProjectPath.replace(/\/+$/, '')}/${LIBRARY_MANAGER.TableFileName(type)}`;
+
+      if (!wxFileExists(fn)) continue;
+
+      const bytes = wxReadFileSync(fn);
+
+      if (!bytes) continue;
+
+      const table = LIBRARY_TABLE.FromFile(
+        fn,
+        new TextDecoder().decode(bytes),
+        LIBRARY_TABLE_SCOPE.PROJECT,
+      );
+
+      // "Library table '%s' has type %s but expected %s; skipping"
+      if (table.Type() !== type) {
+        console.warn(
+          `Library table '${fn}' has type ${table.Type()} but expected ${type}; skipping`,
+        );
+        continue;
+      }
+
+      this.m_projectTables.set(type, table);
+    }
+
+    for (const adapter of this.m_adapters.values()) adapter.ProjectTablesReloaded(aTablesToLoad);
   }
 
   /** Install (or with null, drop) the table of \a aType in \a aScope. */
@@ -251,6 +312,26 @@ export abstract class LIBRARY_MANAGER_ADAPTER {
       aRow.SetErrorDescription(plugin.error.message);
     }
   }
+
+  /**
+   * `ProjectTablesChanged( aChangedTables )` (library_manager.cpp:1157-1174): before the
+   * project tables are replaced, `resetProjectCache` drops the libraries loaded from them.
+   */
+  ProjectTablesChanged(aChangedTables: readonly LIBRARY_TABLE_TYPE[]): void {
+    if (aChangedTables.length > 0 && !aChangedTables.includes(this.Type())) return;
+
+    for (const nickname of [...this.m_libraries.keys()]) {
+      if (this.m_manager?.GetRow(this.Type(), nickname, LIBRARY_TABLE_SCOPE.PROJECT))
+        this.m_libraries.delete(nickname);
+    }
+  }
+
+  /**
+   * `ProjectTablesReloaded( aChangedTables )` (:1177-1209): upstream erases the sentinels
+   * `resetProjectCache` left; this adapter keeps one map and leaves none, so there is nothing
+   * to reconcile.
+   */
+  ProjectTablesReloaded(_aChangedTables: readonly LIBRARY_TABLE_TYPE[]): void {}
 
   /** `GetLibraryStatus( aNickname )`: undefined when not loaded (yet). */
   GetLibraryStatus(aNickname: string): LIB_STATUS | undefined {

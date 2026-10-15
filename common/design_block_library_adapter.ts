@@ -279,6 +279,13 @@ export class DESIGN_BLOCK_LIBRARY_ADAPTER extends LIBRARY_MANAGER_ADAPTER {
   }
 }
 
-// `PROJECT::DesignBlockLibs()` makes one of these over the program's library manager.
-PROJECT.s_designBlockLibsFactory = () =>
-  new DESIGN_BLOCK_LIBRARY_ADAPTER(Pgm().GetLibraryManager());
+// `PROJECT::DesignBlockLibs()`: the program library manager's design block adapter, registered
+// there the first time it is asked.
+PROJECT.s_designBlockLibsFactory = () => {
+  const mgr = Pgm().GetLibraryManager();
+
+  if (!mgr.Adapter(LIBRARY_TABLE_TYPE.DESIGN_BLOCK))
+    mgr.RegisterAdapter(LIBRARY_TABLE_TYPE.DESIGN_BLOCK, new DESIGN_BLOCK_LIBRARY_ADAPTER(mgr));
+
+  return mgr.Adapter(LIBRARY_TABLE_TYPE.DESIGN_BLOCK) as DESIGN_BLOCK_LIBRARY_ADAPTER;
+};

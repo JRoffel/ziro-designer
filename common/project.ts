@@ -312,9 +312,6 @@ export class PROJECT {
     return this.m_projectFile!;
   }
 
-  /** `m_designBlockLibs`: made the first time `DesignBlockLibs()` is asked. */
-  private m_designBlockLibs: DESIGN_BLOCK_LIBRARY_ADAPTER | null = null;
-
   /**
    * How `DesignBlockLibs()` makes its adapter. `design_block_library_adapter.ts`
    * installs it when it loads: a value import from here would be a module cycle
@@ -324,18 +321,14 @@ export class PROJECT {
     null;
 
   /**
-   * `DesignBlockLibs()` (project.cpp): the project's design block libraries,
-   * over `Pgm().GetLibraryManager()`.
+   * `DesignBlockLibs()` (project.cpp:437-456): `Pgm().GetLibraryManager()`'s design block
+   * adapter, registered the first time it is asked - one per manager, not per project.
    */
   DesignBlockLibs(): DESIGN_BLOCK_LIBRARY_ADAPTER {
-    if (!this.m_designBlockLibs) {
-      if (!PROJECT.s_designBlockLibsFactory)
-        throw new Error('DesignBlockLibs(): design_block_library_adapter.js is not loaded');
+    if (!PROJECT.s_designBlockLibsFactory)
+      throw new Error('DesignBlockLibs(): design_block_library_adapter.js is not loaded');
 
-      this.m_designBlockLibs = PROJECT.s_designBlockLibsFactory(this);
-    }
-
-    return this.m_designBlockLibs;
+    return PROJECT.s_designBlockLibsFactory(this);
   }
 
   GetLocalSettings(): PROJECT_LOCAL_SETTINGS {
