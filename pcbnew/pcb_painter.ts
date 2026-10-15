@@ -2027,15 +2027,11 @@ export class PCB_PAINTER extends PAINTER {
         for (const shape of shapes!.Shapes()) drawOneSimpleShape(shape);
       } else {
         // This is expensive.  Avoid if possible.
-        const polySet = new SHAPE_POLY_SET();
-        aPad.TransformShapeToPolygon(
-          polySet,
-          ToLAYER_ID(aLayer),
-          margin.x,
-          this.m_maxError,
-          ERROR_LOC.ERROR_INSIDE,
-        );
-        gal.DrawPolygon(polySet);
+        //
+        // Every pad of a selected footprint comes here each frame (outline mode), and in a
+        // browser rebuilding the outline was half a zoom frame's work: it is kept per pad,
+        // keyed by what the call takes, until the pad's shape changes.
+        gal.DrawPolygon(PadOutlineForDraw(aPad, ToLAYER_ID(aLayer), margin.x, this.m_maxError));
       }
     }
 
@@ -2077,18 +2073,16 @@ export class PCB_PAINTER extends PAINTER {
           const circle = shape.Shapes()[0] as SHAPE_CIRCLE;
           gal.DrawCircle(circle.GetCenter(), circle.GetRadius() + clearance);
         } else {
-          const polySet = new SHAPE_POLY_SET();
-
           // Use ERROR_INSIDE because it avoids Clipper and is therefore much faster.
-          aPad.TransformShapeToPolygon(
-            polySet,
+          // (Kept per pad as drawPad's outlines are: a selection draws this every frame.)
+          const polySet = PadOutlineForDraw(
+            aPad,
             copperLayerForClearance,
             clearance,
             this.m_maxError,
-            ERROR_LOC.ERROR_INSIDE,
           );
 
-          if (polySet.Outline(0).PointCount() > 2)
+          if (polySet.COutline(0).PointCount() > 2)
             // Careful of empty pads
             gal.DrawPolygon(polySet);
         }
@@ -3430,6 +3424,41 @@ export class PCB_PAINTER extends PAINTER {
       }
     });
   }
+}
+
+/** Each pad's drawn outlines, and the shape generation they were built at. */
+const s_padOutlines = new WeakMap<PAD, { gen: number; polys: Map<string, SHAPE_POLY_SET> }>();
+
+/**
+ * `aPad->TransformShapeToPolygon( polySet, aLayer, aMargin, aMaxError, ERROR_INSIDE )` as
+ * PCB_PAINTER::drawPad builds it for a pad it cannot draw as simple shapes, kept until the pad's
+ * shape changes (`PAD::SetDirty`). Not KiCad's: there the rebuild is cheap enough per frame.
+ * The polygon is drawn, never modified, and never triangulated, so it draws as outlines.
+ */
+export function PadOutlineForDraw(
+  aPad: PAD,
+  aLayer: PCB_LAYER_ID,
+  aMargin: number,
+  aMaxError: number,
+): SHAPE_POLY_SET {
+  const gen = aPad.GetShapeGeneration();
+  let entry = s_padOutlines.get(aPad);
+
+  if (!entry || entry.gen !== gen) {
+    entry = { gen, polys: new Map() };
+    s_padOutlines.set(aPad, entry);
+  }
+
+  const key = `${aLayer} ${aMargin} ${aMaxError}`;
+  let poly = entry.polys.get(key);
+
+  if (!poly) {
+    poly = new SHAPE_POLY_SET();
+    aPad.TransformShapeToPolygon(poly, aLayer, aMargin, aMaxError, ERROR_LOC.ERROR_INSIDE);
+    entry.polys.set(key, poly);
+  }
+
+  return poly;
 }
 
 export function ZoneOutlineDrawnOnLayer(aOutlineOnly: boolean, aLayer: number): boolean {

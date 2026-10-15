@@ -164,6 +164,7 @@ export class PAD extends BOARD_CONNECTED_ITEM {
   // Bools at the end for better memory layout
   private m_polyDirty: [boolean, boolean];
   private m_shapesDirty: boolean;
+  private m_shapeGeneration = 0;
 
   private m_zoneLayerOverrides: Map<PCB_LAYER_ID, ZONE_LAYER_OVERRIDE>;
 
@@ -1452,7 +1453,17 @@ export class PAD extends BOARD_CONNECTED_ITEM {
     );
   }
 
+  /**
+   * Not KiCad's: how many times SetDirty has run, so a cache outside the pad can tell its
+   * entries are stale (the painter's outlines of a selected pad, see PCB_PAINTER::drawPad).
+   * `m_polyDirty` cannot say it: the first rebuild clears it for every reader.
+   */
+  GetShapeGeneration(): number {
+    return this.m_shapeGeneration;
+  }
+
   SetDirty(): void {
+    this.m_shapeGeneration++;
     this.m_shapesDirty = true;
     this.m_polyDirty[ERROR_LOC.ERROR_INSIDE] = true;
     this.m_polyDirty[ERROR_LOC.ERROR_OUTSIDE] = true;

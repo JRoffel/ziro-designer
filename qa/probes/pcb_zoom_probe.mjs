@@ -16,7 +16,10 @@ const chrome = spawn(
   [
     '--headless=new',
     '--no-sandbox',
-    ...(process.env.SWIFTSHADER ? ['--enable-unsafe-swiftshader'] : ['--use-angle=gl']),
+    // ANGLE's GL backend gets no WebGL2 under Wayland here; Vulkan reaches the Intel GPU.
+    ...(process.env.SWIFTSHADER
+      ? ['--enable-unsafe-swiftshader']
+      : ['--use-angle=vulkan', '--enable-features=Vulkan', '--ignore-gpu-blocklist']),
     '--window-size=1600,1000',
     `--remote-debugging-port=${port}`,
     `--user-data-dir=${process.env.PROF}`,
@@ -52,21 +55,35 @@ await send('Emulation.setDeviceMetricsOverride', {
   height: 1000,
   deviceScaleFactor: 1,
   mobile: false,
+  // Headless reports an 800 x 600 screen, which the desktop gate reads as a phone.
+  screenWidth: 1920,
+  screenHeight: 1080,
+});
+// Headless reports no fine pointer, which the desktop gate reads as a phone.
+await send('Emulation.setEmulatedMedia', {
+  features: [
+    { name: 'pointer', value: 'fine' },
+    { name: 'any-pointer', value: 'fine' },
+  ],
 });
 await send('Page.navigate', { url });
-for (let i = 0; i < 150; i++) {
-  await sleep(200);
-  if (
-    await evalJs(
-      `document.body.innerText.includes('.kicad_pro') && !!document.querySelector('button.ze-launcher') && !document.querySelector('.ze-progress-dialog')`,
+// A `/pcb` URL opens the editor itself; anything else is the project manager, whose launcher
+// opens it.
+if (!/\/pcb\/?(\?|$)/.test(url)) {
+  for (let i = 0; i < 150; i++) {
+    await sleep(200);
+    if (
+      await evalJs(
+        `document.body.innerText.includes('.kicad_pro') && !!document.querySelector('button.ze-launcher') && !document.querySelector('.ze-progress-dialog')`,
+      )
     )
-  )
-    break;
+      break;
+  }
+  await sleep(6000);
+  await evalJs(
+    `[...document.querySelectorAll('button.ze-launcher')].find(e => e.textContent.trim().startsWith('PCB Editor')).click()`,
+  );
 }
-await sleep(6000);
-await evalJs(
-  `[...document.querySelectorAll('button.ze-launcher')].find(e => e.textContent.trim().startsWith('PCB Editor')).click()`,
-);
 // The editor's canvas, laid out and visible.
 let rect = null;
 for (let i = 0; i < 300; i++) {
@@ -99,9 +116,34 @@ await sleep(3000);
   );
   console.log('canvas', JSON.stringify(rect));
 }
+// SELECT=x,y (px from the canvas centre): click there first, so the zoom runs with a selection.
+if (process.env.SELECT) {
+  const [dx, dy] = process.env.SELECT.split(',').map(Number);
+  for (const type of ['mouseMoved', 'mousePressed', 'mouseReleased'])
+    await send('Input.dispatchMouseEvent', {
+      type,
+      x: rect.x + dx,
+      y: rect.y + dy,
+      button: 'left',
+      clickCount: type === 'mouseMoved' ? 0 : 1,
+    });
+  await sleep(1500);
+  console.log(
+    'selected:',
+    await evalJs(
+      `[...document.querySelectorAll('.ze-props, [class*=propert]')].map(e => e.innerText.slice(0, 80)).join(' | ').slice(0, 200)`,
+    ),
+  );
+}
 await evalJs(
   `(() => { window.__frames = []; const tick = (t) => { window.__frames.push(t); if (window.__frames.length < 100000) requestAnimationFrame(tick); }; requestAnimationFrame(tick); })()`,
 );
+// Every size a canvas takes during the zoom: a resize re-creates the GAL's framebuffers.
+await evalJs(
+  `(() => { window.__resizes = []; const ro = new ResizeObserver((es) => { for (const e of es) window.__resizes.push(Math.round(performance.now()) + ' ' + e.target.width + 'x' + e.target.height + ' css ' + e.contentRect.width.toFixed(2) + 'x' + e.contentRect.height.toFixed(2)); }); setTimeout(() => document.querySelectorAll('canvas').forEach((c) => ro.observe(c)), 0); })()`,
+);
+await sleep(200);
+await evalJs('window.__resizes.length = 0');
 await send('Profiler.setSamplingInterval', { interval: 200 });
 await send('Profiler.start');
 const t0 = await evalJs('performance.now()');
@@ -127,7 +169,14 @@ const q = (p) => d[Math.min(d.length - 1, Math.floor(p * d.length))]?.toFixed(1)
 console.log(
   `${(t1 - t0).toFixed(0)} ms of wheel: ${frames.length} frames; interval p50 ${q(0.5)} p90 ${q(0.9)} p99 ${q(0.99)} max ${d.at(-1)?.toFixed(1)} ms; frames over 33 ms: ${d.filter((x) => x > 33).length}`,
 );
+{
+  const rs = await evalJs('window.__resizes');
+  console.log(`canvas resizes during the zoom: ${rs.length}`, rs.slice(0, 12).join(' | '));
+}
 const p = result.profile;
+// PROFILE_OUT=x.cpuprofile: the raw profile, for DevTools or a deeper stack walk.
+if (process.env.PROFILE_OUT)
+  (await import('node:fs')).writeFileSync(process.env.PROFILE_OUT, JSON.stringify(p));
 const self = new Map();
 const byUrl = new Map();
 const nodes = new Map(p.nodes.map((n) => [n.id, n]));
@@ -150,4 +199,37 @@ console.log(
     .map(([k, v]) => `${k} ${Math.round(v / 1000)}ms`)
     .join(' | '),
 );
+// The stutters: what the main thread ran inside each frame interval over 33 ms. The profile's
+// clock starts at Profiler.start, which `t0` follows within a round trip.
+{
+  const parent = new Map();
+  for (const n of p.nodes) for (const c of n.children ?? []) parent.set(c, n.id);
+  const name = (id) => {
+    const f = nodes.get(id).callFrame;
+    return `${f.functionName || '(anon)'}@${(f.url || '').split('/').pop().split('?')[0]}:${f.lineNumber}`;
+  };
+  const slow = [];
+  for (let i = 1; i < frames.length; i++)
+    if (frames[i] - frames[i - 1] > 33) slow.push([frames[i - 1], frames[i]]);
+  const inSlow = new Map();
+  let at = 0;
+  for (let i = 0; i < p.samples.length; i++) {
+    at += p.timeDeltas[i];
+    const t = t0 + at / 1000;
+    if (!slow.some(([a, b]) => t >= a && t <= b)) continue;
+    // The sample's stack, innermost first, four frames deep.
+    const chain = [];
+    for (let id = p.samples[i]; id !== undefined && chain.length < 4; id = parent.get(id)) {
+      const k = name(id);
+      if (!k.startsWith('(root)')) chain.push(k);
+    }
+    const key = chain.join(' < ');
+    inSlow.set(key, (inSlow.get(key) ?? 0) + p.timeDeltas[i]);
+  }
+  console.log(
+    `slow frames: ${slow.map(([a, b]) => (b - a).toFixed(0)).join(' ')} ms; inside them:`,
+  );
+  for (const [k, v] of [...inSlow.entries()].sort((a, b) => b[1] - a[1]).slice(0, 25))
+    console.log(`  ${String(Math.round(v / 1000)).padStart(5)} ms  ${k}`);
+}
 chrome.kill();
