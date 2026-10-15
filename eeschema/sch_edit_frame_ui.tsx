@@ -4374,8 +4374,12 @@ export function SchematicEditor({
       .find((p) => p.LastScreen()?.GetFileName().endsWith(`/${file}`));
     showingLiveRef.current = true;
     try {
-      if (path && !path.equals(frame.GetCurrentSheet())) frame.SetCurrentSheet(path);
-      else panel.DisplaySheet(frame.GetScreen());
+      if (path && !path.equals(frame.GetCurrentSheet())) {
+        // SCH_NAVIGATE_TOOL::changeSheet: DisplayCurrentSheet clears the selection, so nothing
+        // selected on the sheet left behind comes along.
+        frame.SetCurrentSheet(path);
+        frame.DisplayCurrentSheet();
+      } else panel.DisplaySheet(frame.GetScreen());
     } finally {
       showingLiveRef.current = false;
     }

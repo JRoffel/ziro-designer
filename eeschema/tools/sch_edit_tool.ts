@@ -40,6 +40,7 @@ import {
 } from '@ziroeda/common/string_utils.js';
 import { FIELD_T, GetDefaultFieldName } from '@ziroeda/common/template_fieldnames.js';
 import { NULL_REPORTER } from '@ziroeda/common/reporter.js';
+import type { RC_ITEM } from '@ziroeda/common/rc_item.js';
 import { ACTIONS } from '@ziroeda/common/tool/actions.js';
 import type { COROUTINE_BODY } from '@ziroeda/common/tool/coroutine.js';
 import { ACTION_CONDITIONS } from '@ziroeda/common/tool/action_manager.js';
@@ -63,6 +64,7 @@ import { KiROUND } from '@ziroeda/kimath/src/math/util.js';
 import type { VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
 import { RotatePoint } from '@ziroeda/kimath/src/trigo.js';
 import { id_eeschema_frm } from '../eeschema_id.js';
+import { ERCE_T } from '../erc/erc_settings.js';
 import { SCH_COLLECTOR, CollectOtherUnits } from '../sch_collectors.js';
 import { SCH_COMMIT } from '../sch_commit.js';
 import type { SCH_EDIT_FRAME } from '../sch_edit_frame.js';
@@ -3048,6 +3050,71 @@ export class SCH_EDIT_TOOL extends SCH_TOOL_BASE<SCH_EDIT_FRAME> {
       this.m_frame!.ShowModalDialog('DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS', []),
     );
     return 0;
+  }
+
+  FixERCErrorMenuText(aERCItem: RC_ITEM): string {
+    if (
+      aERCItem.GetErrorCode() === ERCE_T.ERCE_SIMULATION_MODEL ||
+      aERCItem.GetErrorCode() === ERCE_T.ERCE_FOOTPRINT_FILTERS ||
+      aERCItem.GetErrorCode() === ERCE_T.ERCE_FOOTPRINT_LINK_ISSUES
+    ) {
+      return 'Edit Symbol Properties...';
+    } else if (aERCItem.GetErrorCode() === ERCE_T.ERCE_LIB_SYMBOL_ISSUES) {
+      return this.m_frame!.GetRunMenuCommandDescription(ACTIONS.showSymbolLibTable);
+    } else if (aERCItem.GetErrorCode() === ERCE_T.ERCE_LIB_SYMBOL_MISMATCH) {
+      return this.m_frame!.GetRunMenuCommandDescription(SCH_ACTIONS.updateSymbol);
+    } else if (
+      aERCItem.GetErrorCode() === ERCE_T.ERCE_UNANNOTATED ||
+      aERCItem.GetErrorCode() === ERCE_T.ERCE_DUPLICATE_REFERENCE
+    ) {
+      return this.m_frame!.GetRunMenuCommandDescription(SCH_ACTIONS.annotate);
+    } else if (aERCItem.GetErrorCode() === ERCE_T.ERCE_UNDEFINED_NETCLASS) {
+      return 'Edit Netclasses...';
+    }
+
+    return '';
+  }
+
+  FixERCError(aERCItem: RC_ITEM): void {
+    const frame = this.m_frame;
+
+    if (!frame) return; // wxCHECK
+
+    if (
+      aERCItem.GetErrorCode() === ERCE_T.ERCE_SIMULATION_MODEL ||
+      aERCItem.GetErrorCode() === ERCE_T.ERCE_FOOTPRINT_FILTERS ||
+      aERCItem.GetErrorCode() === ERCE_T.ERCE_FOOTPRINT_LINK_ISSUES
+    ) {
+      const item = frame.ResolveItem(aERCItem.GetMainItemID());
+
+      // EditProperties waits on its dialog, which here only a tool coroutine can do.
+      if (item) {
+        const tool = this;
+        this.m_toolMgr!.RunCoroutine(this, function* () {
+          yield* tool.EditProperties(item);
+          return 0;
+        });
+      }
+    } else if (aERCItem.GetErrorCode() === ERCE_T.ERCE_LIB_SYMBOL_ISSUES) {
+      this.m_toolMgr!.RunAction(ACTIONS.showSymbolLibTable);
+    } else if (aERCItem.GetErrorCode() === ERCE_T.ERCE_LIB_SYMBOL_MISMATCH) {
+      const item = frame.ResolveItem(aERCItem.GetMainItemID());
+
+      // dlg.ShowQuasiModal(): nothing follows it, so nothing waits on it.
+      if (item instanceof SCH_SYMBOL)
+        void frame.ShowModalDialog(
+          'DIALOG_CHANGE_SYMBOLS',
+          [item],
+          DIALOG_CHANGE_SYMBOLS_MODE.UPDATE,
+        );
+    } else if (
+      aERCItem.GetErrorCode() === ERCE_T.ERCE_UNANNOTATED ||
+      aERCItem.GetErrorCode() === ERCE_T.ERCE_DUPLICATE_REFERENCE
+    ) {
+      this.m_toolMgr!.RunAction(SCH_ACTIONS.annotate);
+    } else if (aERCItem.GetErrorCode() === ERCE_T.ERCE_UNDEFINED_NETCLASS) {
+      void frame.ShowSchematicSetupDialog('Net Classes');
+    }
   }
 
   protected override setTransitions(): void {

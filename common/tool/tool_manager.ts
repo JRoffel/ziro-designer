@@ -20,7 +20,7 @@ import type { EDA_ITEM } from '../eda_item.js';
 import type { VIEW } from '../view/view.js';
 import type { VC_SETTINGS, VIEW_CONTROLS } from '../view/view_controls.js';
 import { ACTION_MANAGER } from './action_manager.js';
-import { COROUTINE } from './coroutine.js';
+import { COROUTINE, type COROUTINE_BODY } from './coroutine.js';
 import {
   RESET_REASON,
   type TOOL_BASE,
@@ -822,6 +822,34 @@ export class TOOL_MANAGER {
     this.setActiveState(st);
     if (!st.cofunc) return; // wxCHECK( st->cofunc, /* void */ )
     st.cofunc.RunMainStack(aFunc);
+  }
+
+  /**
+   * Not in KiCad. Run `aBody` as one of `aTool`'s state handlers, from code that is not in
+   * any — a dialog's context menu, say. Upstream needs no such call: wx's nested modal loop
+   * lets a tool method show a dialog and wait for it from anywhere, as
+   * SCH_EDIT_TOOL::FixERCError does from DIALOG_ERC. Here waiting is a coroutine's
+   * `yield`, so the body gets the context a matched transition would have given it.
+   */
+  RunCoroutine(aTool: TOOL_BASE, aBody: () => COROUTINE_BODY<number>): void {
+    const st = this.m_toolState.get(aTool);
+
+    if (!st) return;
+
+    // As a matched transition: a handler already in progress is pushed, not replaced.
+    if (st.cofunc) {
+      const viewControlSettings = st.vcSettings;
+      st.Push();
+      st.vcSettings = viewControlSettings;
+    }
+
+    st.cofunc = new COROUTINE<number, TOOL_EVENT>(aBody);
+
+    this.setActiveState(st);
+    st.idle = false;
+    st.cofunc.Call(new TOOL_EVENT());
+
+    if (!st.cofunc.Running()) this.finishTool(st);
   }
 
   /**

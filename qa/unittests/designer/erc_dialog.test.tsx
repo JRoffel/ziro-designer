@@ -34,6 +34,7 @@ import {
 import { ERC_ITEM } from '@ziroeda/eeschema/erc/erc_item.js';
 import { ERCE_T } from '@ziroeda/eeschema/erc/erc_settings.js';
 import { SCH_MARKER } from '@ziroeda/eeschema/sch_marker.js';
+import { SCH_EDIT_TOOL } from '@ziroeda/eeschema/tools/sch_edit_tool.js';
 import { SCH_INSPECTION_TOOL } from '@ziroeda/eeschema/tools/sch_inspection_tool.js';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -455,6 +456,50 @@ describe('DIALOG_ERC: the row menu', () => {
     });
     expect(inspected.length).toBe(1);
     expect((inspected[0] as ERC_ITEM).GetErrorCode()).toBe(ERCE_T.ERCE_LIB_SYMBOL_MISMATCH);
+  });
+
+  /**
+   * FixERCErrorMenuText( rcItem ) follows Inspect in the same group; a library symbol
+   * mismatch's is the updateSymbol action's run description, and choosing it runs FixERCError.
+   */
+  it('offers Fix after Inspect for a library symbol mismatch and runs FixERCError', () => {
+    const { frame, dialog } = open({}, true);
+    const wire = [...frame.GetScreen()!.Items()].find((i) => i.Type() === KICAD_T.SCH_LINE_T)!;
+    const ercItem = ERC_ITEM.Create(ERCE_T.ERCE_LIB_SYMBOL_MISMATCH)!;
+    ercItem.SetItems(wire.m_Uuid);
+    frame.GetScreen()!.Append(new SCH_MARKER(ercItem, { x: 0, y: 0 }));
+    const tool = frame.GetToolManager()!.GetTool(SCH_EDIT_TOOL)!;
+    const fixed: unknown[] = [];
+    tool.FixERCError = (aItem) => void fixed.push(aItem);
+    act(() => dialog.UpdateData());
+    fireEvent.contextMenu(document.querySelector('.ze-erc-row')!);
+    const labels = Array.from(document.querySelectorAll('.ze-mitem .lbl')).map(
+      (m) => m.textContent,
+    );
+    const at = labels.indexOf('Run: Compare Symbol with Library');
+    expect(at).toBeGreaterThan(-1);
+    expect(labels[at + 1]).toBe('Run: Update Symbol...');
+    act(() => {
+      fireEvent.click(document.querySelectorAll('.ze-mitem')[at + 1]!);
+    });
+    expect(fixed.length).toBe(1);
+    expect((fixed[0] as ERC_ITEM).GetErrorCode()).toBe(ERCE_T.ERCE_LIB_SYMBOL_MISMATCH);
+  });
+
+  /** An undefined netclass has a Fix but no Inspect: the group holds Fix alone. */
+  it('offers Fix alone for an undefined netclass', () => {
+    const { frame, dialog } = open({}, true);
+    const wire = [...frame.GetScreen()!.Items()].find((i) => i.Type() === KICAD_T.SCH_LINE_T)!;
+    const ercItem = ERC_ITEM.Create(ERCE_T.ERCE_UNDEFINED_NETCLASS)!;
+    ercItem.SetItems(wire.m_Uuid);
+    frame.GetScreen()!.Append(new SCH_MARKER(ercItem, { x: 0, y: 0 }));
+    act(() => dialog.UpdateData());
+    fireEvent.contextMenu(document.querySelector('.ze-erc-row')!);
+    const labels = Array.from(document.querySelectorAll('.ze-mitem .lbl')).map(
+      (m) => m.textContent,
+    );
+    expect(labels).toContain('Edit Netclasses...');
+    expect(labels.some((l) => l?.startsWith('Run:'))).toBe(false);
   });
 
   it('offers no Inspect for a violation upstream has none for', () => {

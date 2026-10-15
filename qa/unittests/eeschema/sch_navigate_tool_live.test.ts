@@ -44,6 +44,19 @@ function setUp() {
 }
 
 describe('SCH_NAVIGATE_TOOL', () => {
+  /**
+   * changeSheet ends in DisplayCurrentSheet, which runs selectionClear: the sheet symbol that
+   * was selected to enter it does not come along onto the sheet it opens.
+   */
+  it('leaves nothing selected on the sheet it enters', () => {
+    const h = setUp();
+    const [first] = h.sheets();
+    h.enter(first!);
+    expect(h.frame.GetCurrentSheet().Last()).toBe(first);
+    expect(h.mgr.GetTool(SCH_SELECTION_TOOL)!.GetSelection().Empty()).toBe(true);
+    expect(first!.IsSelected()).toBe(false);
+  });
+
   it('enters a selected sheet and leaves it again', () => {
     const h = setUp();
     const rootPage = h.page();

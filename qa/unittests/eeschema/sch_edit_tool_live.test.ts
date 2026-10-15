@@ -26,6 +26,13 @@ import { SCH_TEXT } from '@ziroeda/eeschema/sch_text.js';
 import { SYMBOL_ORIENTATION_T } from '@ziroeda/eeschema/symbol.js';
 import { SCH_ACTIONS } from '@ziroeda/eeschema/tools/sch_actions.js';
 import { SCH_SELECTION_TOOL } from '@ziroeda/eeschema/tools/sch_selection_tool.js';
+import {
+  DIALOG_CHANGE_SYMBOLS_MODE,
+  SCH_EDIT_TOOL,
+  SYMBOL_PROPS_RETVALUE,
+} from '@ziroeda/eeschema/tools/sch_edit_tool.js';
+import { ERC_ITEM } from '@ziroeda/eeschema/erc/erc_item.js';
+import { ERCE_T } from '@ziroeda/eeschema/erc/erc_settings.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   openProject,
@@ -332,5 +339,128 @@ describe('SCH_EDIT_TOOL', () => {
     h.mgr.RunAction(SCH_ACTIONS.editValue);
     await flush();
     expect(h.frame.GetUndoCommandCount()).toBe(undo);
+  });
+});
+
+describe('SCH_EDIT_TOOL::FixERCError', () => {
+  const fix = (h: ReturnType<typeof setUp>, aCode: ERCE_T, aItem?: EDA_ITEM) => {
+    const ercItem = ERC_ITEM.Create(aCode)!;
+    if (aItem) ercItem.SetItems(aItem.m_Uuid);
+    return ercItem;
+  };
+
+  /** FixERCErrorMenuText (sch_edit_tool.cpp:3621): the five fixes and their labels. */
+  it('labels each fix as upstream does', () => {
+    const h = setUp();
+    const tool = h.mgr.GetTool(SCH_EDIT_TOOL)!;
+    const text = (aCode: ERCE_T) => tool.FixERCErrorMenuText(fix(h, aCode));
+    expect(text(ERCE_T.ERCE_SIMULATION_MODEL)).toBe('Edit Symbol Properties...');
+    expect(text(ERCE_T.ERCE_FOOTPRINT_FILTERS)).toBe('Edit Symbol Properties...');
+    expect(text(ERCE_T.ERCE_FOOTPRINT_LINK_ISSUES)).toBe('Edit Symbol Properties...');
+    expect(text(ERCE_T.ERCE_LIB_SYMBOL_ISSUES)).toBe(
+      h.frame.GetRunMenuCommandDescription(ACTIONS.showSymbolLibTable),
+    );
+    expect(text(ERCE_T.ERCE_LIB_SYMBOL_MISMATCH)).toBe(
+      h.frame.GetRunMenuCommandDescription(SCH_ACTIONS.updateSymbol),
+    );
+    expect(text(ERCE_T.ERCE_UNANNOTATED)).toBe(
+      h.frame.GetRunMenuCommandDescription(SCH_ACTIONS.annotate),
+    );
+    expect(text(ERCE_T.ERCE_DUPLICATE_REFERENCE)).toBe(
+      h.frame.GetRunMenuCommandDescription(SCH_ACTIONS.annotate),
+    );
+    expect(text(ERCE_T.ERCE_UNDEFINED_NETCLASS)).toBe('Edit Netclasses...');
+    expect(text(ERCE_T.ERCE_WIRE_DANGLING)).toBe('');
+  });
+
+  /**
+   * EditProperties( item ) on the resolved symbol. It waits on DIALOG_SYMBOL_PROPERTIES from
+   * outside any tool event, so the code after the dialog (OnModify on OK) proves the
+   * coroutine was resumed when the dialog closed.
+   */
+  it('edits the symbol properties of a simulation-model violation, through to OnModify', async () => {
+    const calls: [string, readonly EDA_ITEM[]][] = [];
+    const h = setUp({
+      showModal: (d, items) => {
+        calls.push([d, items]);
+        return SYMBOL_PROPS_RETVALUE.SYMBOL_PROPS_EDIT_OK;
+      },
+    });
+    const sym = lone(h);
+    let modified = 0;
+    h.frame.OnModify = () => void modified++;
+    h.mgr.GetTool(SCH_EDIT_TOOL)!.FixERCError(fix(h, ERCE_T.ERCE_SIMULATION_MODEL, sym));
+    expect(calls).toEqual([['DIALOG_SYMBOL_PROPERTIES', [sym]]]);
+    expect(modified).toBe(0);
+    await flush();
+    expect(modified).toBe(1);
+  });
+
+  it('updates the symbol of a library mismatch, and runs the lib table, annotate and net classes', () => {
+    const calls: [string, readonly EDA_ITEM[], unknown][] = [];
+    const h = setUp({
+      showModal: (d, items, arg) => {
+        calls.push([d, items, arg]);
+        return wxID_OK;
+      },
+    });
+    const tool = h.mgr.GetTool(SCH_EDIT_TOOL)!;
+    const sym = lone(h);
+    const ran: string[] = [];
+    const run = h.mgr.RunAction.bind(h.mgr);
+    h.mgr.RunAction = ((a: { GetName(): string }) => {
+      ran.push(a.GetName());
+      return true;
+    }) as unknown as typeof h.mgr.RunAction;
+    const pages: string[] = [];
+    h.frame.ShowSchematicSetupDialog = async (p = '') => void pages.push(p);
+
+    tool.FixERCError(fix(h, ERCE_T.ERCE_LIB_SYMBOL_MISMATCH, sym));
+    tool.FixERCError(fix(h, ERCE_T.ERCE_LIB_SYMBOL_ISSUES));
+    tool.FixERCError(fix(h, ERCE_T.ERCE_UNANNOTATED));
+    tool.FixERCError(fix(h, ERCE_T.ERCE_DUPLICATE_REFERENCE));
+    tool.FixERCError(fix(h, ERCE_T.ERCE_UNDEFINED_NETCLASS));
+    tool.FixERCError(fix(h, ERCE_T.ERCE_WIRE_DANGLING));
+    h.mgr.RunAction = run;
+
+    expect(calls).toEqual([['DIALOG_CHANGE_SYMBOLS', [sym], DIALOG_CHANGE_SYMBOLS_MODE.UPDATE]]);
+    expect(ran).toEqual([
+      ACTIONS.showSymbolLibTable.GetName(),
+      SCH_ACTIONS.annotate.GetName(),
+      SCH_ACTIONS.annotate.GetName(),
+    ]);
+    expect(pages).toEqual(['Net Classes']);
+  });
+});
+
+describe('TOOL_MANAGER::RunCoroutine', () => {
+  /** A body that never waits finishes there and then, as a transition's would: the tool is idle again. */
+  it('finishes a body that returns without waiting', () => {
+    const h = setUp();
+    const tool = h.mgr.GetTool(SCH_EDIT_TOOL)!;
+    let ran = 0;
+    // biome-ignore lint/correctness/useYield: a handler body that never waits
+    h.mgr.RunCoroutine(tool, function* () {
+      ran++;
+      return 0;
+    });
+    expect(ran).toBe(1);
+    expect(h.mgr.IsToolActive(tool.GetId())).toBe(false);
+  });
+
+  /** The body runs in its tool's state: that state's view-control settings are the ones applied. */
+  it('applies the tool state view controls before the body runs', () => {
+    const h = setUp();
+    const tool = h.mgr.GetTool(SCH_EDIT_TOOL)!;
+    const vc = h.mgr.GetViewControls()!;
+    const order: string[] = [];
+    vc.ApplySettings = () => void order.push('apply');
+    // biome-ignore lint/correctness/useYield: a handler body that never waits
+    h.mgr.RunCoroutine(tool, function* () {
+      order.push('body');
+      return 0;
+    });
+    expect(order[0]).toBe('apply');
+    expect(order).toContain('body');
   });
 });
