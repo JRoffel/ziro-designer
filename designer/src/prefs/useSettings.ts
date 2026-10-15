@@ -215,6 +215,11 @@ export function useSymbolEditorTheme(): Theme {
 }
 
 export function useSchematicTheme(): Theme {
-  useSettingsVersion();
-  return resolveTheme();
+  // One object per settings version: a theme with a file (wDark, the default) is rebuilt by
+  // every resolveTheme() call, and the schematic frame raises CommonSettingsChanged - every
+  // colour reloaded, every item recached - whenever the theme it is handed changes. A fresh
+  // object on each render did that on every click.
+  const version = useSettingsVersion();
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `version` is the trigger - resolveTheme reads the store it counts
+  return useMemo(() => resolveTheme(), [version]);
 }
