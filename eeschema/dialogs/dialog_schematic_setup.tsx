@@ -32,7 +32,8 @@ import { PanelSetupPinmap } from './panel_setup_pinmap.js';
 import { PanelTextVariables } from '@ziroeda/common/dialogs/panel_text_variables.js';
 import { PanelTemplateFieldnames } from './panel_template_fieldnames.js';
 import { PanelEeschemaAnnotationOptions } from './panel_eeschema_annotation_options.js';
-import { PanelSetupFormatting } from './panel_setup_formatting.js';
+import { PanelSetupFormatting, validateFormatting } from './panel_setup_formatting.js';
+import { DisplayErrorMessage } from '@ziroeda/common/confirm.js';
 import { PanelBomPresets } from './panel_bom_presets.js';
 import { PanelSetupBuses } from './panel_setup_buses.js';
 import { PanelSetupNetclasses } from '@ziroeda/common/dialogs/panel_setup_netclasses.js';
@@ -281,7 +282,13 @@ export function DialogSchematicSetup({
         showReset
         auxiliaryAction="Import Settings from Another Project..."
         onAuxiliaryAction={() => setImportOpen(true)}
-        onOk={() => onOk(s)}
+        onOk={() => {
+          // PAGED_DIALOG::TransferDataFromWindow: a page whose TransferDataFromWindow
+          // fails (Formatting's connection-grid Validate) keeps the dialog open.
+          const error = validateFormatting(s.formatting);
+          if (error) return DisplayErrorMessage(error);
+          onOk(s);
+        }}
         onCancel={onCancel}
       />
     </>

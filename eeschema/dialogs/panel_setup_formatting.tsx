@@ -21,8 +21,17 @@
  */
 
 import type { JSX } from 'react';
+import {
+  DoubleValueFromStringIn,
+  type EdaUnits,
+  schIUScale,
+  stringFromValue,
+  unityScale,
+} from '@ziroeda/common/eda_units.js';
+import { KiROUND } from '@ziroeda/kimath/src/math/util.js';
 import { PANEL_SETUP_FORMATTING_BASE } from './panel_setup_formatting_base.js';
 import {
+  MIN_CONNECTION_GRID_MILS,
   JUNCTION_DOT_SIZES,
   HOP_OVER_SIZES,
   OPO_V_RANGES,
@@ -41,6 +50,25 @@ export {
   type FormattingSettings,
 } from '../schematic_settings.js';
 
+/**
+ * The range check at the head of `PANEL_SETUP_FORMATTING::TransferDataFromWindow`:
+ * `m_connectionGridSize.Validate( MIN_CONNECTION_GRID_MILS, 10000, EDA_UNITS::MILS )`.
+ * Returns UNIT_BINDER's message, or null when OK may proceed.
+ */
+export function validateFormatting(aSettings: FormattingSettings): string | null {
+  const iu = KiROUND(aSettings.connectionGridMils * schIUScale.IU_PER_MILS);
+  const limit = (aMils: number): string =>
+    stringFromValue(schIUScale, 'mils', aMils * schIUScale.IU_PER_MILS, true);
+
+  if (iu < MIN_CONNECTION_GRID_MILS * schIUScale.IU_PER_MILS)
+    return `Connection grid must be at least ${limit(MIN_CONNECTION_GRID_MILS)}.`;
+
+  if (iu > 10000 * schIUScale.IU_PER_MILS)
+    return `Connection grid must be less than ${limit(10000)}.`;
+
+  return null;
+}
+
 interface Props {
   value: FormattingSettings;
   onChange: (next: FormattingSettings) => void;
@@ -53,11 +81,31 @@ export function PanelSetupFormatting({ value, onChange }: Props): JSX.Element {
     [K in keyof FormattingSettings]: FormattingSettings[K] extends number ? K : never;
   }[keyof FormattingSettings];
 
-  /** A wxTextCtrl over a number: the text a wxTextCtrl would show, read back as a number. */
-  const num = (k: NUMBER_KEY) => ({
-    value: String(value[k]),
+  /**
+   * The four UNIT_BINDERs, `SetUnits( EDA_UNITS::MILS )` in TransferDataToWindow
+   * whatever the frame's units: the text is StringFromValue of the IU value, read
+   * back through GetIntValue (ValueFromString's KiROUND).
+   */
+  const mils = (
+    k: 'defaultTextSizeMils' | 'defaultLineWidthMils' | 'pinSymbolSizeMils' | 'connectionGridMils',
+  ) => ({
+    value: stringFromValue(schIUScale, 'mils', value[k] * schIUScale.IU_PER_MILS),
     onChange: (t: string) => {
-      const n = Number(t);
+      const iu = KiROUND(DoubleValueFromStringIn(schIUScale, 'mils', t));
+      if (Number.isFinite(iu)) set({ [k]: iu / schIUScale.IU_PER_MILS });
+    },
+  });
+
+  /**
+   * SET_VALUE / GET_VALUE over unityScale. `aScale` is the factor between the
+   * stored number and the shown one: the overbar height is stored as the bare
+   * m_OverbarHeight and shown `* 100.0` as a percentage; the two label ratios
+   * are already stored as percentages.
+   */
+  const unscaled = (k: NUMBER_KEY, aUnits: EdaUnits, aScale = 1) => ({
+    value: stringFromValue(unityScale, aUnits, value[k] * aScale),
+    onChange: (t: string) => {
+      const n = DoubleValueFromStringIn(unityScale, aUnits, t) / aScale;
       if (Number.isFinite(n)) set({ [k]: n });
     },
   });
@@ -72,13 +120,13 @@ export function PanelSetupFormatting({ value, onChange }: Props): JSX.Element {
 
   return (
     <PANEL_SETUP_FORMATTING_BASE
-      m_textSizeCtrl={num('defaultTextSizeMils')}
-      m_overbarHeightCtrl={num('overbarOffsetRatio')}
-      m_textOffsetRatioCtrl={num('labelOffsetRatio')}
-      m_labelSizeRatioCtrl={num('labelSizeRatio')}
-      m_lineWidthCtrl={num('defaultLineWidthMils')}
-      m_pinSymbolSizeCtrl={num('pinSymbolSizeMils')}
-      // [data] The slice stores mils; upstream's UNIT_BINDERs show the frame's units.
+      m_textSizeCtrl={mils('defaultTextSizeMils')}
+      m_overbarHeightCtrl={unscaled('overbarOffsetRatio', 'percent', 100)}
+      m_textOffsetRatioCtrl={unscaled('labelOffsetRatio', 'percent')}
+      m_labelSizeRatioCtrl={unscaled('labelSizeRatio', 'percent')}
+      m_lineWidthCtrl={mils('defaultLineWidthMils')}
+      m_pinSymbolSizeCtrl={mils('pinSymbolSizeMils')}
+      // [data] Upstream pins these UNIT_BINDERs to EDA_UNITS::MILS, not the frame's units.
       units="mils"
       junctionDotChoices={JUNCTION_DOT_SIZES}
       m_choiceJunctionDotSize={{
@@ -90,7 +138,7 @@ export function PanelSetupFormatting({ value, onChange }: Props): JSX.Element {
         value: value.hopOverChoice,
         onChange: (i) => set({ hopOverChoice: i }),
       }}
-      m_connectionGridCtrl={num('connectionGridMils')}
+      m_connectionGridCtrl={mils('connectionGridMils')}
       m_showIntersheetsReferences={{
         value: value.intersheetRefsShow,
         onChange: (on) => set({ intersheetRefsShow: on }),
@@ -104,8 +152,8 @@ export function PanelSetupFormatting({ value, onChange }: Props): JSX.Element {
       onAbbreviated={(on) => set({ intersheetRefsAbbreviated: on })}
       m_prefixCtrl={text('intersheetRefsPrefix')}
       m_suffixCtrl={text('intersheetRefsSuffix')}
-      m_dashLengthCtrl={num('dashLengthRatio')}
-      m_gapLengthCtrl={num('gapLengthRatio')}
+      m_dashLengthCtrl={unscaled('dashLengthRatio', 'unscaled')}
+      m_gapLengthCtrl={unscaled('gapLengthRatio', 'unscaled')}
       m_vPrecisionCtrl={{ value: value.opoVPrecision, onChange: (n) => set({ opoVPrecision: n }) }}
       vRangeChoices={OPO_V_RANGES}
       m_vRangeCtrl={byName('opoVRange', OPO_V_RANGES)}

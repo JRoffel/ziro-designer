@@ -8,12 +8,17 @@
  * the operating-point ranges by name).
  */
 import { bitmapUrl } from '@ziroeda/common/bitmap_store.js';
-import { defaultFormatting } from '@ziroeda/eeschema/schematic_settings.js';
+import { SetErrorPresenter } from '@ziroeda/common/confirm.js';
+import { DialogSchematicSetup } from '@ziroeda/eeschema/dialogs/dialog_schematic_setup.js';
+import { defaultFormatting, defaultSchematicSetup } from '@ziroeda/eeschema/schematic_settings.js';
 import {
   defaultAnnotation,
   PanelEeschemaAnnotationOptions,
 } from '@ziroeda/eeschema/dialogs/panel_eeschema_annotation_options.js';
-import { PanelSetupFormatting } from '@ziroeda/eeschema/dialogs/panel_setup_formatting.js';
+import {
+  PanelSetupFormatting,
+  validateFormatting,
+} from '@ziroeda/eeschema/dialogs/panel_setup_formatting.js';
 import { PanelSetupPinmap } from '@ziroeda/eeschema/dialogs/panel_setup_pinmap.js';
 import { defaultErcSettings } from '@ziroeda/eeschema/index.js';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
@@ -89,5 +94,69 @@ describe('PANEL_SETUP_FORMATTING_BASE', () => {
     const note = screen.getByText('Dash and dot lengths are ratios of the line width.');
     expect(note.className).toMatch(/small-info/);
     expect(note.className).toMatch(/italic/);
+  });
+
+  // TransferDataToWindow's SET_VALUE: m_OverbarHeight (1.23, KIFONT::METRICS) is shown
+  // `* 100.0` as PERCENT; m_TextOffsetRatio 0.15 and m_LabelSizeRatio 0.375 likewise.
+  // The four UNIT_BINDERs are SetUnits( MILS ): 50, 6, 25 and 50 mils.
+  it('shows the ratios as percentages and the sizes in mils, the way KiCad fills them', () => {
+    const onChange = vi.fn();
+    render(<PanelSetupFormatting value={defaultFormatting()} onChange={onChange} />);
+    const field = (aLabel: string) => (screen.getByLabelText(aLabel) as HTMLInputElement).value;
+    expect(field('Overbar offset ratio')).toBe('123');
+    expect(field('Label offset ratio')).toBe('15');
+    expect(field('Global label margin ratio')).toBe('37.5');
+    expect(field('Default text size')).toBe('50');
+    expect(field('Default line width')).toBe('6');
+    expect(field('Pin symbol size')).toBe('25');
+    expect(field('Dash length')).toBe('12');
+    fireEvent.change(screen.getByLabelText('Overbar offset ratio'), { target: { value: '150' } });
+    expect(onChange.mock.calls.at(-1)![0].overbarOffsetRatio).toBe(1.5);
+    // The evaluator honours a typed unit: 2.54 mm is 25400 IU, 100 mils.
+    fireEvent.change(screen.getByLabelText('Default text size'), { target: { value: '2.54mm' } });
+    expect(onChange.mock.calls.at(-1)![0].defaultTextSizeMils).toBe(100);
+    cleanup();
+    // A 1.3 mm text size (13000 IU) is 51.1811… mils; eeschema's StringFromValue prints %.3f.
+    render(
+      <PanelSetupFormatting
+        value={{ ...defaultFormatting(), defaultTextSizeMils: 13000 / 254 }}
+        onChange={() => {}}
+      />,
+    );
+    expect(field('Default text size')).toBe('51.181');
+  });
+
+  // m_connectionGridSize.Validate( MIN_CONNECTION_GRID_MILS (25), 10000, MILS ).
+  it('refuses a connection grid outside 25..10000 mils', () => {
+    const at = (aMils: number) =>
+      validateFormatting({ ...defaultFormatting(), connectionGridMils: aMils });
+    expect(at(24)).toBe('Connection grid must be at least 25 mils.');
+    expect(at(25)).toBeNull();
+    expect(at(10000)).toBeNull();
+    expect(at(10001)).toBe('Connection grid must be less than 10000 mils.');
+  });
+
+  // PAGED_DIALOG::TransferDataFromWindow: Formatting's Validate failing vetoes OK, and
+  // UNIT_BINDER::delayedFocusHandler shows the message through DisplayErrorMessage.
+  it('OK with an out-of-range connection grid keeps the dialog open', () => {
+    const errors: string[] = [];
+    SetErrorPresenter((aText) => errors.push(aText));
+    const onOk = vi.fn();
+    const value = defaultSchematicSetup();
+    value.formatting.connectionGridMils = 10;
+    render(
+      <DialogSchematicSetup
+        value={value}
+        initialPage="formatting"
+        onOk={onOk}
+        onCancel={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+    expect(onOk).not.toHaveBeenCalled();
+    expect(errors).toEqual(['Connection grid must be at least 25 mils.']);
+    fireEvent.change(screen.getByLabelText('Connection grid'), { target: { value: '50' } });
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+    expect(onOk.mock.calls[0]![0].formatting.connectionGridMils).toBe(50);
   });
 });
