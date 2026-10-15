@@ -13,7 +13,7 @@ import { COURTYARD_CONFLICT } from '@ziroeda/common/eda_item_flags.js';
 import { RENDER_TARGET } from '@ziroeda/common/gal/definitions.js';
 import { PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import { LSET } from '@ziroeda/common/lset.js';
-import type { VIEW } from '@ziroeda/common/view/view.js';
+import { VIEW } from '@ziroeda/common/view/view.js';
 import { BOX2I } from '@ziroeda/kimath/src/math/box2.js';
 import type { VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
 import type { BOARD } from '../board.js';
@@ -233,33 +233,54 @@ export class DRC_INTERACTIVE_COURTYARD_CLEARANCE extends DRC_TEST_PROVIDER {
   }
 
   UpdateConflicts(aView: VIEW, aHighlightMoved: boolean): void {
+    // KiCad clears every last conflict and sets every current one, so an item still in
+    // conflict is updated twice, and PCB_VIEW::Update updates each footprint's children too.
+    // Here that rebuilt every pad, text and shape of every conflicting footprint on every
+    // mouse move of a drag - most of a move's time. The flag only adds the item's own
+    // LAYER_CONFLICTS_SHADOW (FOOTPRINT/ZONE::ViewGetLayers, ::ViewGetLOD) and no child reads
+    // it, so only items whose flag changes are updated, and only the item itself. The flags
+    // and the list end as KiCad leaves them.
+    const now: BOARD_ITEM[] = [];
+
+    for (const item of this.m_itemsInConflict) {
+      if (aHighlightMoved || !this.m_FpInMove.includes(item as FOOTPRINT)) now.push(item);
+    }
+
+    const stillConflicting = new Set(now);
+
     // Ensure the "old" conflicts are cleared
     for (const item of this.m_lastItemsInConflict) {
+      if (stillConflicting.has(item)) continue;
+
       item.ClearFlags(COURTYARD_CONFLICT);
-      aView.Update(item);
+      updateItemOnly(aView, item);
       aView.MarkTargetDirty(RENDER_TARGET.TARGET_OVERLAY);
     }
 
-    this.m_lastItemsInConflict = [];
-
-    for (const item of this.m_itemsInConflict) {
-      if (aHighlightMoved || !this.m_FpInMove.includes(item as FOOTPRINT)) {
-        if (!item.HasFlag(COURTYARD_CONFLICT)) {
-          item.SetFlags(COURTYARD_CONFLICT);
-          aView.Update(item);
-          aView.MarkTargetDirty(RENDER_TARGET.TARGET_OVERLAY);
-        }
-
-        this.m_lastItemsInConflict.push(item);
+    for (const item of now) {
+      if (!item.HasFlag(COURTYARD_CONFLICT)) {
+        item.SetFlags(COURTYARD_CONFLICT);
+        updateItemOnly(aView, item);
+        aView.MarkTargetDirty(RENDER_TARGET.TARGET_OVERLAY);
       }
     }
+
+    this.m_lastItemsInConflict = now;
   }
 
   ClearConflicts(aView: VIEW): void {
     for (const item of this.m_lastItemsInConflict) {
       item.ClearFlags(COURTYARD_CONFLICT);
-      aView.Update(item);
+      updateItemOnly(aView, item);
       aView.MarkTargetDirty(RENDER_TARGET.TARGET_OVERLAY);
     }
   }
+}
+
+/**
+ * `KIGFX::VIEW::Update( aItem )` on the item alone, without PCB_VIEW's pass over a
+ * footprint's children: the conflict flag changes none of theirs.
+ */
+function updateItemOnly(aView: VIEW, aItem: BOARD_ITEM): void {
+  VIEW.prototype.Update.call(aView, aItem);
 }

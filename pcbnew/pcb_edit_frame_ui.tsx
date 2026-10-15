@@ -369,7 +369,7 @@ import {
 } from '@ziroeda/common/confirm.js';
 import { HtmlMessageBox } from '@ziroeda/common/dialogs/html_message_box.js';
 import { LIBRARY_TABLE_TYPE } from '@ziroeda/common/libraries/library_table.js';
-import { MEMORY_FILESYSTEM, wxMountFileSystem } from '@ziroeda/wx/filefn.js';
+import { PROJECT_FILES_MOUNT } from './browser/project_files_mount.js';
 import { DialogDesignBlockProperties } from '@ziroeda/common/dialogs/dialog_design_block_properties_ui.js';
 import type { DESIGN_BLOCK } from '@ziroeda/common/design_block.js';
 import { NormalizePath } from '@ziroeda/common/env_paths.js';
@@ -2912,24 +2912,30 @@ export function PcbEditor({
   // The open project's files on the mounted file system at its directory, where KiCad finds
   // them: `LIBRARY_MANAGER::LoadProjectTables` reads the project's design-block-lib-table from
   // there, the design block libraries it names are read (and saved) there, and a write lands in
-  // the project's file store. Mounted again, and the table reloaded, when the files change.
+  // the project's file store. One mount per project; a change writes only the files that moved,
+  // and reloads the table only when a file it reads did (PROJECT_FILES_MOUNT).
+  const projectMountRef = useRef<PROJECT_FILES_MOUNT | null>(null);
+  const tablesPaneRef = useRef<typeof designBlocksPane | null>(null);
   useEffect(() => {
     const dir = projectName ? `/${projectName}` : '';
-    if (!dir) return;
-    const enc = new TextEncoder();
-    const dec = new TextDecoder();
-    const fs = new MEMORY_FILESYSTEM();
-    for (const f of projectFiles ?? []) fs.Write(f.name, enc.encode(f.text));
-    fs.SetWriteListener((aRel, aData) =>
-      onPersistFiles?.([{ name: aRel, text: dec.decode(aData) }]),
-    );
-    const unmount = wxMountFileSystem(dir, fs);
+    projectMountRef.current ??= new PROJECT_FILES_MOUNT();
+    const mount = projectMountRef.current;
 
-    Pgm().GetLibraryManager().LoadProjectTables(dir, [LIBRARY_TABLE_TYPE.DESIGN_BLOCK]);
-    designBlocksPane.RefreshLibs();
+    if (!dir) {
+      mount.Unmount();
+      return;
+    }
 
-    return unmount;
+    mount.SetWriteListener((aFile) => onPersistFiles?.([aFile]));
+    const tablesChanged = mount.Sync(dir, projectFiles ?? []);
+
+    if (tablesChanged || tablesPaneRef.current !== designBlocksPane) {
+      tablesPaneRef.current = designBlocksPane;
+      Pgm().GetLibraryManager().LoadProjectTables(dir, [LIBRARY_TABLE_TYPE.DESIGN_BLOCK]);
+      designBlocksPane.RefreshLibs();
+    }
   }, [projectFiles, projectName, onPersistFiles, designBlocksPane]);
+  useEffect(() => () => projectMountRef.current?.Unmount(), []);
 
   useEffect(() => {
     const frame = frameRef.current!;

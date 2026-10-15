@@ -193,11 +193,39 @@ if (tracing) {
   await send('Profiler.start');
 }
 // EVAL_BEFORE / EVAL_AFTER: an expression run in the page around the zoom, the second printed.
+if (process.env.ACTION_PRE) {
+  await pressKeys(process.env.ACTION_PRE);
+  await sleep(4000);
+}
+// Long tasks in the measured window: the stall a user feels after a click or a key.
+await evalJs(
+  `(() => { window.__long = []; new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__long.push(Math.round(performance.now() - e.duration) + '+' + Math.round(e.duration)); }).observe({ type: 'longtask', buffered: false }); })()`,
+);
 if (process.env.EVAL_BEFORE) await evalJs(process.env.EVAL_BEFORE);
 if (process.env.COUNT_GL) await evalJs('window.__glOn = true');
 const t0 = await evalJs('performance.now()');
-// STEPS=n: wheel steps (half in, half out); 0 asks for full redraws with no zoom at all.
-const steps = Number(process.env.STEPS ?? 120);
+// ACTION=keys: instead of the wheel, press these keys (comma separated, e.g. "Delete" or
+// "Control+z") inside the measured window, then wait. ACTION_PRE: keys pressed before it.
+async function pressKeys(aList) {
+  for (const combo of aList.split(',').filter(Boolean)) {
+    const parts = combo.split('+');
+    const key = parts.pop();
+    const modifiers = (parts.includes('Control') ? 2 : 0) | (parts.includes('Shift') ? 8 : 0);
+    const code = key.length === 1 ? `Key${key.toUpperCase()}` : key;
+    const keyCode =
+      key.length === 1 ? key.toUpperCase().charCodeAt(0) : { Delete: 46, Escape: 27 }[key];
+    for (const type of ['keyDown', 'keyUp'])
+      await send('Input.dispatchKeyEvent', {
+        type,
+        key,
+        code,
+        modifiers,
+        windowsVirtualKeyCode: keyCode,
+        ...(type === 'keyDown' && key.length === 1 && !modifiers ? { text: key } : {}),
+      });
+  }
+}
+const steps = process.env.ACTION || process.env.CLICK ? 0 : Number(process.env.STEPS ?? 120);
 for (let i = 0; i < steps; i++) {
   await send('Input.dispatchMouseEvent', {
     type: 'mouseWheel',
@@ -208,9 +236,27 @@ for (let i = 0; i < steps; i++) {
   });
   await sleep(16);
 }
-await sleep(500);
+// CLICK=x,y (px from the canvas centre): a click inside the measured window.
+if (process.env.CLICK) {
+  const [dx, dy] = process.env.CLICK.split(',').map(Number);
+  for (const type of ['mouseMoved', 'mousePressed', 'mouseReleased'])
+    await send('Input.dispatchMouseEvent', {
+      type,
+      x: rect.x + dx,
+      y: rect.y + dy,
+      button: 'left',
+      clickCount: type === 'mouseMoved' ? 0 : 1,
+    });
+}
+if (process.env.ACTION) await pressKeys(process.env.ACTION);
+await sleep(process.env.ACTION || process.env.CLICK ? 4000 : 500);
 const t1 = await evalJs('performance.now()');
 if (process.env.EVAL_AFTER) console.log(await evalJs(process.env.EVAL_AFTER));
+console.log(
+  `long tasks (start+ms) from t0 ${Math.round(t0)}:`,
+  (await evalJs('window.__long'))?.join(' ') ??
+    '(page reloaded - another edit to the served tree?)',
+);
 if (process.env.COUNT_GL) {
   const gl = await evalJs('(window.__glOn = false, window.__gl)');
   const n = Object.values(gl).reduce((a, b) => a + b, 0);

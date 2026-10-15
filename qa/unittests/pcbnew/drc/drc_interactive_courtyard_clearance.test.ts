@@ -12,11 +12,12 @@
  * and it also fires on a pad hole inside the other courtyard and on a rule
  * area that disallows footprints.
  */
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { COURTYARD_CONFLICT } from '@ziroeda/common/eda_item_flags.js';
 import { pcbIUScale } from '@ziroeda/common/eda_units.js';
 import { PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
-import type { VIEW } from '@ziroeda/common/view/view.js';
+import { VIEW } from '@ziroeda/common/view/view.js';
+import { PCB_VIEW } from '@ziroeda/pcbnew/pcb_view.js';
 import type { BOARD } from '@ziroeda/pcbnew/board.js';
 import type { BOARD_ITEM } from '@ziroeda/pcbnew/board_item.js';
 import { DRC_ENGINE } from '@ziroeda/pcbnew/drc/drc_engine.js';
@@ -73,7 +74,7 @@ const view = { Update: () => {}, MarkTargetDirty: () => {} } as unknown as VIEW;
  * EDIT_TOOL::doMoveSelection: Init once, the moved footprints selected and in
  * m_FpInMove; each frame moves them, Runs and UpdateConflicts( view, true ).
  */
-function drag(board: BOARD, moving: number[]) {
+function drag(board: BOARD, moving: number[], aView: VIEW = view) {
   const engine = new DRC_ENGINE(board, board.GetDesignSettings());
   engine.InitEngine(null);
   const drc = new DRC_INTERACTIVE_COURTYARD_CLEARANCE(engine);
@@ -93,7 +94,7 @@ function drag(board: BOARD, moving: number[]) {
       at = { x: MM(dx), y: MM(dy) };
       for (const i of moving) fps[i]!.Move(d);
       drc.Run();
-      drc.UpdateConflicts(view, true);
+      drc.UpdateConflicts(aView, true);
       const flagged = (it: BOARD_ITEM) => it.HasFlag(COURTYARD_CONFLICT);
       return {
         fps: fps.flatMap((f, i) => (flagged(f) ? [i] : [])),
@@ -208,5 +209,56 @@ describe('DRC_INTERACTIVE_COURTYARD_CLEARANCE', () => {
     expect(Math.max(...xs(a!))).toBeCloseTo(10, 1);
     expect(Math.min(...xs(m!))).toBeCloseTo(8, 1);
     expect(Math.max(...xs(m!))).toBeCloseTo(18, 1);
+  });
+});
+
+describe('UpdateConflicts redraws only what changed', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  /** Every VIEW::Update the conflict pass makes, by item, across `aFrames`. */
+  /** An item as a short label, so a failure prints a line and not the board. */
+  const label = (aItem: BOARD_ITEM): string => `${aItem.GetClass()} ${aItem.m_Uuid}`;
+
+  function updatesWhile(aFrames: number[][]): { frames: string[][]; board: BOARD } {
+    const board = twoBoxes();
+    let calls: string[] = [];
+    vi.spyOn(VIEW.prototype, 'Update').mockImplementation(function (aItem) {
+      if (aItem.IsBOARD_ITEM()) calls.push(label(aItem as unknown as BOARD_ITEM));
+    });
+    const d = drag(board, [1], new PCB_VIEW());
+    const frames: string[][] = [];
+    for (const [dx] of aFrames) {
+      calls = [];
+      d.to(dx!);
+      frames.push(calls);
+    }
+    return { frames, board };
+  }
+
+  it('updates both footprints once as they meet, then nothing while they stay overlapped', () => {
+    const { frames, board } = updatesWhile([[-12], [-13], [-14], [-15]]);
+    const [a, b] = board.Footprints();
+    expect([...frames[0]!].sort()).toEqual([label(a!), label(b!)].sort());
+    expect(frames[0]).toHaveLength(2);
+    expect(frames.slice(1)).toEqual([[], [], []]);
+    expect(a!.HasFlag(COURTYARD_CONFLICT) && b!.HasFlag(COURTYARD_CONFLICT)).toBe(true);
+  });
+
+  it('updates the footprint alone, never its pads or fields', () => {
+    const { frames, board } = updatesWhile([[-12]]);
+    const children: BOARD_ITEM[] = board
+      .Footprints()
+      .flatMap((f) => [...f.Pads(), ...f.GraphicalItems(), ...f.GetFields()]);
+    expect(children.length).toBeGreaterThan(0);
+    const childLabels = new Set(children.map(label));
+    expect(frames[0]!.filter((l) => childLabels.has(l))).toEqual([]);
+  });
+
+  it('updates both once more as they part, and clears them', () => {
+    const { frames, board } = updatesWhile([[-12], [-13], [0]]);
+    const [a, b] = board.Footprints();
+    expect([...frames[2]!].sort()).toEqual([label(a!), label(b!)].sort());
+    expect(frames[2]).toHaveLength(2);
+    expect(a!.HasFlag(COURTYARD_CONFLICT) || b!.HasFlag(COURTYARD_CONFLICT)).toBe(false);
   });
 });

@@ -492,6 +492,8 @@ export const TREE_EXCEPTIONS: Record<string, string> = {
     "browser-only: the app's half of the editor, no KiCad counterpart by design (browser/ subfolders, agreed 10-10)",
   'pcbnew/browser/pcbnew_app.ts':
     "browser-only: the app's half of the editor, no KiCad counterpart by design (browser/ subfolders, agreed 10-10)",
+  'pcbnew/browser/project_files_mount.ts':
+    "browser-only: the open project's files on the mounted file system where KiCad would find them on disk, kept in step with the page's store; no KiCad counterpart by design",
   'pcbnew/browser/pcbnew_live_settings.ts':
     "browser-only: the app's half of the editor, no KiCad counterpart by design (browser/ subfolders, agreed 10-10)",
   'pcbnew/dialogs/layer_tokens.ts':

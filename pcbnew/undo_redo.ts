@@ -416,6 +416,26 @@ export class UNDO_REDO_MIXIN {
       }
     };
 
+    // The board items this command touches: out of the connectivity before they are
+    // restored and back in after, so the rebuild below can be the incremental one a
+    // BOARD_COMMIT does (see there). A child of a footprint is removed and re-added through
+    // the footprint, which does not touch the connectivity, so it must be done here.
+    const connTouched: BOARD_ITEM[] = [];
+    let netinfoTouched = false;
+
+    for (let ii = 0; ii < aList.GetCount(); ii++) {
+      const picked = aList.GetPickedItem(ii);
+
+      if (!picked?.IsBOARD_ITEM()) continue;
+
+      if (picked.Type() === KICAD_T.PCB_NETINFO_T) netinfoTouched = true;
+
+      const live = this.GetBoard()!.ResolveItem((picked as BOARD_ITEM).m_Uuid, true);
+      const item = live ?? (picked as BOARD_ITEM);
+      connTouched.push(item);
+      connectivity.Remove(item);
+    }
+
     // Undo in the reverse order of list creation: (this can allow stacked changes
     // like the same item can be changes and deleted in the same complex command
 
@@ -675,8 +695,26 @@ export class UNDO_REDO_MIXIN {
       }
 
       if (reBuild_ratsnest || deep_reBuild_ratsnest) {
-        // Connectivity may have changed; rebuild internal caches to remove stale items
-        this.GetBoard()!.BuildConnectivity();
+        // Connectivity may have changed; rebuild internal caches to remove stale items.
+        // KiCad rebuilds the whole board here, which its C++ does in a blink; ours took
+        // 1.5 s of a 1.7 s undo on CM5. Every item this command touched left the
+        // connectivity above, so putting back the ones now on the board leaves it as a
+        // full build would, and Compile_Ratsnest searches only what is dirty. A net table
+        // change still rebuilds, as nets themselves may have come or gone.
+        if (netinfoTouched) {
+          this.GetBoard()!.BuildConnectivity();
+        } else {
+          for (const touched of connTouched) {
+            const live = this.GetBoard()!.ResolveItem(touched.m_Uuid, true);
+
+            if (!live || live.HasFlag(UR_TRANSIENT)) continue;
+
+            if (live.Type() === KICAD_T.PCB_ZONE_T) (live as ZONE).CacheTriangulation();
+
+            connectivity.Add(live);
+          }
+        }
+
         this.Compile_Ratsnest(false);
       }
 
