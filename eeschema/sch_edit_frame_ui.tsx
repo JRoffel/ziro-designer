@@ -1629,6 +1629,15 @@ export function SchematicEditor({
     [connDoc, libById, busAliases],
   );
   const schFrameRef = useRef<SCH_EDIT_FRAME | null>(null);
+  /**
+   * `KIWAY::CommonSettingsChanged` after a Preferences OK: SCH_BASE_FRAME::CommonSettingsChanged
+   * looks the colour theme up again and hands it to the canvas's painter. The settings
+   * subscription behind `theme` is our version of that call.
+   */
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `theme` is the trigger - the frame reads the settings itself
+  useEffect(() => {
+    schFrameRef.current?.CommonSettingsChanged();
+  }, [theme]);
   /** `wxTextEntryDialog` for the live tools while it is up. */
   const [textEntryRequest, setTextEntryRequest] = useState<{
     message: string;

@@ -119,3 +119,30 @@ describe('the "Export to other sheets" ticks are preferences, not dialog state',
     expect(EESCHEMA_DEFAULTS.page_settings.export_comments).toHaveLength(9);
   });
 });
+
+describe('v8: the schematic opens on wDark', () => {
+  it('is the default for a new user', () => {
+    expect(EESCHEMA_DEFAULTS.appearance.color_theme).toBe('stock:wdark');
+  });
+
+  it('moves a stored KiCad Default once, and leaves any other theme alone', () => {
+    const s = (theme: string) => {
+      const v = structuredClone(EESCHEMA_DEFAULTS) as EeschemaSettings;
+      v.appearance.color_theme = theme;
+      return v;
+    };
+    const old = s('_builtin_default');
+    expect(migrateEeschemaSettings(old, 7)).toBe(true);
+    expect(old.appearance.color_theme).toBe('stock:wdark');
+
+    const classic = s('_builtin_classic');
+    expect(migrateEeschemaSettings(classic, 7)).toBe(false);
+    expect(classic.appearance.color_theme).toBe('_builtin_classic');
+
+    // Someone who picks KiCad Default again after v8 keeps it.
+    const chosen = s('_builtin_default');
+    expect(migrateEeschemaSettings(chosen, 8)).toBe(false);
+    expect(chosen.appearance.color_theme).toBe('_builtin_default');
+    expect(SETTINGS_VERSION).toBe(8);
+  });
+});

@@ -75,6 +75,8 @@ import type { SCH_TEXT } from './sch_text.js';
 import type { TITLE_BLOCK } from '@ziroeda/common/title_block.js';
 import { RESET_REASON } from '@ziroeda/common/tool/tool_base.js';
 import { VIEW_UPDATE_FLAGS } from '@ziroeda/common/view/view_item.js';
+import { RENDER_TARGET } from '@ziroeda/common/gal/definitions.js';
+import type { TOOLS_HOLDER_INPUT_SETTINGS } from '@ziroeda/common/tool/tools_holder.js';
 import { RECURSE_MODE } from '@ziroeda/common/eda_item.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import type { VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
@@ -730,6 +732,26 @@ export abstract class SCH_BASE_FRAME extends EDA_DRAW_FRAME {
   /** `GetLayerColor` (:516). */
   GetLayerColor(aLayer: SCH_LAYER_ID): Color4d {
     return this.GetColorSettings().GetColor(aLayer);
+  }
+
+  /**
+   * `CommonSettingsChanged` (:605-617): the colour theme is looked up again and the painter, the
+   * axes and every item take it, so a theme picked in Preferences reaches the open canvas.
+   */
+  override CommonSettingsChanged(aFlags = 0, aInput?: TOOLS_HOLDER_INPUT_SETTINGS): void {
+    super.CommonSettingsChanged(aFlags, aInput);
+
+    const colorSettings = this.GetColorSettings(true);
+    const canvas = this.GetCanvas();
+
+    if (!canvas) return;
+
+    canvas.GetView().GetPainter().GetSettings().LoadColors(colorSettings);
+    canvas.GetGAL().SetAxesColor(colorSettings.GetColor(SCH_LAYER_ID.LAYER_SCHEMATIC_GRID_AXES));
+
+    canvas.GetView().UpdateAllItems(VIEW_UPDATE_FLAGS.ALL);
+    canvas.GetView().RecacheAllItems();
+    canvas.GetView().MarkTargetDirty(RENDER_TARGET.TARGET_NONCACHED);
   }
 
   /**

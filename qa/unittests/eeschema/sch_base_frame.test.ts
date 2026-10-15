@@ -6,7 +6,12 @@
  * bookkeeping (`AddToScreen` / `RemoveFromScreen` / `UpdateItem`) with and
  * without a view, on both frames that now extend it.
  */
-import { PGM_BASE, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
+import { PGM_BASE, Pgm, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
+import { RENDER_TARGET } from '@ziroeda/common/gal/definitions.js';
+import {
+  EESCHEMA_DEFAULTS,
+  setEeschemaSettingsProvider,
+} from '@ziroeda/eeschema/eeschema_settings.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { EDA_DRAW_PANEL_GAL } from '@ziroeda/common/draw_panel_gal.js';
 import { EDA_DRAW_FRAME } from '@ziroeda/common/eda_draw_frame.js';
@@ -226,5 +231,50 @@ describe('the item bookkeeping', () => {
     const page = frame.GetPageSettings();
     expect(frame.GetPageSizeIU()).toEqual(page.GetSizeIU(schIUScale.IU_PER_MILS));
     expect(frame.GetPageSizeIU().x).toBeGreaterThan(0);
+  });
+});
+
+describe('CommonSettingsChanged', () => {
+  afterEach(() => setEeschemaSettingsProvider(() => EESCHEMA_DEFAULTS));
+
+  /** sch_base_frame.cpp:605-617: a theme picked in Preferences reaches the open canvas. */
+  it('loads the theme now chosen into the painter, the axes and every item', () => {
+    const mgr = Pgm().GetSettingsManager();
+    const dark = mgr.AddNewColorSettings('dark_test');
+    const axes = { r: 0.5, g: 0.25, b: 1, a: 1 };
+    dark.SetColor(SCH_LAYER_ID.LAYER_SCHEMATIC_GRID_AXES, axes);
+
+    let theme = '_builtin_default';
+    setEeschemaSettingsProvider(() => ({
+      ...EESCHEMA_DEFAULTS,
+      appearance: { ...EESCHEMA_DEFAULTS.appearance, color_theme: theme },
+    }));
+
+    const { frame } = setup();
+    const loaded: unknown[] = [];
+    const calls: unknown[] = [];
+    const view = {
+      GetPainter: () => ({ GetSettings: () => ({ LoadColors: (cs: unknown) => loaded.push(cs) }) }),
+      UpdateAllItems: (f: number) => calls.push(['all', f]),
+      RecacheAllItems: () => calls.push(['recache']),
+      MarkTargetDirty: (t: number) => calls.push(['dirty', t]),
+    };
+    const gal = { SetAxesColor: (c: unknown) => calls.push(['axes', c]) };
+    frame.SetCanvas({ GetView: () => view, GetGAL: () => gal } as unknown as EDA_DRAW_PANEL_GAL);
+
+    // The first lookup is cached, as upstream's m_colorSettings is.
+    expect(frame.GetColorSettings()).toBe(mgr.GetColorSettings('_builtin_default'));
+
+    theme = 'dark_test';
+    frame.CommonSettingsChanged();
+
+    expect(frame.GetColorSettings()).toBe(dark);
+    expect(loaded).toEqual([dark]);
+    expect(calls).toEqual([
+      ['axes', axes],
+      ['all', VIEW_UPDATE_FLAGS.ALL],
+      ['recache'],
+      ['dirty', RENDER_TARGET.TARGET_NONCACHED],
+    ]);
   });
 });

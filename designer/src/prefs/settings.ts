@@ -1814,7 +1814,7 @@ export const PRIVACY_DEFAULTS: PrivacySettings = {
  * used the app before, a default that was simply wrong has to be rewritten
  * once, here. KiCad's own SETTINGS_MANAGER migrates stored files the same way.
  */
-export const SETTINGS_VERSION = 7;
+export const SETTINGS_VERSION = 8;
 
 /**
  * Where the calculator's custom regulators used to live.
@@ -1978,6 +1978,13 @@ export function migrateEeschemaSettings(s: EeschemaSettings, from: number): bool
   // KiCad's default is true (common/settings/app_settings.cpp:564).
   if (from < 2 && s?.window?.cursor && s.window.cursor.always_show_cursor === false) {
     s.window.cursor.always_show_cursor = true;
+    changed = true;
+  }
+
+  // v8: the schematic opens on wDark for everyone (EESCHEMA_DEFAULTS). The old default,
+  // KiCad Default's light sheet, was stored whole with every slice, so it is moved once here.
+  if (from < 8 && s?.appearance?.color_theme === '_builtin_default') {
+    s.appearance.color_theme = 'stock:wdark';
     changed = true;
   }
 

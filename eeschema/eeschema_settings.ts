@@ -35,7 +35,7 @@ export interface TemplateFieldName {
 
 export interface EeschemaSettings {
   appearance: {
-    /** Active colour theme id: '_builtin_default' | '_builtin_classic' | 'user'. */
+    /** Active colour theme id: a built-in ('_builtin_default'), a stock theme ('stock:wdark') or 'user'. */
     color_theme: string;
     /**
      * `schematic.override_item_colors` in a COLOR_SETTINGS file
@@ -336,7 +336,9 @@ export interface EeschemaSettings {
 
 export const EESCHEMA_DEFAULTS: EeschemaSettings = {
   appearance: {
-    color_theme: '_builtin_default',
+    // Not upstream's DEFAULT_THEME: dark is our identity (DECIDED 2026-09-11), and KiCad ships no
+    // dark schematic built-in, so every user starts on the stock wDark sheet.
+    color_theme: 'stock:wdark',
     override_item_colors: false,
     default_font: 'KiCad Font',
     show_hidden_pins: false,
