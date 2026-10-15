@@ -1124,6 +1124,12 @@ export class BOARD_EDITOR_CONTROL extends PCB_TOOL_BASE {
   }
 
   /** `GenD356File` (export_d356.cpp:437): the dialog is modal, the handler returns at once. */
+  /** `ToggleLibraryTree` (board_editor_control.cpp:986-990): the Design Blocks pane. */
+  ToggleLibraryTree(_aEvent: TOOL_EVENT): number {
+    this.getEditFrame<PCB_EDIT_FRAME>().ToggleLibraryTree();
+    return 0;
+  }
+
   GenD356File(_aEvent: TOOL_EVENT): number {
     void BOARD_EDITOR_CONTROL_GenD356File(this.getEditFrame<PCB_EDIT_FRAME>());
     return 0;
@@ -1171,6 +1177,10 @@ export class BOARD_EDITOR_CONTROL extends PCB_TOOL_BASE {
 
   protected override setTransitions(): void {
     const drill = SYNC_HANDLER<BOARD_EDITOR_CONTROL>(this.DrillOrigin);
+    this.Go(
+      SYNC_HANDLER<BOARD_EDITOR_CONTROL>(this.ToggleLibraryTree),
+      PCB_ACTIONS.showDesignBlockPanel.MakeEvent(),
+    );
     this.Go(drill, PCB_ACTIONS.drillOrigin.MakeEvent());
     this.Go(drill, PCB_ACTIONS.drillResetOrigin.MakeEvent());
     this.Go(drill, PCB_ACTIONS.drillSetOrigin.MakeEvent());

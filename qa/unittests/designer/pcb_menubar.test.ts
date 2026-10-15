@@ -193,6 +193,7 @@ describe('View', () => {
       '  Search',
       '  Appearance',
       '  Net Inspector',
+      '  Design Blocks',
       '---',
       'Footprint Library Browser',
       '3D Viewer',
@@ -260,14 +261,41 @@ describe('Route and Inspect', () => {
   });
 });
 
+describe('View > Panels > Design Blocks', () => {
+  // `showHidePanels->Add( PCB_ACTIONS::showDesignBlockPanel, ACTION_MENU::CHECK,
+  // _( "Design Blocks" ) )` (menubar_pcb_editor.cpp:224-225): a CHECK row on the pane.
+  const row = (checks: PcbMenuChecks = {}): MenuItem | undefined => {
+    const view = build({}, checks).menus.find((m) => m.label === 'View');
+    return view?.items
+      ?.find((i) => i.label === 'Panels')
+      ?.submenu?.find((i) => i.label === 'Design Blocks');
+  };
+
+  it('toggles the pane', () => {
+    const { menus, calls } = build();
+    const view = menus.find((m) => m.label === 'View');
+    view?.items
+      ?.find((i) => i.label === 'Panels')
+      ?.submenu?.find((i) => i.label === 'Design Blocks')
+      ?.action?.();
+    expect(calls).toEqual(['toggle:showDesignBlockPanel']);
+  });
+
+  it('is ticked only while the pane is shown', () => {
+    expect(row()?.checked).toBe(false);
+    expect(row({ showDesignBlockPanel: true })?.checked).toBe(true);
+  });
+});
+
 describe('what is left out, and why', () => {
   /**
    * Three blocks upstream builds that this menu does not, and none of them is
    * an omission:
    *
-   *   * the generators rows and the Design Blocks panel row sit behind
-   *     `ADVANCED_CFG` flags (`m_EnableGenerators`, `m_EnablePcbDesignBlocks`),
-   *     so a stock KiCad does not draw them either;
+   *   * the generators rows sit behind `ADVANCED_CFG::m_EnableGenerators`,
+   *     so a stock KiCad does not draw them either (`m_EnablePcbDesignBlocks`
+   *     is true by default, advanced_config.cpp:278, so the Design Blocks
+   *     panel row IS drawn - see below);
    *   * the Scripting Console is inside `SCRIPTING::IsWxAvailable()`;
    *   * "Reveal Plugin Folder in Finder" opens a folder on a disk.
    *
@@ -278,7 +306,6 @@ describe('what is left out, and why', () => {
     ['Scripting Console'],
     ['Reveal Plugin Folder in Finder'],
     ['Rebuild All Generators'],
-    ['Design Blocks'],
   ])('%s is absent', (label) => {
     const { menus } = build();
     expect(menus.some((m) => find(m.items ?? [], label) !== undefined)).toBe(false);

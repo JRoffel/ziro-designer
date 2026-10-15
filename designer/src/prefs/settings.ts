@@ -125,10 +125,17 @@ export interface PcbnewPrinting {
   as_item_checkboxes: boolean;
 }
 
-/** The `AUI_PANELS` keys the Search and Net Inspector panes persist (the Bottom dock only: width and direction are AUI's own). */
+/**
+ * The `AUI_PANELS` keys the Search, Net Inspector and Design Blocks panes persist (the floating
+ * sizes are AUI's own: no pane floats here).
+ */
 export type PcbAuiPanels = Pick<
   AUI_PANELS,
-  'show_search' | 'show_net_inspector' | 'search_panel_height'
+  | 'show_search'
+  | 'show_net_inspector'
+  | 'search_panel_height'
+  | 'design_blocks_show'
+  | 'design_blocks_panel_docked_width'
 >;
 
 export interface PcbnewSettings {
@@ -484,10 +491,18 @@ export const PCBNEW_DEFAULTS: PcbnewSettings = {
   },
   cross_probing: { ...new CROSS_PROBING_SETTINGS() },
   // The defaults are `AUI_PANELS`' own, not a second copy of them.
-  aui: (({ show_search, show_net_inspector, search_panel_height }) => ({
+  aui: (({
     show_search,
     show_net_inspector,
     search_panel_height,
+    design_blocks_show,
+    design_blocks_panel_docked_width,
+  }) => ({
+    show_search,
+    show_net_inspector,
+    search_panel_height,
+    design_blocks_show,
+    design_blocks_panel_docked_width,
   }))(new AUI_PANELS()),
   tools: {
     pns: writeRoutingSettings(DEFAULT_ROUTING_SETTINGS),

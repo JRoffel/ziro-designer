@@ -38,7 +38,21 @@ import { PCB_TOOL_BASE } from './pcb_tool_base.js';
 import { GetClipboardUTF8, GetImageFromClipboard } from '@ziroeda/common/clipboard.js';
 import { DisplayErrorMessage, IsOK } from '@ziroeda/common/confirm.js';
 import { ADVANCED_CFG } from '@ziroeda/common/advanced_config.js';
-import { IS_NEW, SKIP_STRUCT } from '@ziroeda/common/eda_item_flags.js';
+import { IS_NEW, MCT_SKIP_STRUCT, SKIP_STRUCT } from '@ziroeda/common/eda_item_flags.js';
+import type { DESIGN_BLOCK } from '@ziroeda/common/design_block.js';
+import { INSPECT_RESULT } from '@ziroeda/common/eda_item.js';
+import { IO_ERROR } from '@ziroeda/common/exceptions.js';
+import { wxFileExists, wxReadFileSync } from '@ziroeda/wx/filefn.js';
+import { buildConvexHull } from '@ziroeda/kimath/src/geometry/convex_hull.js';
+import { SHAPE_LINE_CHAIN } from '@ziroeda/kimath/src/geometry/shape_line_chain.js';
+import {
+  KIGEOM_CollectBoxCorners,
+  KIGEOM_RectifyPolygon,
+} from '@ziroeda/kimath/src/geometry/shape_utils.js';
+import type { VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
+import { PCB_IO_KICAD_SEXPR_PARSER } from '../pcb_io/kicad_sexpr/pcb_io_kicad_sexpr_parser.js';
+import { PLACEMENT_SOURCE_T, ZONE_BORDER_DISPLAY_STYLE } from '../zone_settings.js';
+import { MULTICHANNEL_TOOL, RULE_AREA, type REPEAT_LAYOUT_OPTIONS } from './multichannel_tool.js';
 import { FRAME_T } from '@ziroeda/common/frame_type.js';
 import type { FOOTPRINT_VIEWER_FRAME } from '../footprint_viewer_frame.js';
 import type { BOARD } from '../board.js';
@@ -54,7 +68,7 @@ import { Build_Board_Characteristics_Table } from '../board_tables/board_charact
 import { Build_Board_Stackup_Table } from '../board_tables/board_stackup_table.js';
 import type { FOOTPRINT } from '../footprint.js';
 import type { PCB_DIMENSION_BASE } from '../pcb_dimension.js';
-import type { ZONE } from '../zone.js';
+import { ZONE } from '../zone.js';
 import { RECURSE_MODE } from '@ziroeda/common/eda_item.js';
 import { EVENTS } from '@ziroeda/common/tool/actions.js';
 import type { COROUTINE_BODY } from '@ziroeda/common/tool/coroutine.js';
@@ -1931,6 +1945,592 @@ export class PCB_CONTROL extends PCB_TOOL_BASE {
     return 0;
   }
 
+  /**
+   * `AppendBoard( pi, fileName, aDesignBlock, aCommit, aSkipMove )` (pcb_control.cpp:2085-2309):
+   * read a board file INTO this board (`LoadBoard( fileName, brd, … )` with the destination's
+   * stackup kept), keep this board's page, title block and properties, then place what was new
+   * as a paste is placed - grouped and linked to \a aDesignBlock when "Place as group" is on.
+   * 0 on success.
+   */
+  *AppendBoard(
+    aFileName: string,
+    aDesignBlock: DESIGN_BLOCK | null = null,
+    aCommit: BOARD_COMMIT | null = null,
+    aSkipMove = false,
+  ): COROUTINE_BODY<number> {
+    const editFrame = this.m_frame as unknown as PCB_EDIT_FRAME;
+
+    if (!editFrame.IsType(FRAME_T.FRAME_PCB_EDITOR)) return 1;
+
+    const brd = this.board();
+
+    if (!brd) return 1;
+
+    // Give ourselves a commit to work with if we weren't provided one
+    const commit = aCommit ?? new BOARD_COMMIT(this);
+
+    // Mark existing items, in order to know what are the new items so we can select only
+    // the new items after loading
+    const existingItems = brd.GetItemSet();
+
+    for (const item of existingItems) item.SetFlags(SKIP_STRUCT);
+
+    const clearSkipStructOnExistingItems = (): void => {
+      for (const item of existingItems) item.ClearFlags(SKIP_STRUCT);
+    };
+
+    const oldProperties = new Map(brd.GetProperties());
+
+    const oldPageInfo = brd.GetPageSettings();
+    const oldTitleBlock = brd.GetTitleBlock();
+
+    // Keep also the count of copper layers, to adjust if necessary
+    const initialCopperLayerCount = brd.GetCopperLayerCount();
+    const initialEnabledLayers = brd.GetEnabledLayers();
+
+    // Load the data
+    try {
+      const bytes = wxReadFileSync(aFileName);
+
+      if (!bytes) throw new IO_ERROR(`File '${aFileName}' could not be read.`);
+
+      // APPEND_PRESERVE_DESTINATION_STACKUP
+      new PCB_IO_KICAD_SEXPR_PARSER(new TextDecoder().decode(bytes), aFileName, brd, true).Parse();
+    } catch (e) {
+      if (!(e instanceof IO_ERROR)) throw e;
+
+      DisplayErrorMessage('Error loading board.', e.message);
+      clearSkipStructOnExistingItems();
+
+      return 0;
+    }
+
+    const newProperties = new Map(brd.GetProperties());
+
+    for (const [key, value] of oldProperties) newProperties.set(key, value);
+
+    brd.SetProperties(newProperties);
+
+    brd.SetPageSettings(oldPageInfo);
+    brd.SetTitleBlock(oldTitleBlock);
+
+    // rebuild nets and ratsnest before any use of nets
+    brd.BuildListOfNets();
+    brd.SynchronizeNetsAndNetClasses(true);
+    brd.BuildConnectivity();
+
+    // New appended items need to inherit the current global ratsnest state.
+    // Existing items are marked SKIP_STRUCT and are handled elsewhere.
+    const showGlobalRatsnest = this.displayOptions().m_ShowGlobalRatsnest;
+
+    for (const item of brd.GetItemSet()) {
+      if (item.GetFlags() & SKIP_STRUCT) continue;
+
+      if (item instanceof BOARD_CONNECTED_ITEM) item.SetLocalRatsnestVisible(showGlobalRatsnest);
+
+      if (item.Type() === KICAD_T.PCB_FOOTPRINT_T) {
+        for (const pad of (item as unknown as FOOTPRINT).Pads())
+          pad.SetLocalRatsnestVisible(showGlobalRatsnest);
+      }
+    }
+
+    // Synchronize layers
+    // we should not ask PLUGINs to do these items:
+    const copperLayerCount = brd.GetCopperLayerCount();
+
+    if (copperLayerCount > initialCopperLayerCount) brd.SetCopperLayerCount(copperLayerCount);
+
+    // Enable all used layers, and make them visible:
+    const enabledLayers = brd.GetEnabledLayers().or(initialEnabledLayers);
+    brd.SetEnabledLayers(enabledLayers);
+    brd.SetVisibleLayers(enabledLayers);
+    brd.GetDesignSettings().GetStackupDescriptor().SynchronizeWithBoard(brd.GetDesignSettings());
+
+    let ret = 0;
+
+    const placeAsGroup = editFrame.GetDesignBlockPane()?.UpdateCheckboxes().place_as_group ?? false;
+
+    if (
+      yield* this.placeBoardItemsFromBoard(
+        commit,
+        brd,
+        false,
+        false /* Don't reannotate dupes on Append Board */,
+        aSkipMove,
+      )
+    ) {
+      if (placeAsGroup) {
+        const selTool = this.m_toolMgr!.FindTool(
+          'common.InteractiveSelection',
+        ) as unknown as PCB_SELECTION_TOOL;
+        const selection = selTool.GetSelection();
+
+        // Count items that would be added to the group
+        let groupableCount = 0;
+
+        for (const edaItem of selection) {
+          if (edaItem.IsBOARD_ITEM() && !(edaItem as BOARD_ITEM).GetParentFootprint())
+            groupableCount++;
+        }
+
+        if (groupableCount >= 2) {
+          const group = new PCB_GROUP(brd as unknown as BOARD_ITEM);
+
+          if (aDesignBlock) {
+            group.SetName(aDesignBlock.GetLibId().GetLibItemName());
+            group.SetDesignBlockLibId(aDesignBlock.GetLibId());
+          } else {
+            // `wxFileName( fileName ).GetName()`
+            const full = aFileName.slice(aFileName.lastIndexOf('/') + 1);
+            const dot = full.lastIndexOf('.');
+            group.SetName(dot > 0 ? full.slice(0, dot) : full);
+          }
+
+          for (const edaItem of selection) {
+            if (edaItem.IsBOARD_ITEM() && (edaItem as BOARD_ITEM).IsLocked()) group.SetLocked(true);
+          }
+
+          commit.Add(group);
+
+          for (const edaItem of selection) {
+            if (edaItem.IsBOARD_ITEM() && !(edaItem as BOARD_ITEM).GetParentFootprint()) {
+              commit.Modify(edaItem);
+              group.AddItem(edaItem as BOARD_ITEM);
+            }
+          }
+
+          selTool.ClearSelection();
+          selTool.select(group);
+
+          this.m_toolMgr!.PostEvent(EVENTS.SelectedItemsModified);
+          this.m_frame!.OnModify();
+          this.m_frame!.GetCanvas()?.Refresh();
+        }
+      }
+
+      // If we were provided a commit, let the caller control when to push it
+      if (!aCommit) commit.Push(aDesignBlock ? 'Place Design Block' : 'Append Board');
+
+      editFrame.GetBoard()!.BuildConnectivity();
+      ret = 0;
+    } else {
+      // If we were provided a commit, let the caller control when to revert it
+      if (!aCommit) commit.Revert();
+
+      ret = 1;
+    }
+
+    // Refresh the UI for the updated board properties: `GetAppearancePanel()->OnBoardChanged()`.
+    // The Appearance panel is the window's, which re-reads the board's layers on `OnModify`.
+    clearSkipStructOnExistingItems();
+
+    return ret;
+  }
+
+  /** `AppendDesignBlock` (:1413-1459): PCB_ACTIONS::placeDesignBlock, the pane's selection. */
+  *AppendDesignBlock(_aEvent: TOOL_EVENT): COROUTINE_BODY<number> {
+    const editFrame = this.m_frame as unknown as PCB_EDIT_FRAME;
+
+    if (!editFrame.IsType(FRAME_T.FRAME_PCB_EDITOR)) return 1;
+
+    const designBlockPane = editFrame.GetDesignBlockPane();
+
+    if (!designBlockPane?.GetSelectedLibId().IsValid()) return 1;
+
+    const selectedLibId = designBlockPane.GetSelectedLibId();
+    const designBlock = designBlockPane.GetDesignBlock(selectedLibId, true, true);
+
+    if (!designBlock) {
+      editFrame.ShowInfoBarError(
+        `Could not find design block ${selectedLibId.GetUniStringLibId()}.`,
+        true,
+      );
+      return 1;
+    }
+
+    if (designBlock.GetBoardFile() === '' || !wxFileExists(designBlock.GetBoardFile())) {
+      editFrame.ShowInfoBarError('Design block has no layout to place.', true);
+      return 1;
+    }
+
+    const repeatPlacement = designBlockPane.UpdateCheckboxes().repeated_placement;
+
+    let ret = 0;
+
+    do {
+      ret = yield* this.AppendBoard(designBlock.GetBoardFile(), designBlock);
+    } while (repeatPlacement && ret === 0);
+
+    return ret;
+  }
+
+  /**
+   * `ApplyDesignBlockLayout` (:1462-1835): for each selected group linked to a design block,
+   * the block's board is appended unmoved into a temporary commit, matched against the group's
+   * footprints by MULTICHANNEL_TOOL::RepeatLayout, and its placement and routing copied onto
+   * the group; the temporary block is then reverted, so only the copy remains.
+   */
+  *ApplyDesignBlockLayout(aEvent: TOOL_EVENT): COROUTINE_BODY<number> {
+    const editFrame = this.m_frame as unknown as PCB_EDIT_FRAME;
+
+    if (!editFrame.IsType(FRAME_T.FRAME_PCB_EDITOR)) return 1;
+
+    const brd = this.board();
+
+    if (!brd) return 1;
+
+    const selTool = this.m_toolMgr!.FindTool(
+      'common.InteractiveSelection',
+    ) as unknown as PCB_SELECTION_TOOL;
+    const selection = selTool.GetSelection();
+
+    const linkedGroups: PCB_GROUP[] = [];
+    let skippedNoLink = 0;
+
+    for (const item of selection) {
+      if (item.Type() !== KICAD_T.PCB_GROUP_T) continue;
+
+      const g = item as unknown as PCB_GROUP;
+
+      if (g.HasDesignBlockLink()) linkedGroups.push(g);
+      else skippedNoLink++;
+    }
+
+    if (linkedGroups.length === 0) {
+      editFrame.ShowInfoBarError('No groups with a linked design block are selected.', true);
+      return 1;
+    }
+
+    if (!editFrame.GetOverrideLocks()) {
+      const hasLocked = linkedGroups.some((g) =>
+        [...g.GetItems()].some(
+          (item) =>
+            item.Type() === KICAD_T.PCB_FOOTPRINT_T && (item as unknown as FOOTPRINT).IsLocked(),
+        ),
+      );
+
+      if (hasLocked) {
+        editFrame.ShowInfoBarWarning(
+          "Selection contains locked items. Enable 'Override locks' to operate on them.",
+          true,
+        );
+        return 1;
+      }
+    }
+
+    const mct = this.m_toolMgr!.FindTool('pcbnew.Multichannel') as unknown as MULTICHANNEL_TOOL;
+    const sharedCommit = new BOARD_COMMIT(this);
+
+    const failures: { group: PCB_GROUP; reason: string }[] = [];
+    let applied = 0;
+    let netlessCopperPlaced = false;
+
+    // TRANSITIONAL: WX_PROGRESS_REPORTER for more than one group (its abort) is not ported, so
+    // the groups are applied without a progress dialog and cannot be cancelled.
+
+    const generateBoundingBox = (aItems: Iterable<EDA_ITEM>): SHAPE_LINE_CHAIN => {
+      const bbCorners: VECTOR2I[] = [];
+
+      for (const item of aItems) {
+        const bb = item.GetBoundingBox().GetInflated(100000);
+        KIGEOM_CollectBoxCorners(bb, bbCorners);
+      }
+
+      const hull = new SHAPE_LINE_CHAIN(buildConvexHull(bbCorners));
+      hull.SetClosed(true);
+      return KIGEOM_RectifyPolygon(hull);
+    };
+
+    const visitAll = (aFn: (aItem: EDA_ITEM) => void): void => {
+      brd.Visit(
+        (aItem: EDA_ITEM) => {
+          aFn(aItem);
+          return INSPECT_RESULT.CONTINUE;
+        },
+        null,
+        GENERAL_COLLECTOR.AllBoardItems,
+      );
+    };
+
+    const ruleAreaZone = (aSourceType: PLACEMENT_SOURCE_T, aSource: string): ZONE => {
+      const zone = new ZONE(brd);
+      zone.SetIsRuleArea(true);
+      zone.SetLayerSet(LSET.AllCuMask());
+      zone.SetPlacementAreaEnabled(true);
+      zone.SetDoNotAllowZoneFills(false);
+      zone.SetDoNotAllowVias(false);
+      zone.SetDoNotAllowTracks(false);
+      zone.SetDoNotAllowPads(false);
+      zone.SetDoNotAllowFootprints(false);
+      zone.SetPlacementAreaSourceType(aSourceType);
+      zone.SetPlacementAreaSource(aSource);
+      zone.SetHatchStyle(ZONE_BORDER_DISPLAY_STYLE.NO_HATCH);
+      return zone;
+    };
+
+    // Apply the linked design block's layout to a single group. Returns with a
+    // human-readable reason on failure.
+    const applyOneGroup = function* (
+      this: PCB_CONTROL,
+      group: PCB_GROUP,
+      outErr: { value: string },
+    ): COROUTINE_BODY<boolean> {
+      const pane = editFrame.GetDesignBlockPane();
+      const designBlock = pane?.GetDesignBlock(group.GetDesignBlockLibId(), true, true) ?? null;
+
+      if (!designBlock) {
+        outErr.value = 'design block is not in the loaded libraries';
+        return false;
+      }
+
+      if (designBlock.GetBoardFile() === '') {
+        outErr.value = 'design block has no saved PCB layout';
+        return false;
+      }
+
+      visitAll((aItem) => aItem.SetFlags(MCT_SKIP_STRUCT));
+
+      const clearFlags = (): void => visitAll((aItem) => aItem.ClearFlags(MCT_SKIP_STRUCT));
+
+      const tempCommit = new BOARD_COMMIT(this);
+
+      if (
+        (yield* this.AppendBoard(designBlock.GetBoardFile(), designBlock, tempCommit, true)) !== 0
+      ) {
+        clearFlags();
+        outErr.value = "could not load the design block's layout";
+        return false;
+      }
+
+      const dbRA = new RULE_AREA();
+      dbRA.m_sourceType = PLACEMENT_SOURCE_T.DESIGN_BLOCK;
+      dbRA.m_generateEnabled = true;
+
+      visitAll((aItem) => {
+        if (!aItem.HasFlag(MCT_SKIP_STRUCT)) {
+          dbRA.m_designBlockItems.add(aItem);
+
+          if (aItem.Type() === KICAD_T.PCB_FOOTPRINT_T)
+            dbRA.m_components.add(aItem as unknown as FOOTPRINT);
+        }
+      });
+
+      if (dbRA.m_designBlockItems.size === 0) {
+        tempCommit.Revert();
+        clearFlags();
+        outErr.value = 'design block contains no items to apply';
+        return false;
+      }
+
+      // Footprint-free copper has no matched pads to map nets through, so it is copied as no-net.
+      let blockHasNetlessCopper = false;
+
+      if (dbRA.m_components.size === 0) {
+        for (const item of dbRA.m_designBlockItems) {
+          if (item.IsBOARD_ITEM() && (item as BOARD_ITEM).IsConnected()) {
+            blockHasNetlessCopper = true;
+            break;
+          }
+        }
+      }
+
+      dbRA.m_zone = ruleAreaZone(
+        dbRA.m_sourceType,
+        group.GetDesignBlockLibId().GetUniStringLibId(),
+      );
+      dbRA.m_zone.AddPolygon(generateBoundingBox(dbRA.m_designBlockItems));
+      dbRA.m_center = dbRA.m_zone.Outline().COutline(0).Centre();
+
+      const destRA = new RULE_AREA();
+      destRA.m_sourceType = PLACEMENT_SOURCE_T.GROUP_PLACEMENT;
+
+      for (const item of group.GetItems()) {
+        if (item.Type() === KICAD_T.PCB_FOOTPRINT_T)
+          destRA.m_components.add(item as unknown as FOOTPRINT);
+      }
+
+      destRA.m_group = group;
+
+      if (group.GetItems().size === 0) {
+        tempCommit.Revert();
+        clearFlags();
+        outErr.value = 'group is empty';
+        return false;
+      }
+
+      destRA.m_zone = ruleAreaZone(destRA.m_sourceType, group.GetName());
+      destRA.m_zone.SetZoneName(
+        `design-block-dest-${group.GetDesignBlockLibId().GetUniStringLibId()}`,
+      );
+      destRA.m_zone.AddPolygon(generateBoundingBox(group.GetItems()));
+      destRA.m_center = destRA.m_zone.Outline().COutline(0).Centre();
+
+      const options: REPEAT_LAYOUT_OPTIONS = {
+        m_copyRouting: true,
+        m_connectedRoutingOnly: false,
+        m_copyPlacement: true,
+        m_copyOtherItems: true,
+        m_groupItems: false,
+        m_includeLockedItems: true,
+        m_anchorFp: null,
+      };
+
+      // Give the appended block's auto-generated nets a private namespace so they cannot fuse by
+      // name with a different part's net on the board, which would corrupt the topology match
+      // (issue 24767). Reverted with the temporary block, so the private nets are removed below.
+      const isolatedNets = MULTICHANNEL_TOOL.IsolateDesignBlockAutoNets(
+        brd,
+        dbRA.m_components,
+        dbRA.m_designBlockItems,
+      );
+
+      const repeatErr = { value: '' };
+      const result = mct.RepeatLayout(aEvent, dbRA, destRA, options, sharedCommit, repeatErr);
+
+      tempCommit.Revert();
+
+      for (const net of isolatedNets) brd.Remove(net as unknown as BOARD_ITEM);
+
+      clearFlags();
+
+      if (result !== 0) {
+        outErr.value = repeatErr.value === '' ? 'layout copy failed' : repeatErr.value;
+        return false;
+      }
+
+      if (blockHasNetlessCopper) netlessCopperPlaced = true;
+
+      return true;
+    };
+
+    for (const g of linkedGroups) {
+      const err = { value: '' };
+
+      if (yield* applyOneGroup.call(this, g, err)) applied++;
+      else failures.push({ group: g, reason: err.value });
+    }
+
+    if (applied > 0) {
+      sharedCommit.Push(`Apply design block layout to ${applied} group(s)`);
+
+      if (netlessCopperPlaced)
+        editFrame.ShowInfoBarMsg('Copied copper has no net assigned. Assign nets to connect it.');
+    } else {
+      sharedCommit.Revert();
+    }
+
+    if (skippedNoLink > 0 || failures.length > 0 || linkedGroups.length > 1) {
+      const messages: string[] = [
+        `Applied design block layout to ${applied} of ${linkedGroups.length} group(s).`,
+      ];
+
+      if (skippedNoLink > 0)
+        messages.push(
+          `Skipped ${skippedNoLink} selected item(s) that are not groups linked to a design block.`,
+        );
+
+      if (failures.length > 0) {
+        messages.push('The following groups could not be processed:');
+
+        for (const f of failures) {
+          const name = f.group.GetName() === '' ? '(unnamed group)' : f.group.GetName();
+          messages.push(`<b>${name}</b>: ${f.reason}`);
+        }
+      }
+
+      // `HTML_MESSAGE_BOX dlg( m_frame, _( "Apply Design Block Layout" ) )`, 360 x 220 DU.
+      yield* this.RunMainStackModal(() =>
+        editFrame.ShowHtmlMessage('Apply Design Block Layout', messages),
+      );
+    }
+
+    return applied > 0 ? 0 : 1;
+  }
+
+  /** `PlaceLinkedDesignBlock` (:1838-1891): the selected group's block, placed again. */
+  *PlaceLinkedDesignBlock(aEvent: TOOL_EVENT): COROUTINE_BODY<number> {
+    const editFrame = this.m_frame as unknown as PCB_EDIT_FRAME;
+
+    if (!editFrame.IsType(FRAME_T.FRAME_PCB_EDITOR)) return 1;
+
+    // Need to have a group selected and it needs to have a linked design block
+    const selTool = this.m_toolMgr!.FindTool(
+      'common.InteractiveSelection',
+    ) as unknown as PCB_SELECTION_TOOL;
+    const selection = selTool.GetSelection();
+
+    if (selection.Size() !== 1 || selection.Front()!.Type() !== KICAD_T.PCB_GROUP_T) return 1;
+
+    const group = selection.Front() as unknown as PCB_GROUP;
+
+    if (!group.HasDesignBlockLink()) return 1;
+
+    // Get the associated design block
+    const designBlock =
+      editFrame.GetDesignBlockPane()?.GetDesignBlock(group.GetDesignBlockLibId(), true, true) ??
+      null;
+
+    if (!designBlock) {
+      editFrame.ShowInfoBarWarning(
+        `Could not find design block ${group.GetDesignBlockLibId().GetUniStringLibId()}.`,
+      );
+      return 1;
+    }
+
+    if (designBlock.GetBoardFile() === '') {
+      editFrame.ShowInfoBarWarning(
+        `Design block ${group.GetDesignBlockLibId().GetUniStringLibId()} does not have a board file.`,
+      );
+      return 1;
+    }
+
+    const skipMove = aEvent.Parameter<{ value: boolean } | null>();
+
+    if (skipMove)
+      return yield* this.AppendBoard(
+        designBlock.GetBoardFile(),
+        designBlock,
+        aEvent.Commit() as BOARD_COMMIT | null,
+        skipMove.value,
+      );
+
+    return yield* this.AppendBoard(designBlock.GetBoardFile(), designBlock);
+  }
+
+  /** `SaveToLinkedDesignBlock` (:1894-1929): the selected group written back to its block. */
+  SaveToLinkedDesignBlock(_aEvent: TOOL_EVENT): number {
+    const editFrame = this.m_frame as unknown as PCB_EDIT_FRAME;
+
+    if (!editFrame.IsType(FRAME_T.FRAME_PCB_EDITOR)) return 1;
+
+    // Need to have a group selected and it needs to have a linked design block
+    const selTool = this.m_toolMgr!.FindTool(
+      'common.InteractiveSelection',
+    ) as unknown as PCB_SELECTION_TOOL;
+    const selection = selTool.GetSelection();
+
+    if (selection.Size() !== 1 || selection.Front()!.Type() !== KICAD_T.PCB_GROUP_T) return 1;
+
+    const group = selection.Front() as unknown as PCB_GROUP;
+
+    if (!group.HasDesignBlockLink()) return 1;
+
+    // Get the associated design block
+    const pane = editFrame.GetDesignBlockPane();
+    const designBlock = pane?.GetDesignBlock(group.GetDesignBlockLibId(), true, true) ?? null;
+
+    if (!pane || !designBlock) {
+      editFrame.ShowInfoBarWarning(
+        `Could not find design block ${group.GetDesignBlockLibId().GetUniStringLibId()}.`,
+      );
+      return 1;
+    }
+
+    pane.SelectLibId(group.GetDesignBlockLibId());
+
+    return this.m_toolMgr!.RunAction(PCB_ACTIONS.updateDesignBlockFromSelection) ? 1 : 0;
+  }
+
   protected override setTransitions(): void {
     this.Go(SYNC_HANDLER<PCB_CONTROL>(this.Print), ACTIONS.print.MakeEvent());
 
@@ -2082,5 +2682,12 @@ export class PCB_CONTROL extends PCB_TOOL_BASE {
     this.Go(this.PlaceStackup, PCB_ACTIONS.placeStackup.MakeEvent());
     this.Go(this.Paste, ACTIONS.paste.MakeEvent());
     this.Go(this.Paste, ACTIONS.pasteSpecial.MakeEvent());
+    this.Go(this.AppendDesignBlock, PCB_ACTIONS.placeDesignBlock.MakeEvent());
+    this.Go(this.ApplyDesignBlockLayout, PCB_ACTIONS.applyDesignBlockLayout.MakeEvent());
+    this.Go(this.PlaceLinkedDesignBlock, PCB_ACTIONS.placeLinkedDesignBlock.MakeEvent());
+    this.Go(
+      SYNC_HANDLER<PCB_CONTROL>(this.SaveToLinkedDesignBlock),
+      PCB_ACTIONS.saveToLinkedDesignBlock.MakeEvent(),
+    );
   }
 }

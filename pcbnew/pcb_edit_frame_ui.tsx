@@ -102,6 +102,7 @@ const PANE_TOGGLE_IDS: Readonly<Record<string, string>> = {
   PropertiesManager: 'showProperties',
   Search: 'showSearch',
   NetInspector: 'showNetInspector',
+  DesignBlocks: 'showDesignBlockPanel',
 };
 
 /**
@@ -360,7 +361,21 @@ import {
 } from './dialogs/dialog_track_via_properties.js';
 import { useKiDialog } from '@ziroeda/common/kidialog.js';
 import type { DIALOG_GLOBAL_EDIT_TEARDROPS } from './dialogs/dialog_global_edit_teardrops.js';
-import { DisplayErrorMessage, IsOK } from '@ziroeda/common/confirm.js';
+import {
+  DisplayErrorMessage,
+  IsOK,
+  OKOrCancelDialog,
+  ShowKicadMessageDialog,
+} from '@ziroeda/common/confirm.js';
+import { HtmlMessageBox } from '@ziroeda/common/dialogs/html_message_box.js';
+import { DialogDesignBlockProperties } from '@ziroeda/common/dialogs/dialog_design_block_properties_ui.js';
+import type { DESIGN_BLOCK } from '@ziroeda/common/design_block.js';
+import { NormalizePath } from '@ziroeda/common/env_paths.js';
+import type { LIB_ID as DB_LIB_ID } from '@ziroeda/common/lib_id.js';
+import { wxCANCEL as DB_wxCANCEL, wxICON_WARNING, wxOK as DB_wxOK } from '@ziroeda/wx/defs.js';
+import { wxID_OK as DB_wxID_OK } from '@ziroeda/wx/menu.js';
+import { PCB_DESIGN_BLOCK_PANE, PcbDesignBlockPane } from './widgets/pcb_design_block_pane.js';
+import { PcbDesignBlockPreviewWidget } from './widgets/pcb_design_block_preview_widget.js';
 import { EDA_ANGLE, EDA_ANGLE_T } from '@ziroeda/kimath/src/geometry/eda_angle.js';
 import { ARRAY_TOOL } from './tools/array_tool.js';
 import type { PCB_SELECTION } from './tools/pcb_selection.js';
@@ -2165,6 +2180,8 @@ export function PcbEditor({
     polygonDialog: () => Promise<boolean>;
     showZoneManager: () => Promise<{ ok: boolean; repour: boolean }>;
     showMigrate3DModels: () => Promise<void>;
+    htmlMessage: (aCaption: string, aMessages: readonly string[]) => Promise<void>;
+    toggleDesignBlocks: () => void;
     multichannel: (aTool: MULTICHANNEL_TOOL, aKind: 'repeat' | 'generate') => Promise<boolean>;
     fillAllZones: () => void;
   } | null>(null);
@@ -2224,7 +2241,7 @@ export function PcbEditor({
         if (f) setUserUnitsRef.current(f.GetUserUnits());
       },
       // `m_auimgr.GetPane( aName ).IsShown()`: the docked panes are the window's
-      // toggles, by KiCad's pane names. No Design Blocks pane is docked here.
+      // toggles, by KiCad's pane names.
       paneShown: (aName) => {
         const id = PANE_TOGGLE_IDS[aName];
         return id !== undefined && togglesRef.current.has(id);
@@ -2325,6 +2342,9 @@ export function PcbEditor({
       showMigrate3DModels: () => mwWindowRef.current!.showMigrate3DModels(),
       showRepeatLayout: (aTool) => mwWindowRef.current!.multichannel(aTool, 'repeat'),
       showGenerateRuleAreas: (aTool) => mwWindowRef.current!.multichannel(aTool, 'generate'),
+      showHtmlMessage: (aCaption, aMessages) =>
+        mwWindowRef.current!.htmlMessage(aCaption, aMessages),
+      toggleDesignBlocksPane: () => mwWindowRef.current!.toggleDesignBlocks(),
       showTopologyMismatch: (aSummary, aDetails) =>
         void askKiDialogRef.current({
           caption: 'Topology mismatch',
@@ -2814,6 +2834,85 @@ export function PcbEditor({
   } | null>(null);
   /** `DIALOG_MIGRATE_3D_MODELS`, open: `ShowModal()` returning. */
   const [migrate3D, setMigrate3D] = useState<{ resolve: () => void } | null>(null);
+  /** `HTML_MESSAGE_BOX`, open: `ShowModal()` returning. */
+  const [htmlMessage, setHtmlMessage] = useState<{
+    caption: string;
+    messages: readonly string[];
+    resolve: () => void;
+  } | null>(null);
+  /** `DIALOG_DESIGN_BLOCK_PROPERTIES`, open: `ShowModal() == wxID_OK`. */
+  const [dbProperties, setDbProperties] = useState<{
+    designBlock: DESIGN_BLOCK;
+    disableName: boolean;
+    resolve: (aOk: boolean) => void;
+  } | null>(null);
+  /**
+   * `m_designBlocksPane` (pcb_edit_frame.cpp:306): `new PCB_DESIGN_BLOCK_PANE( this, nullptr,
+   * m_designBlockHistoryList )`, its modals answered by this window.
+   */
+  const [designBlocksPane] = useState(() => {
+    const history: DB_LIB_ID[] = [];
+
+    return new PCB_DESIGN_BLOCK_PANE(
+      {
+        DesignBlockLibs: () => frameRef.current!.Prj().DesignBlockLibs(),
+        GetLibraryManager: () => Pgm().GetLibraryManager(),
+        NormalizePath: (aPath) =>
+          NormalizePath(aPath, Pgm().GetLocalEnvVariables(), frameRef.current!.Prj()),
+        ShowInfoBarError: (aMsg) => frameRef.current?.ShowInfoBarError(aMsg),
+        SetStatusText: (aMsg) => frameRef.current?.SetStatusText(aMsg),
+      },
+      {
+        IsOK: (aMessage) => IsOK(aMessage),
+        OKOrCancel: async (aMessage, aDetail, aOKLabel) =>
+          (await OKOrCancelDialog('Confirmation', aMessage, aDetail, aOKLabel)) === DB_wxID_OK,
+        ConfirmOverwriteLibrary: async (aMessage) =>
+          (await ShowKicadMessageDialog({
+            message: aMessage,
+            caption: 'Warning',
+            style: DB_wxOK | DB_wxCANCEL | wxICON_WARNING,
+            okLabel: 'Overwrite',
+          })) === DB_wxID_OK,
+        DisplayError: (aMessage, aDetail) => DisplayErrorMessage(aMessage, aDetail ?? ''),
+        GetTextFromUser: (aMessage, aTitle) => mwWindowRef.current!.textEntry(aMessage, aTitle, ''),
+        // `LibraryFileBrowser( …, false /* save */, … )`: naming a new library to write is the
+        // save-style file dialog, which no frame here has yet, so it answers Cancel.
+        NewLibraryBrowser: () => Promise.resolve(null),
+        DesignBlockProperties: (aDesignBlock, aDisableName) =>
+          new Promise<boolean>((resolve) =>
+            setDbProperties((prev) => {
+              prev?.resolve(false);
+              return { designBlock: aDesignBlock, disableName: aDisableName, resolve };
+            }),
+          ),
+      },
+      history,
+      () => {
+        const panel = frameRef.current!.GetPcbNewSettings().m_DesignBlockChooserPanel;
+        return {
+          repeated_placement: panel.repeated_placement,
+          place_as_group: panel.place_as_group,
+          keep_annotations: panel.keep_annotations,
+        };
+      },
+      (aOptions) => {
+        Object.assign(frameRef.current!.GetPcbNewSettings().m_DesignBlockChooserPanel, aOptions);
+      },
+    );
+  });
+  /** `m_DesignBlockChooserPanel.sort_mode` / `sash_pos_v` and `m_LibTree.open_libs`. */
+  const [dbSortMode, setDbSortMode] = useState(0);
+  const [dbSashPosV, setDbSashPosV] = useState(-1);
+  const [dbOpenLibs, setDbOpenLibs] = useState<readonly string[]>([]);
+
+  useEffect(() => {
+    const frame = frameRef.current!;
+    frame.m_designBlocksPane = designBlocksPane;
+
+    return () => {
+      frame.m_designBlocksPane = null;
+    };
+  }, [designBlocksPane]);
   /** `DIALOG_ZONE_MANAGER`, open: `ShowQuasiModal()`'s answer. */
   const [zoneManager, setZoneManager] = useState<{
     resolve: (r: { ok: boolean; repour: boolean }) => void;
@@ -2972,6 +3071,11 @@ export function PcbEditor({
   }, [registerAutosaveFlush, onBoardChange]);
 
   const showAppearance = toggles.has('showLayersManager');
+  // `SetAuiPaneSize( …, design_blocks_panel_docked_width, -1 )`, else BestSize's 300.
+  const dbPaneWidth =
+    pcbCfg.aui.design_blocks_panel_docked_width > 0
+      ? pcbCfg.aui.design_blocks_panel_docked_width
+      : 300;
   const showProperties = toggles.has('showProperties');
   // `PCB_EDIT_FRAME::m_ShowSearch` / `m_ShowNetInspector`.
   const showSearch = toggles.has('showSearch');
@@ -4271,6 +4375,14 @@ export function PcbEditor({
           return { resolve };
         });
       }),
+    htmlMessage: (caption, messages) =>
+      new Promise<void>((resolve) => {
+        setHtmlMessage((prev) => {
+          prev?.resolve();
+          return { caption, messages, resolve };
+        });
+      }),
+    toggleDesignBlocks: () => onLeftToggle('showDesignBlockPanel'),
     multichannel: (aTool, aKind) =>
       new Promise<boolean>((resolve) => {
         setMultichannel((prev) => {
@@ -7275,6 +7387,52 @@ export function PcbEditor({
             </div>
           </>
         )}
+
+        {/* The Design Blocks pane: Right().Layer( 5 ), outside the Appearance dock
+            (pcb_edit_frame.cpp:370-382). MinSize 240 x 60, BestSize 300 wide. */}
+        {toggles.has('showDesignBlockPanel') && (
+          <>
+            <DockSash
+              edge="left"
+              width={dbPaneWidth}
+              min={240}
+              max={800}
+              onResize={(w) =>
+                updatePcbnewSettings((c) => {
+                  c.aui.design_blocks_panel_docked_width = w;
+                })
+              }
+            />
+            <PcbDesignBlockPane
+              pane={designBlocksPane}
+              libs={frameRef.current!.Prj().DesignBlockLibs()}
+              manager={Pgm().GetLibraryManager()}
+              // `m_PinnedDesignBlockLibs`; the common settings' session list is not ported.
+              pinned={frameRef.current!.Prj().GetProjectFile().m_PinnedDesignBlockLibs}
+              width={dbPaneWidth}
+              onClose={() => onLeftToggle('showDesignBlockPanel')}
+              onChosen={() => runAction(PCB_ACTIONS.placeDesignBlock)}
+              renderPreview={(aDesignBlock) => (
+                <PcbDesignBlockPreviewWidget
+                  designBlock={aDesignBlock}
+                  onError={(m, d) => DisplayErrorMessage(m, d)}
+                />
+              )}
+              sortMode={dbSortMode}
+              sashPosV={dbSashPosV}
+              onSortModeChanged={setDbSortMode}
+              onSashPosVChanged={setDbSashPosV}
+              openLibs={dbOpenLibs}
+              onToggleLibrary={(aNode, aOpen) =>
+                setDbOpenLibs((prev) =>
+                  aOpen
+                    ? [...prev.filter((n) => n !== aNode.libNickname), aNode.libNickname]
+                    : prev.filter((n) => n !== aNode.libNickname),
+                )
+              }
+            />
+          </>
+        )}
       </div>
 
       {/* EDA_3D_VIEWER_FRAME. Upstream this is a sibling top-level window
@@ -8342,6 +8500,27 @@ export function PcbEditor({
             drcSaveReport.resolve(path);
             setDrcSaveReport(null);
           }}
+        />
+      )}
+      {htmlMessage && (
+        <HtmlMessageBox
+          caption={htmlMessage.caption}
+          messages={htmlMessage.messages}
+          onClose={() => {
+            setHtmlMessage(null);
+            htmlMessage.resolve();
+          }}
+        />
+      )}
+      {dbProperties && (
+        <DialogDesignBlockProperties
+          designBlock={dbProperties.designBlock}
+          disableName={dbProperties.disableName}
+          onClose={(ok) => {
+            setDbProperties(null);
+            dbProperties.resolve(ok);
+          }}
+          showError={(m) => DisplayErrorMessage(m)}
         />
       )}
       {multichannel?.kind === 'repeat' && board && (

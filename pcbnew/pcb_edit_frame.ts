@@ -18,6 +18,7 @@ import { ROUTER_TOOL } from './router/router_tool.js';
 import { PCB_ACTIONS } from './tools/pcb_actions.js';
 import { AUTOPLACE_TOOL } from './autorouter/autoplace_tool.js';
 import { MULTICHANNEL_TOOL } from './tools/multichannel_tool.js';
+import { PCB_DESIGN_BLOCK_CONTROL } from './tools/pcb_design_block_control.js';
 import type { BOARD_NETLIST_UPDATER } from './netlist_reader/board_netlist_updater.js';
 import { PCB_TRACK } from './pcb_track.js';
 import { SpreadFootprints } from './autorouter/spread_footprints.js';
@@ -266,7 +267,14 @@ export interface PCBNEW_JSON_SETTINGS_LIKE {
   /** `m_ExportD356`, the `export_d356.*` PARAM (pcbnew_settings.cpp:292). */
   export_d356: { doNotExportUnconnectedPads: boolean };
   /** `m_AuiPanels`, the keys the Search and Net Inspector panes persist. */
-  aui: Pick<AUI_PANELS, 'show_search' | 'show_net_inspector' | 'search_panel_height'>;
+  aui: Pick<
+    AUI_PANELS,
+    | 'show_search'
+    | 'show_net_inspector'
+    | 'search_panel_height'
+    | 'design_blocks_show'
+    | 'design_blocks_panel_docked_width'
+  >;
   pcb_display: {
     net_names_mode: 0 | 1 | 2 | 3;
     pad_numbers: boolean;
@@ -443,6 +451,8 @@ export function loadPcbnewSettings(
 
   s.m_AuiPanels.show_search = json.aui.show_search;
   s.m_AuiPanels.show_net_inspector = json.aui.show_net_inspector;
+  s.m_AuiPanels.design_blocks_show = json.aui.design_blocks_show;
+  s.m_AuiPanels.design_blocks_panel_docked_width = json.aui.design_blocks_panel_docked_width;
 
   Object.assign(s.m_Printing, json.printing, { layers: [...json.printing.layers] });
   s.m_ExportD356.doNotExportUnconnectedPads = json.export_d356.doNotExportUnconnectedPads;
@@ -654,6 +664,8 @@ export function storePcbnewSettings(s: PCBNEW_SETTINGS, json: PCBNEW_JSON_SETTIN
 
   set(json.aui, 'show_search', s.m_AuiPanels.show_search);
   set(json.aui, 'show_net_inspector', s.m_AuiPanels.show_net_inspector);
+  set(json.aui, 'design_blocks_show', s.m_AuiPanels.design_blocks_show);
+  set(json.aui, 'design_blocks_panel_docked_width', s.m_AuiPanels.design_blocks_panel_docked_width);
 
   set(json.export_d356, 'doNotExportUnconnectedPads', s.m_ExportD356.doNotExportUnconnectedPads);
 
@@ -864,6 +876,10 @@ export interface PCB_EDIT_FRAME_HOOKS extends PCB_BASE_EDIT_FRAME_DIALOG_HOOKS {
   showGenerateRuleAreas?(aTool: MULTICHANNEL_TOOL): Promise<boolean>;
   /** `wxRichMessageDialog( aSummary, "Topology mismatch", wxICON_ERROR | wxOK )` + details. */
   showTopologyMismatch?(aSummary: string, aDetails: string): void;
+  /** `HTML_MESSAGE_BOX dlg( this, aCaption ); dlg.ListSet( aMessages ); dlg.ShowModal()`. */
+  showHtmlMessage?(aCaption: string, aMessages: readonly string[]): Promise<void>;
+  /** `ToggleLibraryTree()`: show or hide the Design Blocks pane. */
+  toggleDesignBlocksPane?(): void;
   /** The open project's file names, relative to its directory. */
   projectFileNames?(): readonly string[];
   /**
@@ -2269,7 +2285,7 @@ export class PCB_EDIT_FRAME extends PCB_BASE_EDIT_FRAME {
     this.m_toolManager.RegisterTool(new DRAWING_TOOL());
     this.m_toolManager.RegisterTool(new PCB_POINT_EDITOR());
     this.m_toolManager.RegisterTool(new PCB_CONTROL());
-    // Not ported: PCB_DESIGN_BLOCK_CONTROL.
+    this.m_toolManager.RegisterTool(new PCB_DESIGN_BLOCK_CONTROL());
     this.m_toolManager.RegisterTool(new BOARD_EDITOR_CONTROL());
     this.m_toolManager.RegisterTool(new BOARD_INSPECTION_TOOL());
     // Not yet a TOOL: BOARD_REANNOTATE_TOOL (the dialog drives its class directly).
@@ -3275,6 +3291,16 @@ export class PCB_EDIT_FRAME extends PCB_BASE_EDIT_FRAME {
     return this.hooks.showGenerateRuleAreas?.(aTool) ?? Promise.resolve(false);
   }
 
+  /** `HTML_MESSAGE_BOX` with \a aMessages, one per line: resolves when it closes. */
+  ShowHtmlMessage(aCaption: string, aMessages: readonly string[]): Promise<void> {
+    return this.hooks.showHtmlMessage?.(aCaption, aMessages) ?? Promise.resolve();
+  }
+
+  /** `ToggleLibraryTree()` (toolbars_pcb_editor.cpp:888-926): the Design Blocks pane. */
+  override ToggleLibraryTree(): void {
+    this.hooks.toggleDesignBlocksPane?.();
+  }
+
   /** `ShowTopologyMismatchReasons`. */
   ShowTopologyMismatch(aSummary: string, aDetails: string): void {
     this.hooks.showTopologyMismatch?.(aSummary, aDetails);
@@ -3815,9 +3841,11 @@ export function pcbTogglesFromSettings(cfg: PcbnewSettings): Set<string> {
   // constructor's `.Show( m_ShowSearch )` / `.Show( m_ShowNetInspector )`
   // (:419-420) then applies. Data: neither is in DEFAULT_TOGGLES because both
   // default to false in `AUI_PANELS`.
-  for (const id of ['showSearch', 'showNetInspector']) out.delete(id);
+  for (const id of ['showSearch', 'showNetInspector', 'showDesignBlockPanel']) out.delete(id);
   if (cfg.aui.show_search) out.add('showSearch');
   if (cfg.aui.show_net_inspector) out.add('showNetInspector');
+  // `.Show( GetPcbNewSettings()->m_AuiPanels.design_blocks_show )` (pcb_edit_frame.cpp:421).
+  if (cfg.aui.design_blocks_show) out.add('showDesignBlockPanel');
 
   // `BOARD_EDITOR_CONTROL::OnAngleSnapModeChanged` maps `m_AngleSnapMode` onto
   // one of the three Line mode buttons (`board_editor_control.cpp:360-368`), so
@@ -3898,6 +3926,13 @@ export function foldPcbToggle(cfg: PcbnewSettings, id: string): boolean {
     return true;
   }
 
+  // `ToggleLibraryTree` shows or hides the pane; `SaveSettings` (pcb_edit_frame.cpp:1785-1798)
+  // stores whether it is shown.
+  if (id === 'showDesignBlockPanel') {
+    cfg.aui.design_blocks_show = !cfg.aui.design_blocks_show;
+    return true;
+  }
+
   return false;
 }
 
@@ -3908,7 +3943,8 @@ export function isStoredPcbToggle(id: string): boolean {
     id === 'toggleGrid' ||
     id === 'togglePolarCoords' ||
     id === 'showSearch' ||
-    id === 'showNetInspector'
+    id === 'showNetInspector' ||
+    id === 'showDesignBlockPanel'
   );
 }
 

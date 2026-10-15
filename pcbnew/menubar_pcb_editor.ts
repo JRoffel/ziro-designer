@@ -327,6 +327,13 @@ export function buildPcbMenus(
               checked: !!checks.showNetInspector,
               action: () => h.toggle('showNetInspector'),
             },
+            // `PCB_ACTIONS::showDesignBlockPanel`, CHECK, labelled "Design Blocks", inside
+            // `ADVANCED_CFG::m_EnablePcbDesignBlocks` - true by default (advanced_config.cpp:278).
+            {
+              label: 'Design Blocks',
+              checked: !!checks.showDesignBlockPanel,
+              action: () => h.toggle('showDesignBlockPanel'),
+            },
           ],
         },
         { sep: true },
@@ -861,9 +868,9 @@ export function buildPcbMenus(
           icon: 'library_table',
           disabled: true,
         },
-        // `ACTIONS::showDesignBlockLibTable`. Design blocks are a 9.0 feature
-        // this port has not built at all, so the row is greyed rather than
-        // removed: it is unfinished, not impossible.
+        // `ACTIONS::showDesignBlockLibTable`, inside `m_EnablePcbDesignBlocks`. The
+        // Design Blocks pane is built; PANEL_DESIGN_BLOCK_LIB_TABLE is not, so the
+        // row is greyed rather than removed: it is unfinished, not impossible.
         { label: 'Manage Design Block Libraries...', icon: 'library_table', disabled: true },
         { label: 'Preferences...', action: () => h.action('openPreferences'), shortcut: 'Ctrl+,' },
         { sep: true },

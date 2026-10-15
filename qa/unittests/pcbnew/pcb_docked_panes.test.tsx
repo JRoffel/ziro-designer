@@ -256,26 +256,32 @@ describe('View > Panels', () => {
 describe('the panes persist in pcbnew.json aui.*', () => {
   const cfg = () => structuredClone(PCBNEW_DEFAULTS);
 
-  it('both panes default hidden, as AUI_PANELS', () => {
+  it('the panes default hidden, as AUI_PANELS', () => {
     const c = cfg();
 
+    // pcbnew_settings.cpp:116-123: aui.design_blocks_show false, its docked width -1.
     expect(c.aui).toEqual({
       show_search: false,
       show_net_inspector: false,
       search_panel_height: -1,
+      design_blocks_show: false,
+      design_blocks_panel_docked_width: -1,
     });
     expect(pcbTogglesFromSettings(c).has('showSearch')).toBe(false);
     expect(pcbTogglesFromSettings(c).has('showNetInspector')).toBe(false);
+    expect(pcbTogglesFromSettings(c).has('showDesignBlockPanel')).toBe(false);
   });
 
   it('a stored shown flag opens the frame with the pane on (LoadSettings)', () => {
     const c = cfg();
     c.aui.show_search = true;
     c.aui.show_net_inspector = true;
+    c.aui.design_blocks_show = true;
     const t = pcbTogglesFromSettings(c);
 
     expect(t.has('showSearch')).toBe(true);
     expect(t.has('showNetInspector')).toBe(true);
+    expect(t.has('showDesignBlockPanel')).toBe(true);
   });
 
   it('toggling from the menu writes the flag back (SaveSettings)', () => {
@@ -290,6 +296,11 @@ describe('the panes persist in pcbnew.json aui.*', () => {
     expect(c.aui.show_net_inspector).toBe(true);
     foldPcbToggle(c, 'showSearch');
     expect(c.aui.show_search).toBe(false);
+
+    expect(isStoredPcbToggle('showDesignBlockPanel')).toBe(true);
+    expect(foldPcbToggle(c, 'showDesignBlockPanel')).toBe(true);
+    expect(c.aui.design_blocks_show).toBe(true);
+    expect(c.aui.show_net_inspector).toBe(true);
   });
 });
 
