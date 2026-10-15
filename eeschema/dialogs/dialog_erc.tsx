@@ -10,9 +10,9 @@
  * SHEETLIST_ERC_ITEMS_PROVIDER. What wx gives a dialog for free - the modal sub-dialogs, the save
  * file dialog, showing and hiding the window - is the window's ({@link DIALOG_ERC_WINDOW}).
  *
- * Not here yet: the row menu's Inspect / Fix entries (SCH_INSPECTION_TOOL::InspectERCError and
- * SCH_EDIT_TOOL::FixERCError are tool coroutines, and nothing runs one from outside its tool), and
- * the drawing sheet TestTextVars would read (ERC_TESTER::RunTests takes no drawing sheet yet).
+ * Not here yet: the row menu's Fix entry (SCH_EDIT_TOOL::FixERCError; its EditProperties branch
+ * waits on a modal, which only a tool coroutine can do), and the drawing sheet TestTextVars
+ * would read (ERC_TESTER::RunTests takes no drawing sheet yet).
  */
 import { useEffect, useState, type JSX } from 'react';
 import { ACTIONS } from '@ziroeda/common/tool/actions.js';
@@ -45,6 +45,7 @@ import { ANNOTATE_SCOPE_T } from '../sch_reference_list.js';
 import { SCH_SCREENS } from '../sch_screen.js';
 import { SCH_SHEET_PATH, SYMBOL_FILTER } from '../sch_sheet_path.js';
 import { SCH_ACTIONS } from '../tools/sch_actions.js';
+import { SCH_INSPECTION_TOOL } from '../tools/sch_inspection_tool.js';
 import { DIALOG_ERC_BASE } from './dialog_erc_base.js';
 
 /** What wx gives the dialog that a page has to be handed: its sub-dialogs, file and window. */
@@ -747,6 +748,19 @@ export class DIALOG_ERC extends PROGRESS_REPORTER_BASE implements DIALOG_ERC_FRA
     }
 
     rows.push({ label: '', sep: true });
+
+    // The Fix entry (SCH_EDIT_TOOL::FixERCErrorMenuText / FixERCError) is not ported: its
+    // EditProperties branch waits on a modal, which only a tool coroutine can do here.
+    const inspectionTool = this.m_parent.GetToolManager()?.GetTool(SCH_INSPECTION_TOOL) ?? null;
+    const inspectERCErrorMenuText = inspectionTool?.InspectERCErrorMenuText(rcItem) ?? '';
+
+    if (inspectERCErrorMenuText) {
+      rows.push({
+        label: inspectERCErrorMenuText,
+        action: () => inspectionTool!.InspectERCError(rcItem),
+      });
+      rows.push({ label: '', sep: true });
+    }
 
     const pinToPin =
       code === ERCE_T.ERCE_PIN_TO_PIN_WARNING || code === ERCE_T.ERCE_PIN_TO_PIN_ERROR;

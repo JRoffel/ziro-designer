@@ -25,6 +25,7 @@ import { SYNC_HANDLER } from '@ziroeda/common/tool/tool_interactive.js';
 import { GetMsgPanelDisplayUuid, MSG_PANEL_ITEM } from '@ziroeda/common/widgets/msgpanel.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { ERCE_T } from '../erc/erc_settings.js';
+import { SymbolLibAdapter } from '../project_sch.js';
 import type { LIB_SYMBOL } from '../lib_symbol.js';
 import type { SCH_BASE_FRAME } from '../sch_base_frame.js';
 import { SCH_EDIT_FRAME } from '../sch_edit_frame.js';
@@ -175,7 +176,7 @@ export class SCH_INSPECTION_TOOL extends SCH_TOOL_BASE<SCH_BASE_FRAME> {
     return '';
   }
 
-  *InspectERCError(aERCItem: RC_ITEM): COROUTINE_BODY<void> {
+  InspectERCError(aERCItem: RC_ITEM): void {
     const frame = this.m_frame instanceof SCH_EDIT_FRAME ? this.m_frame : null;
 
     if (!frame) return; // wxCHECK
@@ -185,7 +186,7 @@ export class SCH_INSPECTION_TOOL extends SCH_TOOL_BASE<SCH_BASE_FRAME> {
     if (aERCItem.GetErrorCode() === ERCE_T.ERCE_BUS_TO_NET_CONFLICT) {
       this.m_toolMgr!.RunAction(SCH_ACTIONS.showBusSyntaxHelp);
     } else if (aERCItem.GetErrorCode() === ERCE_T.ERCE_LIB_SYMBOL_MISMATCH) {
-      if (a instanceof SCH_SYMBOL) yield* this.DiffSymbolItem(a);
+      if (a instanceof SCH_SYMBOL) this.DiffSymbolItem(a);
     }
   }
 
@@ -232,16 +233,29 @@ export class SCH_INSPECTION_TOOL extends SCH_TOOL_BASE<SCH_BASE_FRAME> {
       return 0;
     }
 
-    yield* this.DiffSymbolItem(selection.Front() as SCH_SYMBOL);
+    // A hosted library may not be loaded yet: fetch the symbol first (the browser's one
+    // asynchronous step), then diff against what was fetched.
+    const symbol = selection.Front() as SCH_SYMBOL;
+    const libAlias = yield* this.RunMainStackModal(() =>
+      schEditorFrame.GetLibSymbol(symbol.GetLibId()),
+    );
+
+    this.DiffSymbolItem(symbol, () => libAlias);
     return 0;
   }
 
   /**
    * `DiffSymbol( SCH_SYMBOL* )`: the schematic copy against the library's, reported into the
-   * frame's Compare Symbol with Library dialog. The library loads asynchronously here, so the
-   * coroutine waits on it.
+   * frame's Compare Symbol with Library dialog. Upstream reads the symbol with
+   * `libs->LoadSymbol( libName, symbolName )` from the libraries already loaded - true after
+   * an ERC run, whose blockUntilLoaded loads every library a placed symbol names. `aLoad`
+   * stands in for that read when the caller fetched the symbol itself (the Diff Symbol action).
    */
-  *DiffSymbolItem(symbol: SCH_SYMBOL): COROUTINE_BODY<void> {
+  DiffSymbolItem(
+    symbol: SCH_SYMBOL,
+    aLoad: () => LIB_SYMBOL | null = () =>
+      SymbolLibAdapter(this.m_frame!.Prj()).LoadSymbol(symbol.GetLibId()),
+  ): void {
     const schEditorFrame = this.m_frame instanceof SCH_EDIT_FRAME ? this.m_frame : null;
 
     if (!schEditorFrame) return; // wxCHECK
@@ -296,7 +310,7 @@ export class SCH_INSPECTION_TOOL extends SCH_TOOL_BASE<SCH_BASE_FRAME> {
       const flattenedSchSymbol = symbol.GetLibSymbolRef()!.Flatten();
 
       // libs->LoadSymbol( libName, symbolName ); an IO_ERROR leaves it null
-      const libAlias = yield* this.RunMainStackModal(() => schEditorFrame.GetLibSymbol(libId));
+      const libAlias = aLoad();
 
       if (libAlias) flattenedLibSymbol = libAlias.Flatten();
 

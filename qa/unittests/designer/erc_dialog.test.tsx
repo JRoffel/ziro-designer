@@ -34,9 +34,10 @@ import {
 import { ERC_ITEM } from '@ziroeda/eeschema/erc/erc_item.js';
 import { ERCE_T } from '@ziroeda/eeschema/erc/erc_settings.js';
 import { SCH_MARKER } from '@ziroeda/eeschema/sch_marker.js';
+import { SCH_INSPECTION_TOOL } from '@ziroeda/eeschema/tools/sch_inspection_tool.js';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { openProject, schFrame } from '../eeschema/support/sch_tool_harness.js';
+import { openProject, schFrame, schToolHarness } from '../eeschema/support/sch_tool_harness.js';
 
 const DIR = resolve(__dirname, '../../data/eeschema/erc_cases/quirks');
 
@@ -46,8 +47,8 @@ afterEach(() => {
   SetPgm(null);
 });
 
-function open(aWindow: Partial<DIALOG_ERC_WINDOW> = {}) {
-  const frame = schFrame();
+function open(aWindow: Partial<DIALOG_ERC_WINDOW> = {}, aWithTools = false) {
+  const frame = aWithTools ? schToolHarness(schFrame()).frame : schFrame();
   openProject(frame, DIR, 'quirks', ['quirks.kicad_sch', 'quirks.kicad_pro']);
   const window: DIALOG_ERC_WINDOW = {
     textEntry: async () => null,
@@ -425,6 +426,51 @@ describe('DIALOG_ERC: the marker tree', () => {
     expect(modified).toBe(1);
     fireEvent.contextMenu(screen.getByText('• Input pin not driven by any Output pins'));
     expect(menu()).toStrictEqual([' Error', '✓Warning', ' Ignore']);
+  });
+});
+
+describe('DIALOG_ERC: the row menu', () => {
+  /**
+   * OnERCItemRClick appends InspectERCErrorMenuText( rcItem ) when it is not empty; a library
+   * symbol mismatch's is the diffSymbol action's run description, and choosing it runs
+   * InspectERCError, which reports into Compare Symbol with Library.
+   */
+  it('offers Inspect for a library symbol mismatch and runs InspectERCError', () => {
+    const { frame, dialog } = open({}, true);
+    const wire = [...frame.GetScreen()!.Items()].find((i) => i.Type() === KICAD_T.SCH_LINE_T)!;
+    const ercItem = ERC_ITEM.Create(ERCE_T.ERCE_LIB_SYMBOL_MISMATCH)!;
+    ercItem.SetItems(wire.m_Uuid);
+    frame.GetScreen()!.Append(new SCH_MARKER(ercItem, { x: 0, y: 0 }));
+    const tool = frame.GetToolManager()!.GetTool(SCH_INSPECTION_TOOL)!;
+    const inspected: unknown[] = [];
+    tool.InspectERCError = (aItem) => void inspected.push(aItem);
+    act(() => dialog.UpdateData());
+    fireEvent.contextMenu(document.querySelector('.ze-erc-row')!);
+    const inspect = Array.from(document.querySelectorAll('.ze-mitem')).find(
+      (m) => m.querySelector('.lbl')!.textContent === 'Run: Compare Symbol with Library',
+    );
+    expect(inspect).toBeDefined();
+    act(() => {
+      fireEvent.click(inspect!);
+    });
+    expect(inspected.length).toBe(1);
+    expect((inspected[0] as ERC_ITEM).GetErrorCode()).toBe(ERCE_T.ERCE_LIB_SYMBOL_MISMATCH);
+  });
+
+  it('offers no Inspect for a violation upstream has none for', () => {
+    const { frame, dialog } = open({}, true);
+    const wire = [...frame.GetScreen()!.Items()].find((i) => i.Type() === KICAD_T.SCH_LINE_T)!;
+    const ercItem = ERC_ITEM.Create(ERCE_T.ERCE_WIRE_DANGLING)!;
+    ercItem.SetItems(wire.m_Uuid);
+    frame.GetScreen()!.Append(new SCH_MARKER(ercItem, { x: 0, y: 0 }));
+    act(() => dialog.UpdateData());
+    fireEvent.contextMenu(document.querySelector('.ze-erc-row')!);
+    const labels = Array.from(document.querySelectorAll('.ze-mitem .lbl')).map(
+      (m) => m.textContent,
+    );
+    // The menu did open: the exclusion entries are there.
+    expect(labels).toContain('Exclude this violation');
+    expect(labels.some((l) => l?.startsWith('Run:'))).toBe(false);
   });
 });
 
