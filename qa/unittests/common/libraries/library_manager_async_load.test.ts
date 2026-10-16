@@ -21,7 +21,7 @@ import { PGM_BASE, Pgm, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_bas
 import { SymbolLibAdapter } from '@ziroeda/eeschema/project_sch.js';
 import { schFrame } from '../../eeschema/support/sch_tool_harness.js';
 import { MEMORY_FILESYSTEM, wxMountFileSystem } from '@ziroeda/wx/filefn.js';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const R = readFileSync(resolve(__dirname, '../../../data/R.kicad_sym'), 'utf8');
 const enc = (t: string) => new TextEncoder().encode(t);
@@ -124,5 +124,16 @@ describe('opening a project loads its symbol libraries', () => {
     } finally {
       unmountGlobal();
     }
+  });
+
+  it('AsyncLoad leaves a library that is already LOADED alone', () => {
+    Pgm().GetSettingsManager().LoadProject('/demo/demo.kicad_pro', {});
+    const adapter = SymbolLibAdapter(null);
+    adapter.AsyncLoad();
+    const loadOne = vi.spyOn(adapter, 'LoadOne');
+
+    adapter.AsyncLoad();
+
+    expect(loadOne).not.toHaveBeenCalled();
   });
 });
