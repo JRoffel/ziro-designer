@@ -39,7 +39,13 @@ import {
   type LIBRARY_TABLE_ROW,
   LIBRARY_TABLE_TYPE,
 } from '@ziroeda/common/libraries/library_table.js';
-import { MEMORY_FILESYSTEM, wxFileExists, wxMountFileSystem } from '@ziroeda/wx/filefn.js';
+import {
+  MEMORY_FILESYSTEM,
+  wxFileExists,
+  wxMountFileSystem,
+  wxReadFileSync,
+} from '@ziroeda/wx/filefn.js';
+import { PgmOrNull } from '@ziroeda/common/pgm_base.js';
 import type { LIB_SYMBOL } from '../lib_symbol.js';
 import { PropPowerSymsOnly } from '../sch_io/kicad_sexpr/sch_io_kicad_sexpr.js';
 import { SCH_FILE_T, type SCH_IO, SCH_IO_MGR } from '../sch_io/sch_io_mgr.js';
@@ -211,14 +217,102 @@ export function powerSymbolTest(
 export const symbolsBase = (): string => requireHost().symbolsBase();
 
 let indexPromise: Promise<LibIndexEntry[]> | null = null;
-/** Load the library index (library names + their symbol names) for search. */
-export function loadIndex(): Promise<LibIndexEntry[]> {
+/**
+ * Load the library index (library names + their symbol names) for search: the
+ * hosted set, with the symbol tables' other rows read in beside it.
+ *
+ * `SYMBOL_TREE_MODEL_ADAPTER::AddLibraries` walks every row of
+ * `manager.Rows( LIBRARY_TABLE_TYPE::SYMBOL )` that is neither disabled nor
+ * hidden (symbol_tree_model_adapter.cpp:116-123), and `Rows` is the global
+ * table merged with the project's, a project row replacing a global one of the
+ * same nickname in place. The hosted index stands in for the global table, so a
+ * project's own libraries are the rows it does not cover; see
+ * {@link tableLibraryEntries}.
+ */
+export async function loadIndex(): Promise<LibIndexEntry[]> {
   if (!indexPromise)
     indexPromise = requireHost().trackLoad(
       'Loading symbol libraries...',
       requireHost().fetchIndex(),
     );
-  return indexPromise;
+  const hosted = await indexPromise;
+  const table = tableLibraryEntries();
+
+  if (table.length === 0) return hosted;
+
+  const byName = new Map(table.map((e) => [e.name, e]));
+  const merged = hosted.map((e) => byName.get(e.name) ?? e);
+  const seen = new Set(hosted.map((e) => e.name));
+
+  for (const e of table) if (!seen.has(e.name)) merged.push(e);
+
+  return merged;
+}
+
+/** The items of the table libraries read by the last {@link tableLibraryEntries}. */
+const tableLibraryItems = new Map<string, LibTreeItem[]>();
+
+/**
+ * The symbol table rows the hosted index does not stand for — a project's own
+ * libraries (`${KIPRJMOD}/…`) and any other row a table names — each read from
+ * the file its row's URI resolves to, as `SYMBOL_LIBRARY_ADAPTER::LoadOne`
+ * reads a row through its plugin.
+ *
+ * Read afresh on every call, because a project library changes under the
+ * chooser (the symbol editor saves into it) and upstream's adapter reloads a
+ * library whose modify hash moved. A row whose file is missing or will not
+ * parse is LOAD_ERROR, which AddLibraries leaves out of the tree
+ * (symbol_tree_model_adapter.cpp:131-132).
+ *
+ * [gap] Only file libraries: a row naming a KiCad 10 symbol *directory* (one
+ * `.kicad_sym` per symbol) or another plugin type is not read here.
+ */
+function tableLibraryEntries(): LibIndexEntry[] {
+  const mgr = PgmOrNull()?.GetLibraryManager();
+
+  if (!mgr) return [];
+
+  const entries: LibIndexEntry[] = [];
+
+  for (const row of mgr.Rows(LIBRARY_TABLE_TYPE.SYMBOL)) {
+    if (row.Disabled() || row.Hidden()) continue;
+
+    const uri = mgr.GetFullURI(row, true);
+
+    // The hosted rows are the index's own.
+    if (uri.startsWith(SYMBOL_DOWNLOAD_DIR)) continue;
+
+    const bytes = wxReadFileSync(uri);
+
+    if (!bytes) continue;
+
+    const nickname = row.Nickname();
+    let symbols: LibSymbol[];
+
+    try {
+      symbols = readLibraryText(nickname, new TextDecoder().decode(bytes));
+    } catch (e) {
+      console.warn(`symbol library "${nickname}" failed to load.`, e);
+      continue;
+    }
+
+    const map = new Map<string, LibSymbol>();
+    for (const sym of symbols) map.set(sym.libId, { ...sym, libId: `${nickname}:${sym.libId}` });
+
+    const items = [...map.values()].map(libTreeItem);
+    tableLibraryItems.set(nickname, items);
+    loadedLibraries.set(nickname, itemsByName(items));
+    libCache.set(nickname, Promise.resolve(map));
+
+    entries.push({
+      name: nickname,
+      count: map.size,
+      symbols: [...map.keys()],
+      descr: row.Description(),
+    });
+  }
+
+  return entries;
 }
 
 const libCache = new Map<string, Promise<Map<string, LibSymbol>>>();
@@ -468,6 +562,11 @@ export async function symbolPreloadWork(): Promise<(() => Promise<unknown>)[]> {
 const itemsPromises = new Map<string, Promise<LibTreeItem[]>>();
 
 export function preloadLibraryItems(library: string): Promise<LibTreeItem[]> {
+  // A table library is read with the index, from the project, not the host.
+  const fromTable = tableLibraryItems.get(library);
+
+  if (fromTable) return Promise.resolve(fromTable);
+
   let p = itemsPromises.get(library);
   if (!p) {
     const h = requireHost();
