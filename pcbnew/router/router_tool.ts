@@ -1010,9 +1010,20 @@ export class ROUTER_TOOL extends PNS_TOOL_BASE {
     return true;
   }
 
-  /** `ROUTER_TOOL::Reset` (router_tool.cpp:681-685): only a RUN rebuilds the router. */
+  /**
+   * `ROUTER_TOOL::Reset` (router_tool.cpp:681-685): only a RUN rebuilds the router.
+   *
+   * KiCad's frame has its board before `setupTools`, so the RUN that
+   * `InitTools` sends builds a router on it. Ours gets its board after, and
+   * that RUN builds none (`TOOL_BASE::Reset`). MainLoop reads `m_router`
+   * before its `Activate()` sends the next RUN - `routeSingleTrack` is a
+   * transition, not an activation - so the first reset that has a board
+   * builds the router instead. Every route's `Activate()` rebuilds it on the
+   * board the frame then has.
+   */
   override Reset(aReason: RESET_REASON): void {
-    if (aReason === RESET_REASON.RUN) super.Reset(aReason);
+    if (aReason === RESET_REASON.RUN || (aReason !== RESET_REASON.SHUTDOWN && !this.m_router))
+      super.Reset(aReason);
   }
 
   private editFrame(): PCB_EDIT_FRAME {
