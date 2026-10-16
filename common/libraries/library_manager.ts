@@ -131,6 +131,27 @@ export class LIBRARY_MANAGER {
     for (const adapter of this.m_adapters.values()) adapter.ProjectTablesReloaded(aTablesToLoad);
   }
 
+  /**
+   * `ProjectChanged()` (library_manager.cpp:655-668): the active project changed, so its tables
+   * are read from its directory and every adapter drops what it had loaded from the old one.
+   * `SETTINGS_MANAGER::LoadProject` calls it for an active project.
+   */
+  ProjectChanged(): void {
+    // Abort any running async library loads before reloading project tables.
+    this.AbortAsyncLoads();
+
+    const pgm = PgmOrNull();
+
+    if (pgm) this.LoadProjectTables(pgm.GetSettingsManager().Prj().GetProjectDirectory());
+
+    for (const adapter of this.m_adapters.values()) adapter.ProjectChanged();
+  }
+
+  /** `AbortAsyncLoads()` (:671-677). */
+  AbortAsyncLoads(): void {
+    for (const adapter of this.m_adapters.values()) adapter.AbortAsyncLoad();
+  }
+
   /** Install (or with null, drop) the table of \a aType in \a aScope. */
   SetTable(
     aType: LIBRARY_TABLE_TYPE,
@@ -323,6 +344,53 @@ export abstract class LIBRARY_MANAGER_ADAPTER {
     for (const nickname of [...this.m_libraries.keys()]) {
       if (this.m_manager?.GetRow(this.Type(), nickname, LIBRARY_TABLE_SCOPE.PROJECT))
         this.m_libraries.delete(nickname);
+    }
+  }
+
+  /**
+   * `ProjectChanged()` (library_manager.cpp:1103-1106): `resetProjectCache()`, which drops the
+   * libraries loaded from the project tables. Upstream resets them in place and keeps the
+   * global libraries in a second map; this adapter has one map, so the project's entries are
+   * erased, as `ProjectTablesChanged` does.
+   */
+  ProjectChanged(): void {
+    this.abortLoad();
+
+    for (const nickname of [...this.m_libraries.keys()]) {
+      if (this.m_manager?.GetRow(this.Type(), nickname, LIBRARY_TABLE_SCOPE.PROJECT))
+        this.m_libraries.delete(nickname);
+    }
+  }
+
+  /** `AbortAsyncLoad()` (:1126-1129). */
+  AbortAsyncLoad(): void {
+    this.abortLoad();
+  }
+
+  /**
+   * `AsyncLoad()` (library_manager.cpp:1796-1960): load every row of this adapter's type that is
+   * not disabled and not already LOADED or LOADING, which is what `IFACE::PreloadLibraries` runs
+   * when a project opens and what `fetchIfLoaded` (so `LoadSymbol`) then depends on.
+   *
+   * Upstream resolves each row's URI on the calling thread and hands the loads to the thread
+   * pool, reporting progress through `AsyncLoadProgress`. Here they run in turn on the caller's
+   * thread: the rows reach this adapter as files already in memory (a project's own libraries),
+   * and the hosted set loads through its own worker preload.
+   */
+  AsyncLoad(): void {
+    if (!this.m_manager) return;
+
+    for (const row of this.m_manager.Rows(this.Type())) {
+      // Disabled libraries must never be contacted
+      if (row.Disabled()) continue;
+
+      const status = this.m_libraries.get(row.Nickname())?.status.load_status;
+
+      if (status === LOAD_STATUS.LOADED || status === LOAD_STATUS.LOADING) continue;
+
+      const result = this.loadIfNeeded(row.Nickname());
+
+      if (result.ok) this.LoadOne(result.value);
     }
   }
 

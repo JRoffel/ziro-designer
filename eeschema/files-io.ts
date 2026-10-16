@@ -9,6 +9,7 @@
  * tsconfig has no `--jsx` and cannot import a `.tsx` at all — a rule only the
  * component knows is untestable by construction.
  */
+import { SymbolLibAdapter } from './project_sch.js';
 import type { KICAD_MESSAGE_DIALOG_ARG } from '@ziroeda/common/confirm.js';
 import { IMPORT_PROJ_PROPS } from '@ziroeda/common/import_proj_properties.js';
 import type { Reporter } from '@ziroeda/common/reporter.js';
@@ -727,6 +728,11 @@ export class SCH_FILES_IO_MIXIN {
 
     // Ensure all items are redrawn (especially the drawing-sheet items):
     this.GetCanvas()?.DisplaySheet(this.GetCurrentSheet().LastScreen());
+
+    // Trigger a library load to handle any project-specific libraries
+    // (`schface->PreloadLibraries( &Kiway() )`: its adapter half, `AsyncLoad`; the hosted set
+    // has its own preload in the window).
+    this.CallAfter(() => SymbolLibAdapter(this.Prj()).AsyncLoad());
 
     // updateTitle() is the window's
     // By name: importing the tool here would close an import cycle through SCH_EDIT_FRAME's mixins.

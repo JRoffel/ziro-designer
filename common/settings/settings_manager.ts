@@ -14,6 +14,7 @@
  * browser's, an account's) is the application's business, not this module's.
  */
 
+import { PgmOrNull } from '../pgm_base.js';
 import { PROJECT, PROJECT_VAR_NAME } from '../project.js';
 import { PROJECT_FILE, PROJECT_FILE_EXTENSION } from '../project/project_file.js';
 import { PROJECT_LOCAL_SETTINGS } from '../project/project_local_settings.js';
@@ -150,6 +151,10 @@ export class SETTINGS_MANAGER {
     if (aPrlJson !== null) settings.LoadFromJson(aPrlJson);
 
     project.setLocalSettings(settings);
+
+    // If not running from SWIG; notify the library manager of the new project
+    // TODO(JE) this maybe could be handled through kiway (below) in the future
+    if (aSetActive) PgmOrNull()?.GetLibraryManager().ProjectChanged();
 
     return success;
   }

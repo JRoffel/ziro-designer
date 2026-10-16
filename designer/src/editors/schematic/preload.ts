@@ -30,6 +30,7 @@
 
 import type { Schematic } from '@ziroeda/eeschema';
 import { preloadBundle, preloadLibraries, workQueueAdapter } from '../../libraryPreload.js';
+import { SymbolLibAdapter } from '@ziroeda/eeschema/project_sch.js';
 import { symbolPreloadWork } from './symbols/index.js';
 import { terminatePreloadPool } from './symbols/preload_pool.js';
 import { footprintPreloadWork } from '../../widgets/footprint_list.js';
@@ -71,6 +72,10 @@ export function preloadSchematicLibraries(docs: Iterable<Schematic>): void {
   const all = [...docs];
   const footprints = footprintPreloadWork(assignedFootprintIds(all));
   setTimeout(() => {
+    // `PROJECT_SCH::SymbolLibAdapter( &aKiway->Prj() )->AsyncLoad()` (eeschema.cpp:513-517): the
+    // symbol tables' own rows (a project's libraries) loaded into the adapter, so placing one of
+    // their symbols finds the library LOADED.
+    SymbolLibAdapter(null).AsyncLoad();
     // The stock catalogue first, as one object per kind. Everything below then
     // reads it out of IndexedDB instead of fetching library by library; when
     // there is no bundle it simply falls through to the network, unchanged.
