@@ -5196,7 +5196,11 @@ export function SchematicEditor({
       const galAction = schToolbarAction(id);
       const galMgr = schFrameRef.current?.GetToolManager();
       if (galAction && galMgr) {
-        galMgr.RunAction(galAction);
+        // ACTION_TOOLBAR::onToolEvent (action_toolbar.cpp:804-811): the event has no
+        // position, so a drawing tool does not prime its first point at the toolbar.
+        const evt = galAction.MakeEvent();
+        evt.SetHasPosition(false);
+        galMgr.ProcessEvent(evt);
         return;
       }
       if (RIGHT_TOOLBAR_COMMANDS.has(id)) onTopAction(id);
