@@ -9,6 +9,7 @@
  * column (bool/long/string) only answers `CanGetValueAs` for its own type.
  */
 import { describe, expect, it } from 'vitest';
+import { wxGridCellBoolEditor, wxGridCellBoolRenderer } from '@ziroeda/wx/grid.js';
 import { pcbIUScale } from '@ziroeda/common/eda_units.js';
 import { PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import { FIELD_T } from '@ziroeda/common/template_fieldnames.js';
@@ -82,6 +83,20 @@ describe('PCB_FIELDS_GRID_TABLE', () => {
     // Keep Upright is a bool column too.
     table.SetValueAsBool(0, PFC_UPRIGHT, true);
     expect(field.IsKeepUpright()).toBe(true);
+  });
+
+  it('the bool columns draw and edit as check boxes (m_boolColAttr), not as text', () => {
+    // Without the renderer the grid asked GetValue, which answers 'bad column!' for these.
+    const fp = mkFootprint();
+    const table = new PCB_FIELDS_GRID_TABLE(units, [new PCB_FIELD(fp, FIELD_T.USER, 'X')]);
+    const { PFC_ITALIC, PFC_KNOCKOUT, PFC_MIRRORED, PFC_WIDTH } = PCB_FIELDS_COL_ORDER;
+
+    for (const col of [PFC_SHOWN, PFC_ITALIC, PFC_UPRIGHT, PFC_KNOCKOUT, PFC_MIRRORED]) {
+      const attr = table.GetAttr(0, col, 0)!;
+      expect(attr.GetRendererPtr()).toBeInstanceOf(wxGridCellBoolRenderer);
+      expect(attr.GetEditorPtr()).toBeInstanceOf(wxGridCellBoolEditor);
+    }
+    expect(table.GetAttr(0, PFC_WIDTH, 0)?.GetRendererPtr() ?? null).toBeNull();
   });
 
   it('Layer is a long column round-tripping through GetLayer/SetLayer, and mirrors on a back layer', () => {

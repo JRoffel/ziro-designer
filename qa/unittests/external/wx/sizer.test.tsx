@@ -4,7 +4,7 @@
  * style wx's own layout gives it, and nothing a dialog did not say.
  */
 import { cleanup, render } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   wxALIGN_BOTTOM,
   wxALIGN_CENTER_HORIZONTAL,
@@ -232,6 +232,21 @@ describe('BoxSizer with proportional items (CalcMin)', () => {
     );
   });
 
+  it("a proportion set inside a helper is the helper's item's proportion", () => {
+    // dialog_global_edit_text_and_graphics_base.tsx's `Sp`: AddStretchSpacer with its own defaults.
+    const Sp = (): JSX.Element => <Spacer proportion={1} />;
+    const { container } = render(
+      <BoxSizer orient={wxHORIZONTAL}>
+        <SizerItem>
+          <span>fixed</span>
+        </SizerItem>
+        <Sp />
+      </BoxSizer>,
+    );
+    const sizer = container.querySelector('.ze-sizer') as HTMLElement;
+    expect(sizer.style.gridTemplateColumns).toBe('max-content minmax(max-content, 1fr)');
+  });
+
   it('a vertical one lays its tracks as rows; a hidden item has no track', () => {
     const { container } = render(
       <BoxSizer orient={wxVERTICAL}>
@@ -393,6 +408,75 @@ describe('FlexGridSizer', () => {
     expect(item('third', container).style.gridRow).toBe('2 / span 1');
     const grid = container.querySelector('.ze-gridsizer') as HTMLElement;
     expect(grid.style.gridTemplateRows).toBe('max-content max-content');
+  });
+
+  it("a helper's items are its Add()s, each in its own cell in order (Footprint Properties' UnitRow)", () => {
+    // The `_base` files' label / entry / units row, as dialog_footprint_properties_base.tsx has it.
+    function UnitRow({ id }: { id: string }): JSX.Element {
+      return (
+        <>
+          <SizerItem>
+            <span data-testid={`${id}-label`} />
+          </SizerItem>
+          <SizerItem>
+            <span data-testid={`${id}-entry`} />
+          </SizerItem>
+          <SizerItem>
+            <span data-testid={`${id}-units`} />
+          </SizerItem>
+        </>
+      );
+    }
+    const { container } = render(
+      <FlexGridSizer cols={3}>
+        <UnitRow id="x" />
+        <UnitRow id="y" />
+        <SizerItem>
+          <span data-testid="after" />
+        </SizerItem>
+      </FlexGridSizer>,
+    );
+    const cell = (aId: string): string[] => {
+      const s = item(aId, container).style;
+      return [s.gridRow, s.gridColumn];
+    };
+    expect(cell('x-label')).toEqual(['1 / span 1', '1 / span 1']);
+    expect(cell('x-units')).toEqual(['1 / span 1', '3 / span 1']);
+    expect(cell('y-label')).toEqual(['2 / span 1', '1 / span 1']);
+    expect(cell('y-entry')).toEqual(['2 / span 1', '2 / span 1']);
+    expect(cell('after')).toEqual(['3 / span 1', '1 / span 1']);
+  });
+
+  it("two helpers' items keep apart: no duplicate React keys", () => {
+    // Children.toArray restarts its keys inside every helper, so both rows' first items
+    // would be '.0' - React warns, and may hand one row's entry the other's state.
+    function Pair({ id }: { id: string }): JSX.Element {
+      return (
+        <>
+          <SizerItem>
+            <span data-testid={`${id}-a`} />
+          </SizerItem>
+          <SizerItem>
+            <span data-testid={`${id}-b`} />
+          </SizerItem>
+        </>
+      );
+    }
+    const errors: string[] = [];
+    const spy = vi.spyOn(console, 'error').mockImplementation((...a: unknown[]) => {
+      errors.push(a.map(String).join(' '));
+    });
+    try {
+      render(
+        <FlexGridSizer cols={2}>
+          <Pair id="p" />
+          <Pair id="q" />
+        </FlexGridSizer>,
+      );
+    } finally {
+      spy.mockRestore();
+    }
+    expect(errors.filter((e) => /same key/.test(e))).toEqual([]);
   });
 
   it('with no flexible direction it is a wxGridSizer: every track the size of the largest', () => {

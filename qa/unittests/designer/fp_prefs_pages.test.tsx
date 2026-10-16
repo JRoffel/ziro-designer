@@ -611,8 +611,11 @@ describe('Footprint Editor > Graphics Defaults', () => {
       '60px',
     ]);
     // The strip past the last column: it takes the slack so the real columns
-    // do not, and it is NOT painted by a selected row.
-    expect(rule('.ze-grid th.ze-grid-filler')).toMatch(/width:\s*100%/);
+    // do not - as the one column with no width, every real one being stated
+    // above. Not as `width: 100%`: a percentage cell makes the table claim all
+    // the width it is offered, and Fit() then sizes the dialog to the screen.
+    // It is NOT painted by a selected row.
+    expect(rule('.ze-grid th.ze-grid-filler')).not.toMatch(/(^|[^-])width:/);
     expect(rule('.ze-grid tr.selected td.ze-grid-filler')).toMatch(
       /background:\s*var\(--grid-cell-bg\)/,
     );

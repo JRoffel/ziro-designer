@@ -28,7 +28,12 @@
  */
 import type { UNITS_PROVIDER } from '@ziroeda/common/units_provider.js';
 import { WX_GRID_TABLE_BASE } from '@ziroeda/common/widgets/wx_grid.js';
-import { type wxAttrKind, wxGridCellAttr } from '@ziroeda/wx/grid.js';
+import {
+  type wxAttrKind,
+  wxGridCellAttr,
+  wxGridCellBoolEditor,
+  wxGridCellBoolRenderer,
+} from '@ziroeda/wx/grid.js';
 import { EDA_ANGLE } from '@ziroeda/kimath/src/geometry/eda_angle.js';
 import { IsBackLayer, ToLAYER_ID } from '@ziroeda/common/layer_id.js';
 import type { PCB_FIELD } from './pcb_field.js';
@@ -81,6 +86,8 @@ function parseOrientationText(aText: string): EDA_ANGLE {
 export class PCB_FIELDS_GRID_TABLE extends WX_GRID_TABLE_BASE {
   protected m_fields: PCB_FIELD[];
   private readonly m_unitsProvider: UNITS_PROVIDER;
+  /** `m_boolColAttr`: Show, Italic, Keep Upright, Knockout and Mirrored as check boxes. */
+  private readonly m_boolColAttr: wxGridCellAttr;
   /** `m_orientationColAttr`: a GRID_CELL_COMBOBOX over g_menuOrientations. */
   private readonly m_orientationColAttr: wxGridCellAttr;
   /** `m_layerColAttr`: the frame's layer renderer and selector; null with no frame to ask. */
@@ -98,6 +105,11 @@ export class PCB_FIELDS_GRID_TABLE extends WX_GRID_TABLE_BASE {
     super();
     this.m_unitsProvider = aUnitsProvider;
     this.m_fields = [...aFields];
+
+    this.m_boolColAttr = new wxGridCellAttr();
+    this.m_boolColAttr.SetRenderer(new wxGridCellBoolRenderer());
+    this.m_boolColAttr.SetEditor(new wxGridCellBoolEditor());
+    this.m_boolColAttr.SetAlignment(1 /* wxALIGN_CENTER */, 1);
 
     this.m_orientationColAttr = new wxGridCellAttr();
     this.m_orientationColAttr.SetEditor(new GRID_CELL_COMBOBOX(g_menuOrientations));
@@ -253,8 +265,7 @@ export class PCB_FIELDS_GRID_TABLE extends WX_GRID_TABLE_BASE {
       case PCB_FIELDS_COL_ORDER.PFC_UPRIGHT:
       case PCB_FIELDS_COL_ORDER.PFC_KNOCKOUT:
       case PCB_FIELDS_COL_ORDER.PFC_MIRRORED:
-        attr = new wxGridCellAttr();
-        attr.SetAlignment(1 /* wxALIGN_CENTER */, 1);
+        attr = this.m_boolColAttr.Clone();
         break;
 
       case PCB_FIELDS_COL_ORDER.PFC_ORIENTATION:

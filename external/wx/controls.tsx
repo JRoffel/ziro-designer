@@ -307,7 +307,8 @@ export function TextCtrl({
     readOnly,
     disabled,
     title,
-    className,
+    // `ze-textctrl`: the entry's best width, the GTK one (shell.css).
+    className: multiLine ? className : `ze-textctrl${className ? ` ${className}` : ''}`,
     placeholder: hint,
     autoFocus,
     // A GtkEntry does not spell-check.

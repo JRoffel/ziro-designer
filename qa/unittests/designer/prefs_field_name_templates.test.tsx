@@ -199,7 +199,9 @@ describe('the grid is the size the base file gives it', () => {
     // `SetColSize( 1, 48 )`, `SetColSize( 2, 48 )`, `SetupColumnAutosizer( 0 )`.
     mount(true);
     const ths = [...document.querySelectorAll('thead th')] as HTMLElement[];
-    expect(ths.map((t) => t.style.width)).toEqual(['', '48px', '48px', '']);
+    // The autosizer's column takes the slack (`RecomputeGridWidths`), so there is no
+    // filler after Show / URL: three headers, Name's with no width of its own.
+    expect(ths.map((t) => t.style.width)).toEqual(['', '48px', '48px']);
     expect(cell(0, 0).classList.contains('ze-grid-flexcol')).toBe(true);
   });
 

@@ -511,9 +511,17 @@ export function mount3DViewer(
   // once and let every reader stay a boolean (`SetVisibleLayers`, in reverse).
   // ---- three.js -------------------------------------------------------------
   const canvas = document.createElement('canvas');
+  // `EDA_3D_CANVAS` is Add()ed `1, wxEXPAND` with no min size: it takes the room its
+  // sizer gives it and asks for none. A canvas in the flow does ask - its intrinsic
+  // size is its drawing buffer, which `resize` sets from its own box - so Footprint
+  // Properties' 3D Models page held the whole dialog at the last size it had drawn.
+  // Out of the flow, it only fills.
+  canvas.style.position = 'absolute';
+  canvas.style.inset = '0';
   canvas.style.width = '100%';
   canvas.style.height = '100%';
   canvas.style.display = 'block';
+  if (getComputedStyle(container).position === 'static') container.style.position = 'relative';
   container.appendChild(canvas);
 
   let renderer: THREE.WebGLRenderer;

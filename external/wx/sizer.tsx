@@ -143,6 +143,9 @@ export function SizerItem({
 
   // A box item fills its main-axis slot; a grid item fills its cell only with wxEXPAND.
   let fill = true;
+  // A box item with wxEXPAND is stretched across: a control with its own best width
+  // (an entry's) is widened to the slot, as wx's sizer does, not left at it.
+  let across = false;
 
   if (ctx.grid) {
     Object.assign(style, cellAlign(flag));
@@ -157,10 +160,14 @@ export function SizerItem({
     style.flexGrow = proportion;
     style.flexDirection = ctx.vertical ? 'column' : 'row';
     style.alignItems = crossAlign(ctx.vertical, flag);
+    across = (flag & wxEXPAND) !== 0;
   }
 
   return (
-    <div className={`ze-szi${fill ? ' ze-szi-fill' : ''}`} style={style}>
+    <div
+      className={`ze-szi${fill ? ' ze-szi-fill' : ''}${across ? ' ze-szi-across' : ''}`}
+      style={style}
+    >
       {children}
     </div>
   );
@@ -210,16 +217,37 @@ export function StretchSpacer({ proportion = 1 }: { proportion?: number }): JSX.
   return <Spacer proportion={proportion} />;
 }
 
-/** A sizer's items: its children with fragments opened, as wx sees one Add() per item. */
-function sizerItems(aChildren: ReactNode): ReactElement[] {
+/**
+ * A sizer's items: its children with fragments opened, as wx sees one Add() per item.
+ *
+ * Every child of a sizer is an `Add()`: a `SizerItem` or a `Spacer`. Anything else is a
+ * helper that returns them - a `_base` file's `UnitRow` or `Heading` standing for the
+ * label, entry and units one `Add()` each - so it is opened like a fragment. Left closed,
+ * it was ONE item: a grid sizer placed its three cells wherever the browser put them (the
+ * Footprint Properties Position box), and a box sizer could not see a `proportion` set
+ * inside it. Helpers are called here, during the sizer's render, so they must not use hooks
+ * (qa `sizer_helpers_are_pure` holds that).
+ */
+function sizerItems(aChildren: ReactNode, aKey = ''): ReactElement[] {
   const out: ReactElement[] = [];
 
   for (const c of Children.toArray(aChildren)) {
     if (!isValidElement(c)) continue;
 
+    // Children.toArray restarts its keys inside every fragment and helper; the path keeps
+    // the items of two of them apart.
+    const key = `${aKey}${String(c.key)}`;
+
     if (c.type === Fragment)
-      out.push(...sizerItems((c.props as { children?: ReactNode }).children));
-    else out.push(c);
+      out.push(...sizerItems((c.props as { children?: ReactNode }).children, `${key}/`));
+    else if (
+      typeof c.type === 'function' &&
+      c.type !== SizerItem &&
+      c.type !== Spacer &&
+      !(c.type.prototype as { isReactComponent?: unknown } | undefined)?.isReactComponent
+    )
+      out.push(...sizerItems((c.type as (aProps: unknown) => ReactNode)(c.props), `${key}/`));
+    else out.push(aKey ? cloneElement(c, { key }) : c);
   }
 
   return out;

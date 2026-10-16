@@ -54,6 +54,7 @@ import {
   wxGridTableRequest,
 } from '@ziroeda/wx/grid.js';
 import { WxGridView } from '@ziroeda/wx/grid_ui.js';
+import { GetTextExtent } from '@ziroeda/wx/controls.js';
 import { type wxMenu, type wxMenuEvent, wxID_CANCEL } from '@ziroeda/wx/menu.js';
 import { ContextMenu, type MenuItem } from '@ziroeda/wx/menu_ui.js';
 import {
@@ -901,6 +902,31 @@ export class DIALOG_SYMBOL_FIELDS_TABLE
   }
 
   /** `OnViewControlsCellChanged( aEvent )` (dialog_symbol_fields_table.cpp:1132). */
+  /**
+   * `OnSizeViewControlsGrid` (dialog_symbol_fields_table.cpp:1342): Include and Group By are
+   * as wide as their labels, and Field and BOM Name share what the grid window has left -
+   * so the grid always fits its pane, a long field name clipped in its cell.
+   */
+  OnSizeViewControlsGrid(aWidth: number): void {
+    const grid = this.m_viewControlsGrid;
+    const showColWidth = GetTextExtent(grid.GetColLabelValue(SHOW_FIELD_COLUMN)) + COLUMN_MARGIN;
+    const groupByColWidth = GetTextExtent(grid.GetColLabelValue(GROUP_BY_COLUMN)) + COLUMN_MARGIN;
+    const remainingWidth = aWidth - showColWidth - groupByColWidth;
+
+    grid.SetColSize(SHOW_FIELD_COLUMN, showColWidth);
+    grid.SetColSize(GROUP_BY_COLUMN, groupByColWidth);
+
+    if (grid.IsColShown(DISPLAY_NAME_COLUMN) && grid.IsColShown(LABEL_COLUMN)) {
+      const half = Math.trunc(remainingWidth / 2);
+      grid.SetColSize(DISPLAY_NAME_COLUMN, Math.max(half, 60));
+      grid.SetColSize(LABEL_COLUMN, Math.max(remainingWidth - half, 60));
+    } else if (grid.IsColShown(DISPLAY_NAME_COLUMN)) {
+      grid.SetColSize(DISPLAY_NAME_COLUMN, Math.max(remainingWidth, 60));
+    } else if (grid.IsColShown(LABEL_COLUMN)) {
+      grid.SetColSize(LABEL_COLUMN, Math.max(remainingWidth, 60));
+    }
+  }
+
   OnViewControlsCellChanged(aEvent: wxGridEvent): void {
     this.onViewControlsCellChanged(aEvent.GetRow(), aEvent.GetCol());
   }
@@ -2055,6 +2081,8 @@ export function DialogSymbolFieldsTable({
           grid={d.m_viewControlsGrid}
           tricks={d.m_viewControlsTricks}
           ariaLabel="Fields"
+          fixedColumns
+          onSize={(aWidth) => d.OnSizeViewControlsGrid(aWidth)}
         />
       }
       onAddField={() => void d.OnAddField()}

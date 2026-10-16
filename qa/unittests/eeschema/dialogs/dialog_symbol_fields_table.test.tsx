@@ -15,7 +15,13 @@ import {
 } from '@ziroeda/common/confirm.js';
 import { FIELD_T } from '@ziroeda/common/template_fieldnames.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
-import { GROUP_BY_COLUMN } from '@ziroeda/eeschema/fields_data_model.js';
+import {
+  DISPLAY_NAME_COLUMN,
+  GROUP_BY_COLUMN,
+  LABEL_COLUMN,
+  SHOW_FIELD_COLUMN,
+} from '@ziroeda/eeschema/fields_data_model.js';
+import { GetTextExtent } from '@ziroeda/wx/controls.js';
 import { SCH_COMMIT } from '@ziroeda/eeschema/sch_commit.js';
 import type { SCH_EDIT_FRAME } from '@ziroeda/eeschema/sch_edit_frame.js';
 import type { SCH_SYMBOL } from '@ziroeda/eeschema/sch_symbol.js';
@@ -174,6 +180,39 @@ describe('DIALOG_SYMBOL_FIELDS_TABLE_BASE', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Export' }));
     expect(screen.getByRole('tab', { name: 'Export' }).getAttribute('aria-selected')).toBe('true');
     expect((screen.getByLabelText('Preview') as HTMLTextAreaElement).value).toContain('R1');
+  });
+});
+
+describe('OnSizeViewControlsGrid (dialog_symbol_fields_table.cpp:1342)', () => {
+  // The fields grid is as wide as the left pane, whatever its names: Include and Group By
+  // take their labels' width, Field and BOM Name split the rest. Ours left the columns to
+  // their contents, and a long field name pushed the grid under the right-hand panel.
+  const sizes = (aDialog: DIALOG_SYMBOL_FIELDS_TABLE): number[] =>
+    [DISPLAY_NAME_COLUMN, LABEL_COLUMN, SHOW_FIELD_COLUMN, GROUP_BY_COLUMN].map(
+      (c) => aDialog.m_viewControlsGrid.GetStatedColSize(c) ?? -1,
+    );
+
+  it('fits the four columns to the grid window', () => {
+    const { dialog } = open();
+    dialog.OnSizeViewControlsGrid(400);
+    const show = GetTextExtent('Include') + 15;
+    const group = GetTextExtent('Group By') + 15;
+    const rest = 400 - show - group;
+    expect(sizes(dialog)).toEqual([Math.trunc(rest / 2), rest - Math.trunc(rest / 2), show, group]);
+  });
+
+  it('never squeezes Field or BOM Name below 60', () => {
+    const { dialog } = open();
+    dialog.OnSizeViewControlsGrid(100);
+    expect(sizes(dialog).slice(0, 2)).toEqual([60, 60]);
+  });
+
+  it('gives the whole rest to the one name column that is shown', () => {
+    const { dialog } = open();
+    dialog.m_viewControlsGrid.HideCol(LABEL_COLUMN);
+    dialog.OnSizeViewControlsGrid(400);
+    const rest = 400 - (GetTextExtent('Include') + 15) - (GetTextExtent('Group By') + 15);
+    expect(sizes(dialog)[0]).toBe(rest);
   });
 });
 

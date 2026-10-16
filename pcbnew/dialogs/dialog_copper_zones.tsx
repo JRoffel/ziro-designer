@@ -157,7 +157,7 @@ interface Props {
   /** Net codes and names, for the NET_SELECTOR. */
   nets: ReadonlyMap<number, string>;
   /** Copper layers the zone may sit on, with the colour each swatch draws (SetupLayersList). */
-  layers: readonly { name: string; color: string }[];
+  layers: readonly { name: string; label?: string; color: string }[];
   /**
    * Whether the zone already exists on the board. "A zone still in creation (ie: not yet in the
    * document) can't be edited by the Zone Manager", so m_openZoneManager is hidden.
@@ -218,7 +218,7 @@ export function DialogCopperZones({
       }
       m_layers={layers.map((l) => ({
         toggle: v.layers.includes(l.name),
-        text: l.name,
+        text: l.label ?? l.name,
         iconColour: l.color,
       }))}
       OnLayerSelection={(aRow, aOn) => {

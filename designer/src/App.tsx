@@ -21,6 +21,7 @@ import type { LibSymbol } from '@ziroeda/eeschema';
 import { HomePage } from './home/HomePage.js';
 import type { PickedFile } from '@ziroeda/eeschema/sch_edit_frame_ui.js';
 import { EMPTY_PCB } from './home/new_project.js';
+import { IsOK } from '@ziroeda/common/confirm.js';
 import { ProgressDialog } from '@ziroeda/common/widgets/wx_progress_reporters.js';
 import { ProjectSyncProvider } from './sync/ProjectSyncProvider.js';
 import type { EditorKind } from '@ziroeda/eeschema/browser/project_sync_transport.js';
@@ -1568,6 +1569,25 @@ export function App(): JSX.Element {
     setPcbMounted(true);
     setView('pcb');
   }, []);
+  /**
+   * The schematic's Switch to PCB Editor: `SCH_EDIT_FRAME::OnOpenPcbnew` (sch_edit_frame.cpp:1520)
+   * opens the editor on the project's `<name>.kicad_pcb` whether or not it exists, and
+   * `PCB_EDIT_FRAME::OpenProjectFiles` (pcbnew/files.cpp:548-555) asks before making it. Ours
+   * did nothing at all for a project with no board. Yes: the empty board joins the project
+   * under that name. No: the editor still comes up, on its blank board, as KiCad's does
+   * (`OnOpenPcbnew` shows the frame after a refused open too).
+   */
+  const showPcbFromSchematic = useCallback(async () => {
+    if (!pcbFile && activeProName) {
+      const name = activeProName.replace(/\.kicad_pro$/i, '.kicad_pcb');
+      if (await IsOK(`PCB '${name}' does not exist. Do you wish to create it?`)) {
+        const board = { name, text: EMPTY_PCB };
+        setProjectFiles((prev) => (prev ? [...prev, board] : prev));
+        if (!demoProject) persistFilesNow([board]);
+      }
+    }
+    showPcb();
+  }, [pcbFile, activeProName, demoProject, persistFilesNow, showPcb]);
   const showSchematic = useCallback(() => {
     setSchMounted(true);
     setView('schematic');
@@ -1883,7 +1903,7 @@ export function App(): JSX.Element {
             <Suspense fallback={frameLoading}>
               <SchematicEditor
                 onExitToHome={goHome}
-                onShowPcb={pcbFile ? showPcb : undefined}
+                onShowPcb={() => void showPcbFromSchematic()}
                 onEditSymbolInEditor={editSymbolInEditor}
                 editedSymbol={editedSymbol}
                 // Tools > Update Schematic from PCB with no board editor running: what an

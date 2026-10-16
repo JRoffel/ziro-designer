@@ -542,7 +542,7 @@ export function DialogRuleAreaProperties({
   units: StatusUnits;
   initial: RuleAreaValues;
   /** SetupLayersList's rows: the layers, with the colour each swatch draws. */
-  layers: readonly { name: string; color: string }[];
+  layers: readonly { name: string; label?: string; color: string }[];
   sources: PlacementSources;
   onApply: (values: RuleAreaValues, conversion: ConversionBoxValues | null) => void;
   conversion?: ConversionBoxValues | null;
@@ -610,7 +610,7 @@ export function DialogRuleAreaProperties({
         }
         m_layers={layers.map((l) => ({
           toggle: v.layers.includes(l.name),
-          text: l.name,
+          text: l.label ?? l.name,
           iconColour: l.color,
         }))}
         OnLayerSelection={(aRow, aOn) => {

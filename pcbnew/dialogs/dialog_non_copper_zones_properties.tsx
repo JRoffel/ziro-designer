@@ -265,7 +265,7 @@ export function DialogNonCopperZonesProperties({
   /** The frame's units: the lengths are UNIT_BINDERs upstream. */
   units: StatusUnits;
   /** `SetupLayersList( m_layers, m_parent, LSET::AllNonCuMask() )`: the non-copper layers. */
-  layers: readonly { name: string; color: string }[];
+  layers: readonly { name: string; label?: string; color: string }[];
   /** OK (true, after the transfer took) or Cancel (false). */
   onResult: (aOk: boolean) => void;
 }): JSX.Element {
@@ -311,7 +311,7 @@ export function DialogNonCopperZonesProperties({
         }
         m_layers={layers.map((l) => ({
           toggle: v.layers.includes(l.name),
-          text: l.name,
+          text: l.label ?? l.name,
           iconColour: l.color,
         }))}
         OnLayerSelection={(aRow, aOn) => {

@@ -29,7 +29,7 @@ export function DataViewListCtrl({
   ariaLabel?: string;
 }): JSX.Element {
   return (
-    <div className="ze-gridlist" role="listbox" aria-label={ariaLabel}>
+    <div className="ze-gridlist ze-dataview-list" role="listbox" aria-label={ariaLabel}>
       {rows.map((r, i) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: a row IS its index here
         <div key={i} role="option" aria-selected={false} className="ze-gridlist-row">

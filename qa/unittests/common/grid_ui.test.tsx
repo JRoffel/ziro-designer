@@ -41,6 +41,31 @@ describe('the grid window', () => {
     expect(view.container.querySelector('th.ze-grid-filler')).not.toBeNull();
   });
 
+  it('SetupColumnAutosizer: the flexible column takes the slack, not a filler (RecomputeGridWidths)', () => {
+    const g = new WX_GRID();
+    g.SetTable(new wxGridStringTable(1, 3), true);
+    g.SetColSize(1, 90);
+    const view = render(<WxGridView grid={g} flexCol={1} ariaLabel="grid" />);
+    const heads = [...view.container.querySelectorAll('th')];
+    expect(heads).toHaveLength(3);
+    expect(view.container.querySelector('.ze-grid-filler')).toBeNull();
+    // The one column with no width takes the slack; its stated width is its label's floor.
+    // The others are their content (`1px`) - nothing is a percentage, which would make the
+    // table claim every pixel it is offered.
+    expect(heads.map((h) => h.style.width)).toEqual(['1px', '', '1px']);
+    expect((heads[1]!.firstElementChild as HTMLElement).style.minWidth).toBe('90px');
+
+    // ShowHideColumns took it away: the filler, the one column with no width, takes it.
+    g.HideCol(1);
+    view.rerender(<WxGridView grid={g} flexCol={1} ariaLabel="grid" />);
+    const after = [...view.container.querySelectorAll('th')];
+    expect(after.map((h) => [h.className, h.style.width])).toEqual([
+      ['', '1px'],
+      ['', '1px'],
+      ['ze-grid-filler', ''],
+    ]);
+  });
+
   it('opens the editor on a click, when the button comes up', () => {
     const { g, cell } = setup();
     fireEvent.mouseDown(cell(1, 1), { button: 0 });

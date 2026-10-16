@@ -122,6 +122,7 @@ export function WxGridView({
   onUpdate,
   rowLabelSize,
   fixedColumns,
+  onSize,
 }: {
   grid: wxGrid;
   /** The grid's GRID_TRICKS, for the cell tooltips. */
@@ -137,6 +138,12 @@ export function WxGridView({
    * the columns hold against the filler cell instead of growing to their content.
    */
   fixedColumns?: boolean;
+  /**
+   * `wxEVT_SIZE` on the grid window, with its new width. A grid that handles it is sized by
+   * its parent, as every wx window is, and sizes its columns to that: its columns no longer
+   * widen it (DIALOG_SYMBOL_FIELDS_TABLE::OnSizeViewControlsGrid).
+   */
+  onSize?: (aWidth: number) => void;
   colLabels?: boolean;
   /** A custom renderer's drawing (a swatch, an icon); null draws the default. */
   renderCell?: (aRow: number, aCol: number, aValue: string) => ReactNode | null;
@@ -206,6 +213,26 @@ export function WxGridView({
   const cursorCol = grid.GetGridCursorCol();
 
   // The editor closed: the grid window takes the focus back.
+  const windowRef = useRef<HTMLDivElement>(null);
+  const onSizeRef = useRef(onSize);
+  onSizeRef.current = onSize;
+  const sized = onSize !== undefined;
+  useEffect(() => {
+    // The window, not the table: a fixed-layout table is as wide as its columns, so
+    // sizing the columns from the table fed itself without end.
+    const window = windowRef.current;
+    if (!sized || !window) return;
+    let last = -1;
+    const ro = new ResizeObserver(() => {
+      const width = Math.round(window.clientWidth);
+      if (width === last) return;
+      last = width;
+      onSizeRef.current?.(width);
+    });
+    ro.observe(window);
+    return () => ro.disconnect();
+  }, [sized]);
+
   const wasEditing = useRef(false);
   useEffect(() => {
     if (wasEditing.current && !editor) tableRef.current?.focus();
@@ -215,6 +242,13 @@ export function WxGridView({
   const shownCols = Array.from({ length: grid.GetNumberCols() }, (_, c) => c).filter((c) =>
     grid.IsColShown(c),
   );
+  /**
+   * `RecomputeGridWidths` (common/widgets/wx_grid.cpp:1116): with `SetupColumnAutosizer`
+   * the flexible column is given whatever the others leave, so it - not a filler cell -
+   * takes the slack. The filler is for a grid with no autosizer, whose columns stay at
+   * their stated widths. Hidden by `ShowHideColumns`, the column takes nothing.
+   */
+  const slackCol = flexCol !== undefined && shownCols.includes(flexCol) ? flexCol : undefined;
   const mode = grid.GetSelectionMode();
 
   /** The grid's own response to a click nothing handled (wxGrid::DoGridCellLeftDown). */
@@ -449,110 +483,137 @@ export function WxGridView({
       ? grid.IsInSelection(aRow, 0)
       : shownCols.length > 0 && shownCols.every((c) => grid.IsInSelection(aRow, c));
 
+  const table = (
+    <table
+      ref={tableRef}
+      className={`ze-grid${
+        (grid as wxGrid & { AlternateRowColors?: () => boolean }).AlternateRowColors?.()
+          ? ' ze-grid-striped'
+          : ''
+      }${fixedColumns ? ' ze-grid-fixed' : ''}${className ? ` ${className}` : ''}`}
+      style={style}
+      // biome-ignore lint/a11y/noNoninteractiveTabindex: the grid window takes the focus, as wx's does
+      tabIndex={0}
+      aria-label={ariaLabel}
+      onKeyDown={(e) => {
+        if (e.target === e.currentTarget) onKey(e, null);
+      }}
+    >
+      {colLabels && (
+        <thead>
+          <tr>
+            {rowLabels && (
+              <th
+                className="ze-grid-corner ze-grid-rowlabel"
+                style={rowLabelSize ? { width: rowLabelSize } : undefined}
+              />
+            )}
+            {shownCols.map((c) => (
+              <th
+                key={c}
+                className={columns[c]?.center ? 'c' : undefined}
+                style={(() => {
+                  // The slack goes to the one column with no width: the flexible one, or
+                  // else the filler. Every other column is max( stated, content ) - `1px`
+                  // is "its content" - so the table asks for the sum of its columns, as
+                  // the wxGrid's best size does, and nothing is a percentage: a `100%`
+                  // cell makes an auto table claim every pixel it is offered, which is
+                  // what stretched Footprint Properties across the screen.
+                  if (c === slackCol) return undefined;
+                  const width = columns[c]?.width ?? grid.GetStatedColSize(c);
+                  if (width) return { width };
+                  return fixedColumns ? undefined : { width: 1 };
+                })()}
+                onClick={(e) => {
+                  grid.ProcessEvent(
+                    new wxGridEvent(wxEVT_GRID_LABEL_LEFT_CLICK, grid, -1, c, modifiersOf(e)),
+                  );
+                  // The label's mouse-up: `DoColHeaderClick`.
+                  grid.DoColHeaderClick(c);
+                }}
+                onContextMenu={(e) => onContextMenu(-1, c, wxEVT_GRID_LABEL_RIGHT_CLICK, e)}
+              >
+                {c === slackCol ? (
+                  // Its stated width is the least its label gets: a table cell's own
+                  // min-width is not honoured, its content's is.
+                  <div style={{ minWidth: columns[c]?.width ?? grid.GetStatedColSize(c) }}>
+                    {grid.GetColLabelValue(c)}
+                  </div>
+                ) : (
+                  grid.GetColLabelValue(c)
+                )}
+              </th>
+            ))}
+            {slackCol === undefined && <th className="ze-grid-filler" />}
+          </tr>
+        </thead>
+      )}
+      <tbody>
+        {Array.from({ length: grid.GetNumberRows() }, (_, r) => (
+          <tr key={r} className={rowSelected(r) ? 'selected' : undefined}>
+            {rowLabels && (
+              <td
+                className="ze-grid-rowlabel"
+                style={
+                  grid.GetRowLabelHAlign() & wxALIGN_CENTER_HORIZONTAL
+                    ? undefined
+                    : { textAlign: grid.GetRowLabelHAlign() & wxALIGN_RIGHT ? 'right' : 'left' }
+                }
+              >
+                {grid.GetRowLabelValue(r)}
+              </td>
+            )}
+            {shownCols.map((c) => {
+              const attr = grid.GetCellAttr(r, c);
+              const hAlign = attr.GetHAlign();
+              const center =
+                hAlign !== null ? (hAlign & wxALIGN_CENTER_HORIZONTAL) !== 0 : columns[c]?.center;
+              const background = attr.GetBackgroundColour();
+              const classes = [
+                center ? 'c' : '',
+                c === flexCol ? 'ze-grid-flexcol' : '',
+                mode === wxGridSelectionModes.wxGridSelectCells &&
+                !rowSelected(r) &&
+                grid.IsInSelection(r, c)
+                  ? 'selected'
+                  : '',
+              ]
+                .filter(Boolean)
+                .join(' ');
+              const tip = tricks?.GetCellTooltip(r, c) ?? '';
+              return (
+                <td
+                  key={c}
+                  className={classes || undefined}
+                  style={background ? { background } : undefined}
+                  title={tip || undefined}
+                  data-row={r}
+                  data-col={c}
+                  onMouseDown={(e) => onCellMouseDown(r, c, e)}
+                  onMouseUp={onCellMouseUp}
+                  onContextMenu={(e) => onContextMenu(r, c, wxEVT_GRID_CELL_RIGHT_CLICK, e)}
+                >
+                  {cellContent(r, c)}
+                </td>
+              );
+            })}
+            {slackCol === undefined && <td className="ze-grid-filler" />}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
   return (
     <>
-      <table
-        ref={tableRef}
-        className={`ze-grid${
-          (grid as wxGrid & { AlternateRowColors?: () => boolean }).AlternateRowColors?.()
-            ? ' ze-grid-striped'
-            : ''
-        }${fixedColumns ? ' ze-grid-fixed' : ''}${className ? ` ${className}` : ''}`}
-        style={style}
-        // biome-ignore lint/a11y/noNoninteractiveTabindex: the grid window takes the focus, as wx's does
-        tabIndex={0}
-        aria-label={ariaLabel}
-        onKeyDown={(e) => {
-          if (e.target === e.currentTarget) onKey(e, null);
-        }}
-      >
-        {colLabels && (
-          <thead>
-            <tr>
-              {rowLabels && (
-                <th
-                  className="ze-grid-corner ze-grid-rowlabel"
-                  style={rowLabelSize ? { width: rowLabelSize } : undefined}
-                />
-              )}
-              {shownCols.map((c) => (
-                <th
-                  key={c}
-                  className={columns[c]?.center ? 'c' : undefined}
-                  style={(() => {
-                    const width = columns[c]?.width ?? grid.GetStatedColSize(c);
-                    return width ? { width } : undefined;
-                  })()}
-                  onClick={(e) => {
-                    grid.ProcessEvent(
-                      new wxGridEvent(wxEVT_GRID_LABEL_LEFT_CLICK, grid, -1, c, modifiersOf(e)),
-                    );
-                    // The label's mouse-up: `DoColHeaderClick`.
-                    grid.DoColHeaderClick(c);
-                  }}
-                  onContextMenu={(e) => onContextMenu(-1, c, wxEVT_GRID_LABEL_RIGHT_CLICK, e)}
-                >
-                  {grid.GetColLabelValue(c)}
-                </th>
-              ))}
-              <th className="ze-grid-filler" />
-            </tr>
-          </thead>
-        )}
-        <tbody>
-          {Array.from({ length: grid.GetNumberRows() }, (_, r) => (
-            <tr key={r} className={rowSelected(r) ? 'selected' : undefined}>
-              {rowLabels && (
-                <td
-                  className="ze-grid-rowlabel"
-                  style={
-                    grid.GetRowLabelHAlign() & wxALIGN_CENTER_HORIZONTAL
-                      ? undefined
-                      : { textAlign: grid.GetRowLabelHAlign() & wxALIGN_RIGHT ? 'right' : 'left' }
-                  }
-                >
-                  {grid.GetRowLabelValue(r)}
-                </td>
-              )}
-              {shownCols.map((c) => {
-                const attr = grid.GetCellAttr(r, c);
-                const hAlign = attr.GetHAlign();
-                const center =
-                  hAlign !== null ? (hAlign & wxALIGN_CENTER_HORIZONTAL) !== 0 : columns[c]?.center;
-                const background = attr.GetBackgroundColour();
-                const classes = [
-                  center ? 'c' : '',
-                  c === flexCol ? 'ze-grid-flexcol' : '',
-                  mode === wxGridSelectionModes.wxGridSelectCells &&
-                  !rowSelected(r) &&
-                  grid.IsInSelection(r, c)
-                    ? 'selected'
-                    : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ');
-                const tip = tricks?.GetCellTooltip(r, c) ?? '';
-                return (
-                  <td
-                    key={c}
-                    className={classes || undefined}
-                    style={background ? { background } : undefined}
-                    title={tip || undefined}
-                    data-row={r}
-                    data-col={c}
-                    onMouseDown={(e) => onCellMouseDown(r, c, e)}
-                    onMouseUp={onCellMouseUp}
-                    onContextMenu={(e) => onContextMenu(r, c, wxEVT_GRID_CELL_RIGHT_CLICK, e)}
-                  >
-                    {cellContent(r, c)}
-                  </td>
-                );
-              })}
-              <td className="ze-grid-filler" />
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {sized ? (
+        // The grid window: the slot its sizer gives it, measured for wxEVT_SIZE. Size
+        // containment does not apply to a table, so it is on this box.
+        <div ref={windowRef} className="ze-grid-window">
+          {table}
+        </div>
+      ) : (
+        table
+      )}
       {menu && (
         <ContextMenu items={menu.items} x={menu.x} y={menu.y} onClose={() => setMenu(null)} />
       )}

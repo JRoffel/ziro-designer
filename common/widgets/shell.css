@@ -562,6 +562,11 @@
      [px] `wxTextCtrl( panel, wxID_ANY ).GetBestSize().x` reports 98 on this
      machine with this theme (`qa/probes/constraints_layout_probe.cpp`). */
   --ctl-entry-width: 98px;
+  /* The same for a wxComboBox, its drop-down button included: the entry part
+     of GTK's combobox entry is narrower than a bare entry's.
+     [px] `wxComboBox( panel, wxID_ANY, "0" )` with Footprint Properties' four
+     orientations appended: GetBestSize().x 77 (`qa/probes/combo_best_size_probe.cpp`). */
+  --ctl-textcombo-width: 77px;
   --ctl-pad-x: 9px; /* [css] button { padding: 4px 9px } */
   /* A GTK button carrying only a LABEL gets the `text-button` style class,
      which overrides that padding:
@@ -2618,6 +2623,20 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
 }
 /* StaticText minWidthText: an invisible line of the stated text, so the label is at least that
    wide (`SetMinSize( GetTextExtent( text ) )`). */
+/* A wxTextCtrl nobody sized is its best width, --ctl-entry-width - the token said so, but
+   nothing read it, so every unsized entry was the browser's 20-character <input> (263 px
+   here), and a dialog of entries, Fit() to them, came out ~2.7x KiCad's width (Footprint
+   Properties' Position box set its three proportion-1 columns, and so the dialog).
+   A sizer still widens it: along a slot it grows with the item (`.ze-szi-fill > *`);
+   across one, wxEXPAND, `min-width: 100%` - a percentage that is 0 while the dialog is
+   being sized and the slot once it is laid out, the best size and then the stretch. */
+.ze-textctrl {
+  width: var(--ctl-entry-width);
+  box-sizing: border-box;
+}
+.ze-szi-across > .ze-textctrl {
+  min-width: 100%;
+}
 /* TextCtrl minWidthText: the entry and an invisible line of the stated text share one grid cell,
    so the cell is the text's width and the entry fills it. */
 .ze-textctrl-minw {
@@ -5031,6 +5050,7 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
 .ze-report-panel {
   display: flex;
   flex-direction: column;
+  min-height: 225px; /* [data] wx_html_report_panel_base.cpp:14, SetMinSize( wxSize( -1,225 ) ) */
   gap: 4px;
   border: 1px solid var(--chrome-border);
   padding: 6px 8px 8px;
@@ -5047,6 +5067,15 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
 .ze-report-view {
   flex: 1;
   overflow: auto;
+  /* A wxHtmlWindow is a scrolled window: the dialog is Fit() to its controls before a
+     line of the report exists, and the report wraps and scrolls inside what that
+     leaves. Its text must size the dialog in NEITHER direction: across, Update PCB from
+     Schematic grew with every long footprint name; down, a long report ran off the
+     bottom of the screen instead of scrolling. And since the dialog's minimum is what
+     its content asks for, a report that asked for its lines kept a remembered size
+     from ever being dragged back down (DIALOG_SHIM::Show's SetMinSize( GetBestSize() )
+     is the Fit() size, not the report's). */
+  contain: size;
   background: var(--chrome-bg2);
   border: 1px solid var(--chrome-border);
   border-radius: 2px;
@@ -6683,22 +6712,37 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
    rgb(39,39,39) — a cell's colour, with no rules in it — and there is no outer
    border anywhere: x=651 is the dialog and x=652 is already the grid.
 
-   This empty trailing cell is that strip. It also does the sizing: `width:
-   100%` in an auto-layout table claims the slack, which leaves every real
-   column at max(stated, content) — the `SetColSize` floor and the
-   `GetVisibleWidth` autosize — instead of the browser sharing the stretch out
-   among them. Without it the ONE column with no stated width absorbs the whole
-   dialog, which is what put a grid's row labels an inch from their values. */
+   This empty trailing cell is that strip. It also takes the slack: it is the
+   one column WxGridView gives no width, every real column being max(stated,
+   content) - the `SetColSize` floor and the `GetVisibleWidth` autosize - so the
+   stretch is not shared out among them (that put a grid's row labels an inch
+   from their values). It used to do this with `width: 100%`, but a percentage
+   cell makes an auto-layout table's own width "everything it is offered", so
+   every dialog with a grid opened as wide as the screen allowed. With
+   `SetupColumnAutosizer` there is no filler: the flexible column takes it. */
 .ze-grid th.ze-grid-filler,
 .ze-grid td.ze-grid-filler {
-  width: 100%;
   border: none;
   padding: 0;
+}
+/* With column labels the filler takes the slack by being the one column with no
+   width (WxGridView states every other one). Without them nothing states a width,
+   so it still claims the slack the old way. */
+.ze-grid:not(:has(> thead)) td.ze-grid-filler {
+  width: 100%;
 }
 /* WxGridView fixedColumns: SetColSize widths held exactly, the filler taking only what is left
    (a 100% filler in a fixed-layout table would take the whole table). */
 .ze-grid.ze-grid-fixed {
   table-layout: fixed;
+}
+/* WxGridView onSize: the grid window is the width its parent gives it, as a wx window is,
+   and its wxEVT_SIZE handler fits the columns to that. Its columns must not widen it in
+   turn, or the left pane of Symbol Fields Table grew past its sash and under the right one.
+   On a box round the table: size containment does not apply to a table. */
+.ze-grid-window {
+  contain: inline-size;
+  overflow: hidden;
 }
 .ze-grid.ze-grid-fixed th.ze-grid-filler,
 .ze-grid.ze-grid-fixed td.ze-grid-filler {
@@ -8513,6 +8557,14 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
   border: 1px solid var(--ctl-border);
   border-radius: 0;
   color: var(--view-fg);
+}
+/* A wxDataViewListCtrl is a scrolled window: its best size is its columns' width, not its
+   rows' height - the sizer gives it a height and it scrolls in it. Rule Area Properties
+   states that height on the sizer (`bLayersListSizer->SetMinSize( 240,560 )`); left to its
+   rows, the list of every layer made the dialog as tall as the screen and cut it off.
+   `height: 0` is the "no height of its own"; the item's flex growth fills the slot. */
+.ze-dataview-list {
+  height: 0;
 }
 /* A row of the list. */
 .ze-gridlist-row {
@@ -11626,9 +11678,17 @@ fieldset.ze-sbox > legend {
 .ze-textcombo {
   display: inline-flex;
   align-items: stretch;
+  /* Its best width, as an entry's (.ze-textctrl): the entry gives up what the button takes. */
+  width: var(--ctl-textcombo-width);
+  box-sizing: border-box;
+}
+.ze-szi-across > .ze-textcombo {
+  min-width: 100%;
 }
 .ze-textcombo > input {
   flex: 1 1 auto;
+  width: 0;
+  min-width: 0;
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
 }

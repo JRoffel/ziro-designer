@@ -5512,24 +5512,30 @@ export function PcbEditor({
    * from `LSET::AllNonCuMask()`'s complement — every board layer the frame
    * offers — each row a checkbox, a colour swatch and the layer's name.
    */
+  /**
+   * `ZONE_SETTINGS::SetupLayersList`'s rows: each layer's swatch, keyed by its canonical
+   * name, and labelled `board->GetLayerName( layerID )` - the board's own name for it
+   * (User.Drawings, F.Silkscreen, a renamed inner layer), not the canonical one (Dwgs.User).
+   */
+  const zoneLayerRow = useCallback(
+    (name: string) => {
+      const kb = frameRef.current?.GetBoard();
+      return {
+        name,
+        label: kb ? kb.GetLayerName(kb.GetLayerID(name)) : name,
+        color: theme.layerColors[name] ?? layerColor(name),
+      };
+    },
+    [theme],
+  );
   const ruleAreaLayers = useMemo(
-    () =>
-      board
-        ? enabledLayerNames(frameRef.current?.GetBoard()).map((name) => ({
-            name,
-            color: theme.layerColors[name] ?? layerColor(name),
-          }))
-        : [],
-    [board, theme],
+    () => (board ? enabledLayerNames(frameRef.current?.GetBoard()).map(zoneLayerRow) : []),
+    [board, zoneLayerRow],
   );
   /** The copper rows the zone dialog's layer list draws, with their swatches. */
   const copperLayerRows = useMemo(
-    () =>
-      copperLayers.map((name) => ({
-        name,
-        color: theme.layerColors[name] ?? layerColor(name),
-      })),
-    [copperLayers, theme],
+    () => copperLayers.map(zoneLayerRow),
+    [copperLayers, zoneLayerRow],
   );
   const layerRows = useMemo(
     () =>
