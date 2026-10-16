@@ -17,12 +17,14 @@ import {
 import { PGM_BASE, Pgm, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
 import {
   configureSymbolLibraryAdapter,
+  hostedSymbolLibraryUri,
   libraryLoaded,
   loadIndex,
   loadSymbol,
   loadedLibraryItems,
   preloadLibraryItems,
 } from '@ziroeda/eeschema/libraries/symbol_library_adapter.js';
+import { hostedLibraryTable } from '@ziroeda/common/dialogs/lib_table_panel.js';
 import { MEMORY_FILESYSTEM, wxMountFileSystem } from '@ziroeda/wx/filefn.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -108,6 +110,19 @@ describe('the symbol chooser’s libraries', () => {
     expect((await loadSymbol('MyLib', 'R'))?.libId).toBe('MyLib:R');
     expect((await preloadLibraryItems('MyLib')).map((i) => i.name)).toEqual(['R']);
     expect(fetched).toEqual([]);
+  });
+
+  it('keeps a hosted global row the index’s own, not re-read from its download folder', async () => {
+    Pgm()
+      .GetLibraryManager()
+      .SetTable(
+        LIBRARY_TABLE_TYPE.SYMBOL,
+        LIBRARY_TABLE_SCOPE.GLOBAL,
+        hostedLibraryTable(LIBRARY_TABLE_TYPE.SYMBOL, ['Connector'], hostedSymbolLibraryUri),
+      );
+    const connector = (await loadIndex()).find((e) => e.name === 'Connector');
+    expect(connector?.symbols).toEqual(['Conn_01x02']);
+    expect(libraryLoaded('Connector')).toBe(false);
   });
 
   it('is only the hosted index when no table adds anything', async () => {

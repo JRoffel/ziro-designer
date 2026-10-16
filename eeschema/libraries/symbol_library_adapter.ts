@@ -277,12 +277,9 @@ function tableLibraryEntries(): LibIndexEntry[] {
   for (const row of mgr.Rows(LIBRARY_TABLE_TYPE.SYMBOL)) {
     if (row.Disabled() || row.Hidden()) continue;
 
-    const uri = mgr.GetFullURI(row, true);
-
-    // The hosted rows are the index's own.
-    if (uri.startsWith(SYMBOL_DOWNLOAD_DIR)) continue;
-
-    const bytes = wxReadFileSync(uri);
+    // A hosted row names its download folder (hostedSymbolLibraryUri), which
+    // reads as no file: those libraries are the index's own.
+    const bytes = wxReadFileSync(mgr.GetFullURI(row, true));
 
     if (!bytes) continue;
 
