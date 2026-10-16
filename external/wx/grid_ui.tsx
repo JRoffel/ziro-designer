@@ -429,9 +429,27 @@ export function WxGridView({
     return input;
   };
 
+  /**
+   * A cell being edited. wxGrid shows the editor as a control of its own, set to the cell's
+   * rectangle (`wxGridCellEditor::SetSize( rect )`), so it never sizes a column or a row: the
+   * column stays what the renderer's text made it. The renderer keeps its place, unseen, and the
+   * editor is laid over the cell - else a layer editor's swatch widened Layer and moved Value.
+   */
   const cellContent = (aRow: number, aCol: number): ReactNode => {
-    if (editor && aRow === cursorRow && aCol === cursorCol) return editorFor(aRow, aCol, editor);
+    if (editor && aRow === cursorRow && aCol === cursorCol)
+      return (
+        <>
+          <span className="ze-grid-under-editor" aria-hidden="true">
+            {rendererContent(aRow, aCol)}
+          </span>
+          <span className="ze-grid-editor">{editorFor(aRow, aCol, editor)}</span>
+        </>
+      );
 
+    return rendererContent(aRow, aCol);
+  };
+
+  const rendererContent = (aRow: number, aCol: number): ReactNode => {
     const value = grid.GetCellValue(aRow, aCol);
     const custom = renderCell?.(aRow, aCol, value);
 
@@ -443,7 +461,9 @@ export function WxGridView({
       const { label, swatch, icon, indent } = drawn.DrawValue(value, grid, aRow, aCol);
       return (
         <span
-          className={icon !== undefined ? 'ze-grid-text ze-icon-text' : 'ze-grid-text'}
+          className={`ze-grid-text${icon !== undefined ? ' ze-icon-text' : ''}${
+            swatch !== undefined ? ' ze-swatch-text' : ''
+          }`}
           style={indent ? { paddingLeft: indent } : undefined}
         >
           {icon !== undefined && (
@@ -605,15 +625,13 @@ export function WxGridView({
   );
   return (
     <>
-      {sized ? (
-        // The grid window: the slot its sizer gives it, measured for wxEVT_SIZE. Size
-        // containment does not apply to a table, so it is on this box.
-        <div ref={windowRef} className="ze-grid-window">
-          {table}
-        </div>
-      ) : (
-        table
-      )}
+      {/* The grid window: what the sizer sizes. The rows keep their heights inside it and the
+          space below them is the window's (wxGrid::DrawGridSpace) - a table given the slot's
+          height instead spreads it over its rows. A grid with a wxEVT_SIZE handler is measured
+          here; size containment does not apply to a table, so that is on this box too. */}
+      <div ref={windowRef} className={`ze-grid-window${sized ? ' ze-grid-self-sized' : ''}`}>
+        {table}
+      </div>
       {menu && (
         <ContextMenu items={menu.items} x={menu.x} y={menu.y} onClose={() => setMenu(null)} />
       )}

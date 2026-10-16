@@ -86,6 +86,11 @@ export interface DRC_TOOL_FRAME extends PCB_BASE_EDIT_FRAME {
    * the tool's: see `pcbnew/browser/drc_runner.ts`.
    */
   RunDrcJob(aRequest: DRC_JOB_REQUEST, aHooks: DRC_JOB_HOOKS): Promise<void>;
+  /**
+   * Make the next `RunDrcJob` start sooner: the frame may load the job's thread now, holding no
+   * board. Ours alone - upstream's run needs no thread of its own.
+   */
+  PrewarmDrcJob?(): void;
   /** `Kiface().IsSingle()`: true when no schematic accompanies the board. */
   IsSingle(): boolean;
   FetchNetlistFromSchematic(aNetlist: NETLIST, aAnnotateMessage: string): boolean;
@@ -149,6 +154,9 @@ export class DRC_TOOL extends PCB_TOOL_BASE {
 
     this.Activate();
     this.m_toolMgr!.RunAction(ACTIONS.selectionClear);
+
+    // The run's thread loads while the dialog is open, not after Run DRC is pressed.
+    this.m_editFrame!.PrewarmDrcJob?.();
 
     if (!this.m_drcDialog) {
       this.m_drcDialog = this.m_editFrame!.CreateDrcDialog(this, aParent);
@@ -256,6 +264,9 @@ export class DRC_TOOL extends PCB_TOOL_BASE {
       this.m_drcRunning = false;
     }
 
+    // The dialog stays up for another Run DRC: its thread loads now, as when it opened.
+    if (this.m_drcDialog) this.m_editFrame!.PrewarmDrcJob?.();
+
     if (this.m_drcDialog) {
       this.m_drcDialog.SetDrcRun();
 
@@ -309,6 +320,7 @@ export class DRC_TOOL extends PCB_TOOL_BASE {
     const request: DRC_JOB_REQUEST = {
       boardText,
       boardPath: board.GetFileName(),
+      boardUuid: board.m_Uuid,
       projectText: frame.GetProjectText(),
       rulesText: frame.GetDesignRulesText(),
       rulesPath: frame.GetDesignRulesPath(),

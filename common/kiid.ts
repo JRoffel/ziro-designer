@@ -145,9 +145,13 @@ export function nameGeneratorSha1(aNamespace: string, name: string): string {
   return `${s.slice(0, 8)}-${s.slice(8, 12)}-${s.slice(12, 16)}-${s.slice(16, 20)}-${s.slice(20)}`;
 }
 
-/** KIID_PATH::AsString, "/uuid/uuid", or "/" for the root path. */
+/**
+ * KIID_PATH::AsString (kiid.cpp:379): `'/' + step` for each step, so "/uuid/uuid", and the
+ * EMPTY string for an empty path. It said "/" for that, which put "from / to" in Update PCB's
+ * "symbol association" line for a footprint just added, where KiCad prints "from  to".
+ */
 export function kiidPathAsString(uuids: readonly string[]): string {
-  return uuids.length === 0 ? '/' : `/${uuids.join('/')}`;
+  return uuids.map((step) => `/${step}`).join('');
 }
 
 /** boost::uuids::string_generator's grammar: 8-4-4-4-12, or the same 32 digits bare. */

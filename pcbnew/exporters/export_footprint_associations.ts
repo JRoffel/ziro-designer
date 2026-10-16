@@ -11,6 +11,7 @@
  */
 
 import { GetISO8601CurrentDateTime } from '@ziroeda/common/string_utils.js';
+import { kiidPathAsString } from '@ziroeda/common/kiid.js';
 import type { BOARD } from '../board.js';
 
 /**
@@ -29,12 +30,8 @@ export function RecreateCmpFile(aBrd: BOARD, aDate?: string): string {
   for (const fp of aBrd.Footprints()) {
     cmpFile += '\nBeginCmp\n';
     cmpFile += `TimeStamp = ${fp.m_Uuid}\n`;
-    // KIID_PATH::AsString's loop ('/' + each step): empty for a footprint
-    // placed from no schematic, where common/kiid.ts's kiidPathAsString says "/".
-    cmpFile += `Path = ${fp
-      .GetPath()
-      .map((pathStep) => `/${pathStep}`)
-      .join('')}\n`;
+    // KIID_PATH::AsString: empty for a footprint placed from no schematic.
+    cmpFile += `Path = ${kiidPathAsString(fp.GetPath())}\n`;
     cmpFile += `Reference = ${fp.GetReference() !== '' ? fp.GetReference() : '[NoRef]'};\n`;
     cmpFile += `ValeurCmp = ${fp.GetValue() !== '' ? fp.GetValue() : '[NoVal]'};\n`;
     cmpFile += `IdModule  = ${fp.GetFPID().Format()};\n`;

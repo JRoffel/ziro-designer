@@ -41,6 +41,15 @@ describe('the grid window', () => {
     expect(view.container.querySelector('th.ze-grid-filler')).not.toBeNull();
   });
 
+  it('is a window the sizer sizes, with the table inside it, even with no wxEVT_SIZE handler', () => {
+    // The table as the sizer's item took the slot's height and spread it over its rows.
+    const { view, table } = setup();
+    const win = table.parentElement!;
+    expect(win.classList.contains('ze-grid-window')).toBe(true);
+    expect(win.classList.contains('ze-grid-self-sized')).toBe(false);
+    expect(view.container.firstElementChild).toBe(win);
+  });
+
   it('SetupColumnAutosizer: the flexible column takes the slack, not a filler (RecomputeGridWidths)', () => {
     const g = new WX_GRID();
     g.SetTable(new wxGridStringTable(1, 3), true);
@@ -75,6 +84,19 @@ describe('the grid window', () => {
     fireEvent.mouseUp(cell(1, 1));
     const input = cell(1, 1).querySelector('input')!;
     expect(input.value).toBe('11');
+  });
+
+  it('lays the editor over the cell, the renderer kept under it, so the column cannot move', () => {
+    // wxGridCellEditor::SetSize( cellRect ): the editor is a control over the cell. Ours was the
+    // cell's content, so a wider editor (a layer box's swatch) widened its column.
+    const { cell } = setup();
+    fireEvent.mouseDown(cell(1, 1), { button: 0 });
+    fireEvent.mouseUp(cell(1, 1));
+    const td = cell(1, 1);
+    const under = td.querySelector(':scope > .ze-grid-under-editor')!;
+    expect(under.textContent).toBe('11');
+    expect(td.querySelector(':scope > .ze-grid-editor input')).not.toBeNull();
+    expect(under.querySelector('input')).toBeNull();
   });
 
   it('commits with Enter and moves down, abandons with Escape', () => {

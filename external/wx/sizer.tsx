@@ -163,9 +163,17 @@ export function SizerItem({
     across = (flag & wxEXPAND) !== 0;
   }
 
+  // GetEffectiveMinSize: an axis the window's SetMinSize states replaces its best size there.
+  // Marked, so a scrolled window (a grid) in the item takes the floor and scrolls, rather than
+  // asking for its whole extent.
+  const minW = minSize !== undefined && minSize[0] >= 0;
+  const minH = minSize !== undefined && minSize[1] >= 0;
+
   return (
     <div
-      className={`ze-szi${fill ? ' ze-szi-fill' : ''}${across ? ' ze-szi-across' : ''}`}
+      className={`ze-szi${fill ? ' ze-szi-fill' : ''}${across ? ' ze-szi-across' : ''}${
+        minW ? ' ze-szi-minw' : ''
+      }${minH ? ' ze-szi-minh' : ''}`}
       style={style}
     >
       {children}

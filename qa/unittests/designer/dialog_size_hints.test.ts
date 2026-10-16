@@ -12,7 +12,12 @@
  * decision that replaces it: `wxSize::IncTo`, a componentwise maximum.
  */
 import { describe, expect, it } from 'vitest';
-import { heldSize } from '@ziroeda/common/dialog_shim.js';
+import {
+  heldSize,
+  horizPixelsFromDU,
+  sizeHintSample,
+  vertPixelsFromDU,
+} from '@ziroeda/common/dialog_shim.js';
 
 describe('the size a dialog holds', () => {
   it('takes the larger of what it had and what it now needs', () => {
@@ -34,5 +39,27 @@ describe('the size a dialog holds', () => {
     // whatever the content happened to be each time.
     expect(heldSize({ w: 480, h: 300 }, { w: 0, h: 0 })).toEqual({ w: 480, h: 300 });
     expect(heldSize({ w: 480, h: 300 }, { w: 0, h: 340 })).toEqual({ w: 480, h: 340 });
+  });
+
+  it('learns nothing from a size the window was given, so a dragged dialog shrinks back', () => {
+    // Dragged to 1272 wide (or reopened at a saved 1472): that is the user's SetSize, and wx's
+    // floor stays the sizer's 672. Taking it as the floor froze the dialog at its widest.
+    const rect = { width: 1272, height: 880 };
+    expect(sizeHintSample({ width: '', height: '' }, rect)).toEqual({ w: 1272, h: 880 });
+    expect(sizeHintSample({ width: '1272px', height: '' }, rect)).toEqual({ w: 0, h: 880 });
+    expect(sizeHintSample({ width: '1272px', height: '880px' }, rect)).toEqual({ w: 0, h: 0 });
+    // So the floor the fitted dialog set holds, and the drag does not raise it.
+    const fitted = heldSize({ w: 0, h: 0 }, { w: 672, h: 731 });
+    expect(heldSize(fitted, sizeHintSample({ width: '1272px', height: '880px' }, rect))).toEqual({
+      w: 672,
+      h: 731,
+    });
+  });
+
+  it("dialog units are this desktop's: 220 across is 440 (measured), 300 down is 675", () => {
+    // Symbol Fields Table's SetSize( horizPixelsFromDU( 600 ), vertPixelsFromDU( 300 ) ).
+    expect(horizPixelsFromDU(220)).toBe(440);
+    expect(horizPixelsFromDU(600)).toBe(1200);
+    expect(vertPixelsFromDU(300)).toBe(675);
   });
 });

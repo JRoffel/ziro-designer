@@ -12,6 +12,7 @@
  * syncVariantSelection), which stays greyed; the dialog follows the schematic's current variant.
  */
 import { useEffect, useState, type JSX } from 'react';
+import { horizPixelsFromDU, vertPixelsFromDU } from '@ziroeda/common/dialog_shim.js';
 import {
   ExpandEnvVarSubstitutions,
   ExpandTextVars,
@@ -88,8 +89,12 @@ import {
 /** `COLUMN_MARGIN` (dialog_symbol_fields_table.cpp): the slack a column gets past its text. */
 const COLUMN_MARGIN = 15; // [data]
 
-/** `ConvertDialogToPixels( wxSize( 600, 300 ) ).x`: the dialog's design width. */
-const DEFAULT_DLG_WIDTH = 1050; // [data] horizPixelsFromDU( 600 ), as the base states it
+/**
+ * `SetSize( wxSize( horizPixelsFromDU( 600 ), vertPixelsFromDU( 300 ) ) )`, after
+ * finishDialogSettings (dialog_symbol_fields_table.cpp:316): the dialog's own size, which a saved
+ * one replaces. It said 1050 across, a guess; on this desktop 600 DU is 1200.
+ */
+const DEFAULT_DLG_SIZE = { width: horizPixelsFromDU(600), height: vertPixelsFromDU(300) };
 
 /** EESCHEMA_SETTINGS::PANEL_SYMBOL_FIELDS_TABLE, the "field_editor.*" slice. */
 export interface FIELD_EDITOR_PANEL_SETTINGS {
@@ -468,7 +473,7 @@ export class DIALOG_SYMBOL_FIELDS_TABLE
           this.m_grid.SetColSize(col, saved);
         } else {
           const textWidth = this.m_dataModel.GetDataWidth(col) + COLUMN_MARGIN;
-          const maxWidth = DEFAULT_DLG_WIDTH / 3;
+          const maxWidth = DEFAULT_DLG_SIZE.width / 3;
 
           this.m_grid.SetColSize(col, Math.min(Math.max(textWidth, 100), maxWidth));
         }
@@ -2071,6 +2076,7 @@ export function DialogSymbolFieldsTable({
 
   return (
     <DIALOG_SYMBOL_FIELDS_TABLE_BASE
+      dialogSize={DEFAULT_DLG_SIZE}
       sashPosition={cfg.sash_pos}
       onSashPosition={(p) => d.SetSashPosition(p)}
       sidebarCollapsed={cfg.sidebar_collapsed}

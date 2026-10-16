@@ -23,7 +23,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { useState, type JSX } from 'react';
-import { cleanup, fireEvent, render } from '@testing-library/react';
+import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { PanelPcbTextGraphics } from '@ziroeda/pcbnew/dialogs/panel_setup_text_and_graphics.js';
 import { freshBoardSetup } from './board_setup_test_utils.js';
 import type { TextGfxDefaults } from '@ziroeda/pcbnew/dialogs/panel_setup_text_and_graphics.js';
@@ -119,14 +119,13 @@ describe('the cells carry the unit', () => {
       const input = first().querySelector('input')!;
       fireEvent.change(input, { target: { value: text } });
       fireEvent.blur(input);
-      // `WX_GRID::onCellEditorHidden` re-formats after the edit (`CallAfter`).
-      await new Promise((r) => setTimeout(r, 0));
     };
-    // A wx numeric cell accepts the value with or without its unit.
+    // A wx numeric cell accepts the value with or without its unit. `WX_GRID::onCellEditorHidden`
+    // re-formats after the edit (`CallAfter`): one tick was assumed, which a loaded run overtook.
     await type('0.25 mm');
-    expect(first().textContent).toBe('0.25 mm');
+    await waitFor(() => expect(first().textContent).toBe('0.25 mm'));
     await type('0.4');
-    expect(first().textContent).toBe('0.4 mm');
+    await waitFor(() => expect(first().textContent).toBe('0.4 mm'));
   });
 });
 

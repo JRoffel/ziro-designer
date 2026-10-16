@@ -48,7 +48,9 @@ export function RcTreeView({
     rcTreeRowStyle(model.GetAttr(node, textColour), textColour);
 
   return (
-    <div className="ze-erc-list" data-testid={testId}>
+    // A wxDataViewCtrl: a scrolled window, so its rows never size the dialog (the shared
+    // `.ze-dataview-window` rules), only the SetMinSize the base states for it.
+    <div className="ze-erc-list ze-dataview-window" data-testid={testId}>
       {model.GetTree().map((node, i) => (
         <div key={i} className="ze-erc-item">
           <div

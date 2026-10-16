@@ -23,6 +23,32 @@ import type { DRC_WORKER_MESSAGE } from './drc_worker.js';
 /** Set once `new Worker` has failed, so we stop trying for the session. */
 let workersUnavailable = false;
 
+/**
+ * A worker started before it is needed, holding no board: its realm and the DRC's modules are
+ * loaded while the dialog is open, rather than in the silence after Run DRC is pressed - KiCad's
+ * run starts on the board it already has, and the first phase follows the click. Taken by the
+ * next run; at most one.
+ */
+let g_spare: Worker | null = null;
+
+function startWorker(): Worker {
+  // `new URL(..., import.meta.url)` with `{ type: 'module' }` is the form the
+  // bundler detects and emits a separate chunk for; a string specifier would
+  // be left as a runtime path that does not exist in the build.
+  return new Worker(new URL('./drc_worker.js', import.meta.url), { type: 'module' });
+}
+
+/** Start the next run's worker now, if there is none waiting. */
+export function prewarmDrcWorker(): void {
+  if (g_spare !== null || !drcWorkerAvailable()) return;
+
+  try {
+    g_spare = startWorker();
+  } catch {
+    workersUnavailable = true;
+  }
+}
+
 /** How often the run is asked whether the user pressed Cancel. */
 const CANCEL_POLL_MS = 100;
 
@@ -52,10 +78,8 @@ export async function runDrcJobOffThread(
   let worker: Worker;
 
   try {
-    // `new URL(..., import.meta.url)` with `{ type: 'module' }` is the form the
-    // bundler detects and emits a separate chunk for; a string specifier would
-    // be left as a runtime path that does not exist in the build.
-    worker = new Worker(new URL('./drc_worker.js', import.meta.url), { type: 'module' });
+    worker = g_spare ?? startWorker();
+    g_spare = null;
   } catch {
     workersUnavailable = true;
     return runDrcJob(aRequest, aHooks);

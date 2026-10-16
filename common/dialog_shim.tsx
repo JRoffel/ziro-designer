@@ -47,6 +47,23 @@ export function heldSize(floor: Size, measured: Size): Size {
   };
 }
 
+/**
+ * What the size floor may learn from a dialog's box: its fitted size, never one it was given.
+ * A width or height on the window itself is the user's drag or a restored `"__geometry"` (wx's
+ * `SetSize`), and wx's min size is the sizer's, not the window's: taking that size as the floor
+ * meant a dialog dragged wider, or reopened at a wider saved size, could never be made smaller.
+ * A given dimension reads as unmeasured (0), which `heldSize` ignores.
+ */
+export function sizeHintSample(
+  aStyle: { width: string; height: string },
+  aRect: { width: number; height: number },
+): Size {
+  return {
+    w: aStyle.width ? 0 : Math.ceil(aRect.width),
+    h: aStyle.height ? 0 : Math.ceil(aRect.height),
+  };
+}
+
 /** Dialogs that state their own size, and must not be given a second answer. */
 const EXEMPT = [
   // Its own port of the same upstream behaviour, and a closer one: upstream
@@ -72,7 +89,7 @@ export function installDialogSizeHints(): void {
     // Ceil, because a fractional floor and a fractional measurement disagree
     // forever: the element lands a hundredth of a pixel under its own minimum
     // and the observer fires again on every frame.
-    const next = heldSize(floor, { w: Math.ceil(rect.width), h: Math.ceil(rect.height) });
+    const next = heldSize(floor, sizeHintSample(el.style, rect));
     if (next.w === floor.w && next.h === floor.h) return;
     held.set(el, next);
     // A minimum rather than a fixed size: `SetSizeHints` sets the floor, and a
@@ -132,6 +149,25 @@ export {
 
 // ---------------------------------------------------------------------------
 // The dialog window.
+
+/**
+ * `ConvertDialogToPixels` on this desktop: a dialog unit is a quarter of the font's average
+ * character width across, an eighth of its height down. [px] 8 and 18: horizPixelsFromDU( 220 )
+ * measures 440 (eeschema_settings.ts, the symbol chooser's sash) and the character height is
+ * 18 (qa/probes/icon_scale_probe.cpp).
+ */
+const DU_CHAR_WIDTH = 8; // [px] above
+const DU_CHAR_HEIGHT = 18; // [px] above
+
+/** `DIALOG_SHIM::horizPixelsFromDU( x )`: `ConvertDialogToPixels( wxSize( x, 0 ) ).x`. */
+export function horizPixelsFromDU(x: number): number {
+  return Math.trunc((x * DU_CHAR_WIDTH) / 4);
+}
+
+/** `DIALOG_SHIM::vertPixelsFromDU( y )`: `ConvertDialogToPixels( wxSize( 0, y ) ).y`. */
+export function vertPixelsFromDU(y: number): number {
+  return Math.trunc((y * DU_CHAR_HEIGHT) / 8);
+}
 
 /**
  * `getDialogKeyFromTitle` (dialog_shim.cpp:85-101): the title, cut before a trailing

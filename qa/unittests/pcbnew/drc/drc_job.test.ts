@@ -54,6 +54,7 @@ function requestFor(aRelPath: string): DRC_JOB_REQUEST {
   return {
     boardText: readFileSync(`${base}.kicad_pcb`, 'utf8'),
     boardPath: `${base}.kicad_pcb`,
+    boardUuid: '0b0a0d00-0000-4000-8000-000000000001',
     projectText: readIfPresent(`${base}.kicad_pro`),
     rulesText: readIfPresent(`${base}.kicad_dru`),
     rulesPath: `${base}.kicad_dru`,
@@ -155,6 +156,32 @@ suite('runDrcJob: the DRC across a worker boundary', () => {
     expect(arcs.length).toBeGreaterThan(0);
 
     for (const arc of arcs) expect(arc.center).toBeDefined();
+  });
+
+  it("a violation on the board itself names the editor's board", { timeout: 120_000 }, async () => {
+    // DRC_TEST_PROVIDER_MISC::testOutline: nothing on Edge.Cuts is DRCE_INVALID_OUTLINE with
+    // `SetItems( m_board )`. A board's id is not in its file, so the rebuilt board must take the
+    // editor's, or the editor resolves the item to DELETED_BOARD_ITEM ("(Deleted Item)").
+    const { PCB_DRC_CODE } = await import('@ziroeda/pcbnew/drc/drc_item.js');
+    const request = requestFor('issue24525/issue24525');
+    const noEdges = {
+      ...request,
+      // Every outline shape moved to a drawing layer: the board has no edges.
+      boardText: request.boardText.replaceAll('(layer "Edge.Cuts")', '(layer "Dwgs.User")'),
+      boardUuid: '0b0a0d00-0000-4000-8000-0000000000aa',
+    };
+    const found: DRC_JOB_VIOLATION[] = [];
+
+    await runDrcJob(noEdges, {
+      onPhase: () => {},
+      onProgress: () => {},
+      onViolation: (v) => found.push(v),
+    });
+
+    const outline = found.filter((v) => v.errorCode === PCB_DRC_CODE.DRCE_INVALID_OUTLINE);
+
+    expect(outline.length).toBe(1);
+    expect(outline[0]!.ids[0]).toBe('0b0a0d00-0000-4000-8000-0000000000aa');
   });
 
   it('stops where the caller cancels, keeping what it found', { timeout: 120_000 }, async () => {

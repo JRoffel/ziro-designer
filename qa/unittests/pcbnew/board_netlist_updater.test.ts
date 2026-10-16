@@ -271,6 +271,16 @@ describe('BOARD_NETLIST_UPDATER on an empty board', () => {
     expect(messages(reporter)).toContain('Connected R1 pin 2 to VOUT.');
   });
 
+  it("reports a new footprint's first association from the empty path, as KiCad prints it", () => {
+    const { reporter } = update(EMPTY_BOARD, NETLIST);
+
+    // The library footprint has no path; KIID_PATH::AsString of that is "" (kiid.cpp:379),
+    // so the line reads "from  to": two spaces, nothing between them.
+    expect(messages(reporter)).toContain(
+      'Updated R1 symbol association from  to /aaaaaaa1-0000-4000-8000-000000000001.',
+    );
+  });
+
   it('places new footprints below the board outline', () => {
     const { result } = update(EMPTY_BOARD, NETLIST);
     // The Edge.Cuts rectangle ends at y = 100 mm; new footprints go 10 mm below.

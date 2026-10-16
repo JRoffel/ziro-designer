@@ -88,6 +88,13 @@ export interface DRC_JOB_REQUEST {
   boardText: string;
   /** Only for the parse's error messages. */
   boardPath: string;
+  /**
+   * The live BOARD's `m_Uuid`. A board's own id is not in its file - each BOARD makes one when it
+   * is constructed - and a violation can name the board itself (`SetItems( m_board )`: no edges
+   * on Edge.Cuts). The rebuilt board takes the editor's id, so the editor's `ResolveItem` finds
+   * its own board ("PCB") rather than DELETED_BOARD_ITEM.
+   */
+  boardUuid: string;
   /** The `.kicad_pro`'s text; its `board.design_settings` carry the constraints, which the board file does not. */
   projectText: string | null;
   /** The `.kicad_dru`'s text, or null when the project has no custom rules. */
@@ -175,6 +182,8 @@ class JOB_REPORTER {
  */
 export function loadBoardForDrc(aRequest: DRC_JOB_REQUEST): BOARD {
   const board = ParseBoard(aRequest.boardText, aRequest.boardPath);
+
+  board.m_Uuid = aRequest.boardUuid;
 
   board.BuildListOfNets();
   board.BuildConnectivity();

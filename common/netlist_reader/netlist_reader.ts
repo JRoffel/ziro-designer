@@ -175,7 +175,7 @@ export function guessNetlistFileType(text: string): NetlistFileType {
  * for a root-sheet component and both readers feed the same model.
  */
 function legacyKiidPath(text: string): string {
-  return kiidPathAsString(text.split('/').filter(Boolean).map(kiidFromString));
+  return kiidPathAsString(text.split('/').filter(Boolean).map(kiidFromString)) || '/';
 }
 
 /**

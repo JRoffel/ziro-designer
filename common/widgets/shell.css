@@ -539,11 +539,12 @@
      border colour and it is this one. Flagged rather than unified, because
      changing --chrome-border moves every launcher at once. */
   --ctl-border: #181818;
-  /* [css] wxGauge: Yaru gtk.css `progressbar trough` / `progressbar progress`
-     (border, background-color); the fill is the accent every other control
-     already holds as --chrome-active. */
-  --gauge-trough: #222222;
-  --gauge-trough-edge: #181818;
+  /* [px] wxGauge, measured off a GtkProgressBar GTK rendered itself
+     (qa/probes/progress_bar_probe.py). Yaru's gtk.css said a #222222 trough in a
+     #181818 border; GTK draws #4B4B4B and no border, and the fill takes all 4
+     rows. The fill is the accent every other control already holds as
+     --chrome-active. */
+  --gauge-trough: #4b4b4b;
   --gauge-fill: #e95420;
   --gauge-fill-edge: #eb6637;
   /* [css] button, entry: border-radius: 6px. Our controls used 2-3px. */
@@ -5104,11 +5105,17 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
      the build does not render, so the measurement wins — and it agrees with the
      rule the rest of this file already follows: a dialog has ONE font size. */
   line-height: 1.45;
+  /* How a wxHtmlWindow lays out a page (qa/probes/html_window_best_size_probe.cpp, a 390px
+     window): a word has no break inside it, so a long footprint id makes the page 697 wide and
+     the window scrolls across; every other line wraps at its spaces to that same 697. One
+     column as wide as the view or the widest word, whichever is more. */
+  display: grid;
+  grid-template-columns: minmax(min-content, 1fr);
+  align-content: start;
 }
 /* generateHtml's dark-theme colours. */
 .ze-report-line {
   white-space: pre-wrap;
-  word-break: break-word;
 }
 .ze-report-line .tag {
   color: var(--error-ink);
@@ -5319,19 +5326,17 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
   padding: 8px 20px 8px 17px;
 }
 
-/* wxGauge, as GTK draws it (Yaru gtk.css, `progressbar trough` and
-   `progressbar progress`). <progress> has the same two parts. */
+/* wxGauge, as GTK draws it (qa/probes/progress_bar_probe.py). <progress> has the same two
+   parts, the trough and the fill. */
 .ze-gauge {
   appearance: none;
   box-sizing: border-box;
   display: block;
-  /* [css] `progressbar.horizontal trough { min-height: 2px }` inside its 1px
-     border each side — 4, which is the height wx reports for the widget. */
-  height: 4px;
-  /* [css] `border: 1px solid #181818`. */
-  border: 1px solid var(--gauge-trough-edge);
-  /* [css] `border-radius: 3px`. */
-  border-radius: 3px;
+  /* [px] the probe: 4 rows, which is also the best height wx reports (gauge_probe.cpp). */
+  height: 4px; /* [px] progress_bar_probe.py */
+  border: none;
+  /* [px] the probe's corners are anti-aliased at both ends of trough and fill alike. */
+  border-radius: 2px; /* [px] progress_bar_probe.py */
   background: var(--gauge-trough);
   overflow: hidden;
 }
@@ -5340,15 +5345,14 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
 }
 .ze-gauge::-webkit-progress-value {
   background: var(--gauge-fill);
-  /* [css] `progressbar progress { border: 1px solid #eb6637 }`. */
-  box-shadow: 0 0 0 1px var(--gauge-fill-edge);
-  /* [css] `progressbar progress { border-radius: 1.5px }`. */
-  border-radius: 1.5px;
+  /* [px] the probe: a 1px #EB6637 edge INSIDE the fill's 4 rows. */
+  box-shadow: inset 0 0 0 1px var(--gauge-fill-edge);
+  border-radius: 2px; /* [px] progress_bar_probe.py */
 }
 .ze-gauge::-moz-progress-bar {
   background: var(--gauge-fill);
-  /* [css] as above. */
-  border-radius: 1.5px;
+  box-shadow: inset 0 0 0 1px var(--gauge-fill-edge);
+  border-radius: 2px; /* [px] progress_bar_probe.py */
 }
 /* The one spinner left in the shell: the cloud-sync pill and the library
    chooser's "loading" row, neither of which is a KiCad dialog. */
@@ -6665,6 +6669,40 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
   background: var(--grid-cell-bg);
   border: 1px solid var(--grid-line);
   padding: 0;
+  /* The cell editor's frame of reference: it is laid over this cell's rectangle. */
+  position: relative;
+}
+/* An open cell editor: wxGridCellEditor::SetSize( cellRect ). It is a control over the cell, not
+   content of it, so it sizes neither the column nor the row; the renderer under it keeps the
+   cell's size and is not drawn (wxGrid does not draw a cell its editor covers). */
+/* GRID_CELL_LAYER_RENDERER::Draw (grid_layer_box_helpers.cpp:54): the cell rect Inflate( -1 ), a
+   14 x 14 swatch at its left + 4, centred down, the name at left + 14 + 8. The swatch is
+   LAYER_PRESENTATION::DrawColorSwatch: the layer colour with a 1px black rectangle drawn INSIDE
+   the 14 px. It was an inline span here, which takes no width or height - only its border showed,
+   a sliver beside the name. */
+.ze-grid td > .ze-grid-text.ze-swatch-text {
+  padding-left: 5px; /* [data] Inflate( -1 ) then + 4 */
+}
+.ze-grid td > .ze-grid-text.ze-swatch-text > .ze-combo-swatch {
+  display: inline-block;
+  box-sizing: border-box;
+  width: 14px; /* [data] size = 14 */
+  height: 14px; /* [data] size = 14 */
+  margin-right: 8px; /* [data] rect.SetLeft( rect.GetLeft() + m_bitmap.GetWidth() + 8 ) */
+  vertical-align: middle;
+}
+.ze-grid td > .ze-grid-under-editor {
+  visibility: hidden;
+}
+.ze-grid td > .ze-grid-editor {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: stretch;
+}
+.ze-grid td > .ze-grid-editor > * {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 /* `wxGrid::EnableGridLines( false )` — the rules between cells, not the
    dialog's own outer border. `sel_layer.cpp`'s `PCB_ONE_LAYER_SELECTOR` is
@@ -6740,7 +6778,33 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
    and its wxEVT_SIZE handler fits the columns to that. Its columns must not widen it in
    turn, or the left pane of Symbol Fields Table grew past its sash and under the right one.
    On a box round the table: size containment does not apply to a table. */
+/* wxGridWindow: the sizer's item. `DrawGridSpace` fills what the rows leave with
+   GetDefaultCellBackgroundColour(); the rows keep their own heights. */
 .ze-grid-window {
+  background: var(--grid-cell-bg);
+}
+/* A grid whose window states a min size (`m_grid->SetMinSize( wxSize( 400,200 ) )`): a sizer
+   takes that INSTEAD of the best size (wxWindow::GetEffectiveMinSize), so the grid asks for
+   400 x 200 and scrolls whatever does not fit - wxGrid is a scrolled window. Asking for every
+   column instead pushed Symbol Fields Table off the screen. */
+.ze-szi-minw.ze-szi-minh > .ze-grid-window,
+.ze-szi-minw.ze-szi-minh > .ze-dataview-window {
+  contain: size;
+  overflow: auto;
+}
+.ze-szi-minw:not(.ze-szi-minh) > .ze-grid-window,
+.ze-szi-minw:not(.ze-szi-minh) > .ze-dataview-window {
+  contain: inline-size;
+  overflow-x: auto;
+}
+/* Only the height stated (`m_viewControlsGrid->SetMinSize( wxSize( -1,250 ) )`) on a grid that is
+   already its slot's width: both axes are given, so it is contained both ways and scrolls down. */
+.ze-szi-minh > .ze-grid-window.ze-grid-self-sized {
+  contain: size;
+  overflow: auto;
+}
+/* A grid with a wxEVT_SIZE handler is the width of its slot, never its columns'. */
+.ze-grid-window.ze-grid-self-sized {
   contain: inline-size;
   overflow: hidden;
 }
@@ -7597,6 +7661,8 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
 .ze-nb-body {
   display: grid;
   min-height: 0;
+  /* The pages fill the notebook's client area: everything in the frame below the tabs. */
+  flex: 1 1 auto;
 }
 /* external/wx/notebook_ui.tsx's page: the notebook's own face, laid out by the page's sizer. */
 .ze-nb-body > .ze-nb-page {
@@ -10573,6 +10639,11 @@ textarea.ze-ds-textedit {
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
+  /* A wxHtmlWindow's best size is 1 x 1, empty or after 300 long lines
+     (qa/probes/html_window_best_size_probe.cpp): its page never sizes the
+     dialog, it scrolls inside the slot the sizer gives it. Without this, DRC's
+     running report grew the dialog past its frame with every line. */
+  contain: size;
   box-sizing: border-box;
   /* [data] wxHtmlWindow's default SetBorders( 10 ). */
   padding: 10px;
@@ -10828,8 +10899,13 @@ textarea.ze-ds-textedit {
 .ze-szspacer {
   flex-shrink: 0;
 }
-/* The dialog's top sizer fills the window under the title bar. */
-.ze-shim > .ze-sizer {
+/* The dialog's top sizer fills the window under the title bar, and a book page's (wxPanel)
+   sizer fills its page: the book sizes every page to itself. Without the pages, DRC's running
+   report got 22px of a 369px page and the test steps were never seen. */
+.ze-shim > .ze-sizer,
+.ze-nb-body > .ze-nb-page > .ze-sizer,
+.ze-simplebook > .ze-simplebook-page > .ze-sizer,
+.ze-wxsplitter-pane > .ze-sizer {
   flex: 1 0 auto;
 }
 /* wxStaticBoxSizer: the inner sizer flush inside the frame (GetBordersForSizer). */

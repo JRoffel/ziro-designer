@@ -288,6 +288,7 @@ async function runDrc(api: PcbScriptApi): Promise<string> {
     {
       boardText: text,
       boardPath: board.GetFileName(),
+      boardUuid: board.m_Uuid,
       projectText: frame.GetProjectText(),
       rulesText: frame.GetDesignRulesText(),
       rulesPath: frame.GetDesignRulesPath(),

@@ -22,6 +22,7 @@
  * which is what upstream's handler-per-violation gives it too.
  */
 import type { DRC_JOB_REQUEST, DRC_JOB_VIOLATION } from './drc_job.js';
+import { EMBEDDED_FILES } from '@ziroeda/common/embedded_files.js';
 import { runDrcJob } from './drc_job.js';
 
 /** What the worker posts back, in the order `DIALOG_DRC` consumes it. */
@@ -54,6 +55,9 @@ const global = globalThis as unknown as { WorkerGlobalScope?: unknown };
 
 if (global.WorkerGlobalScope !== undefined) {
   const scope = globalThis as unknown as WorkerScope;
+
+  // A prewarmed worker waits for its job; the codec the parse needs is ready by then.
+  void EMBEDDED_FILES.InitCodec();
 
   scope.onmessage = (e: MessageEvent<DRC_JOB_REQUEST>): void => {
     let lastProgress = 0;

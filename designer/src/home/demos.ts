@@ -66,8 +66,9 @@ const dec = new TextDecoder();
  * [decision 10-08] Demos kept on the CDN for internal benchmarking but never
  * offered to users: the Jetson AGX Thor baseboard (~80 MB) is heavy enough to
  * stall a tab, which is a poor first look. Its `/demo/<id>` link still opens it.
+ * [decision 10-16] VME Wren too: the largest bundle on the CDN (126 MB unpacked).
  */
-const UNLISTED_DEMOS: ReadonlySet<string> = new Set(['jetson-agx-thor-baseboard']);
+const UNLISTED_DEMOS: ReadonlySet<string> = new Set(['jetson-agx-thor-baseboard', 'vme-wren']);
 
 /** Whether a demo appears in the menu and the chooser (it opens by link either way). */
 export const isListedDemo = (d: DemoMeta): boolean => !UNLISTED_DEMOS.has(d.id);

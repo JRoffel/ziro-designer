@@ -154,6 +154,10 @@ describe('BoxSizer items', () => {
     );
     expect(item('m', container).style.minWidth).toBe('350px');
     expect(item('m', container).style.minHeight).toBe('');
+    // GetEffectiveMinSize: a stated axis replaces the best size there, which a scrolled window
+    // in the item reads (shell.css .ze-szi-minw / .ze-szi-minh > .ze-grid-window).
+    expect(item('m', container).classList.contains('ze-szi-minw')).toBe(true);
+    expect(item('m', container).classList.contains('ze-szi-minh')).toBe(false);
   });
 
   it('a hidden item takes no space at all', () => {

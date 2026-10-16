@@ -121,7 +121,7 @@ import type { NETLIST } from './netlist_reader/pcb_netlist.js';
 import { formatPcbNetlist } from './cross-probing.js';
 import { type DIALOG_DRC_LIKE, DRC_TOOL } from './tools/drc_tool.js';
 import type { DRC_JOB_HOOKS, DRC_JOB_REQUEST } from './browser/drc_job.js';
-import { runDrcJobOffThread } from './browser/drc_runner.js';
+import { prewarmDrcWorker, runDrcJobOffThread } from './browser/drc_runner.js';
 import { PCB_TOOL_BASE } from './tools/pcb_tool_base.js';
 import { MARKER_T } from '@ziroeda/common/marker_base.js';
 import { RPT_SEVERITY_EXCLUSION } from '@ziroeda/common/reporter.js';
@@ -2839,6 +2839,11 @@ export class PCB_EDIT_FRAME extends PCB_BASE_EDIT_FRAME {
    */
   RunDrcJob(aRequest: DRC_JOB_REQUEST, aHooks: DRC_JOB_HOOKS): Promise<void> {
     return runDrcJobOffThread(aRequest, aHooks);
+  }
+
+  /** The next run's worker, loaded while the DRC dialog is open (drc_runner.ts). */
+  PrewarmDrcJob(): void {
+    prewarmDrcWorker();
   }
 
   IsSingle(): boolean {

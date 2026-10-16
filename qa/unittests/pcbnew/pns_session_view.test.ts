@@ -166,3 +166,38 @@ describe('ROUTER_STATUS_VIEW_ITEM on a drag (ROUTER_TOOL::performDragging)', () 
     expect(p.cleared()).toBe(0);
   });
 });
+
+describe('HideItem: the board item under a dragged PNS item leaves the view', () => {
+  it('hides the PCB_TRACK itself, and EraseView shows it again', () => {
+    // The PNS segment's parent IS the board track (syncTrack's setParent( aTrack )). hideItem read
+    // a `.k` wrapper field the live board does not have, so nothing was hidden and a dragged
+    // track's original stayed drawn until it was placed.
+    const b = ParseBoard(
+      `(kicad_pcb (version 20241229) (generator "test")
+  (general (thickness 1.6))
+  (layers (0 "F.Cu" signal) (31 "B.Cu" signal) (44 "Edge.Cuts" user))
+  (net 0 "")
+  (net 1 "N1")
+  (segment (start 100 100) (end 110 100) (width 0.25) (layer "F.Cu") (net 1)
+    (uuid "5e9e0000-0000-4000-8000-000000000001"))
+)`,
+    );
+    const v = fakeView();
+    const s = new PnsSession(b, { trackWidth: 250_000, view: v.view });
+    const seg = s.pick({ x: 105 * MM, y: 100 * MM }, s.pnsLayer('F.Cu'));
+    const track = b.Tracks()[0] as unknown as VIEW_ITEM;
+
+    expect(seg).not.toBeNull();
+    const iface = (
+      s as unknown as {
+        iface: { hideItem(i: unknown): void; eraseView(): void };
+      }
+    ).iface;
+
+    iface.hideItem(seg);
+    expect(v.visible.get(track)).toBe(false);
+
+    iface.eraseView();
+    expect(v.visible.get(track)).toBe(true);
+  });
+});

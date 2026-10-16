@@ -59,6 +59,8 @@ export interface PRESET_CHOICE {
 }
 
 export interface DIALOG_SYMBOL_FIELDS_TABLE_BASE_PROPS {
+  /** The size the dialog's constructor states with `SetSize` (dialog_symbol_fields_table.cpp:316). */
+  dialogSize: { width: number; height: number };
   /** m_splitterMainWindow: the sash, and Unsplit( m_leftPanel ) when the sidebar is collapsed. */
   sashPosition: number;
   onSashPosition: (aPos: number) => void;
@@ -488,7 +490,8 @@ export function DIALOG_SYMBOL_FIELDS_TABLE_BASE(
   );
 
   return (
-    <DialogShim title="Symbol Fields Table" onClose={p.onCancel} resizable={false}>
+    // wxDEFAULT_DIALOG_STYLE|wxMAXIMIZE_BOX|wxRESIZE_BORDER: resizable.
+    <DialogShim title="Symbol Fields Table" onClose={p.onCancel} style={p.dialogSize}>
       {/* bMainSizer */}
       <BoxSizer orient={wxVERTICAL}>
         <SizerItem proportion={1} flag={wxEXPAND} border={5}>

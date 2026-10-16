@@ -79,7 +79,7 @@ import type { KeepoutResult, PnsConstraint } from './pns_node.js';
 import type { Hull } from './pns_utils.js';
 import type { VIEW } from '@ziroeda/common/view/view.js';
 import { VIEW_GROUP } from '@ziroeda/common/view/view_group.js';
-import type { VIEW_ITEM } from '@ziroeda/common/view/view_item.js';
+import { type VIEW_ITEM, VIEW_UPDATE_FLAGS } from '@ziroeda/common/view/view_item.js';
 import { FLASHING, GAL_LAYER_ID, IsCopperLayer, PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import { RPT_SEVERITY_IGNORE } from '@ziroeda/common/reporter.js';
 import { RECURSE_MODE, type EDA_ITEM } from '@ziroeda/common/eda_item.js';
@@ -2144,13 +2144,20 @@ export class PNS_KICAD_IFACE implements PnsRouterIface, ROUTER_PREVIEW_IFACE {
 
     if (!view) return;
 
-    const parent = (aItem.parent() as { k?: VIEW_ITEM } | null)?.k;
+    // The parent IS the board item (syncTrack's `setParent( aTrack )`). This read `.k`, the old
+    // view model's wrapper field, so nothing was ever hidden: a dragged track's original stayed
+    // drawn under the drag until it was placed.
+    const parent = aItem.parent() as unknown as VIEW_ITEM | null;
 
     if (parent && view.HasItem(parent)) {
       if (view.IsVisible(parent)) this.mHiddenItems.add(parent);
 
       view.SetVisible(parent, false);
+      view.Update(parent, VIEW_UPDATE_FLAGS.APPEARANCE);
     }
+
+    // Not ported: upstream also hides each teardrop area whose outline collides with the item's
+    // shape on its layer (and does not show them again in EraseView; the commit rebuilds them).
   }
 
   /** `EraseView` (cpp:2451). */

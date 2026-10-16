@@ -52,7 +52,8 @@ describe('kiidFromName', () => {
   });
 
   it('formats KIID_PATHs like KIID_PATH::AsString', () => {
-    expect(kiidPathAsString([])).toBe('/');
+    // kiid.cpp:379, '/' + each step: nothing for no steps.
+    expect(kiidPathAsString([])).toBe('');
     expect(kiidPathAsString(['a'])).toBe('/a');
     expect(kiidPathAsString(['a', 'b'])).toBe('/a/b');
   });

@@ -161,7 +161,10 @@ describe('a choice cell draws the renderer, not the control', () => {
       .filter((sel) => /\.ze-grid\b[^,]*\btd\b/.test(sel))
       .filter((sel) => POPUP_PARTS.some((part) => sel.includes(part)))
       // Reached as `… > .ze-combo > <part>`, which the list rows never are.
-      .filter((sel) => !/>\s*\.ze-combo(:[\w-]+|\[[^\]]*\])?\s*>\s*[.\w-]+$/.test(sel));
+      .filter((sel) => !/>\s*\.ze-combo(:[\w-]+|\[[^\]]*\])?\s*>\s*[.\w-]+$/.test(sel))
+      // GRID_CELL_LAYER_RENDERER's own swatch, `td > .ze-grid-text… > swatch`: a child chain
+      // through the renderer's span, which no popup row is ever inside.
+      .filter((sel) => !/td\s*>\s*\.ze-grid-text[.\w-]*\s*>\s*\.ze-combo-swatch$/.test(sel));
     expect(loose, 'these reach into the popup as well as the cell').toEqual([]);
   });
 });

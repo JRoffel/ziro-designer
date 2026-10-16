@@ -247,8 +247,20 @@ export function Dialog({
       x = placed.x;
       y = placed.y;
 
-      if (resizable && (placed.w > fitted.w || placed.h > fitted.h))
-        setSize({ w: Math.max(placed.w, fitted.w), h: Math.max(placed.h, fitted.h) });
+      let w = fitted.w;
+      let h = fitted.h;
+
+      if (resizable && (placed.w > fitted.w || placed.h > fitted.h)) {
+        // `.ze-modal`'s max-width / max-height are the work area a window manager allows.
+        w = Math.min(Math.max(placed.w, fitted.w), Math.round(view.w * 0.92));
+        h = Math.min(Math.max(placed.h, fitted.h), Math.round(view.h * 0.88));
+        setSize({ w, h });
+      }
+
+      // The window manager keeps a window it maps inside the work area (Mutter's constraints),
+      // so a remembered place that would put an edge past the screen is moved in.
+      x = Math.max(0, Math.min(x, view.w - w));
+      y = Math.max(0, Math.min(y, view.h - h));
     }
 
     setPos({ x, y });
