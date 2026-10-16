@@ -42,6 +42,19 @@ beforeEach(() => {
   const fs = new MEMORY_FILESYSTEM();
   unmount = wxMountFileSystem('/libs', fs);
   new SCH_IO_KICAD_SEXPR().CreateLibrary('/libs/exported.kicad_sym');
+  installExportedTable();
+});
+afterEach(() => {
+  unmount();
+  SetPgm(null);
+});
+
+/**
+ * The project's symbol table, holding the one library the export writes to. Installed again
+ * once a project is open, because opening one reads its tables from the project directory
+ * (SETTINGS_MANAGER::LoadProject -> LIBRARY_MANAGER::ProjectChanged), and this project has none.
+ */
+function installExportedTable(): void {
   Pgm()
     .GetLibraryManager()
     .SetTable(
@@ -55,11 +68,7 @@ beforeEach(() => {
       ),
     );
   SymbolLibAdapter(null).LoadOne('exported');
-});
-afterEach(() => {
-  unmount();
-  SetPgm(null);
-});
+}
 
 const flush = async () => {
   for (let i = 0; i < 12; i++) await new Promise((r) => setTimeout(r, 0));
@@ -68,6 +77,7 @@ const flush = async () => {
 function setUp(aHooks: Partial<SCH_EDIT_FRAME_HOOKS> = {}) {
   const h = schToolHarness(schFrame(aHooks));
   openProject(h.frame, ORACLE, 'complex_hierarchy', SHEETS);
+  installExportedTable();
   return { ...h, mgr: h.frame.GetToolManager()! };
 }
 
