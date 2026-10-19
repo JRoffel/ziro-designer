@@ -5851,17 +5851,27 @@ export function PcbEditor({
    */
   const lastThemeRef = useRef<unknown>(null);
   const lastPcbCfgRef = useRef<unknown>(null);
+  const lastPcbDisplayRef = useRef<string | null>(null);
   useEffect(() => {
     const panel = panelRef.current;
     const frame = frameRef.current;
     const kb = boardK;
     if (!panelReady || !panel || !frame || !kb) return;
-    // A changed preference: the PCBNEW_SETTINGS the painter reads is re-registered,
-    // and every item repaints (PCB_EDIT_FRAME::CommonSettingsChanged -> RecacheAllItems)
+    // A changed preference: the PCBNEW_SETTINGS the painter reads is re-registered.
     if (lastPcbCfgRef.current !== pcbCfg) {
       lastPcbCfgRef.current = pcbCfg;
       installPgm();
-      panel.GetView().RecacheAllItems();
+
+      // …and every item repaints (PCB_EDIT_FRAME::CommonSettingsChanged -> RecacheAllItems),
+      // but only when what the painter reads moved: m_Display, the `pcb_display` slice. A tool
+      // storing its own setting - ChangeLineMode's m_AngleSnapMode, the crosshair, the ratsnest
+      // mode - is no CommonSettingsChanged upstream and repaints nothing.
+      const display = JSON.stringify(pcbCfg.pcb_display);
+
+      if (lastPcbDisplayRef.current !== display) {
+        lastPcbDisplayRef.current = display;
+        panel.GetView().RecacheAllItems();
+      }
     }
     if (lastThemeRef.current !== theme) {
       lastThemeRef.current = theme;
