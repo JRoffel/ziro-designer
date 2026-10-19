@@ -126,54 +126,143 @@ function mixBlocks(words: Int32Array, nblocks: number, aState: Int32Array): void
   let t = 0;
 
   for (let i = 0, w = 0; i < nblocks; i++, w += 4) {
-      k1Lo = words[w]!; k1Hi = words[w + 1]!; k2Lo = words[w + 2]!; k2Hi = words[w + 3]!;
-      a0 = k1Lo & 0xffff; a1 = k1Lo >>> 16;
-      p00 = a0 * 21461; p01 = a0 * 4418; p10 = a1 * 21461; p11 = a1 * 4418;
-      mid = (p00 >>> 16) + (p01 & 0xffff) + (p10 & 0xffff);
-      t = (p11 + (p01 >>> 16) + (p10 >>> 16) + (mid >>> 16) + Math.imul(k1Hi, 0x114253d5) + Math.imul(k1Lo, 0x87c37b91)) | 0;
-      k1Lo = ((mid & 0xffff) << 16) | (p00 & 0xffff);
-      k1Hi = t;
-      t = k1Hi; k1Hi = (k1Hi << 31) | (k1Lo >>> 1); k1Lo = (k1Lo << 31) | (t >>> 1);
-      a0 = k1Lo & 0xffff; a1 = k1Lo >>> 16;
-      p00 = a0 * 37759; p01 = a0 * 10053; p10 = a1 * 37759; p11 = a1 * 10053;
-      mid = (p00 >>> 16) + (p01 & 0xffff) + (p10 & 0xffff);
-      t = (p11 + (p01 >>> 16) + (p10 >>> 16) + (mid >>> 16) + Math.imul(k1Hi, 0x2745937f) + Math.imul(k1Lo, 0x4cf5ad43)) | 0;
-      k1Lo = ((mid & 0xffff) << 16) | (p00 & 0xffff);
-      k1Hi = t;
-      h1Hi ^= k1Hi; h1Lo ^= k1Lo;
-      t = h1Hi; h1Hi = (h1Hi << 27) | (h1Lo >>> 5); h1Lo = (h1Lo << 27) | (t >>> 5);
-      t = (h1Lo >>> 0) + (h2Lo >>> 0); h1Hi = (h1Hi + h2Hi + (t > 0xffffffff ? 1 : 0)) | 0; h1Lo = t | 0;
-      a0 = h1Lo & 0xffff; a1 = h1Lo >>> 16;
-      p00 = a0 * 5; p01 = a0 * 0; p10 = a1 * 5; p11 = a1 * 0;
-      mid = (p00 >>> 16) + (p01 & 0xffff) + (p10 & 0xffff);
-      t = (p11 + (p01 >>> 16) + (p10 >>> 16) + (mid >>> 16) + Math.imul(h1Hi, 0x5) + Math.imul(h1Lo, 0x0)) | 0;
-      h1Lo = ((mid & 0xffff) << 16) | (p00 & 0xffff);
-      h1Hi = t;
-      t = (h1Lo >>> 0) + (0x52dce729 >>> 0); h1Hi = (h1Hi + 0 + (t > 0xffffffff ? 1 : 0)) | 0; h1Lo = t | 0;
-      a0 = k2Lo & 0xffff; a1 = k2Lo >>> 16;
-      p00 = a0 * 37759; p01 = a0 * 10053; p10 = a1 * 37759; p11 = a1 * 10053;
-      mid = (p00 >>> 16) + (p01 & 0xffff) + (p10 & 0xffff);
-      t = (p11 + (p01 >>> 16) + (p10 >>> 16) + (mid >>> 16) + Math.imul(k2Hi, 0x2745937f) + Math.imul(k2Lo, 0x4cf5ad43)) | 0;
-      k2Lo = ((mid & 0xffff) << 16) | (p00 & 0xffff);
-      k2Hi = t;
-      t = k2Hi; k2Hi = k2Lo; k2Lo = t;
-      t = k2Hi; k2Hi = (k2Hi << 1) | (k2Lo >>> 31); k2Lo = (k2Lo << 1) | (t >>> 31);
-      a0 = k2Lo & 0xffff; a1 = k2Lo >>> 16;
-      p00 = a0 * 21461; p01 = a0 * 4418; p10 = a1 * 21461; p11 = a1 * 4418;
-      mid = (p00 >>> 16) + (p01 & 0xffff) + (p10 & 0xffff);
-      t = (p11 + (p01 >>> 16) + (p10 >>> 16) + (mid >>> 16) + Math.imul(k2Hi, 0x114253d5) + Math.imul(k2Lo, 0x87c37b91)) | 0;
-      k2Lo = ((mid & 0xffff) << 16) | (p00 & 0xffff);
-      k2Hi = t;
-      h2Hi ^= k2Hi; h2Lo ^= k2Lo;
-      t = h2Hi; h2Hi = (h2Hi << 31) | (h2Lo >>> 1); h2Lo = (h2Lo << 31) | (t >>> 1);
-      t = (h2Lo >>> 0) + (h1Lo >>> 0); h2Hi = (h2Hi + h1Hi + (t > 0xffffffff ? 1 : 0)) | 0; h2Lo = t | 0;
-      a0 = h2Lo & 0xffff; a1 = h2Lo >>> 16;
-      p00 = a0 * 5; p01 = a0 * 0; p10 = a1 * 5; p11 = a1 * 0;
-      mid = (p00 >>> 16) + (p01 & 0xffff) + (p10 & 0xffff);
-      t = (p11 + (p01 >>> 16) + (p10 >>> 16) + (mid >>> 16) + Math.imul(h2Hi, 0x5) + Math.imul(h2Lo, 0x0)) | 0;
-      h2Lo = ((mid & 0xffff) << 16) | (p00 & 0xffff);
-      h2Hi = t;
-      t = (h2Lo >>> 0) + (0x38495ab5 >>> 0); h2Hi = (h2Hi + 0 + (t > 0xffffffff ? 1 : 0)) | 0; h2Lo = t | 0;
+    k1Lo = words[w]!;
+    k1Hi = words[w + 1]!;
+    k2Lo = words[w + 2]!;
+    k2Hi = words[w + 3]!;
+    a0 = k1Lo & 0xffff;
+    a1 = k1Lo >>> 16;
+    p00 = a0 * 21461;
+    p01 = a0 * 4418;
+    p10 = a1 * 21461;
+    p11 = a1 * 4418;
+    mid = (p00 >>> 16) + (p01 & 0xffff) + (p10 & 0xffff);
+    t =
+      (p11 +
+        (p01 >>> 16) +
+        (p10 >>> 16) +
+        (mid >>> 16) +
+        Math.imul(k1Hi, 0x114253d5) +
+        Math.imul(k1Lo, 0x87c37b91)) |
+      0;
+    k1Lo = ((mid & 0xffff) << 16) | (p00 & 0xffff);
+    k1Hi = t;
+    t = k1Hi;
+    k1Hi = (k1Hi << 31) | (k1Lo >>> 1);
+    k1Lo = (k1Lo << 31) | (t >>> 1);
+    a0 = k1Lo & 0xffff;
+    a1 = k1Lo >>> 16;
+    p00 = a0 * 37759;
+    p01 = a0 * 10053;
+    p10 = a1 * 37759;
+    p11 = a1 * 10053;
+    mid = (p00 >>> 16) + (p01 & 0xffff) + (p10 & 0xffff);
+    t =
+      (p11 +
+        (p01 >>> 16) +
+        (p10 >>> 16) +
+        (mid >>> 16) +
+        Math.imul(k1Hi, 0x2745937f) +
+        Math.imul(k1Lo, 0x4cf5ad43)) |
+      0;
+    k1Lo = ((mid & 0xffff) << 16) | (p00 & 0xffff);
+    k1Hi = t;
+    h1Hi ^= k1Hi;
+    h1Lo ^= k1Lo;
+    t = h1Hi;
+    h1Hi = (h1Hi << 27) | (h1Lo >>> 5);
+    h1Lo = (h1Lo << 27) | (t >>> 5);
+    t = (h1Lo >>> 0) + (h2Lo >>> 0);
+    h1Hi = (h1Hi + h2Hi + (t > 0xffffffff ? 1 : 0)) | 0;
+    h1Lo = t | 0;
+    a0 = h1Lo & 0xffff;
+    a1 = h1Lo >>> 16;
+    p00 = a0 * 5;
+    p01 = a0 * 0;
+    p10 = a1 * 5;
+    p11 = a1 * 0;
+    mid = (p00 >>> 16) + (p01 & 0xffff) + (p10 & 0xffff);
+    t =
+      (p11 +
+        (p01 >>> 16) +
+        (p10 >>> 16) +
+        (mid >>> 16) +
+        Math.imul(h1Hi, 0x5) +
+        Math.imul(h1Lo, 0x0)) |
+      0;
+    h1Lo = ((mid & 0xffff) << 16) | (p00 & 0xffff);
+    h1Hi = t;
+    t = (h1Lo >>> 0) + (0x52dce729 >>> 0);
+    h1Hi = (h1Hi + 0 + (t > 0xffffffff ? 1 : 0)) | 0;
+    h1Lo = t | 0;
+    a0 = k2Lo & 0xffff;
+    a1 = k2Lo >>> 16;
+    p00 = a0 * 37759;
+    p01 = a0 * 10053;
+    p10 = a1 * 37759;
+    p11 = a1 * 10053;
+    mid = (p00 >>> 16) + (p01 & 0xffff) + (p10 & 0xffff);
+    t =
+      (p11 +
+        (p01 >>> 16) +
+        (p10 >>> 16) +
+        (mid >>> 16) +
+        Math.imul(k2Hi, 0x2745937f) +
+        Math.imul(k2Lo, 0x4cf5ad43)) |
+      0;
+    k2Lo = ((mid & 0xffff) << 16) | (p00 & 0xffff);
+    k2Hi = t;
+    t = k2Hi;
+    k2Hi = k2Lo;
+    k2Lo = t;
+    t = k2Hi;
+    k2Hi = (k2Hi << 1) | (k2Lo >>> 31);
+    k2Lo = (k2Lo << 1) | (t >>> 31);
+    a0 = k2Lo & 0xffff;
+    a1 = k2Lo >>> 16;
+    p00 = a0 * 21461;
+    p01 = a0 * 4418;
+    p10 = a1 * 21461;
+    p11 = a1 * 4418;
+    mid = (p00 >>> 16) + (p01 & 0xffff) + (p10 & 0xffff);
+    t =
+      (p11 +
+        (p01 >>> 16) +
+        (p10 >>> 16) +
+        (mid >>> 16) +
+        Math.imul(k2Hi, 0x114253d5) +
+        Math.imul(k2Lo, 0x87c37b91)) |
+      0;
+    k2Lo = ((mid & 0xffff) << 16) | (p00 & 0xffff);
+    k2Hi = t;
+    h2Hi ^= k2Hi;
+    h2Lo ^= k2Lo;
+    t = h2Hi;
+    h2Hi = (h2Hi << 31) | (h2Lo >>> 1);
+    h2Lo = (h2Lo << 31) | (t >>> 1);
+    t = (h2Lo >>> 0) + (h1Lo >>> 0);
+    h2Hi = (h2Hi + h1Hi + (t > 0xffffffff ? 1 : 0)) | 0;
+    h2Lo = t | 0;
+    a0 = h2Lo & 0xffff;
+    a1 = h2Lo >>> 16;
+    p00 = a0 * 5;
+    p01 = a0 * 0;
+    p10 = a1 * 5;
+    p11 = a1 * 0;
+    mid = (p00 >>> 16) + (p01 & 0xffff) + (p10 & 0xffff);
+    t =
+      (p11 +
+        (p01 >>> 16) +
+        (p10 >>> 16) +
+        (mid >>> 16) +
+        Math.imul(h2Hi, 0x5) +
+        Math.imul(h2Lo, 0x0)) |
+      0;
+    h2Lo = ((mid & 0xffff) << 16) | (p00 & 0xffff);
+    h2Hi = t;
+    t = (h2Lo >>> 0) + (0x38495ab5 >>> 0);
+    h2Hi = (h2Hi + 0 + (t > 0xffffffff ? 1 : 0)) | 0;
+    h2Lo = t | 0;
   }
 
   aState[0] = h1Hi;

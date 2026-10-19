@@ -123,7 +123,6 @@ type MSG_PANEL_FRAME = EDA_DRAW_FRAME_LIKE & UNITS_PROVIDER;
 /** `static SHAPE_POLY_SET g_nullPoly`. */
 const g_nullPoly = new SHAPE_POLY_SET();
 
-
 /** ZONE::GetFillState's result: a fill, carried between two copies of a board. Not KiCad's. */
 export interface ZONE_FILL_STATE {
   layers: {
