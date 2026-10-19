@@ -99,6 +99,92 @@ function fmix64(hi: number, lo: number): void {
 const word32 = (d: Uint8Array, off: number): number =>
   (d[off]! | (d[off + 1]! << 8) | (d[off + 2]! << 16) | (d[off + 3]! << 24)) >>> 0;
 
+/**
+ * The body loop of `mmh3_x64_128` over whole 16-byte blocks, its 64-bit steps
+ * written out on int32 locals: as calls, `mul64`/`rotl64`/`add64` were not
+ * inlined and each handed its result back through module state, which made
+ * `SHAPE_POLY_SET::checksum` - run twice per zone per draw - the cost of
+ * drawing a large pour. Same operations, same order; `aState` is h1Hi, h1Lo,
+ * h2Hi, h2Lo in and out.
+ */
+function mixBlocks(words: Int32Array, nblocks: number, aState: Int32Array): void {
+  let h1Hi = aState[0]!;
+  let h1Lo = aState[1]!;
+  let h2Hi = aState[2]!;
+  let h2Lo = aState[3]!;
+  let k1Hi = 0;
+  let k1Lo = 0;
+  let k2Hi = 0;
+  let k2Lo = 0;
+  let a0 = 0;
+  let a1 = 0;
+  let p00 = 0;
+  let p01 = 0;
+  let p10 = 0;
+  let p11 = 0;
+  let mid = 0;
+  let t = 0;
+
+  for (let i = 0, w = 0; i < nblocks; i++, w += 4) {
+      k1Lo = words[w]!; k1Hi = words[w + 1]!; k2Lo = words[w + 2]!; k2Hi = words[w + 3]!;
+      a0 = k1Lo & 0xffff; a1 = k1Lo >>> 16;
+      p00 = a0 * 21461; p01 = a0 * 4418; p10 = a1 * 21461; p11 = a1 * 4418;
+      mid = (p00 >>> 16) + (p01 & 0xffff) + (p10 & 0xffff);
+      t = (p11 + (p01 >>> 16) + (p10 >>> 16) + (mid >>> 16) + Math.imul(k1Hi, 0x114253d5) + Math.imul(k1Lo, 0x87c37b91)) | 0;
+      k1Lo = ((mid & 0xffff) << 16) | (p00 & 0xffff);
+      k1Hi = t;
+      t = k1Hi; k1Hi = (k1Hi << 31) | (k1Lo >>> 1); k1Lo = (k1Lo << 31) | (t >>> 1);
+      a0 = k1Lo & 0xffff; a1 = k1Lo >>> 16;
+      p00 = a0 * 37759; p01 = a0 * 10053; p10 = a1 * 37759; p11 = a1 * 10053;
+      mid = (p00 >>> 16) + (p01 & 0xffff) + (p10 & 0xffff);
+      t = (p11 + (p01 >>> 16) + (p10 >>> 16) + (mid >>> 16) + Math.imul(k1Hi, 0x2745937f) + Math.imul(k1Lo, 0x4cf5ad43)) | 0;
+      k1Lo = ((mid & 0xffff) << 16) | (p00 & 0xffff);
+      k1Hi = t;
+      h1Hi ^= k1Hi; h1Lo ^= k1Lo;
+      t = h1Hi; h1Hi = (h1Hi << 27) | (h1Lo >>> 5); h1Lo = (h1Lo << 27) | (t >>> 5);
+      t = (h1Lo >>> 0) + (h2Lo >>> 0); h1Hi = (h1Hi + h2Hi + (t > 0xffffffff ? 1 : 0)) | 0; h1Lo = t | 0;
+      a0 = h1Lo & 0xffff; a1 = h1Lo >>> 16;
+      p00 = a0 * 5; p01 = a0 * 0; p10 = a1 * 5; p11 = a1 * 0;
+      mid = (p00 >>> 16) + (p01 & 0xffff) + (p10 & 0xffff);
+      t = (p11 + (p01 >>> 16) + (p10 >>> 16) + (mid >>> 16) + Math.imul(h1Hi, 0x5) + Math.imul(h1Lo, 0x0)) | 0;
+      h1Lo = ((mid & 0xffff) << 16) | (p00 & 0xffff);
+      h1Hi = t;
+      t = (h1Lo >>> 0) + (0x52dce729 >>> 0); h1Hi = (h1Hi + 0 + (t > 0xffffffff ? 1 : 0)) | 0; h1Lo = t | 0;
+      a0 = k2Lo & 0xffff; a1 = k2Lo >>> 16;
+      p00 = a0 * 37759; p01 = a0 * 10053; p10 = a1 * 37759; p11 = a1 * 10053;
+      mid = (p00 >>> 16) + (p01 & 0xffff) + (p10 & 0xffff);
+      t = (p11 + (p01 >>> 16) + (p10 >>> 16) + (mid >>> 16) + Math.imul(k2Hi, 0x2745937f) + Math.imul(k2Lo, 0x4cf5ad43)) | 0;
+      k2Lo = ((mid & 0xffff) << 16) | (p00 & 0xffff);
+      k2Hi = t;
+      t = k2Hi; k2Hi = k2Lo; k2Lo = t;
+      t = k2Hi; k2Hi = (k2Hi << 1) | (k2Lo >>> 31); k2Lo = (k2Lo << 1) | (t >>> 31);
+      a0 = k2Lo & 0xffff; a1 = k2Lo >>> 16;
+      p00 = a0 * 21461; p01 = a0 * 4418; p10 = a1 * 21461; p11 = a1 * 4418;
+      mid = (p00 >>> 16) + (p01 & 0xffff) + (p10 & 0xffff);
+      t = (p11 + (p01 >>> 16) + (p10 >>> 16) + (mid >>> 16) + Math.imul(k2Hi, 0x114253d5) + Math.imul(k2Lo, 0x87c37b91)) | 0;
+      k2Lo = ((mid & 0xffff) << 16) | (p00 & 0xffff);
+      k2Hi = t;
+      h2Hi ^= k2Hi; h2Lo ^= k2Lo;
+      t = h2Hi; h2Hi = (h2Hi << 31) | (h2Lo >>> 1); h2Lo = (h2Lo << 31) | (t >>> 1);
+      t = (h2Lo >>> 0) + (h1Lo >>> 0); h2Hi = (h2Hi + h1Hi + (t > 0xffffffff ? 1 : 0)) | 0; h2Lo = t | 0;
+      a0 = h2Lo & 0xffff; a1 = h2Lo >>> 16;
+      p00 = a0 * 5; p01 = a0 * 0; p10 = a1 * 5; p11 = a1 * 0;
+      mid = (p00 >>> 16) + (p01 & 0xffff) + (p10 & 0xffff);
+      t = (p11 + (p01 >>> 16) + (p10 >>> 16) + (mid >>> 16) + Math.imul(h2Hi, 0x5) + Math.imul(h2Lo, 0x0)) | 0;
+      h2Lo = ((mid & 0xffff) << 16) | (p00 & 0xffff);
+      h2Hi = t;
+      t = (h2Lo >>> 0) + (0x38495ab5 >>> 0); h2Hi = (h2Hi + 0 + (t > 0xffffffff ? 1 : 0)) | 0; h2Lo = t | 0;
+  }
+
+  aState[0] = h1Hi;
+  aState[1] = h1Lo;
+  aState[2] = h2Hi;
+  aState[3] = h2Lo;
+}
+
+/** Little-endian host: an Int32Array over the bytes reads the block words directly. */
+const IS_LE = new Uint8Array(new Uint32Array([1]).buffer)[0] === 1;
+
 function mmh3_x64_128(data: Uint8Array, seed: number, v1Tail: boolean): { h1: bigint; h2: bigint } {
   let h1Hi = 0;
   let h1Lo = seed >>> 0;
@@ -106,42 +192,19 @@ function mmh3_x64_128(data: Uint8Array, seed: number, v1Tail: boolean): { h1: bi
   let h2Lo = seed >>> 0;
 
   const nblocks = Math.floor(data.length / 16);
-  for (let i = 0; i < nblocks; i++) {
-    let k1Lo = word32(data, i * 16);
-    let k1Hi = word32(data, i * 16 + 4);
-    let k2Lo = word32(data, i * 16 + 8);
-    let k2Hi = word32(data, i * 16 + 12);
+  // An aligned view on a little-endian host; otherwise the words, assembled byte by byte.
+  const words =
+    IS_LE && data.byteOffset % 4 === 0
+      ? new Int32Array(data.buffer, data.byteOffset, nblocks * 4)
+      : Int32Array.from({ length: nblocks * 4 }, (_, i) => word32(data, i * 4) | 0);
+  const state = Int32Array.of(h1Hi, h1Lo, h2Hi, h2Lo);
 
-    mul64(k1Hi, k1Lo, C1_HI, C1_LO);
-    rotl64(rHi, rLo, 31);
-    mul64(rHi, rLo, C2_HI, C2_LO);
-    k1Hi = rHi;
-    k1Lo = rLo;
-    h1Hi = (h1Hi ^ k1Hi) >>> 0;
-    h1Lo = (h1Lo ^ k1Lo) >>> 0;
+  mixBlocks(words, nblocks, state);
 
-    rotl64(h1Hi, h1Lo, 27);
-    add64(rHi, rLo, h2Hi, h2Lo);
-    mul64(rHi, rLo, 0, 5);
-    add64(rHi, rLo, 0, 0x52dce729);
-    h1Hi = rHi;
-    h1Lo = rLo;
-
-    mul64(k2Hi, k2Lo, C2_HI, C2_LO);
-    rotl64(rHi, rLo, 33);
-    mul64(rHi, rLo, C1_HI, C1_LO);
-    k2Hi = rHi;
-    k2Lo = rLo;
-    h2Hi = (h2Hi ^ k2Hi) >>> 0;
-    h2Lo = (h2Lo ^ k2Lo) >>> 0;
-
-    rotl64(h2Hi, h2Lo, 31);
-    add64(rHi, rLo, h1Hi, h1Lo);
-    mul64(rHi, rLo, 0, 5);
-    add64(rHi, rLo, 0, 0x38495ab5);
-    h2Hi = rHi;
-    h2Lo = rLo;
-  }
+  h1Hi = state[0]! >>> 0;
+  h1Lo = state[1]! >>> 0;
+  h2Hi = state[2]! >>> 0;
+  h2Lo = state[3]! >>> 0;
 
   const remaining = data.length - nblocks * 16;
   // The streaming class hashes the tail from its 16-byte block buffer. addData
