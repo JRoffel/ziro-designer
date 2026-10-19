@@ -29,6 +29,30 @@ const { TARGET_CACHED, TARGET_NONCACHED, TARGET_OVERLAY, TARGETS_NUMBER } = REND
 
 export type LAYER_ITEM_PAIR = [VIEW_ITEM, number];
 
+/**
+ * Not KiCad's: what a VIEW tells the render worker's VIEW (pcbnew/browser) so that it draws what
+ * this one would. The item calls carry the items; the sink knows how to name and write them.
+ */
+export interface VIEW_MIRROR {
+  ItemAdded(aItem: VIEW_ITEM): void;
+  ItemRemoved(aItem: VIEW_ITEM): void;
+  /** `invalidateItem( aItem, aUpdateFlags )`: what changed, as VIEW_UPDATE_FLAGS. */
+  ItemInvalidated(aItem: VIEW_ITEM, aUpdateFlags: number): void;
+  ItemHidden(aItem: VIEW_ITEM, aHide: boolean, aHideOverlay: boolean): void;
+  ItemVisible(aItem: VIEW_ITEM, aVisible: boolean): void;
+  /** A view-wide call, by name, with its (cloneable) arguments. */
+  Call(aName: string, aArgs: unknown[]): void;
+}
+
+/** An update UpdateAllItems marked: the mirror sends the call itself, not one per item. */
+const BULK_UPDATE = 0x100;
+
+/**
+ * GEOMETRY or LAYERS that UpdateItems' R-tree rebuild already applied and cleared: the mirror
+ * still has to hear that the item changed shape.
+ */
+const GEOMETRY_REBUILT = 0x200;
+
 /** A kept selection drawing: VIEW_GROUP::ViewDraw's GAL overlay group for one item on one layer. */
 export interface OVERLAY_GROUP {
   group: number;
@@ -348,6 +372,8 @@ export class VIEW {
    * @param aDrawPriority: priority to draw this item on its layer, lowest first.
    */
   Add(aItem: VIEW_ITEM, aDrawPriority = -1): void {
+    this.m_remote?.ItemAdded(aItem);
+
     if (aDrawPriority < 0) aDrawPriority = this.m_nextDrawPriority++;
 
     if (!aItem.m_viewPrivData) aItem.m_viewPrivData = new VIEW_ITEM_DATA();
@@ -389,7 +415,10 @@ export class VIEW {
    * @param aItem: item to be removed. Caller must dispose the removed item if necessary
    */
   Remove(aItem: VIEW_ITEM | null): void {
-    if (aItem) this.DropOverlayGroups(aItem);
+    if (aItem) {
+      this.DropOverlayGroups(aItem);
+      this.m_remote?.ItemRemoved(aItem);
+    }
 
     if (aItem?.m_viewPrivData) {
       if (aItem.m_viewPrivData.m_view !== null && aItem.m_viewPrivData.m_view !== this) {
@@ -517,6 +546,8 @@ export class VIEW {
     const cur_visible = (viewData.m_flags & VISIBLE) !== 0;
 
     if (cur_visible !== aIsVisible) {
+      this.m_remote?.ItemVisible(aItem, aIsVisible);
+
       if (aIsVisible) viewData.m_flags |= VISIBLE;
       else viewData.m_flags &= ~VISIBLE;
 
@@ -537,6 +568,8 @@ export class VIEW {
     const viewData = aItem.viewPrivData();
 
     if (!viewData) return;
+
+    this.m_remote?.ItemHidden(aItem, aHide, aHideOverlay);
 
     if (!(viewData.m_flags & VISIBLE)) return;
 
@@ -983,6 +1016,8 @@ export class VIEW {
    * @param aVisible is the layer visibility state.
    */
   SetLayerVisible(aLayer: number, aVisible = true): void {
+    this.m_remote?.Call('SetLayerVisible', [aLayer, aVisible]);
+
     const layer = this.m_layers.get(aLayer);
 
     if (!layer) return;
@@ -1077,6 +1112,8 @@ export class VIEW {
    *                  call SortOrderedLayers() after setting all layer orders.
    */
   SetLayerOrder(aLayer: number, aRenderingOrder: number, aAutoSort = true): void {
+    this.m_remote?.Call('SetLayerOrder', [aLayer, aRenderingOrder, aAutoSort]);
+
     this.m_layers.get(aLayer)!.renderingOrder = aRenderingOrder;
 
     if (aAutoSort) this.SortOrderedLayers();
@@ -1176,6 +1213,8 @@ export class VIEW {
    * @see RENDER_SETTINGS
    */
   UpdateLayerColor(aLayer: number): void {
+    this.m_remote?.Call('UpdateLayerColor', [aLayer]);
+
     // There is no point in updating non-cached layers
     if (!this.IsCached(aLayer)) return;
 
@@ -1210,6 +1249,8 @@ export class VIEW {
    * @see RENDER_SETTINGS
    */
   UpdateAllLayersColor(): void {
+    this.m_remote?.Call('UpdateAllLayersColor', []);
+
     // The kept selection drawings were coloured by the old settings.
     this.ClearOverlayGroups();
 
@@ -1243,6 +1284,8 @@ export class VIEW {
    *               on the top.
    */
   SetTopLayer(aLayer: number, aEnabled = true): void {
+    this.m_remote?.Call('SetTopLayer', [aLayer, aEnabled]);
+
     if (aEnabled) {
       if (this.m_topLayers.has(aLayer)) return;
 
@@ -1299,6 +1342,8 @@ export class VIEW {
    * layers).
    */
   ClearTopLayers(): void {
+    this.m_remote?.Call('ClearTopLayers', []);
+
     if (this.m_enableOrderModifier) {
       // Restore the previous rendering order for layers that were marked as top
       for (const it of this.m_topLayers)
@@ -1314,6 +1359,8 @@ export class VIEW {
    * It has to be called after modification of renderingOrder field of LAYER.
    */
   UpdateAllLayersOrder(): void {
+    this.m_remote?.Call('UpdateAllLayersOrder', []);
+
     this.SortOrderedLayers();
 
     if (this.m_gal!.IsVisible()) {
@@ -1379,6 +1426,11 @@ export class VIEW {
    */
   RecacheAllItems(): void {
     this.ClearOverlayGroups();
+
+    this.m_remote?.Call('RecacheAllItems', []);
+
+    // Nothing is cached here to rebuild; the render worker's VIEW rebuilds its own.
+    if (this.m_overlayOnly) return;
 
     const r = new BOX2I();
 
@@ -1529,6 +1581,9 @@ export class VIEW {
           this.MarkTargetDirty(l.target);
         }
 
+        if (item.viewPrivData()!.m_requiredUpdate & (LAYERS | GEOMETRY))
+          item.viewPrivData()!.m_requiredUpdate |= GEOMETRY_REBUILT;
+
         item.viewPrivData()!.m_requiredUpdate &= ~(LAYERS | GEOMETRY);
       }
     }
@@ -1561,9 +1616,14 @@ export class VIEW {
   UpdateAllItems(aUpdateFlags: number): void {
     if (aUpdateFlags === NONE) return;
 
+    // One call for the render worker, not one per item.
+    this.m_remote?.Call('UpdateAllItems', [aUpdateFlags]);
+
+    const flags = this.m_remote ? aUpdateFlags | BULK_UPDATE : aUpdateFlags;
+
     for (const item of this.m_allItems) {
       if (item?.viewPrivData()) {
-        item.viewPrivData()!.m_requiredUpdate |= aUpdateFlags;
+        item.viewPrivData()!.m_requiredUpdate |= flags;
         this.m_hasPendingItemUpdates = true;
       }
     }
@@ -1712,6 +1772,8 @@ export class VIEW {
       // Upstream asks each one (view.cpp:1027-1043); the picture is the same.
       if (l.items.IsEmpty() && !l.diffLayer && !l.hasNegatives) continue;
 
+      if (this.m_overlayOnly && l.target !== TARGET_OVERLAY) continue;
+
       if (l.visible && this.IsTargetDirty(l.target) && this.areRequiredLayersEnabled(l.id)) {
         const drawFunc = new DRAW_ITEM_VISITOR(
           this,
@@ -1844,6 +1906,32 @@ export class VIEW {
   }
 
   // --------------------------------------------------------------------------------------
+  // The render worker's half. Not KiCad's: see VIEW_MIRROR.
+  // --------------------------------------------------------------------------------------
+
+  private m_remote: VIEW_MIRROR | null = null;
+  /** True when another VIEW draws everything but TARGET_OVERLAY: this one caches nothing. */
+  private m_overlayOnly = false;
+
+  /** Tell \a aRemote everything that changes what this view draws (null to stop). */
+  SetRemoteView(aRemote: VIEW_MIRROR | null): void {
+    this.m_remote = aRemote;
+  }
+
+  /**
+   * Draw only the overlay target: the cached and non-cached layers are another VIEW's (the
+   * render worker's), so they are neither cached nor drawn here. The items stay in this view -
+   * the tools hit-test them through its R-trees.
+   */
+  SetOverlayOnly(aOverlayOnly: boolean): void {
+    this.m_overlayOnly = aOverlayOnly;
+  }
+
+  IsOverlayOnly(): boolean {
+    return this.m_overlayOnly;
+  }
+
+  // --------------------------------------------------------------------------------------
   // Kept selection drawings. Not KiCad's: see VIEW_GROUP::ViewDraw.
   // --------------------------------------------------------------------------------------
 
@@ -1907,6 +1995,13 @@ export class VIEW {
     // Whatever made the cached layers re-draw this item makes its selection drawing stale too.
     this.DropOverlayGroups(aItem);
 
+    const rebuilt = (aUpdateFlags & GEOMETRY_REBUILT) !== 0;
+
+    aUpdateFlags &= ~GEOMETRY_REBUILT;
+
+    if (aUpdateFlags & BULK_UPDATE) aUpdateFlags &= ~BULK_UPDATE;
+    else this.m_remote?.ItemInvalidated(aItem, rebuilt ? aUpdateFlags | GEOMETRY : aUpdateFlags);
+
     if (aUpdateFlags & INITIAL_ADD) {
       // Don't update layers or bbox, since it was done in VIEW::Add()
       // Now that we have initialized, set flags to ALL for the code below
@@ -1929,7 +2024,7 @@ export class VIEW {
 
     // Iterate through layers used by the item and recache it immediately
     for (const layer of layers) {
-      if (this.IsCached(layer)) {
+      if (this.IsCached(layer) && !this.m_overlayOnly) {
         if (aUpdateFlags & (GEOMETRY | LAYERS | REPAINT)) {
           if (hidden) this.dropItemGeometry(aItem, layer);
           else this.updateItemGeometry(aItem, layer);
