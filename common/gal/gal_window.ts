@@ -50,9 +50,11 @@ export function loadBitmapFontImage(): Promise<ImageBitmap> {
 export function drawPanelWindow(
   aCanvas: HTMLCanvasElement,
   aFontImage: ImageBitmap,
+  aTransparent = false,
 ): DRAW_PANEL_GAL_WINDOW {
   return {
     canvas: aCanvas,
+    transparent: aTransparent,
     GetCursorCss: (aCursor: KICURSOR): string => kiCursor(cursorName(aCursor)),
     GetBitmapFontImage: (): TexImageSource => aFontImage,
   };

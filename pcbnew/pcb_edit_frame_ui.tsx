@@ -424,6 +424,7 @@ import {
   syncViewTransform,
   type EditorView,
 } from './browser/pcb_canvas.js';
+import { RENDER_WORKER_HOST, RenderWorkerEnabled } from './browser/render_worker_host.js';
 import type { PCB_DRAW_PANEL_GAL } from './pcb_draw_panel_gal.js';
 import type { BOARD_ITEM } from './board_item.js';
 import { PCB_DISPLAY_OPTIONS, type PCB_PAINTER } from './pcb_painter.js';
@@ -3678,12 +3679,17 @@ export function PcbEditor({
     // `EDA_DRAW_FRAME::EDA_DRAW_FRAME`: `m_galDisplayOptions.ReadCommonConfig(
     // *Pgm().GetCommonSettings(), this )` before the canvas is built.
     frame.GetGalDisplayOptions().ReadCommonConfig(commonSettingsOf(), window);
-    const panel = createPcbDrawPanel(frame, canvas, fontImage);
+    // `?rw`: the board on the render worker, this canvas the transparent overlay over it.
+    const rw = RenderWorkerEnabled();
+    const panel = createPcbDrawPanel(frame, canvas, fontImage, rw);
     if (!panel) {
       console.warn('WebGL2 unavailable; drawing the board with Canvas2D');
       return;
     }
     panelRef.current = panel;
+    const renderHost = rw
+      ? new RENDER_WORKER_HOST(panel, frame, canvas, { commonSettings: commonSettingsOf })
+      : null;
     // `?perf=1`: the panel beside the counters, so a probe can ask the VIEW
     // where a board point is on screen and drive a gesture there.
     if (PERF) {
@@ -3733,6 +3739,7 @@ export function PcbEditor({
     return () => {
       canvas.removeEventListener('webglcontextlost', onLost);
       canvas.removeEventListener('webglcontextrestored', onRestored);
+      renderHost?.Destroy();
       panelRef.current?.Destroy();
       panelRef.current = null;
       frame.SetCanvas(null);

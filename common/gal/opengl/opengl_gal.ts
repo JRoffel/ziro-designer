@@ -35,7 +35,7 @@ import { niluuid } from '../../kiid.js';
 import type { KICURSOR } from '../cursors.js';
 import { RENDER_TARGET } from '../definitions.js';
 import type { GAL_DISPLAY_OPTIONS } from '../gal_display_options.js';
-import { CROSS_HAIR_MODE, GRID_STYLE } from '../gal_display_options.js';
+import { CROSS_HAIR_MODE, GAL_ANTIALIASING_MODE, GRID_STYLE } from '../gal_display_options.js';
 import {
   GAL,
   GAL_CONTEXT_LOCKER,
@@ -429,7 +429,12 @@ export class OPENGL_GAL extends GAL {
     this.m_bitmapCache = new GL_BITMAP_CACHE(this.gl, aCanvas);
 
     this.m_compositor = new OPENGL_COMPOSITOR(this.gl, this.ff);
-    this.m_compositor.SetAntialiasingMode(this.m_options.antialiasing_mode);
+
+    // Not KiCad's: a transparent panel (the render worker's overlay) presents without an
+    // antialiasing pass - those write the screen with its alpha masked off.
+    this.m_transparentScreen =
+      (aCanvas as { IsTransparent?(): boolean }).IsTransparent?.() === true;
+    this.m_compositor.SetAntialiasingMode(this.effectiveAntialiasingMode());
 
     // Initialize the flags
     this.m_isFramebufferInitialized = false;
@@ -566,8 +571,8 @@ export class OPENGL_GAL extends GAL {
     return GAL_CONTEXT_LOCKER(this, () => {
       let refresh = false;
 
-      if (this.m_options.antialiasing_mode !== this.m_compositor.GetAntialiasingMode()) {
-        this.m_compositor.SetAntialiasingMode(this.m_options.antialiasing_mode);
+      if (this.effectiveAntialiasingMode() !== this.m_compositor.GetAntialiasingMode()) {
+        this.m_compositor.SetAntialiasingMode(this.effectiveAntialiasingMode());
         this.m_isFramebufferInitialized = false;
         refresh = true;
       }
@@ -1968,6 +1973,15 @@ export class OPENGL_GAL extends GAL {
     this.gl.flush();
   }
 
+  /** True for a panel whose canvas is the render worker's overlay (see the constructor). */
+  private m_transparentScreen = false;
+
+  private effectiveAntialiasingMode(): GAL_ANTIALIASING_MODE {
+    return this.m_transparentScreen
+      ? GAL_ANTIALIASING_MODE.AA_NONE
+      : this.m_options.antialiasing_mode;
+  }
+
   /// @copydoc GAL::ClearScreen()
   override ClearScreen(): void {
     const gl = this.gl;
@@ -1976,7 +1990,8 @@ export class OPENGL_GAL extends GAL {
     this.m_compositor.SetBuffer(OPENGL_COMPOSITOR.DIRECT_RENDERING);
 
     // NOTE: Black used here instead of m_clearColor; it will be composited later
-    gl.clearColor(0, 0, 0, 1);
+    // (A transparent screen clears to nothing: the render worker's canvas shows through.)
+    gl.clearColor(0, 0, 0, this.m_transparentScreen ? 0 : 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT);
   }
 

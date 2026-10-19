@@ -481,6 +481,15 @@ export class PCB_DRAW_PANEL_GAL extends EDA_DRAW_PANEL_GAL {
       this.m_ratsnest = new RATSNEST_VIEW_ITEM(aBoard.GetConnectivity());
       this.m_view!.Add(this.m_ratsnest);
     }
+
+    this.m_onDisplayBoard?.(aBoard);
+  }
+
+  /** Not KiCad's: told each board DisplayBoard puts in the view (the render worker's host). */
+  private m_onDisplayBoard: ((aBoard: BOARD) => void) | null = null;
+
+  SetOnDisplayBoard(aCallback: ((aBoard: BOARD) => void) | null): void {
+    this.m_onDisplayBoard = aCallback;
   }
 
   /**

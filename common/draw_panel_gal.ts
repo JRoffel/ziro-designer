@@ -107,6 +107,11 @@ export interface DRAW_PANEL_GAL_WINDOW {
   GetBitmapFontImage(): TexImageSource;
   /** `wxImage`s for DrawBitmap, decoded from the BITMAP_BASE's data. */
   GetBitmapImage?(aBitmap: BITMAP_BASE): TexImageSource | null;
+  /**
+   * Not KiCad's: the canvas sits over the render worker's, which draws the board, the grid and
+   * the background - this one draws only the overlay, on a transparent screen.
+   */
+  readonly transparent?: boolean;
 }
 
 /** `wxWindow` as the panel walks its parents: the frame, or a dialog with a parent. */
@@ -291,8 +296,9 @@ export class EDA_DRAW_PANEL_GAL
     // opaque window. The antialiasing presentors write the screen with the
     // alpha channel masked off (`glColorMask( TRUE, TRUE, TRUE, FALSE )`), which
     // a canvas that composites its alpha would show as fully transparent.
+    // A transparent panel (the render worker's overlay) keeps its alpha: see IsTransparent.
     const gl = aWindow.canvas.getContext('webgl2', {
-      alpha: false,
+      alpha: aWindow.transparent === true,
       depth: true,
       stencil: true,
       antialias: false,
@@ -418,6 +424,14 @@ export class EDA_DRAW_PANEL_GAL
    * the canvas sits in (the wxScrolledCanvas), the canvas its wxGLCanvas
    * child, which `ResizeScreen` sizes one pixel larger.
    */
+  /**
+   * Not KiCad's: this panel draws only TARGET_OVERLAY, over the render worker's canvas - no
+   * background, no grid, and a screen cleared to transparent so the board shows through.
+   */
+  IsTransparent(): boolean {
+    return this.window.transparent === true;
+  }
+
   GetClientSize(): VECTOR2I {
     const c = this.window.canvas.parentElement ?? this.window.canvas;
     return { x: Math.trunc(c.clientWidth), y: Math.trunc(c.clientHeight) };
@@ -992,7 +1006,9 @@ export class EDA_DRAW_PANEL_GAL
             this.m_view!.MarkDirty();
           }
 
-          this.m_gal!.SetClearColor(settings.GetBackgroundColor());
+          this.m_gal!.SetClearColor(
+            this.IsTransparent() ? { r: 0, g: 0, b: 0, a: 0 } : settings.GetBackgroundColor(),
+          );
           this.m_gal!.SetGridColor(settings.GetGridColor());
           this.m_gal!.SetCursorColor(settings.GetCursorColor());
 
@@ -1012,7 +1028,8 @@ export class EDA_DRAW_PANEL_GAL
             this.m_view!.ClearTargets();
 
             // Grid has to be redrawn only when the NONCACHED target is redrawn
-            if (this.m_view!.IsTargetDirty(RENDER_TARGET.TARGET_NONCACHED)) this.m_gal!.DrawGrid();
+            if (this.m_view!.IsTargetDirty(RENDER_TARGET.TARGET_NONCACHED) && !this.IsTransparent())
+              this.m_gal!.DrawGrid();
 
             cntRedraw.Start();
             this.m_view!.Redraw();

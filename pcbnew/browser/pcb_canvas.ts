@@ -54,8 +54,10 @@ export function createPcbDrawPanel(
   aFrame: PCB_BASE_FRAME,
   aCanvas: HTMLCanvasElement,
   aFontImage: ImageBitmap,
+  aTransparent = false,
 ): PCB_DRAW_PANEL_GAL | null {
-  const window: DRAW_PANEL_GAL_WINDOW = drawPanelWindow(aCanvas, aFontImage);
+  // Transparent: the render worker draws the board under this canvas (render_worker.ts).
+  const window: DRAW_PANEL_GAL_WINDOW = drawPanelWindow(aCanvas, aFontImage, aTransparent);
 
   let panel: PCB_DRAW_PANEL_GAL;
 

@@ -2,14 +2,19 @@
 // Copyright (C) 2026 ZiroEDA and contributors.
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
 /**
- * Stage 1 of the render worker (not KiCad's): `PCB_DRAW_PANEL_GAL` - VIEW, PCB_PAINTER and
- * OPENGL_GAL - on an OffscreenCanvas, in a worker, over its own copy of the board.
+ * The render worker (not KiCad's): `PCB_DRAW_PANEL_GAL` - VIEW, PCB_PAINTER and OPENGL_GAL - on
+ * an OffscreenCanvas, in a worker, over its own copy of the board.
  *
  * KiCad draws on its GUI thread and gets away with it in C++. In a browser the window's thread
  * is also the menus', the panels' and the cursor's, so every redraw that takes longer than a
- * frame freezes all of them. Here the drawing happens on this thread instead; the window posts
- * what changed. This stage proves the panel runs here and measures it: a board, its view, and
- * nothing that edits yet.
+ * frame freezes all of them. Here the board, its grid and its background are drawn on this
+ * thread instead, under the window's own canvas, which keeps only the overlay (render_mirror.ts):
+ *
+ * - `init`: the board as the DRC job loads it (the editor's own load, project and rules), the
+ *   window's settings - common, pcbnew, the colour theme as the colour of every layer, the
+ *   painter's render settings, the GAL's display options - and its view's layer state.
+ * - `view`: the window's view, each frame it changes - centre, scale, mirror, size, grid.
+ * - `batch`: what the window's VIEW did (RENDER_VIEW_BATCH).
  */
 import { EMBEDDED_FILES } from '@ziroeda/common/embedded_files.js';
 import {
@@ -18,36 +23,69 @@ import {
   SETTINGS_MANAGER,
   SetPgm,
 } from '@ziroeda/common/pgm_base.js';
+import type { Color4d } from '@ziroeda/common/gal/color4d.js';
 import { GAL_DISPLAY_OPTIONS } from '@ziroeda/common/gal/gal_display_options.js';
 import { loadBitmapFontImage } from '@ziroeda/common/gal/gal_window.js';
 import type { DRAW_PANEL_GAL_WINDOW } from '@ziroeda/common/draw_panel_gal.js';
-import { BOX2D } from '@ziroeda/kimath/src/math/box2.js';
+import { DS_PROXY_VIEW_ITEM } from '@ziroeda/common/drawing_sheet/ds_proxy_view_item.js';
+import { pcbIUScale } from '@ziroeda/common/eda_units.js';
+import type { Vec2 } from '@ziroeda/kimath/src/math/vector2.js';
+import type { BOARD } from '../board.js';
 import { PCB_DRAW_PANEL_GAL } from '../pcb_draw_panel_gal.js';
-import { ParseBoard } from '../pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.js';
+import type { PCB_PAINTER } from '../pcb_painter.js';
+import { PCBNEW_SETTINGS } from '../pcbnew_settings.js';
+import { type DRC_JOB_REQUEST, loadBoardForDrc } from './drc_job.js';
+import {
+  ApplyRenderViewBatch,
+  type RENDER_VIEW_BATCH,
+  applyRenderSettings,
+} from './render_mirror.js';
+
+/** The fields of PCBNEW_SETTINGS the painter reads, as plain data. */
+export interface RENDER_PCBNEW_SETTINGS {
+  display: object;
+  viewersDisplay: object;
+  showPageLimits: boolean;
+}
+
+/** The window's view, as the worker's must match it. */
+export interface RENDER_VIEW_STATE {
+  center: Vec2;
+  scale: number;
+  mirrorX: boolean;
+  mirrorY: boolean;
+  /** The canvas's client size, CSS pixels. */
+  width: number;
+  height: number;
+  grid: { size: Vec2; origin: Vec2; visible: boolean };
+}
 
 export type RENDER_WORKER_REQUEST =
-  | {
+  | ({
       t: 'init';
       canvas: OffscreenCanvas;
-      boardText: string;
-      width: number;
-      height: number;
       /** The window's `Pgm().GetCommonSettings()`, as plain data. */
       commonSettings: COMMON_SETTINGS_LIKE;
-    }
-  | { t: 'view'; center: { x: number; y: number }; scale: number }
-  | { t: 'resize'; width: number; height: number };
+      /** What the painter reads of the window's PCBNEW_SETTINGS (`pcbconfig()`). */
+      pcbnewSettings: RENDER_PCBNEW_SETTINGS;
+      /** The colour theme the window paints with: its name and every layer's colour. */
+      colorTheme: { name: string; colors: [number, Color4d][] };
+      /** PCB_RENDER_SETTINGS, as `snapshotRenderSettings` writes it. */
+      renderSettings: Record<string, unknown>;
+      /** The window's GAL_DISPLAY_OPTIONS fields. */
+      galOptions: Record<string, unknown>;
+      /** The window's VIEW layers: [id, visible, rendering order]. */
+      layers: [number, boolean, number][];
+      view: RENDER_VIEW_STATE;
+    } & Pick<
+      DRC_JOB_REQUEST,
+      'boardText' | 'boardPath' | 'boardUuid' | 'projectText' | 'rulesText' | 'rulesPath'
+    >)
+  | { t: 'view'; view: RENDER_VIEW_STATE }
+  | { t: 'batch'; batch: RENDER_VIEW_BATCH };
 
 export type RENDER_WORKER_MESSAGE =
-  | {
-      t: 'ready';
-      parseMs: number;
-      displayMs: number;
-      firstDrawMs: number;
-      center: { x: number; y: number };
-      scale: number;
-    }
-  | { t: 'drawn'; ms: number }
+  | { t: 'ready'; loadMs: number; firstDrawMs: number }
   | { t: 'error'; message: string };
 
 /**
@@ -85,84 +123,153 @@ if (g.WorkerGlobalScope !== undefined) {
   const scope = globalThis as unknown as WorkerScope;
   const size = { w: 1, h: 1 };
   let panel: PCB_DRAW_PANEL_GAL | null = null;
+  let board: BOARD | null = null;
+  // Messages that arrive while the board loads wait for it.
+  let pending: RENDER_WORKER_REQUEST[] | null = [];
 
-  const timedDraw = (): number => {
-    const t0 = performance.now();
-    panel!.ForceRefresh();
-    return performance.now() - t0;
+  /**
+   * What EDA_DRAW_PANEL_GAL::onSize does to the canvas and the GAL, unconditionally: onSize itself
+   * returns early when the GAL already has the client size, which a GAL built at that size does -
+   * and then the OffscreenCanvas keeps its 300 x 150 backing store. The +1 is onSize's own.
+   */
+  const resize = (): void => {
+    const p = panel! as unknown as { resizeBackingStore(w: number, h: number): boolean };
+    const w = Math.max(10, size.w + 1);
+    const h = Math.max(10, size.h + 1);
+
+    p.resizeBackingStore(w, h);
+    panel!.GetGAL()!.ResizeScreen(w, h);
+    panel!.GetView().MarkDirty();
   };
 
-  scope.onmessage = async (e: MessageEvent<RENDER_WORKER_REQUEST>): Promise<void> => {
+  const applyView = (aView: RENDER_VIEW_STATE): void => {
+    const p = panel!;
+    const view = p.GetView();
+    const gal = p.GetGAL()!;
+
+    if (aView.width !== size.w || aView.height !== size.h) {
+      size.w = aView.width;
+      size.h = aView.height;
+      resize();
+    }
+
+    gal.SetGridSize(aView.grid.size);
+    gal.SetGridOrigin(aView.grid.origin);
+    gal.SetGridVisibility(aView.grid.visible);
+    view.SetMirror(aView.mirrorX, aView.mirrorY);
+    view.SetScale(aView.scale);
+    view.SetCenter(aView.center);
+  };
+
+  const handle = (msg: RENDER_WORKER_REQUEST): void => {
+    if (!panel || !board) return;
+
+    if (msg.t === 'view') applyView(msg.view);
+    else if (msg.t === 'batch') {
+      const painter = panel.GetView().GetPainter() as PCB_PAINTER;
+      ApplyRenderViewBatch(board, panel.GetView(), painter.GetSettings(), msg.batch);
+    }
+
+    panel.Refresh();
+  };
+
+  const init = async (msg: Extract<RENDER_WORKER_REQUEST, { t: 'init' }>): Promise<void> => {
+    await EMBEDDED_FILES.InitCodec();
+
+    const font = await loadBitmapFontImage();
+    const t0 = performance.now();
+
+    // This realm's program object, with the window's settings and colour theme.
+    const pgm = new PGM_BASE(null, new SETTINGS_MANAGER());
+    pgm.SetCommonSettings(msg.commonSettings);
+    SetPgm(pgm);
+
+    const mgr = pgm.GetSettingsManager();
+    const pcbnew = new PCBNEW_SETTINGS();
+    Object.assign(pcbnew.m_Display, msg.pcbnewSettings.display);
+    Object.assign(pcbnew.m_ViewersDisplay, msg.pcbnewSettings.viewersDisplay);
+    pcbnew.m_ShowPageLimits = msg.pcbnewSettings.showPageLimits;
+    mgr.RegisterSettings('pcbnew', pcbnew);
+
+    const theme = mgr.AddNewColorSettings(msg.colorTheme.name);
+
+    for (const [layer, color] of msg.colorTheme.colors) theme.SetColor(layer, color);
+
+    pcbnew.m_ColorTheme = msg.colorTheme.name;
+
+    board = loadBoardForDrc(msg);
+
+    size.w = msg.view.width;
+    size.h = msg.view.height;
+
+    const options = new GAL_DISPLAY_OPTIONS();
+    Object.assign(options, msg.galOptions);
+
+    const window: DRAW_PANEL_GAL_WINDOW = {
+      canvas: canvasShim(msg.canvas, size),
+      GetCursorCss: () => 'default',
+      GetBitmapFontImage: () => font,
+    };
+
+    panel = new PCB_DRAW_PANEL_GAL(null, window, options);
+    // The first wxEVT_SIZE: the canvas's backing store and the GAL's screen take the window's size.
+    resize();
+    panel.UpdateColors();
+
+    panel.DisplayBoard(board);
+
+    // The drawing sheet, as the DRC job builds it: from the board's page and title block. After
+    // DisplayBoard, which clears the view (SetBoard's order).
+    const sheet = new DS_PROXY_VIEW_ITEM(
+      pcbIUScale,
+      board.GetPageSettings(),
+      { GetDrawingSheet: () => null },
+      board.GetTitleBlock(),
+      board.GetProperties(),
+    );
+    sheet.SetSheetName(board.GetFileName());
+    sheet.SetFileName(board.GetFileName());
+    panel.SetDrawingSheet(sheet);
+
+    const view = panel.GetView();
+    const painter = view.GetPainter() as PCB_PAINTER;
+    applyRenderSettings(painter.GetSettings(), msg.renderSettings);
+
+    for (const [layer, visible, order] of msg.layers) {
+      view.SetLayerVisible(layer, visible);
+      view.SetLayerOrder(layer, order, false);
+    }
+
+    view.UpdateAllLayersOrder();
+    view.UpdateAllLayersColor();
+    applyView(msg.view);
+
+    const loadMs = performance.now() - t0;
+    const t1 = performance.now();
+    panel.ForceRefresh();
+
+    scope.postMessage({ t: 'ready', loadMs, firstDrawMs: performance.now() - t1 });
+
+    for (const m of pending ?? []) handle(m);
+
+    pending = null;
+  };
+
+  scope.onmessage = (e: MessageEvent<RENDER_WORKER_REQUEST>): void => {
     const msg = e.data;
 
     try {
       if (msg.t === 'init') {
-        await EMBEDDED_FILES.InitCodec();
-
-        // This realm's program object; the window's settings and theme arrive in a later stage.
-        const pgm = new PGM_BASE(null, new SETTINGS_MANAGER());
-        pgm.SetCommonSettings(msg.commonSettings);
-        SetPgm(pgm);
-
-        const font = await loadBitmapFontImage();
-
-        size.w = msg.width;
-        size.h = msg.height;
-        msg.canvas.width = msg.width;
-        msg.canvas.height = msg.height;
-
-        let t0 = performance.now();
-        const board = ParseBoard(msg.boardText);
-        board.BuildConnectivity();
-        const parseMs = performance.now() - t0;
-
-        const window: DRAW_PANEL_GAL_WINDOW = {
-          canvas: canvasShim(msg.canvas, size),
-          GetCursorCss: () => 'default',
-          GetBitmapFontImage: () => font,
-        };
-
-        panel = new PCB_DRAW_PANEL_GAL(null, window, new GAL_DISPLAY_OPTIONS());
-
-        // What PCB_EDIT_FRAME does to a canvas once a board is loaded: the theme's colours and
-        // the board's visible layers.
-        panel.UpdateColors();
-
-        t0 = performance.now();
-        panel.DisplayBoard(board);
-        panel.SyncLayersVisibility(board);
-        const displayMs = performance.now() - t0;
-
-        // Zoom to fit, as the frame does after a load.
-        const view = panel.GetView();
-        const bbox = board.GetBoundingBox();
-        view.SetViewport(
-          new BOX2D(
-            { x: bbox.GetX(), y: bbox.GetY() },
-            { x: bbox.GetWidth(), y: bbox.GetHeight() },
-          ),
+        init(msg).catch((err: unknown) =>
+          scope.postMessage({
+            t: 'error',
+            message: err instanceof Error ? (err.stack ?? err.message) : String(err),
+          }),
         );
-
-        const firstDrawMs = timedDraw();
-        const c = view.GetCenter();
-
-        scope.postMessage({
-          t: 'ready',
-          parseMs,
-          displayMs,
-          firstDrawMs,
-          center: { x: c.x, y: c.y },
-          scale: view.GetScale(),
-        });
-      } else if (msg.t === 'view' && panel) {
-        const view = panel.GetView();
-        view.SetScale(msg.scale);
-        view.SetCenter(msg.center);
-        scope.postMessage({ t: 'drawn', ms: timedDraw() });
-      } else if (msg.t === 'resize' && panel) {
-        size.w = msg.width;
-        size.h = msg.height;
-        scope.postMessage({ t: 'drawn', ms: timedDraw() });
+      } else if (pending) {
+        pending.push(msg);
+      } else {
+        handle(msg);
       }
     } catch (err) {
       scope.postMessage({
