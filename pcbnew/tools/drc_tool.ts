@@ -65,7 +65,7 @@ export interface DIALOG_DRC_LIKE {
  */
 export interface ZONE_FILLER_TOOL_LIKE {
   IsBusy(): boolean;
-  FillAllZones(aCaller: unknown, aReporter: PROGRESS_REPORTER | null): void;
+  FillAllZones(aCaller: unknown, aReporter: PROGRESS_REPORTER | null): Promise<void> | void;
 }
 
 /** `PCB_EDIT_FRAME` as DRC_TOOL reads it (the frame class lives in the designer). */
@@ -241,7 +241,7 @@ export class DRC_TOOL extends PCB_TOOL_BASE {
       if (aRefillZones) {
         aProgressReporter.AdvancePhase('Refilling all zones...');
 
-        zoneFiller?.FillAllZones(this.m_drcDialog, aProgressReporter);
+        await zoneFiller?.FillAllZones(this.m_drcDialog, aProgressReporter);
       }
 
       if (aTestFootprints && !this.m_editFrame!.IsSingle()) {

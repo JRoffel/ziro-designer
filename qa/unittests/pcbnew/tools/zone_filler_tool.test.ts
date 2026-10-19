@@ -74,9 +74,10 @@ const tool = (): ZONE_FILLER_TOOL =>
   h.mgr.FindTool('pcbnew.ZoneFiller') as unknown as ZONE_FILLER_TOOL;
 
 describe('ZONE_FILLER_TOOL::FillAllZones (zone_filler_tool.cpp:119-205)', () => {
-  it('fills every zone as one undo step and clears the dirty flag (:176-181)', () => {
+  it('fills every zone as one undo step and clears the dirty flag (:176-181)', async () => {
     const undo = h.frame.GetUndoCommandCount();
     h.mgr.RunAction(PCB_ACTIONS.zoneFillAll);
+    await tool().WaitForFill();
     expect(zone(40).IsFilled()).toBe(true);
     expect(zone(41).IsFilled()).toBe(true);
     expect(h.frame.GetUndoCommandCount()).toBe(undo + 1);
@@ -84,19 +85,21 @@ describe('ZONE_FILLER_TOOL::FillAllZones (zone_filler_tool.cpp:119-205)', () => 
     expect(tool().IsBusy()).toBe(false);
   });
 
-  it('undo takes the fill back off', () => {
+  it('undo takes the fill back off', async () => {
     h.mgr.RunAction(PCB_ACTIONS.zoneFillAll);
+    await tool().WaitForFill();
     h.frame.RestoreCopyFromUndoList();
     expect(zone(40).IsFilled()).toBe(false);
   });
 });
 
 describe('ZONE_FILLER_TOOL::ZoneUnfill / ZoneUnfillAll (:387-452)', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     h.mgr.RunAction(PCB_ACTIONS.zoneFillAll);
+    await tool().WaitForFill();
   });
 
-  it('Unfill All unfills every zone, one undo step', () => {
+  it('Unfill All unfills every zone, one undo step', async () => {
     const undo = h.frame.GetUndoCommandCount();
     h.mgr.RunAction(PCB_ACTIONS.zoneUnfillAll);
     expect(zone(40).IsFilled()).toBe(false);
@@ -104,7 +107,7 @@ describe('ZONE_FILLER_TOOL::ZoneUnfill / ZoneUnfillAll (:387-452)', () => {
     expect(h.frame.GetUndoCommandCount()).toBe(undo + 1);
   });
 
-  it('Unfill unfills only the selected zone', () => {
+  it('Unfill unfills only the selected zone', async () => {
     select(h, 40);
     h.mgr.RunAction(PCB_ACTIONS.zoneUnfill);
     expect(zone(40).IsFilled()).toBe(false);
@@ -114,7 +117,7 @@ describe('ZONE_FILLER_TOOL::ZoneUnfill / ZoneUnfillAll (:387-452)', () => {
     expect(zone(40).IsFilled()).toBe(true);
   });
 
-  it('Unfill with no zone selected does nothing (:401-405)', () => {
+  it('Unfill with no zone selected does nothing (:401-405)', async () => {
     const undo = h.frame.GetUndoCommandCount();
     h.mgr.RunAction(PCB_ACTIONS.zoneUnfill);
     expect(zone(40).IsFilled()).toBe(true);
@@ -150,6 +153,7 @@ describe('ZONE_FILLER_TOOL::CheckAllZones and ZONE_FILLER::Fill( aCheck ) (:67-1
 
   it('fills already current: no question, no undo step (:1653-1657)', async () => {
     h.mgr.RunAction(PCB_ACTIONS.zoneFillAll);
+    await tool().WaitForFill();
     h.frame.m_ZoneFillsDirty = true;
     const undo = h.frame.GetUndoCommandCount();
     await tool().CheckAllZones();
@@ -159,26 +163,29 @@ describe('ZONE_FILLER_TOOL::CheckAllZones and ZONE_FILLER::Fill( aCheck ) (:67-1
 });
 
 describe('ZONE_FILLER_TOOL::ZoneFill (:316-377)', () => {
-  it('fills the selected zone only, as one undo step', () => {
+  it('fills the selected zone only, as one undo step', async () => {
     select(h, 41);
     const undo = h.frame.GetUndoCommandCount();
     h.mgr.RunAction(PCB_ACTIONS.zoneFill);
+    await tool().WaitForFill();
     expect(zone(41).IsFilled()).toBe(true);
     expect(zone(40).IsFilled()).toBe(false);
     expect(h.frame.GetUndoCommandCount()).toBe(undo + 1);
     expect(tool().IsBusy()).toBe(false);
   });
 
-  it('a zone passed with the event is filled instead of the selection (:322-325)', () => {
+  it('a zone passed with the event is filled instead of the selection (:322-325)', async () => {
     select(h, 41);
     h.mgr.RunAction(PCB_ACTIONS.zoneFill, zone(40));
+    await tool().WaitForFill();
     expect(zone(40).IsFilled()).toBe(true);
     expect(zone(41).IsFilled()).toBe(false);
   });
 
-  it('nothing to fill: no pour, no undo step (:340-344)', () => {
+  it('nothing to fill: no pour, no undo step (:340-344)', async () => {
     const undo = h.frame.GetUndoCommandCount();
     h.mgr.RunAction(PCB_ACTIONS.zoneFill);
+    await tool().WaitForFill();
     expect(zone(40).IsFilled()).toBe(false);
     expect(zone(41).IsFilled()).toBe(false);
     expect(h.frame.GetUndoCommandCount()).toBe(undo);
@@ -186,39 +193,47 @@ describe('ZONE_FILLER_TOOL::ZoneFill (:316-377)', () => {
 });
 
 describe('ZONE_FILLER_TOOL::ZoneFillDirty and DirtyZone (:207-313, zone_filler_tool.h:66)', () => {
-  it('refills the unfilled zones, appended to the last undo step (APPEND_UNDO)', () => {
+  it('refills the unfilled zones, appended to the last undo step (APPEND_UNDO)', async () => {
     select(h, 40);
     h.mgr.RunAction(PCB_ACTIONS.zoneFill);
+    await tool().WaitForFill();
     const undo = h.frame.GetUndoCommandCount();
     h.mgr.RunAction(PCB_ACTIONS.zoneFillDirty);
+    await tool().WaitForFill();
     expect(zone(41).IsFilled()).toBe(true);
     expect(h.frame.GetUndoCommandCount()).toBe(undo);
   });
 
-  it('a filled zone is refilled only when a commit marked it dirty', () => {
+  it('a filled zone is refilled only when a commit marked it dirty', async () => {
     h.mgr.RunAction(PCB_ACTIONS.zoneFillAll);
+    await tool().WaitForFill();
     zone(40).UnFill();
     zone(40).SetIsFilled(true);
     zone(41).UnFill();
     zone(41).SetIsFilled(true);
     tool().DirtyZone(zone(41));
     h.mgr.RunAction(PCB_ACTIONS.zoneFillDirty);
+    await tool().WaitForFill();
     expect(zone(40).GetFilledPolysList(zone(40).GetFirstLayer()).OutlineCount()).toBe(0);
     expect(zone(41).GetFilledPolysList(zone(41).GetFirstLayer()).OutlineCount()).toBe(1);
   });
 
-  it('the dirty list is spent by one refill (:227)', () => {
+  it('the dirty list is spent by one refill (:227)', async () => {
     h.mgr.RunAction(PCB_ACTIONS.zoneFillAll);
+    await tool().WaitForFill();
     tool().DirtyZone(zone(41));
     h.mgr.RunAction(PCB_ACTIONS.zoneFillDirty);
+    await tool().WaitForFill();
     zone(41).UnFill();
     zone(41).SetIsFilled(true);
     h.mgr.RunAction(PCB_ACTIONS.zoneFillDirty);
+    await tool().WaitForFill();
     expect(zone(41).GetFilledPolysList(zone(41).GetFirstLayer()).OutlineCount()).toBe(0);
   });
 
-  it('a quick refill shows no slow-refill note', () => {
+  it('a quick refill shows no slow-refill note', async () => {
     h.mgr.RunAction(PCB_ACTIONS.zoneFillDirty);
+    await tool().WaitForFill();
     expect(h.frame.slowNotes).toBe(0);
   });
 });

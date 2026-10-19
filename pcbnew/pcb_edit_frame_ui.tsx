@@ -496,7 +496,11 @@ import {
 import { PCB_CONTROL, PCB_DEFAULT_TOOLBARS } from './toolbars_pcb_editor.js';
 import '@ziroeda/common/widgets/shell.css';
 import { ShowAboutDialog } from '@ziroeda/common/dialog_about/AboutDialog_main.js';
-import { ProgressDialog, nextPaint } from '@ziroeda/common/widgets/wx_progress_reporters.js';
+import {
+  ProgressDialog,
+  WX_PROGRESS_REPORTER,
+  nextPaint,
+} from '@ziroeda/common/widgets/wx_progress_reporters.js';
 import { yieldToEventLoop } from '@ziroeda/common/yield_to_event_loop.js';
 import type { ProgressSnapshot } from '@ziroeda/common/widgets/progress_reporter_snapshot.js';
 import { showHotkeyList } from '@ziroeda/common/hotkeys_basic.js';
@@ -1203,6 +1207,11 @@ export function PcbEditor({
   const [boardSettingsRev, setBoardSettingsRev] = useState(0);
   /** WX_PROGRESS_REPORTER( this, _( "Load PCB" ), 1, PR_CAN_ABORT ) (files.cpp:561). */
   const [loading, setLoading] = useState<ProgressSnapshot | null>(null);
+  /** The frame's WX_PROGRESS_REPORTER dialog (`openProgressReporter`): a zone fill on a worker. */
+  const [jobProgress, setJobProgress] = useState<{ title: string; snap: ProgressSnapshot } | null>(
+    null,
+  );
+  const jobReporterRef = useRef<WX_PROGRESS_REPORTER | null>(null);
   // Unsaved-changes flag: '*' in the title while modified, Save greys when
   // clean (KiCad's IsContentModified / m_infoBar save affordance).
   const [dirty, setDirty] = useState(false);
@@ -2260,6 +2269,14 @@ export function PcbEditor({
       // editor's state and callbacks exist (`drcWindowRef`).
       createDrcDialog: (aTool, aParent) => drcWindowRef.current!.createDrcDialog(aTool, aParent),
       isSingle: () => drcWindowRef.current!.isSingle(),
+      openProgressReporter: (aTitle) => {
+        const reporter = new WX_PROGRESS_REPORTER((snap) =>
+          setJobProgress(snap ? { title: aTitle, snap } : null),
+        );
+        jobReporterRef.current = reporter;
+        setJobProgress({ title: aTitle, snap: { message: '' } });
+        return reporter;
+      },
       // The toolbar follows the tool stack for the TOOL_MANAGER tools: a push
       // from a hotkey arms the button, the tool's PopTool disarms it.
       toolStackChanged: () => {
@@ -7899,6 +7916,11 @@ export function PcbEditor({
         label={updatePcbBusy ? 'Loading footprint libraries...' : null}
       />
       <ProgressDialog title="Load PCB" label={loading} />
+      <ProgressDialog
+        title={jobProgress?.title ?? ''}
+        label={jobProgress?.snap ?? null}
+        onCancel={() => jobReporterRef.current?.Cancel()}
+      />
       {updatePcbError && (
         <DialogShim
           title="Update PCB from Schematic"

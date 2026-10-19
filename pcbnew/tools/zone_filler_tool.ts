@@ -18,6 +18,18 @@ import type { PCB_VIA } from '../pcb_track.js';
 import { TEARDROP_MANAGER } from '../teardrop/teardrop.js';
 import type { ZONE } from '../zone.js';
 import { ZONE_FILLER } from '../zone_filler.js';
+import {
+  type FILL_JOB_HOOKS,
+  type FILL_JOB_REQUEST,
+  type FILL_JOB_RESULT,
+  applyFillJobResult,
+} from '../browser/fill_job.js';
+import {
+  CTL_ENUMERATE_LAYERS,
+  CTL_FOR_BOARD,
+  FormatBoardAsync,
+} from '../pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.js';
+import type { WX_PROGRESS_REPORTER } from '@ziroeda/common/widgets/wx_progress_reporters.js';
 import type { KiDialogRequest } from '@ziroeda/common/kidialog.js';
 import type { KiDialogResult } from '@ziroeda/common/kidialog_do_not_show.js';
 import { PCB_ACTIONS } from './pcb_actions.js';
@@ -44,12 +56,24 @@ export interface ZONE_FILLER_TOOL_FRAME {
   ShowZoneAutoRefillSlowMessage(): void;
   /** `KIDIALOG( frame, ... ).ShowModal()`: ZONE_FILLER's out-of-date question. */
   AskKiDialog(aRequest: KiDialogRequest): Promise<KiDialogResult>;
+  /**
+   * Not KiCad's: `ZONE_FILLER::Fill` on another thread (fill_job.ts). Absent - the footprint
+   * editor, a headless run - the pour runs here, as upstream.
+   */
+  RunFillJob?(aRequest: FILL_JOB_REQUEST, aHooks: FILL_JOB_HOOKS): Promise<FILL_JOB_RESULT | null>;
+  /** `WX_PROGRESS_REPORTER( frame, aTitle, 5, PR_CAN_ABORT )`, or null with no window. */
+  OpenProgressReporter?(aTitle: string): WX_PROGRESS_REPORTER | null;
+  GetProjectText?(): string | null;
+  GetDesignRulesText?(): string | null;
+  GetDesignRulesPath?(): string;
 }
 
 type FRAME = PCB_BASE_EDIT_FRAME & ZONE_FILLER_TOOL_FRAME;
 
 export class ZONE_FILLER_TOOL extends PCB_TOOL_BASE {
   private m_fillInProgress = false;
+  /** Not KiCad's: the fill a tool event started, which may still be pouring on a worker. */
+  private m_pendingFill: Promise<void> | null = null;
   private m_filler: ZONE_FILLER | null = null;
   /** `m_dirtyZoneIDs`: the zones an edit touched, for the next ZoneFillDirty. */
   private m_dirtyZoneIDs = new Set<string>();
@@ -103,17 +127,103 @@ export class ZONE_FILLER_TOOL extends PCB_TOOL_BASE {
     }
   }
 
+  /**
+   * `m_filler->Fill( aZones )`, where it can run: on the frame's worker when the frame has one,
+   * else here. On the worker it is the same filler over the same board text (fill_job.ts), and
+   * what it leaves is installed on this board; `Fill`'s own `m_commit->Modify( zone )` happens
+   * here first, so the commit holds the zones as they were. Cancel leaves the board untouched.
+   */
+  private async fill(aZones: ZONE[], aCommit: BOARD_COMMIT): Promise<boolean> {
+    const filler = this.m_filler!;
+    const frame = this.frame() as Partial<FRAME> | null;
+
+    if (!frame?.RunFillJob) return filler.Fill(aZones);
+
+    const reporter = filler.GetProgressReporter();
+    const board = this.board();
+
+    for (const zone of aZones) {
+      if (!zone.GetIsRuleArea() && zone.GetNumCorners() > 2) aCommit.Modify(zone);
+    }
+
+    const yieldToUI = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
+    const cancelled = (): boolean => reporter?.IsCancelled() ?? false;
+
+    reporter?.Report('Preparing the board...');
+    reporter?.KeepRefreshing();
+
+    // `CTL_ENUMERATE_LAYERS`, as the DRC job's: a transport, not a save.
+    const boardText = await FormatBoardAsync(
+      board,
+      yieldToUI,
+      cancelled,
+      undefined,
+      undefined,
+      CTL_FOR_BOARD | CTL_ENUMERATE_LAYERS,
+    );
+
+    if (boardText === null) return false;
+
+    let result: FILL_JOB_RESULT | null;
+
+    try {
+      result = await frame.RunFillJob(
+        {
+          boardText,
+          boardPath: board.GetFileName(),
+          boardUuid: board.m_Uuid,
+          projectText: frame.GetProjectText?.() ?? null,
+          rulesText: frame.GetDesignRulesText?.() ?? null,
+          rulesPath: frame.GetDesignRulesPath?.() ?? '',
+          zones: aZones.map((z) => z.m_Uuid),
+        },
+        {
+          onPhase: (aMessage) => {
+            reporter?.Report(aMessage);
+            reporter?.KeepRefreshing();
+          },
+          onProgress: (aValue) => {
+            reporter?.SetCurrentProgress(aValue);
+            reporter?.KeepRefreshing();
+          },
+          isCancelled: cancelled,
+        },
+      );
+    } catch (e) {
+      // The worker failed: a fill that did not happen, as a cancelled one - the caller reverts,
+      // and the board keeps the fills it had.
+      console.error('Zone fill failed:', e);
+      return false;
+    }
+
+    if (!result) return false;
+
+    applyFillJobResult(board, result);
+
+    return result.filled;
+  }
+
+  /** The frame's progress dialog for a fill, when there is a window to show it in. */
+  private openReporter(aTitle: string): WX_PROGRESS_REPORTER | null {
+    return (this.frame() as Partial<FRAME> | null)?.OpenProgressReporter?.(aTitle) ?? null;
+  }
+
+  /** Not KiCad's: resolves once the fill a tool event started has been installed and pushed. */
+  async WaitForFill(): Promise<void> {
+    await this.m_pendingFill;
+  }
+
   /** `IsBusy()`: a fill is running. */
   IsBusy(): boolean {
     return this.m_fillInProgress;
   }
 
   /** `FillAllZones( aCaller, aReporter, aHeadless )`. */
-  FillAllZones(
+  async FillAllZones(
     _aCaller: unknown = null,
     aReporter: PROGRESS_REPORTER | null = null,
     aHeadless = false,
-  ): void {
+  ): Promise<void> {
     if (this.m_fillInProgress) return;
 
     this.m_fillInProgress = true;
@@ -136,11 +246,20 @@ export class ZONE_FILLER_TOOL extends PCB_TOOL_BASE {
       frame!.ShowZoneFillRulesWarning();
 
     // `WX_PROGRESS_REPORTER( aCaller, "Fill All Zones", 5, PR_CAN_ABORT )` when no
-    // reporter was passed: the pour runs on this thread here, so there is no
-    // window to show while it does.
-    if (aReporter) this.m_filler.SetProgressReporter(aReporter);
+    // reporter was passed.
+    const ownReporter = aReporter || aHeadless ? null : this.openReporter('Fill All Zones');
 
-    if (this.m_filler.Fill(toFill)) {
+    if (aReporter ?? ownReporter) this.m_filler.SetProgressReporter(aReporter ?? ownReporter);
+
+    let filled: boolean;
+
+    try {
+      filled = await this.fill(toFill, commit);
+    } finally {
+      ownReporter?.Close();
+    }
+
+    if (filled) {
       this.m_filler.GetProgressReporter()?.AdvancePhase();
 
       commit.Push('Fill Zone(s)', SKIP_CONNECTIVITY | ZONE_FILL_OP);
@@ -169,6 +288,11 @@ export class ZONE_FILLER_TOOL extends PCB_TOOL_BASE {
    * appended to that edit's undo step.
    */
   ZoneFillDirty(_aEvent: TOOL_EVENT): number {
+    this.m_pendingFill = this.zoneFillDirty();
+    return 0;
+  }
+
+  private async zoneFillDirty(): Promise<void> {
     const frame = this.editFrame();
     const toFill: ZONE[] = [];
 
@@ -176,9 +300,9 @@ export class ZONE_FILLER_TOOL extends PCB_TOOL_BASE {
       if (!zone.IsFilled() || this.m_dirtyZoneIDs.has(zone.m_Uuid)) toFill.push(zone);
     }
 
-    if (toFill.length === 0) return 0;
+    if (toFill.length === 0) return;
 
-    if (this.m_fillInProgress) return 0;
+    if (this.m_fillInProgress) return;
 
     const startTime = performance.now();
     this.m_fillInProgress = true;
@@ -194,11 +318,30 @@ export class ZONE_FILLER_TOOL extends PCB_TOOL_BASE {
     if (!this.board().GetDesignSettings().m_DRCEngine?.RulesValid())
       frame.ShowZoneFillRulesWarning();
 
-    // Upstream shows a WX_PROGRESS_REPORTER past 1000 fill points; the pour runs
-    // on this thread here, so there is no window to show while it does.
+    // A WX_PROGRESS_REPORTER past 1000 fill points.
+    let pts = 0;
+    let reporter: WX_PROGRESS_REPORTER | null = null;
 
-    if (this.m_filler.Fill(toFill))
-      commit.Push('Auto-fill Zone(s)', APPEND_UNDO | SKIP_CONNECTIVITY | ZONE_FILL_OP);
+    for (const zone of toFill) {
+      for (const layer of zone.GetLayerSet().Seq())
+        pts += zone.GetFilledPolysList(layer).FullPointCount();
+
+      if (pts > 1000) {
+        reporter = this.openReporter(`Refill ${toFill.length} Zones`);
+        this.m_filler.SetProgressReporter(reporter);
+        break;
+      }
+    }
+
+    let filled: boolean;
+
+    try {
+      filled = await this.fill(toFill, commit);
+    } finally {
+      reporter?.Close();
+    }
+
+    if (filled) commit.Push('Auto-fill Zone(s)', APPEND_UNDO | SKIP_CONNECTIVITY | ZONE_FILL_OP);
     else commit.Revert();
 
     this.rebuildConnectivity();
@@ -211,7 +354,7 @@ export class ZONE_FILLER_TOOL extends PCB_TOOL_BASE {
     this.m_fillInProgress = false;
     this.m_filler = null;
 
-    return 0;
+    return;
   }
 
   /**
@@ -242,11 +385,27 @@ export class ZONE_FILLER_TOOL extends PCB_TOOL_BASE {
 
     this.m_fillInProgress = true;
 
+    this.m_pendingFill = this.zoneFill(toFill);
+    return 0;
+  }
+
+  private async zoneFill(toFill: ZONE[]): Promise<void> {
     const commit = new BOARD_COMMIT(this);
 
     this.m_filler = new ZONE_FILLER(this.board(), commit);
 
-    if (this.m_filler.Fill(toFill)) {
+    const reporter = this.openReporter('Fill Zone');
+    this.m_filler.SetProgressReporter(reporter);
+
+    let filled: boolean;
+
+    try {
+      filled = await this.fill(toFill, commit);
+    } finally {
+      reporter?.Close();
+    }
+
+    if (filled) {
       this.m_filler.GetProgressReporter()?.AdvancePhase();
       commit.Push('Fill Zone(s)', SKIP_CONNECTIVITY | ZONE_FILL_OP);
     } else {
@@ -258,11 +417,10 @@ export class ZONE_FILLER_TOOL extends PCB_TOOL_BASE {
 
     this.m_fillInProgress = false;
     this.m_filler = null;
-    return 0;
   }
 
   ZoneFillAll(_aEvent: TOOL_EVENT): number {
-    this.FillAllZones(this.frame());
+    this.m_pendingFill = this.FillAllZones(this.frame());
     return 0;
   }
 

@@ -15,6 +15,7 @@ import { PCB_EDIT_FRAME, type PCB_EDIT_FRAME_HOOKS } from '@ziroeda/pcbnew/pcb_e
 import { PCBNEW_SETTINGS } from '@ziroeda/pcbnew/pcbnew_settings.js';
 import { PCB_ACTIONS } from '@ziroeda/pcbnew/tools/pcb_actions.js';
 import { ZONE } from '@ziroeda/pcbnew/zone.js';
+import type { ZONE_FILLER_TOOL } from '@ziroeda/pcbnew/tools/zone_filler_tool.js';
 
 beforeAll(() => {
   installPgm();
@@ -36,6 +37,8 @@ function frame(answer: { ok: boolean; repour: boolean } | null) {
       : {}),
     // PROPERTIES_TOOL hears the selection tool's ClearedEvent
     updateProperties: () => calls.push('clear'),
+    // The repour is a fill job, which carries the project's text (none here).
+    projectText: () => null,
   } as unknown as PCB_EDIT_FRAME_HOOKS;
   const f = new PCB_EDIT_FRAME(hooks);
   const board = new BOARD();
@@ -117,7 +120,11 @@ describe('GLOBAL_EDIT_TOOL::ZonesManager on the board editor', () => {
   it('OK with "Refill zones" ticked then runs zoneFillAll (ZONE_MANAGER_REPOUR)', async () => {
     const t = frame({ ok: true, repour: true });
     await run(t);
-    // ZONE_FILLER_TOOL, registered on the frame, poured the board.
+    // ZONE_FILLER_TOOL, registered on the frame, poured the board - on its worker path, so the
+    // pour is waited for.
+    await (
+      t.f.GetToolManager()!.FindTool('pcbnew.ZoneFiller') as unknown as ZONE_FILLER_TOOL
+    ).WaitForFill();
     expect(t.z.IsFilled()).toBe(true);
   });
 

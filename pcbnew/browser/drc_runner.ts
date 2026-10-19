@@ -18,6 +18,12 @@
  */
 import type { DRC_JOB_HOOKS, DRC_JOB_REQUEST } from './drc_job.js';
 import { runDrcJob } from './drc_job.js';
+import {
+  type FILL_JOB_HOOKS,
+  type FILL_JOB_REQUEST,
+  type FILL_JOB_RESULT,
+  runFillJob,
+} from './fill_job.js';
 import type { DRC_WORKER_MESSAGE } from './drc_worker.js';
 
 /** Set once `new Worker` has failed, so we stop trying for the session. */
@@ -63,17 +69,26 @@ export function drcWorkerAvailable(): boolean {
   return !workersUnavailable && typeof Worker !== 'undefined';
 }
 
+/** The hooks every job here reports through (DRC_JOB_HOOKS and FILL_JOB_HOOKS share them). */
+interface JOB_PROGRESS_HOOKS {
+  onPhase(aMessage: string): void;
+  onProgress(aValue: number): void;
+  isCancelled?(): boolean;
+}
+
 /**
- * Run a DRC job, off the main thread where that is possible.
- *
- * Resolves when the run finishes, fails, or is cancelled; rejects only if the
- * job itself threw, which `DIALOG_DRC` reports in its message pane.
+ * Post \a aMessage to a job worker - the spare one if there is one - and settle with what
+ * \a aOnResult makes of the worker's answer. Phases and progress go to the hooks; Cancel
+ * terminates the worker and settles with \a aCancelled; null when no worker could start, and
+ * the caller then runs its job inline.
  */
-export async function runDrcJobOffThread(
-  aRequest: DRC_JOB_REQUEST,
-  aHooks: DRC_JOB_HOOKS,
-): Promise<void> {
-  if (!drcWorkerAvailable()) return runDrcJob(aRequest, aHooks);
+function runOnJobWorker<R>(
+  aMessage: unknown,
+  aHooks: JOB_PROGRESS_HOOKS,
+  aOnResult: (aMsg: DRC_WORKER_MESSAGE) => { value: R } | null,
+  aCancelled: R,
+): Promise<R> | null {
+  if (!drcWorkerAvailable()) return null;
 
   let worker: Worker;
 
@@ -82,10 +97,10 @@ export async function runDrcJobOffThread(
     g_spare = null;
   } catch {
     workersUnavailable = true;
-    return runDrcJob(aRequest, aHooks);
+    return null;
   }
 
-  return new Promise<void>((resolve, reject) => {
+  return new Promise<R>((resolve, reject) => {
     let settled = false;
     let poll: ReturnType<typeof setInterval> | null = null;
 
@@ -103,7 +118,7 @@ export async function runDrcJobOffThread(
     poll = setInterval(() => {
       // The run is over as far as the caller is concerned; what it has
       // collected so far is what it keeps.
-      if (aHooks.isCancelled?.()) finish(() => resolve());
+      if (aHooks.isCancelled?.()) finish(() => resolve(aCancelled));
     }, CANCEL_POLL_MS);
 
     worker.onmessage = (e: MessageEvent<DRC_WORKER_MESSAGE>): void => {
@@ -112,28 +127,74 @@ export async function runDrcJobOffThread(
       switch (msg.t) {
         case 'phase':
           aHooks.onPhase(msg.message);
-          break;
+          return;
         case 'progress':
           aHooks.onProgress(msg.value);
-          break;
-        case 'violation':
-          aHooks.onViolation(msg.violation);
-          break;
-        case 'done':
-          finish(() => resolve());
-          break;
+          return;
         case 'error':
           finish(() => reject(new Error(msg.message)));
-          break;
+          return;
+        default: {
+          const result = aOnResult(msg);
+
+          if (result) finish(() => resolve(result.value));
+        }
       }
     };
 
     // A worker that dies takes the run with it. It has already delivered what
     // it found, so this is reported rather than thrown away.
     worker.onerror = (e: ErrorEvent): void => {
-      finish(() => reject(new Error(e.message || 'the DRC worker failed')));
+      finish(() => reject(new Error(e.message || 'the job worker failed')));
     };
 
-    worker.postMessage(aRequest);
+    worker.postMessage(aMessage);
   });
+}
+
+/**
+ * Run a DRC job, off the main thread where that is possible.
+ *
+ * Resolves when the run finishes, fails, or is cancelled; rejects only if the
+ * job itself threw, which `DIALOG_DRC` reports in its message pane.
+ */
+export async function runDrcJobOffThread(
+  aRequest: DRC_JOB_REQUEST,
+  aHooks: DRC_JOB_HOOKS,
+): Promise<void> {
+  const run = runOnJobWorker<void>(
+    aRequest,
+    aHooks,
+    (msg) => {
+      if (msg.t === 'violation') aHooks.onViolation(msg.violation);
+
+      return msg.t === 'done' ? { value: undefined } : null;
+    },
+    undefined,
+  );
+
+  return run ?? runDrcJob(aRequest, aHooks);
+}
+
+/**
+ * Run `ZONE_FILLER::Fill` as a job (fill_job.ts), off the main thread where that is possible.
+ *
+ * Resolves with what the fill left, or null when it was cancelled; the caller installs it.
+ */
+export async function runFillJobOffThread(
+  aRequest: FILL_JOB_REQUEST,
+  aHooks: FILL_JOB_HOOKS,
+): Promise<FILL_JOB_RESULT | null> {
+  const run = runOnJobWorker<FILL_JOB_RESULT | null>(
+    { fill: aRequest },
+    aHooks,
+    (msg) => (msg.t === 'filled' ? { value: msg.result } : null),
+    null,
+  );
+
+  if (run) return run;
+
+  const result = await runFillJob(aRequest, aHooks);
+
+  return aHooks.isCancelled?.() ? null : result;
 }

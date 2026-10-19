@@ -24,6 +24,12 @@
 import type { DRC_JOB_REQUEST, DRC_JOB_VIOLATION } from './drc_job.js';
 import { EMBEDDED_FILES } from '@ziroeda/common/embedded_files.js';
 import { runDrcJob } from './drc_job.js';
+import {
+  type FILL_JOB_REQUEST,
+  type FILL_JOB_RESULT,
+  fillJobTransferables,
+  runFillJob,
+} from './fill_job.js';
 
 /** What the worker posts back, in the order `DIALOG_DRC` consumes it. */
 export type DRC_WORKER_MESSAGE =
@@ -31,6 +37,7 @@ export type DRC_WORKER_MESSAGE =
   | { t: 'progress'; value: number }
   | { t: 'violation'; violation: DRC_JOB_VIOLATION }
   | { t: 'done' }
+  | { t: 'filled'; result: FILL_JOB_RESULT }
   | { t: 'error'; message: string };
 
 /**
@@ -47,8 +54,8 @@ const PROGRESS_INTERVAL_MS = 50;
  * designer's tsconfig has the DOM lib, not WebWorker.
  */
 interface WorkerScope {
-  postMessage(message: DRC_WORKER_MESSAGE): void;
-  onmessage: ((e: MessageEvent<DRC_JOB_REQUEST>) => void) | null;
+  postMessage(message: DRC_WORKER_MESSAGE, transfer?: Transferable[]): void;
+  onmessage: ((e: MessageEvent<DRC_JOB_REQUEST | { fill: FILL_JOB_REQUEST }>) => void) | null;
 }
 
 const global = globalThis as unknown as { WorkerGlobalScope?: unknown };
@@ -59,22 +66,41 @@ if (global.WorkerGlobalScope !== undefined) {
   // A prewarmed worker waits for its job; the codec the parse needs is ready by then.
   void EMBEDDED_FILES.InitCodec();
 
-  scope.onmessage = (e: MessageEvent<DRC_JOB_REQUEST>): void => {
+  scope.onmessage = (e: MessageEvent<DRC_JOB_REQUEST | { fill: FILL_JOB_REQUEST }>): void => {
     let lastProgress = 0;
+
+    const onProgress = (value: number): void => {
+      const now = Date.now();
+
+      if (now - lastProgress < PROGRESS_INTERVAL_MS) return;
+
+      lastProgress = now;
+      scope.postMessage({ t: 'progress', value });
+    };
+
+    // ZONE_FILLER::Fill: the pour, its result back with its typed arrays transferred.
+    if ('fill' in e.data) {
+      runFillJob(e.data.fill, {
+        onPhase: (message) => scope.postMessage({ t: 'phase', message }),
+        onProgress,
+      }).then(
+        (result) => scope.postMessage({ t: 'filled', result }, fillJobTransferables(result)),
+        (err: unknown) =>
+          scope.postMessage({
+            t: 'error',
+            message: err instanceof Error ? (err.stack ?? err.message) : String(err),
+          }),
+      );
+
+      return;
+    }
 
     runDrcJob(e.data, {
       onPhase: (message) => {
         lastProgress = 0;
         scope.postMessage({ t: 'phase', message });
       },
-      onProgress: (value) => {
-        const now = Date.now();
-
-        if (now - lastProgress < PROGRESS_INTERVAL_MS) return;
-
-        lastProgress = now;
-        scope.postMessage({ t: 'progress', value });
-      },
+      onProgress,
       onViolation: (violation) => scope.postMessage({ t: 'violation', violation }),
     }).then(
       () => scope.postMessage({ t: 'done' }),

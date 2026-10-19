@@ -4,6 +4,7 @@
 import { Button } from '@ziroeda/wx/controls.js';
 import { type JSX, useEffect, useRef, useState } from 'react';
 import type { ProgressSnapshot } from './progress_reporter_snapshot.js';
+import { PROGRESS_REPORTER_BASE } from './progress_reporter_base.js';
 import { useModalEscape } from '../dialog_shim.js';
 
 /**
@@ -178,3 +179,38 @@ export const nextPaint = (): Promise<void> =>
     const timer = setTimeout(finish, PAINT_FALLBACK_MS);
     requestAnimationFrame(() => requestAnimationFrame(finish));
   });
+
+/**
+ * `WX_PROGRESS_REPORTER` (common/widgets/wx_progress_reporters.cpp): the reporter behind that
+ * dialog, for work that runs while the window stays live - a job on a worker. `updateUI` hands
+ * the dialog its message and gauge (`cur` clamped to 0..1000, as :70-73) and answers whether
+ * Cancel was pressed; the frame renders `ProgressDialog` with what it is handed.
+ */
+export class WX_PROGRESS_REPORTER extends PROGRESS_REPORTER_BASE {
+  private readonly m_publish: (aSnapshot: ProgressSnapshot | null) => void;
+
+  constructor(aPublish: (aSnapshot: ProgressSnapshot | null) => void, aNumPhases = 1) {
+    super(aNumPhases);
+    this.m_publish = aPublish;
+  }
+
+  /** The dialog's Cancel button (`PR_CAN_ABORT`). */
+  Cancel(): void {
+    this.m_cancelled = true;
+  }
+
+  /** `~WX_PROGRESS_REPORTER`: the dialog goes. */
+  Close(): void {
+    this.m_publish(null);
+  }
+
+  protected updateUI(): boolean {
+    let cur = this.CurrentProgress();
+
+    if (cur < 0 || cur > 1000) cur = 0;
+
+    this.m_publish({ message: this.m_rptMessage, value: cur / 1000 });
+
+    return !this.m_cancelled;
+  }
+}

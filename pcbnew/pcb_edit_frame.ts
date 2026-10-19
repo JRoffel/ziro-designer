@@ -121,7 +121,9 @@ import type { NETLIST } from './netlist_reader/pcb_netlist.js';
 import { formatPcbNetlist } from './cross-probing.js';
 import { type DIALOG_DRC_LIKE, DRC_TOOL } from './tools/drc_tool.js';
 import type { DRC_JOB_HOOKS, DRC_JOB_REQUEST } from './browser/drc_job.js';
-import { prewarmDrcWorker, runDrcJobOffThread } from './browser/drc_runner.js';
+import { prewarmDrcWorker, runDrcJobOffThread, runFillJobOffThread } from './browser/drc_runner.js';
+import type { FILL_JOB_HOOKS, FILL_JOB_REQUEST, FILL_JOB_RESULT } from './browser/fill_job.js';
+import type { WX_PROGRESS_REPORTER } from '@ziroeda/common/widgets/wx_progress_reporters.js';
 import { PCB_TOOL_BASE } from './tools/pcb_tool_base.js';
 import { MARKER_T } from '@ziroeda/common/marker_base.js';
 import { RPT_SEVERITY_EXCLUSION } from '@ziroeda/common/reporter.js';
@@ -743,6 +745,11 @@ export interface PCB_EDIT_FRAME_HOOKS extends PCB_BASE_EDIT_FRAME_DIALOG_HOOKS {
   schematicNetlistText(): string | null;
   /** The project's `.kicad_pro` text, PROJECT not being ported. */
   projectText(): string | null;
+  /**
+   * `WX_PROGRESS_REPORTER( this, aTitle, 1, PR_CAN_ABORT )`: the modal progress dialog, up until
+   * the reporter's Close(). Absent where there is no window.
+   */
+  openProgressReporter?(aTitle: string): WX_PROGRESS_REPORTER;
   /**
    * `PCB_EDIT_FRAME::Edit_Zone_Params` (`edit_zone_helpers.cpp`), the part
    * `OnEditItemRequest`'s `PCB_ZONE_T` case delegates to: open the zone's
@@ -2839,6 +2846,19 @@ export class PCB_EDIT_FRAME extends PCB_BASE_EDIT_FRAME {
    */
   RunDrcJob(aRequest: DRC_JOB_REQUEST, aHooks: DRC_JOB_HOOKS): Promise<void> {
     return runDrcJobOffThread(aRequest, aHooks);
+  }
+
+  /**
+   * `ZONE_FILLER::Fill` on a worker (fill_job.ts), for ZONE_FILLER_TOOL: the frame owns the
+   * worker, as it does DRC's. Resolves with what the fill left, or null when it was cancelled.
+   */
+  RunFillJob(aRequest: FILL_JOB_REQUEST, aHooks: FILL_JOB_HOOKS): Promise<FILL_JOB_RESULT | null> {
+    return runFillJobOffThread(aRequest, aHooks);
+  }
+
+  /** The window's WX_PROGRESS_REPORTER dialog, or null where there is no window. */
+  OpenProgressReporter(aTitle: string): WX_PROGRESS_REPORTER | null {
+    return this.hooks.openProgressReporter?.(aTitle) ?? null;
   }
 
   /** The next run's worker, loaded while the DRC dialog is open (drc_runner.ts). */

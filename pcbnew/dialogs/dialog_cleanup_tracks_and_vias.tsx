@@ -218,7 +218,7 @@ export class DIALOG_CLEANUP_TRACKS_AND_VIAS {
 
     if (this.m_cbRefillZones && !aDryRun) {
       this.m_reporter.report('Refilling all zones...');
-      zoneFiller?.FillAllZones(this);
+      await zoneFiller?.FillAllZones(this);
     }
 
     if (aDryRun) {
