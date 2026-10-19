@@ -39,7 +39,14 @@ export type RENDER_WORKER_REQUEST =
   | { t: 'resize'; width: number; height: number };
 
 export type RENDER_WORKER_MESSAGE =
-  | { t: 'ready'; parseMs: number; displayMs: number; firstDrawMs: number; center: { x: number; y: number }; scale: number }
+  | {
+      t: 'ready';
+      parseMs: number;
+      displayMs: number;
+      firstDrawMs: number;
+      center: { x: number; y: number };
+      scale: number;
+    }
   | { t: 'drawn'; ms: number }
   | { t: 'error'; message: string };
 
