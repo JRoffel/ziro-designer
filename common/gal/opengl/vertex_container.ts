@@ -13,6 +13,7 @@
 import { checkGlError } from './utils.js';
 import { VERTEX_SIZE, VERTEX_STORAGE } from './vertex_common.js';
 import type { VERTEX_ITEM } from './vertex_item.js';
+import { STD_MULTIMAP } from '@ziroeda/libc/multimap.js';
 import { wxASSERT } from '@ziroeda/wx/wx_assert.js';
 
 export abstract class VERTEX_CONTAINER {
@@ -270,8 +271,9 @@ export class NONCACHED_CONTAINER extends VERTEX_CONTAINER {
   }
 }
 
-///< Maps size of free memory chunks to their offsets: [size, offset]
+///< Maps size of free memory chunks to their offsets
 type CHUNK = [number, number];
+type FREE_CHUNK_MAP = STD_MULTIMAP<number, number>;
 
 /**
  * Class to store VERTEX instances with caching.
@@ -280,9 +282,8 @@ type CHUNK = [number, number];
  * allocate space on the fly, along with automatic resizing and defragmentation.
  */
 export abstract class CACHED_CONTAINER extends VERTEX_CONTAINER {
-  ///< Store size & offset of free chunks. A std::multimap keyed on size: kept sorted by
-  ///< size, so `lower_bound( aSize )` is the first chunk at least that big.
-  protected m_freeChunks: CHUNK[] = [];
+  ///< Store size & offset of free chunks.
+  protected m_freeChunks: FREE_CHUNK_MAP = new STD_MULTIMAP();
 
   ///< Stored VERTEX_ITEMs (a std::set: iterated in insertion order here, which the
   ///< defragmentation's compaction order follows).
@@ -306,7 +307,7 @@ export abstract class CACHED_CONTAINER extends VERTEX_CONTAINER {
     this.m_maxIndex = 0;
 
     // In the beginning there is only free space
-    this.insertFreeChunk(aSize, 0);
+    this.m_freeChunks.insert([aSize, 0]);
   }
 
   IsCached(): boolean {
@@ -424,8 +425,8 @@ export abstract class CACHED_CONTAINER extends VERTEX_CONTAINER {
     this.m_items.clear();
 
     // Now there is only free space left
-    this.m_freeChunks = [];
-    this.insertFreeChunk(this.m_freeSpace, 0);
+    this.m_freeChunks.clear();
+    this.m_freeChunks.insert([this.m_freeSpace, 0]);
   }
 
   /**
@@ -462,10 +463,10 @@ export abstract class CACHED_CONTAINER extends VERTEX_CONTAINER {
     const itemSize = this.m_item!.GetSize();
 
     // Find a free space chunk >= aSize
-    let newChunk = this.lowerBound(aSize);
+    let newChunk = this.m_freeChunks.lower_bound(aSize);
 
     // Is there enough space to store vertices?
-    if (newChunk === -1) {
+    if (newChunk === this.m_freeChunks.end()) {
       let result: boolean;
 
       // Would it be enough to double the current space?
@@ -479,15 +480,13 @@ export abstract class CACHED_CONTAINER extends VERTEX_CONTAINER {
 
       if (!result) return false;
 
-      newChunk = this.lowerBound(aSize);
-      wxASSERT(newChunk !== -1);
+      newChunk = this.m_freeChunks.lower_bound(aSize);
+      wxASSERT(newChunk !== this.m_freeChunks.end());
     }
 
-    // Parameters of the allocated chunk. `newChunk` is a multimap iterator upstream, which the
-    // addFreeChunk below does not move; an array index would, so hold the entry itself.
-    const newChunkEntry = this.m_freeChunks[newChunk]!;
-    const newChunkSize = this.getChunkSize(newChunkEntry);
-    const newChunkOffset = this.getChunkOffset(newChunkEntry);
+    // Parameters of the allocated chunk
+    const newChunkSize = this.getChunkSize(newChunk!);
+    const newChunkOffset = this.getChunkOffset(newChunk!);
 
     wxASSERT(newChunkSize >= aSize);
     wxASSERT(newChunkOffset < this.m_currentSize);
@@ -515,7 +514,7 @@ export abstract class CACHED_CONTAINER extends VERTEX_CONTAINER {
     }
 
     // Remove the new allocated chunk from the free space pool
-    this.m_freeChunks.splice(this.m_freeChunks.indexOf(newChunkEntry), 1);
+    this.m_freeChunks.erase(newChunk!);
     this.m_freeSpace -= newChunkSize;
 
     this.m_chunkSize = newChunkSize;
@@ -583,7 +582,7 @@ export abstract class CACHED_CONTAINER extends VERTEX_CONTAINER {
    * memory.
    */
   protected mergeFreeChunks(): void {
-    if (this.m_freeChunks.length <= 1)
+    if (this.m_freeChunks.size() <= 1)
       // There are no chunks that can be merged
       return;
 
@@ -592,7 +591,7 @@ export abstract class CACHED_CONTAINER extends VERTEX_CONTAINER {
 
     for (const [size, off] of this.m_freeChunks) freeChunks.push([off, size]);
 
-    this.m_freeChunks = [];
+    this.m_freeChunks.clear();
 
     freeChunks.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
 
@@ -607,7 +606,7 @@ export abstract class CACHED_CONTAINER extends VERTEX_CONTAINER {
       } else {
         // These chunks cannot be merged
         // So store the previous one
-        this.insertFreeChunk(size, offset);
+        this.m_freeChunks.insert([size, offset]);
 
         // and let's check the next chunk
         offset = itf[0];
@@ -616,7 +615,7 @@ export abstract class CACHED_CONTAINER extends VERTEX_CONTAINER {
     }
 
     // Add the last one
-    this.insertFreeChunk(size, offset);
+    this.m_freeChunks.insert([size, offset]);
   }
 
   /**
@@ -644,23 +643,8 @@ export abstract class CACHED_CONTAINER extends VERTEX_CONTAINER {
     wxASSERT(aOffset + aSize <= this.m_currentSize);
     wxASSERT(aSize > 0);
 
-    this.insertFreeChunk(aSize, aOffset);
+    this.m_freeChunks.insert([aSize, aOffset]);
     this.m_freeSpace += aSize;
-  }
-
-  /** `m_freeChunks.insert( { aSize, aOffset } )`: the multimap keeps equal keys in insertion order. */
-  protected insertFreeChunk(aSize: number, aOffset: number): void {
-    let i = this.m_freeChunks.length;
-    while (i > 0 && this.m_freeChunks[i - 1]![0] > aSize) i--;
-    this.m_freeChunks.splice(i, 0, [aSize, aOffset]);
-  }
-
-  /** `m_freeChunks.lower_bound( aSize )`: the first chunk of at least aSize, or -1 for end(). */
-  protected lowerBound(aSize: number): number {
-    for (let i = 0; i < this.m_freeChunks.length; i++) {
-      if (this.m_freeChunks[i]![0] >= aSize) return i;
-    }
-    return -1;
   }
 }
 
@@ -757,8 +741,8 @@ export class CACHED_CONTAINER_RAM extends CACHED_CONTAINER {
     this.m_currentSize = aNewSize;
 
     // Now there is only one big chunk of free memory
-    this.m_freeChunks = [];
-    this.insertFreeChunk(this.m_freeSpace, this.m_currentSize - this.m_freeSpace);
+    this.m_freeChunks.clear();
+    this.m_freeChunks.insert([this.m_freeSpace, this.m_currentSize - this.m_freeSpace]);
 
     this.m_dirty = true;
     this.markDirtyRange(0, this.m_currentSize);
