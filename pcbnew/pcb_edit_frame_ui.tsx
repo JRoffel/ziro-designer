@@ -4852,6 +4852,10 @@ export function PcbEditor({
       if (!fittedRef.current && boardRef.current && isMeasured(size) && shownRef.current) {
         fittedRef.current = true;
         zoomToFit();
+        // The draw that ends the open (it closes Load PCB) must follow the fit even when the
+        // fit returned early - no box yet, no scale - or the dialog's backdrop, which takes
+        // every canvas event that would have drawn, stays up for good.
+        requestDraw();
       } else if (changed) {
         requestDraw();
       }
@@ -4874,10 +4878,12 @@ export function PcbEditor({
       if (!r || r.width === 0 || r.height === 0 || !shownRef.current) return;
       fittedRef.current = true;
       zoomToFit();
+      // As in the observer above: the open's last draw follows the fit, whatever it did.
+      requestDraw();
     };
     raf = requestAnimationFrame(tryFit);
     return () => cancelAnimationFrame(raf);
-  }, [board, zoomToFit]);
+  }, [board, zoomToFit, requestDraw]);
 
   // Flip board view (PCB_ACTIONS::flipBoard → VIEW::SetMirror on X): toggle the
   // view's horizontal mirror, re-centring so the board stays put. The mirror
