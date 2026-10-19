@@ -26,14 +26,17 @@ import { MD_CTRL, MD_SHIFT, TA_MOUSE_CLICK } from '@ziroeda/common/tool/tool_eve
 import { wxUpdateUIEvent } from '@ziroeda/wx/wx_event.js';
 import { PL_ACTIONS } from '@ziroeda/pagelayout_editor/tools/pl_actions.js';
 import { makeHarness, mouse, toolbar } from './pl_editor_fixture.js';
+import { PlDataModel, SetPlDataModel } from '@ziroeda/pagelayout_editor/pl_data_model.js';
 
 beforeEach(() => {
   SetPgm(new PGM_BASE());
-  DS_DATA_MODEL.SetAltInstance(new DS_DATA_MODEL());
+  SetPlDataModel(new DS_DATA_MODEL());
+  DS_DATA_MODEL.SetAltInstance(PlDataModel());
 });
 
 afterEach(() => {
   DS_DATA_MODEL.SetAltInstance(null);
+  SetPlDataModel(null);
   SetPgm(null);
 });
 

@@ -40,6 +40,7 @@ import { LAYER_DRAWINGSHEET } from '@ziroeda/common/layer_id.js';
 import { wxPrinter } from '@ziroeda/wx/printer.js';
 import { wxPrintout } from '@ziroeda/wx/prntbase.js';
 import type { PL_EDITOR_FRAME } from '../pl_editor_frame.js';
+import { PlDataModel } from '../pl_data_model.js';
 
 /**
  * What `${#}` and `${##}` resolve to in the Drawing Sheet Editor, on screen and
@@ -145,7 +146,7 @@ export class PLEDITOR_PRINTOUT extends wxPrintout {
     renderSettings.SetPrintDC(dc);
 
     // Ensure the scaling factor (used only in printing) of bitmaps is up to date
-    const model = DS_DATA_MODEL.GetTheInstance();
+    const model = PlDataModel();
 
     for (const dataItem of model.GetItems()) {
       if (dataItem instanceof DS_DATA_ITEM_BITMAP && dataItem.m_ImageBitmap) {

@@ -97,6 +97,22 @@ export enum DS_ITEM_TYPE {
  *   in this description
  */
 export class DS_DATA_ITEM {
+  /**
+   * Not KiCad's: the model holding this item. KiCad links common into each kiface, so every
+   * editor's DS_DATA_MODEL::GetTheInstance() is its own and an item only ever meets its own
+   * model there; one browser realm has one static, so the item asks the model it was appended to
+   * (the shared instance until it is appended anywhere).
+   */
+  private m_dataModel: DS_DATA_MODEL | null = null;
+
+  SetDataModel(aModel: DS_DATA_MODEL): void {
+    this.m_dataModel = aModel;
+  }
+
+  DataModel(): DS_DATA_MODEL {
+    return this.m_dataModel ?? DS_DATA_MODEL.GetTheInstance();
+  }
+
   static readonly DS_TEXT = DS_ITEM_TYPE.DS_TEXT;
   static readonly DS_SEGMENT = DS_ITEM_TYPE.DS_SEGMENT;
   static readonly DS_RECT = DS_ITEM_TYPE.DS_RECT;
@@ -205,7 +221,7 @@ export class DS_DATA_ITEM {
   }
 
   GetPenSizeIU(): number {
-    const model = DS_DATA_MODEL.GetTheInstance();
+    const model = this.DataModel();
 
     if (this.m_LineWidth !== 0) return KiROUND(this.m_LineWidth * model.m_WSunits2Iu);
     else return KiROUND(model.m_DefaultLineWidth * model.m_WSunits2Iu);
@@ -218,8 +234,8 @@ export class DS_DATA_ITEM {
    */
   MoveToIU(aPosition: VECTOR2I): void {
     const pos_mm = {
-      x: aPosition.x / DS_DATA_MODEL.GetTheInstance().m_WSunits2Iu,
-      y: aPosition.y / DS_DATA_MODEL.GetTheInstance().m_WSunits2Iu,
+      x: aPosition.x / this.DataModel().m_WSunits2Iu,
+      y: aPosition.y / this.DataModel().m_WSunits2Iu,
     };
 
     this.MoveTo(pos_mm);
@@ -246,8 +262,8 @@ export class DS_DATA_ITEM {
   }
 
   /** The anchor-relative position of `aPosition` (mm, from the paper's top left). */
-  private static toAnchor(aAnchor: number, aPosition: VECTOR2D): VECTOR2D {
-    const model = DS_DATA_MODEL.GetTheInstance();
+  private static toAnchor(aModel: DS_DATA_MODEL, aAnchor: number, aPosition: VECTOR2D): VECTOR2D {
+    const model = aModel;
 
     // Calculate the position of the starting point
     // relative to the reference corner
@@ -275,7 +291,7 @@ export class DS_DATA_ITEM {
    * @param aPosition the new position of the starting point, in mm.
    */
   MoveStartPointTo(aPosition: VECTOR2D): void {
-    this.m_Pos.m_Pos = DS_DATA_ITEM.toAnchor(this.m_Pos.m_Anchor, aPosition);
+    this.m_Pos.m_Pos = DS_DATA_ITEM.toAnchor(this.DataModel(), this.m_Pos.m_Anchor, aPosition);
   }
 
   /**
@@ -285,8 +301,8 @@ export class DS_DATA_ITEM {
    */
   MoveStartPointToIU(aPosition: VECTOR2I): void {
     const pos_mm = {
-      x: aPosition.x / DS_DATA_MODEL.GetTheInstance().m_WSunits2Iu,
-      y: aPosition.y / DS_DATA_MODEL.GetTheInstance().m_WSunits2Iu,
+      x: aPosition.x / this.DataModel().m_WSunits2Iu,
+      y: aPosition.y / this.DataModel().m_WSunits2Iu,
     };
 
     this.MoveStartPointTo(pos_mm);
@@ -300,7 +316,7 @@ export class DS_DATA_ITEM {
    * @param aPosition is the new position of the ending point, in mm.
    */
   MoveEndPointTo(aPosition: VECTOR2D): void {
-    const position = DS_DATA_ITEM.toAnchor(this.m_End.m_Anchor, aPosition);
+    const position = DS_DATA_ITEM.toAnchor(this.DataModel(), this.m_End.m_Anchor, aPosition);
 
     // Modify m_End only for items having 2 coordinates
     switch (this.GetType()) {
@@ -323,16 +339,21 @@ export class DS_DATA_ITEM {
    */
   MoveEndPointToIU(aPosition: VECTOR2I): void {
     const pos_mm = {
-      x: aPosition.x / DS_DATA_MODEL.GetTheInstance().m_WSunits2Iu,
-      y: aPosition.y / DS_DATA_MODEL.GetTheInstance().m_WSunits2Iu,
+      x: aPosition.x / this.DataModel().m_WSunits2Iu,
+      y: aPosition.y / this.DataModel().m_WSunits2Iu,
     };
 
     this.MoveEndPointTo(pos_mm);
   }
 
   /** The page position (mm) of `aCoord` for repeat `ii`. */
-  private static fromAnchor(aCoord: POINT_COORD, aIncr: VECTOR2D, ii: number): VECTOR2D {
-    const model = DS_DATA_MODEL.GetTheInstance();
+  private static fromAnchor(
+    aModel: DS_DATA_MODEL,
+    aCoord: POINT_COORD,
+    aIncr: VECTOR2D,
+    ii: number,
+  ): VECTOR2D {
+    const model = aModel;
     const pos = { x: aCoord.m_Pos.x + aIncr.x * ii, y: aCoord.m_Pos.y + aIncr.y * ii };
 
     switch (aCoord.m_Anchor) {
@@ -353,22 +374,22 @@ export class DS_DATA_ITEM {
   }
 
   GetStartPos(ii = 0): VECTOR2D {
-    return DS_DATA_ITEM.fromAnchor(this.m_Pos, this.m_IncrementVector, ii);
+    return DS_DATA_ITEM.fromAnchor(this.DataModel(), this.m_Pos, this.m_IncrementVector, ii);
   }
 
   GetStartPosIU(ii = 0): VECTOR2I {
     const pos = this.GetStartPos(ii);
-    const k = DS_DATA_MODEL.GetTheInstance().m_WSunits2Iu;
+    const k = this.DataModel().m_WSunits2Iu;
     return { x: KiROUND(pos.x * k), y: KiROUND(pos.y * k) };
   }
 
   GetEndPos(ii = 0): VECTOR2D {
-    return DS_DATA_ITEM.fromAnchor(this.m_End, this.m_IncrementVector, ii);
+    return DS_DATA_ITEM.fromAnchor(this.DataModel(), this.m_End, this.m_IncrementVector, ii);
   }
 
   GetEndPosIU(ii = 0): VECTOR2I {
     const pos = this.GetEndPos(ii);
-    const k = DS_DATA_MODEL.GetTheInstance().m_WSunits2Iu;
+    const k = this.DataModel().m_WSunits2Iu;
     return { x: KiROUND(pos.x * k), y: KiROUND(pos.y * k) };
   }
 
@@ -376,7 +397,7 @@ export class DS_DATA_ITEM {
    * @return true if the item is inside the rectangle defined by the 4 corners, false otherwise.
    */
   IsInsidePage(ii: number): boolean {
-    const model = DS_DATA_MODEL.GetTheInstance();
+    const model = this.DataModel();
 
     const corners: VECTOR2D[] = [this.GetStartPos(ii)];
 
@@ -456,7 +477,7 @@ export class DS_DATA_ITEM_POLYGONS extends DS_DATA_ITEM {
   }
 
   override GetPenSizeIU(): number {
-    return KiROUND(this.m_LineWidth * DS_DATA_MODEL.GetTheInstance().m_WSunits2Iu);
+    return KiROUND(this.m_LineWidth * this.DataModel().m_WSunits2Iu);
   }
 
   /**
@@ -518,7 +539,7 @@ export class DS_DATA_ITEM_POLYGONS extends DS_DATA_ITEM {
    */
   GetCornerPositionIU(aIdx: number, aRepeat = 0): VECTOR2I {
     const pos = this.GetCornerPosition(aIdx, aRepeat);
-    const k = DS_DATA_MODEL.GetTheInstance().m_WSunits2Iu;
+    const k = this.DataModel().m_WSunits2Iu;
     return { x: Math.trunc(pos.x * k), y: Math.trunc(pos.y * k) };
   }
 
@@ -557,7 +578,7 @@ export class DS_DATA_ITEM_POLYGONS extends DS_DATA_ITEM {
   }
 
   override IsInsidePage(ii: number): boolean {
-    const model = DS_DATA_MODEL.GetTheInstance();
+    const model = this.DataModel();
 
     let pos = this.GetStartPos(ii);
     pos = { x: pos.x + this.m_minCoord.x, y: pos.y + this.m_minCoord.y }; // left top pos of bounding box
@@ -608,7 +629,7 @@ export class DS_DATA_ITEM_TEXT extends DS_DATA_ITEM {
     let pensize = this.GetPenSizeIU();
     let multilines = false;
 
-    if (DS_DATA_MODEL.GetTheInstance().m_EditMode) {
+    if (this.DataModel().m_EditMode) {
       this.m_FullText = this.m_TextBase;
     } else {
       this.m_FullText = aCollector ? aCollector.BuildFullText(this.m_TextBase) : '';
@@ -618,7 +639,7 @@ export class DS_DATA_ITEM_TEXT extends DS_DATA_ITEM {
     if (pensize === 0) pensize = aCollector ? aCollector.GetDefaultPenSize() : 1;
 
     this.SetConstrainedTextSize();
-    const k = DS_DATA_MODEL.GetTheInstance().m_WSunits2Iu;
+    const k = this.DataModel().m_WSunits2Iu;
     const textsize: VECTOR2I = {
       x: KiROUND(this.m_ConstrainedTextSize.x * k),
       y: KiROUND(this.m_ConstrainedTextSize.y * k),
@@ -668,7 +689,7 @@ export class DS_DATA_ITEM_TEXT extends DS_DATA_ITEM {
   }
 
   override GetPenSizeIU(): number {
-    const model = DS_DATA_MODEL.GetTheInstance();
+    const model = this.DataModel();
 
     if (this.m_LineWidth !== 0) return KiROUND(this.m_LineWidth * model.m_WSunits2Iu);
     else return KiROUND(model.m_DefaultTextThickness * model.m_WSunits2Iu);
@@ -706,10 +727,10 @@ export class DS_DATA_ITEM_TEXT extends DS_DATA_ITEM {
     this.m_ConstrainedTextSize = { x: this.m_TextSize.x, y: this.m_TextSize.y };
 
     if (this.m_ConstrainedTextSize.x === 0)
-      this.m_ConstrainedTextSize.x = DS_DATA_MODEL.GetTheInstance().m_DefaultTextSize.x;
+      this.m_ConstrainedTextSize.x = this.DataModel().m_DefaultTextSize.x;
 
     if (this.m_ConstrainedTextSize.y === 0)
-      this.m_ConstrainedTextSize.y = DS_DATA_MODEL.GetTheInstance().m_DefaultTextSize.y;
+      this.m_ConstrainedTextSize.y = this.DataModel().m_DefaultTextSize.y;
 
     if (this.m_BoundingBoxSize.x > 0 || this.m_BoundingBoxSize.y > 0) {
       // to know the X and Y size of the line, we should use EDA_TEXT::GetTextBox()

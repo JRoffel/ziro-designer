@@ -12,6 +12,7 @@ import { PAGE_INFO, PAGE_SIZE_TYPE } from '@ziroeda/common/page_info.js';
 import { TITLE_BLOCK } from '@ziroeda/common/title_block.js';
 import { BOX2I } from '@ziroeda/kimath/src/math/box2.js';
 import type { VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
+import { PlDataModel } from './pl_data_model.js';
 
 export class PL_EDITOR_LAYOUT {
   private m_boundingBox = new BOX2I();
@@ -21,6 +22,7 @@ export class PL_EDITOR_LAYOUT {
 
   constructor() {
     this.m_drawItemList = new DS_DRAW_ITEM_LIST(drawSheetIUScale);
+    this.m_drawItemList.SetDataModel(PlDataModel());
     const pageInfo = new PAGE_INFO(PAGE_SIZE_TYPE.A4);
     this.SetPageSettings(pageInfo);
   }

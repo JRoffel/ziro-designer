@@ -47,6 +47,7 @@ import { DRAWING_SHEET_FILE_EXTENSION } from '@ziroeda/common/common.js';
 import { DS_DATA_MODEL } from '@ziroeda/common/drawing_sheet/ds_data_model.js';
 import { WKS_FILE_VERSION } from '@ziroeda/common/drawing_sheet/types.js';
 import type { PL_EDITOR_FRAME, PL_FILES_IO_ID } from './pl_editor_frame.js';
+import { PlDataModel } from './pl_data_model.js';
 
 /** `_( "File '%s' loaded" )` — Open Recent only (files.cpp:82). */
 export function dsFileLoadedMsg(path: string): string {
@@ -176,7 +177,7 @@ export async function Files_io(self: PL_EDITOR_FRAME, aId: PL_FILES_IO_ID): Prom
 
   let id = aId;
   let filename = self.GetCurrentFileName();
-  const pglayout = DS_DATA_MODEL.GetTheInstance();
+  const pglayout = PlDataModel();
 
   if (dsSaveBecomesSaveAs(filename) && id === 'wxID_SAVE') id = 'wxID_SAVEAS';
 
@@ -301,7 +302,7 @@ export function LoadDrawingSheetFile(self: PL_EDITOR_FRAME, aFullFileName: strin
   if (host && contents !== null) {
     const msg = { value: '' };
 
-    if (!DS_DATA_MODEL.GetTheInstance().LoadDrawingSheet(aFullFileName, msg, false, contents)) {
+    if (!PlDataModel().LoadDrawingSheet(aFullFileName, msg, false, contents)) {
       host.DisplayErrorMessage(dsErrorLoadingMsg(aFullFileName), msg.value);
       return false;
     }
@@ -312,7 +313,7 @@ export function LoadDrawingSheetFile(self: PL_EDITOR_FRAME, aFullFileName: strin
 
     host.ShowOutdatedSaveInfoBar(false);
 
-    if (DS_DATA_MODEL.GetTheInstance().GetFileFormatVersionAtLoad() < WKS_FILE_VERSION)
+    if (PlDataModel().GetFileFormatVersionAtLoad() < WKS_FILE_VERSION)
       host.ShowOutdatedSaveInfoBar(true);
 
     return true;
@@ -329,7 +330,7 @@ export function InsertDrawingSheetFile(self: PL_EDITOR_FRAME, aFullFileName: str
   if (contents !== null) {
     const append = true;
     self.SaveCopyInUndoList();
-    DS_DATA_MODEL.GetTheInstance().LoadDrawingSheet(aFullFileName, null, append, contents);
+    PlDataModel().LoadDrawingSheet(aFullFileName, null, append, contents);
     return true;
   }
 
@@ -345,7 +346,7 @@ export function SaveDrawingSheetFile(self: PL_EDITOR_FRAME, aFullFileName: strin
   const host = self.GetHost();
 
   if (aFullFileName !== '' && host) {
-    const text = DS_DATA_MODEL.GetTheInstance().Save(aFullFileName);
+    const text = PlDataModel().Save(aFullFileName);
 
     if (!host.WriteFile(aFullFileName, text)) return false;
 

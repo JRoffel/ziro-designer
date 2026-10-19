@@ -19,14 +19,17 @@ import {
 } from '@ziroeda/pagelayout_editor/pl_editor_frame_ui.js';
 import { PL_EDITOR_DEFAULTS } from '@ziroeda/pagelayout_editor/pl_editor_settings.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { PlDataModel, SetPlDataModel } from '@ziroeda/pagelayout_editor/pl_data_model.js';
 
 beforeEach(() => {
-  DS_DATA_MODEL.SetAltInstance(new DS_DATA_MODEL());
+  SetPlDataModel(new DS_DATA_MODEL());
+  DS_DATA_MODEL.SetAltInstance(PlDataModel());
 });
 
 afterEach(() => {
   cleanup();
   DS_DATA_MODEL.SetAltInstance(null);
+  SetPlDataModel(null);
   SetPgm(null);
 });
 

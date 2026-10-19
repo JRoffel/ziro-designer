@@ -23,6 +23,8 @@ import { SCH_PIN } from '@ziroeda/eeschema/sch_pin.js';
 import { SCH_SYMBOL } from '@ziroeda/eeschema/sch_symbol.js';
 import { LoadSchematic } from '@ziroeda/eeschema/eeschema_helpers.js';
 import { ERC_TESTER } from '@ziroeda/eeschema/erc/erc.js';
+import { EDA_UNITS_INT } from '@ziroeda/common/settings/app_settings.js';
+import { makeHarness } from '../../pagelayout_editor/pl_editor_fixture.js';
 import { ERC_REPORT } from '@ziroeda/eeschema/erc/erc_report.js';
 import { ERCE_T, SHEETLIST_ERC_ITEMS_PROVIDER } from '@ziroeda/eeschema/erc/erc_settings.js';
 import { SCH_MARKER as SCH_MARKER_CLASS, type SCH_MARKER } from '@ziroeda/eeschema/sch_marker.js';
@@ -363,6 +365,15 @@ describe('ERC_TESTER::TestTextVars on the drawing sheet', () => {
     expect(all(schematic)).toEqual(
       Array(sheets).fill([ERCE_T.ERCE_GENERIC_WARNING, 'check me (in drawing sheet)']),
     );
+  });
+
+  it('a Drawing Sheet Editor opened beside it leaves the title block resolved', () => {
+    // Its frame turns its model's edit mode on (pl_editor_frame.cpp: `m_EditMode = true`), in
+    // which every text item shows its raw format. Upstream that model is pl_editor's own static;
+    // when it was the shared one, ERC flagged every ${...} of a correct schematic's title block.
+    makeHarness(EDA_UNITS_INT.MM);
+
+    expect(all(withTitle('led ckt'))).toEqual([]);
   });
 
   it('reports an unresolved variable in the title block', () => {

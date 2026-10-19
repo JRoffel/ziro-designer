@@ -32,6 +32,7 @@ import {
 } from '@ziroeda/pagelayout_editor/files.js';
 import { PL_ACTIONS } from '@ziroeda/pagelayout_editor/tools/pl_actions.js';
 import { type Harness, makeHarness, settle } from './pl_editor_fixture.js';
+import { PlDataModel, SetPlDataModel } from '@ziroeda/pagelayout_editor/pl_data_model.js';
 
 let model: DS_DATA_MODEL;
 
@@ -39,10 +40,12 @@ beforeEach(() => {
   SetPgm(new PGM_BASE());
   model = new DS_DATA_MODEL();
   DS_DATA_MODEL.SetAltInstance(model);
+  SetPlDataModel(model);
 });
 
 afterEach(() => {
   DS_DATA_MODEL.SetAltInstance(null);
+  SetPlDataModel(null);
   SetPgm(null);
 });
 

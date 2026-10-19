@@ -187,6 +187,7 @@ export class DS_DATA_MODEL {
   }
 
   Append(aItem: DS_DATA_ITEM): void {
+    aItem.SetDataModel(this);
     this.m_list.push(aItem);
   }
 

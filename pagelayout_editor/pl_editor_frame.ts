@@ -84,6 +84,7 @@ import { PL_EDIT_TOOL } from './tools/pl_edit_tool.js';
 import { PL_POINT_EDITOR } from './tools/pl_point_editor.js';
 import { PL_EDITOR_CONTROL } from './tools/pl_editor_control.js';
 import { PL_SELECTION_TOOL } from './tools/pl_selection_tool.js';
+import { PlDataModel } from './pl_data_model.js';
 
 /** `PL_EDITOR_FRAME_NAME`, the frame's wx name (common/eda_draw_frame.ts has it). [data] */
 export { PL_EDITOR_FRAME_NAME };
@@ -215,7 +216,7 @@ export class PL_EDITOR_FRAME extends EDA_DRAW_FRAME {
     this.SetUserUnits('mm');
 
     this.m_showBorderAndTitleBlock = true; // true for reference drawings.
-    DS_DATA_MODEL.GetTheInstance().m_EditMode = true;
+    PlDataModel().m_EditMode = true;
     this.m_aboutTitle = ABOUT_TITLES.drawingSheet;
 
     // The two toolbar choice boxes `configureToolbars` makes
@@ -299,7 +300,7 @@ export class PL_EDITOR_FRAME extends EDA_DRAW_FRAME {
 
     // Initialize the current drawing sheet
     // start with the default KiCad layout
-    DS_DATA_MODEL.GetTheInstance().LoadDrawingSheet('', null);
+    PlDataModel().LoadDrawingSheet('', null);
     this.OnNewDrawingSheet();
   }
 
@@ -316,7 +317,7 @@ export class PL_EDITOR_FRAME extends EDA_DRAW_FRAME {
     if (this.m_toolManager) this.m_toolManager.ShutdownAllTools();
 
     // clean up the data before the view is destroyed
-    DS_DATA_MODEL.GetTheInstance().ClearList();
+    PlDataModel().ClearList();
 
     canvas?.Destroy();
     this.SetCanvas(null);
@@ -471,11 +472,9 @@ export class PL_EDITOR_FRAME extends EDA_DRAW_FRAME {
     // Not a tool, just a way to activate the action
     mgr.SetConditions(PL_ACTIONS.appendImportedDrawingSheet, CHECK(SELECTION_CONDITIONS.ShowNever));
 
-    const titleBlockNormalMode = (_s: SELECTION): boolean =>
-      DS_DATA_MODEL.GetTheInstance().m_EditMode === false;
+    const titleBlockNormalMode = (_s: SELECTION): boolean => PlDataModel().m_EditMode === false;
 
-    const titleBlockEditMode = (_s: SELECTION): boolean =>
-      DS_DATA_MODEL.GetTheInstance().m_EditMode === true;
+    const titleBlockEditMode = (_s: SELECTION): boolean => PlDataModel().m_EditMode === true;
 
     mgr.SetConditions(PL_ACTIONS.layoutNormalMode, CHECK(titleBlockNormalMode));
     mgr.SetConditions(PL_ACTIONS.layoutEditMode, CHECK(titleBlockEditMode));
@@ -926,7 +925,7 @@ export class PL_EDITOR_FRAME extends EDA_DRAW_FRAME {
 
     if (item === null) return null;
 
-    DS_DATA_MODEL.GetTheInstance().Append(item);
+    PlDataModel().Append(item);
     item.SyncDrawItems(null, this.GetCanvas()!.GetView());
 
     return item;

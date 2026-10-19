@@ -101,6 +101,7 @@ import {
   uiState,
 } from './pl_editor_settings_bridge.js';
 import '@ziroeda/common/widgets/shell.css';
+import { PlDataModel } from './pl_data_model.js';
 
 export interface DrawingSheetEditorFile {
   name: string;
@@ -792,7 +793,7 @@ export function PlEditorFrameWindow({
   const previewSheet = useMemo(() => {
     if (!pageDlg) return null;
     try {
-      return parseDrawingSheet(DS_DATA_MODEL.GetTheInstance().SaveInString());
+      return parseDrawingSheet(PlDataModel().SaveInString());
     } catch {
       return null;
     }

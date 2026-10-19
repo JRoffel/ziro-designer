@@ -43,6 +43,7 @@ import type { PL_EDITOR_FRAME } from '../pl_editor_frame.js';
 import { PL_ACTIONS } from './pl_actions.js';
 import type { PL_SELECTION } from './pl_selection.js';
 import { PL_SELECTION_TOOL } from './pl_selection_tool.js';
+import { PlDataModel } from '../pl_data_model.js';
 
 /** `#define HITTEST_THRESHOLD_PIXELS 5` (pl_edit_tool.cpp:414), the delete picker's. [data] */
 const DELETE_HITTEST_THRESHOLD_PIXELS = 5;
@@ -360,7 +361,7 @@ export class PL_EDIT_TOOL extends TOOL_INTERACTIVE {
     while (selection.Front()) {
       const drawItem = selection.Front() as DS_DRAW_ITEM_BASE;
       const dataItem = drawItem.GetPeer()!;
-      DS_DATA_MODEL.GetTheInstance().Remove(dataItem);
+      PlDataModel().Remove(dataItem);
 
       for (const item of dataItem.GetDrawItems()) {
         // Note: repeat items won't be selected but must be removed & deleted
@@ -397,7 +398,7 @@ export class PL_EDIT_TOOL extends TOOL_INTERACTIVE {
   *Copy(_aEvent: TOOL_EVENT): COROUTINE_BODY<number> {
     const selection = yield* this.m_selectionTool!.RequestSelection();
     const items: DS_DATA_ITEM[] = [];
-    const model = DS_DATA_MODEL.GetTheInstance();
+    const model = PlDataModel();
 
     if (selection.GetSize() === 0) return 0;
 
@@ -411,7 +412,7 @@ export class PL_EDIT_TOOL extends TOOL_INTERACTIVE {
 
   Paste(_aEvent: TOOL_EVENT): number {
     const selection = this.m_selectionTool!.GetSelection();
-    const model = DS_DATA_MODEL.GetTheInstance();
+    const model = PlDataModel();
 
     const clipImg = GetImageFromClipboard();
 
@@ -496,7 +497,7 @@ export class PL_EDIT_TOOL extends TOOL_INTERACTIVE {
       const threshold = KiROUND(this.getView()!.ToWorld(DELETE_HITTEST_THRESHOLD_PIXELS));
       let item: EDA_ITEM | null = null;
 
-      for (const dataItem of DS_DATA_MODEL.GetTheInstance().GetItems()) {
+      for (const dataItem of PlDataModel().GetItems()) {
         for (const drawItem of dataItem.GetDrawItems()) {
           if (drawItem.HitTest({ x: aPos.x, y: aPos.y }, threshold)) {
             item = drawItem;

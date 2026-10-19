@@ -19,6 +19,7 @@ import { wxDC } from '@ziroeda/wx/dc.js';
 import { LEGACY_COLORS } from '@ziroeda/common/gal/color4d.js';
 import { PLEDITOR_PRINTOUT } from '@ziroeda/pagelayout_editor/dialogs/dialogs_for_printing.js';
 import { makeHarness } from './pl_editor_fixture.js';
+import { PlDataModel, SetPlDataModel } from '@ziroeda/pagelayout_editor/pl_data_model.js';
 
 /** A 2D context that records every stroke: its colour and width. */
 class RECORDING_CTX {
@@ -79,10 +80,12 @@ beforeEach(() => {
   SetPgm(new PGM_BASE());
   model = new DS_DATA_MODEL();
   DS_DATA_MODEL.SetAltInstance(model);
+  SetPlDataModel(model);
 });
 
 afterEach(() => {
   DS_DATA_MODEL.SetAltInstance(null);
+  SetPlDataModel(null);
   SetPgm(null);
 });
 

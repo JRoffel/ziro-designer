@@ -40,6 +40,7 @@ import { BOX2D } from '@ziroeda/kimath/src/math/box2.js';
 import type { PL_EDITOR_FRAME } from './pl_editor_frame.js';
 import type { PL_EDITOR_SETTINGS } from './pl_editor_settings.js';
 import { PL_SELECTION_TOOL } from './tools/pl_selection_tool.js';
+import { PlDataModel } from './pl_data_model.js';
 
 export class PL_DRAW_PANEL_GAL extends EDA_DRAW_PANEL_GAL {
   /// The item showing the page limits and the coordinate origin marker.
@@ -92,7 +93,7 @@ export class PL_DRAW_PANEL_GAL extends EDA_DRAW_PANEL_GAL {
     const frame = this.m_edaFrame as PL_EDITOR_FRAME;
     const view = this.m_view!;
     const selTool = frame.GetToolManager()!.GetTool(PL_SELECTION_TOOL)!;
-    const model = DS_DATA_MODEL.GetTheInstance();
+    const model = PlDataModel();
 
     selTool.GetSelection().Clear();
     view.Clear();
@@ -104,6 +105,7 @@ export class PL_DRAW_PANEL_GAL extends EDA_DRAW_PANEL_GAL {
     // To show the formatted texts instead of raw texts in drawing sheet editor, we need
     // a dummy DS_DRAW_ITEM_LIST.
     const dummy = new DS_DRAW_ITEM_LIST(drawSheetIUScale);
+    dummy.SetDataModel(PlDataModel());
     dummy.SetPaperFormat(frame.GetPageSettings().GetTypeAsString());
     dummy.SetTitleBlock(frame.GetTitleBlock());
     dummy.SetProject(frame.PrjOrNull());

@@ -51,6 +51,7 @@ import { UNIT_BINDER } from '@ziroeda/common/widgets/unit_binder.js';
 import { EDA_ANGLE, EDA_ANGLE_T } from '@ziroeda/kimath/src/geometry/eda_angle.js';
 import type { PL_EDITOR_FRAME } from '../pl_editor_frame.js';
 import { PL_SELECTION_TOOL } from '../tools/pl_selection_tool.js';
+import { PlDataModel } from '../pl_data_model.js';
 
 /**
  * `"%.3f"` — always three decimal places, so a rotation of zero reads `0.000`
@@ -260,7 +261,7 @@ export class PROPERTIES_FRAME {
 
   // Data transfer from general properties to widgets
   CopyPrmsFromGeneralToPanel(): void {
-    const model = DS_DATA_MODEL.GetTheInstance();
+    const model = PlDataModel();
 
     // Set default parameters
     this.m_defaultLineWidth.SetDoubleValue(fromMM(model.m_DefaultLineWidth));
@@ -279,7 +280,7 @@ export class PROPERTIES_FRAME {
 
   // Data transfer from widgets to general properties
   CopyPrmsFromPanelToGeneral(): boolean {
-    const model = DS_DATA_MODEL.GetTheInstance();
+    const model = PlDataModel();
 
     // Import default parameters from widgets
     if (validateMM(this.m_defaultLineWidth, 0.0, 10.0))
@@ -511,7 +512,7 @@ export class PROPERTIES_FRAME {
   }
 
   OnSetDefaultValues(): void {
-    const model = DS_DATA_MODEL.GetTheInstance();
+    const model = PlDataModel();
 
     model.m_DefaultTextSize = { x: TB_DEFAULT_TEXTSIZE, y: TB_DEFAULT_TEXTSIZE };
     model.m_DefaultLineWidth = 0.15;

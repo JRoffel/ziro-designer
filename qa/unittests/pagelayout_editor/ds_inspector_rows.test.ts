@@ -25,7 +25,7 @@ import { DS_DATA_MODEL } from '@ziroeda/common/drawing_sheet/ds_data_model.js';
 import { PGM_BASE, SetPgm } from '@ziroeda/common/pgm_base.js';
 import { EDA_UNITS_INT } from '@ziroeda/common/settings/app_settings.js';
 import {
-  DIALOG_INSPECTOR,
+  type DIALOG_INSPECTOR,
   DS_ICON_IMG,
   DS_ICON_LINE,
   DS_ICON_POLY,
@@ -38,6 +38,7 @@ import {
 import { PL_ACTIONS } from '@ziroeda/pagelayout_editor/tools/pl_actions.js';
 import { PL_SELECTION_TOOL } from '@ziroeda/pagelayout_editor/tools/pl_selection_tool.js';
 import { type Harness, makeHarness, settle } from './pl_editor_fixture.js';
+import { PlDataModel, SetPlDataModel } from '@ziroeda/pagelayout_editor/pl_data_model.js';
 
 let model: DS_DATA_MODEL;
 
@@ -45,10 +46,12 @@ beforeEach(() => {
   SetPgm(new PGM_BASE());
   model = new DS_DATA_MODEL();
   DS_DATA_MODEL.SetAltInstance(model);
+  SetPlDataModel(model);
 });
 
 afterEach(() => {
   DS_DATA_MODEL.SetAltInstance(null);
+  SetPlDataModel(null);
   SetPgm(null);
 });
 

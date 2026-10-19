@@ -43,6 +43,7 @@ import type { PL_EDITOR_FRAME } from '../pl_editor_frame.js';
 import { PL_ACTIONS } from './pl_actions.js';
 import { PL_POINT_EDITOR } from './pl_point_editor.js';
 import { PL_SELECTION } from './pl_selection.js';
+import { PlDataModel } from '../pl_data_model.js';
 
 /** `#define HITTEST_THRESHOLD_PIXELS 3` (pl_selection_tool.cpp:43). [data] */
 const HITTEST_THRESHOLD_PIXELS = 3;
@@ -250,7 +251,7 @@ export class PL_SELECTION_TOOL extends SELECTION_TOOL {
     // locate items.
     const collector = new COLLECTOR();
 
-    for (const dataItem of DS_DATA_MODEL.GetTheInstance().GetItems()) {
+    for (const dataItem of PlDataModel().GetItems()) {
       for (const drawItem of dataItem.GetDrawItems()) {
         if (drawItem.HitTest(aWhere, threshold)) collector.Append(drawItem);
       }
@@ -379,7 +380,7 @@ export class PL_SELECTION_TOOL extends SELECTION_TOOL {
 
         selectionRect.Normalize();
 
-        for (const dataItem of DS_DATA_MODEL.GetTheInstance().GetItems()) {
+        for (const dataItem of PlDataModel().GetItems()) {
           for (const item of dataItem.GetDrawItems()) {
             if (item.HitTest(selectionRect, windowSelection)) {
               if (this.m_subtractive || (this.m_exclusive_or && item.IsSelected())) {
@@ -425,7 +426,7 @@ export class PL_SELECTION_TOOL extends SELECTION_TOOL {
   RebuildSelection(): void {
     this.m_selection.Clear();
 
-    for (const dataItem of DS_DATA_MODEL.GetTheInstance().GetItems()) {
+    for (const dataItem of PlDataModel().GetItems()) {
       for (const item of dataItem.GetDrawItems()) {
         if (item.IsSelected()) this.select(item);
       }

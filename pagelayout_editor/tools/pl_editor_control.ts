@@ -19,6 +19,7 @@ import { GetMsgPanelDisplayUuid, MSG_PANEL_ITEM } from '@ziroeda/common/widgets/
 import type { PL_EDITOR_FRAME } from '../pl_editor_frame.js';
 import { PL_ACTIONS } from './pl_actions.js';
 import { PL_SELECTION_TOOL } from './pl_selection_tool.js';
+import { PlDataModel } from '../pl_data_model.js';
 
 /**
  * Handle actions specific to the drawing sheet editor.
@@ -100,9 +101,8 @@ export class PL_EDITOR_CONTROL extends TOOL_INTERACTIVE {
   }
 
   TitleBlockDisplayMode(aEvent: TOOL_EVENT): number {
-    if (aEvent.IsAction(PL_ACTIONS.layoutEditMode))
-      DS_DATA_MODEL.GetTheInstance().m_EditMode = true;
-    else DS_DATA_MODEL.GetTheInstance().m_EditMode = false;
+    if (aEvent.IsAction(PL_ACTIONS.layoutEditMode)) PlDataModel().m_EditMode = true;
+    else PlDataModel().m_EditMode = false;
 
     this.m_frame!.HardRedraw();
     return 0;

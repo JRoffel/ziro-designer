@@ -31,8 +31,12 @@ build from `DS_DATA_MODEL` as KiCad does, it goes.
 
 `DS_DATA_MODEL::GetTheInstance()` is one object for the whole page. Upstream
 it is a static per kiface DSO, so pl_editor's model and the schematic's never
-meet; here only pagelayout_editor uses the instance today. The day a board or
-schematic canvas moves onto it, pl_editor needs its own (`SetAltInstance`).
+meet. The schematic's title block did move onto the shared instance, and
+pl_editor's warm-up (`m_EditMode = true`) then made ERC flag every title block
+field as an unresolved variable. So pl_editor has its own: `PlDataModel()`
+(pl_data_model.ts) everywhere here, `DS_DRAW_ITEM_LIST::SetDataModel` on its
+draw lists, the model passed to `DS_PROXY_UNDO_ITEM`; a `DS_DATA_ITEM` reads the
+model it was appended to.
 
 ## Hosted
 

@@ -22,6 +22,7 @@ import { DS_DATA_MODEL } from '@ziroeda/common/drawing_sheet/ds_data_model.js';
 import { drawSheetIUScale } from '@ziroeda/common/eda_units.js';
 import type { PL_EDITOR_FRAME } from '../pl_editor_frame.js';
 import { PL_SELECTION_TOOL } from '../tools/pl_selection_tool.js';
+import { PlDataModel } from '../pl_data_model.js';
 
 /** The five `SetColLabelValue` strings, in `COL_INDEX` order. */
 export const DS_INSPECTOR_COLUMNS: readonly string[] = ['-', 'Type', 'Count', 'Comment', 'Text'];
@@ -86,7 +87,7 @@ export class DIALOG_INSPECTOR {
     this.m_itemsList = [];
     this.m_rows = [];
 
-    const drawingSheet = DS_DATA_MODEL.GetTheInstance();
+    const drawingSheet = PlDataModel();
     const name = fileNameGetName(this.m_editorFrame.GetCurrentFileName());
 
     this.m_title = name === '' ? DS_INSPECTOR_DEFAULT_TITLE : name;

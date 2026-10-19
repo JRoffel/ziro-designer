@@ -997,8 +997,15 @@ export class DS_DRAW_ITEM_LIST {
    *   SetFileName( aFileName );
    *   SetSheetName( aFullSheetName );
    */
+  /** Not KiCad's: the model this list draws (see DS_DATA_ITEM::DataModel); the shared one by default. */
+  private m_dataModel: DS_DATA_MODEL | null = null;
+
+  SetDataModel(aModel: DS_DATA_MODEL): void {
+    this.m_dataModel = aModel;
+  }
+
   BuildDrawItemsList(aPageInfo: PAGE_INFO, aTitleBlock: TITLE_BLOCK): void {
-    const model = DS_DATA_MODEL.GetTheInstance();
+    const model = this.m_dataModel ?? DS_DATA_MODEL.GetTheInstance();
 
     this.m_titleBlock = aTitleBlock;
     this.m_paperFormat = aPageInfo.GetTypeAsString();

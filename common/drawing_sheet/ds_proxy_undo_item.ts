@@ -33,7 +33,13 @@ export class DS_PROXY_UNDO_ITEM extends EDA_ITEM {
   protected m_selectedDataItem: number;
   protected m_selectedDrawItem: number;
 
-  constructor(aFrame: DS_PROXY_UNDO_FRAME | null) {
+  /** Not KiCad's: the model this snapshot is of (the page layout editor's own; see DS_DATA_ITEM). */
+  private readonly m_dataModel: DS_DATA_MODEL;
+
+  constructor(
+    aFrame: DS_PROXY_UNDO_FRAME | null,
+    aModel: DS_DATA_MODEL = DS_DATA_MODEL.GetTheInstance(),
+  ) {
     super(aFrame ? KICAD_T.WS_PROXY_UNDO_ITEM_PLUS_T : KICAD_T.WS_PROXY_UNDO_ITEM_T);
     this.m_selectedDataItem = INT_MAX;
     this.m_selectedDrawItem = INT_MAX;
@@ -43,7 +49,9 @@ export class DS_PROXY_UNDO_ITEM extends EDA_ITEM {
       this.m_titleBlock = aFrame.GetTitleBlock().clone();
     }
 
-    const model = DS_DATA_MODEL.GetTheInstance();
+    this.m_dataModel = aModel;
+
+    const model = aModel;
     this.m_layoutSerialization = model.SaveInString();
 
     for (let ii = 0; ii < model.GetItems().length; ++ii) {
@@ -72,12 +80,12 @@ export class DS_PROXY_UNDO_ITEM extends EDA_ITEM {
       aFrame.SetTitleBlock(this.m_titleBlock);
     }
 
-    DS_DATA_MODEL.GetTheInstance().SetPageLayout(this.m_layoutSerialization);
+    this.m_dataModel.SetPageLayout(this.m_layoutSerialization);
 
     if (aView) {
       aView.Clear();
 
-      const model = DS_DATA_MODEL.GetTheInstance();
+      const model = this.m_dataModel;
 
       for (let ii = 0; ii < model.GetItems().length; ++ii) {
         const dataItem = model.GetItem(ii)!;

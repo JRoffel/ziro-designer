@@ -24,6 +24,7 @@ import { ACTIONS } from '@ziroeda/common/tool/actions.js';
 import { TA_MOUSE_CLICK, TA_MOUSE_MOTION } from '@ziroeda/common/tool/tool_event.js';
 import { wxUpdateUIEvent } from '@ziroeda/wx/wx_event.js';
 import { type Harness, makeHarness, mouse, settle, toolbar } from './pl_editor_fixture.js';
+import { PlDataModel, SetPlDataModel } from '@ziroeda/pagelayout_editor/pl_data_model.js';
 
 let model: DS_DATA_MODEL;
 
@@ -31,10 +32,12 @@ beforeEach(() => {
   SetPgm(new PGM_BASE());
   model = new DS_DATA_MODEL();
   DS_DATA_MODEL.SetAltInstance(model);
+  SetPlDataModel(model);
 });
 
 afterEach(() => {
   DS_DATA_MODEL.SetAltInstance(null);
+  SetPlDataModel(null);
   SetPgm(null);
 });
 

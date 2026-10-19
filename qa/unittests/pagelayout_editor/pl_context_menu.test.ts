@@ -31,6 +31,7 @@ import {
 import type { wxMenu } from '@ziroeda/wx/menu.js';
 import { PL_SELECTION_TOOL } from '@ziroeda/pagelayout_editor/tools/pl_selection_tool.js';
 import { type Harness, makeHarness, settle } from './pl_editor_fixture.js';
+import { PlDataModel, SetPlDataModel } from '@ziroeda/pagelayout_editor/pl_data_model.js';
 
 let model: DS_DATA_MODEL;
 
@@ -38,10 +39,12 @@ beforeEach(() => {
   SetPgm(new PGM_BASE());
   model = new DS_DATA_MODEL();
   DS_DATA_MODEL.SetAltInstance(model);
+  SetPlDataModel(model);
 });
 
 afterEach(() => {
   DS_DATA_MODEL.SetAltInstance(null);
+  SetPlDataModel(null);
   SetPgm(null);
 });
 

@@ -15,13 +15,14 @@ import { ITEM_PICKER, PICKED_ITEMS_LIST, UNDO_REDO } from '@ziroeda/common/undo_
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import type { PL_EDITOR_FRAME } from './pl_editor_frame.js';
 import { PL_SELECTION_TOOL } from './tools/pl_selection_tool.js';
+import { PlDataModel } from './pl_data_model.js';
 
 // ---- the PL_EDITOR_FRAME members pl_editor_undo_redo.cpp defines -------------
 
 /** `PL_EDITOR_FRAME::SaveCopyInUndoList()`. */
 export function SaveCopyInUndoList(self: PL_EDITOR_FRAME): void {
   const lastcmd = new PICKED_ITEMS_LIST();
-  const copyItem = new DS_PROXY_UNDO_ITEM(self);
+  const copyItem = new DS_PROXY_UNDO_ITEM(self, PlDataModel());
   const wrapper = new ITEM_PICKER(self.GetScreen(), copyItem, UNDO_REDO.LIBEDIT);
 
   lastcmd.PushItem(wrapper);
@@ -46,7 +47,7 @@ export function GetLayoutFromRedoList(self: PL_EDITOR_FRAME): void {
   const pageSettingsAndTitleBlock = redoItem.Type() === KICAD_T.WS_PROXY_UNDO_ITEM_PLUS_T;
 
   const undoCmd = new PICKED_ITEMS_LIST();
-  const undoItem = new DS_PROXY_UNDO_ITEM(pageSettingsAndTitleBlock ? self : null);
+  const undoItem = new DS_PROXY_UNDO_ITEM(pageSettingsAndTitleBlock ? self : null, PlDataModel());
   const undoWrapper = new ITEM_PICKER(self.GetScreen(), undoItem);
 
   undoCmd.PushItem(undoWrapper);
@@ -78,7 +79,7 @@ export function GetLayoutFromUndoList(self: PL_EDITOR_FRAME): void {
   const pageSettingsAndTitleBlock = undoItem.Type() === KICAD_T.WS_PROXY_UNDO_ITEM_PLUS_T;
 
   const redoCmd = new PICKED_ITEMS_LIST();
-  const redoItem = new DS_PROXY_UNDO_ITEM(pageSettingsAndTitleBlock ? self : null);
+  const redoItem = new DS_PROXY_UNDO_ITEM(pageSettingsAndTitleBlock ? self : null, PlDataModel());
   const redoWrapper = new ITEM_PICKER(self.GetScreen(), redoItem);
 
   redoCmd.PushItem(redoWrapper);
