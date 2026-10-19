@@ -46,6 +46,15 @@ at any time.
 | **Cloud projects** | End-to-end encrypted; open them from any device; share with collaborators by invite or link; export as ordinary KiCad files at any time |
 | **Open from GitHub** | Any public repository's KiCad project opens read-only at `designer.ziroeda.com/gh/<owner>/<repo>`, with "Save a copy" to make it yours |
 
+### Add an "Open in ZiroEDA" badge to your KiCad repository
+
+Let visitors open your public KiCad project in their browser with one click.
+Paste this into your README, with your own owner and repository name:
+
+```markdown
+[![Open in ZiroEDA](https://img.shields.io/badge/Open%20in-ZiroEDA-2f6feb)](https://designer.ziroeda.com/gh/OWNER/REPO)
+```
+
 The port is ongoing and some dialogs and rarely used tools are not there yet.
 If something you rely on is missing, [open an issue](https://github.com/ZiroEDA/ziro-designer/issues).
 
