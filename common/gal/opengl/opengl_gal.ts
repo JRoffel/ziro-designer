@@ -356,6 +356,13 @@ export class OPENGL_GAL extends GAL {
 
   /// Container for storing temp (diff mode) VERTEX_ITEMs
   private m_tempManager: VERTEX_MANAGER | null;
+  /// Not KiCad's: the overlay's kept groups (see GAL::SupportsOverlayGroups), drawn to the
+  /// overlay buffer like m_overlayManager but kept across frames like m_cachedManager.
+  private m_overlayCachedManager: VERTEX_MANAGER | null = null;
+  private m_overlayGroups: Map<number, VERTEX_ITEM> = new Map();
+  private m_overlayGroupCounter = 0;
+  /// The manager drawing went to before BeginOverlayGroup, restored by EndOverlayGroup.
+  private m_managerBeforeOverlayGroup: VERTEX_MANAGER | null = null;
 
   // Framebuffer & compositing
   private m_compositor: OPENGL_COMPOSITOR; ///< Handles multiple rendering targets
@@ -481,6 +488,7 @@ export class OPENGL_GAL extends GAL {
       this.m_nonCachedManager!.destroy();
       this.m_overlayManager!.destroy();
       this.m_tempManager!.destroy();
+      this.m_overlayCachedManager!.destroy();
     }
 
     this.m_shader.destroy();
@@ -673,6 +681,7 @@ export class OPENGL_GAL extends GAL {
     this.m_nonCachedManager!.BeginDrawing();
     this.m_overlayManager!.BeginDrawing();
     this.m_tempManager!.BeginDrawing();
+    this.m_overlayCachedManager!.BeginDrawing();
 
     if (!this.m_isBitmapFontInitialized) {
       // Keep bitmap font texture always bound to the second texturing unit
@@ -762,6 +771,10 @@ export class OPENGL_GAL extends GAL {
     // Overlay container is rendered to a different buffer
     if (this.m_overlayBuffer) this.m_compositor.SetBuffer(this.m_overlayBuffer);
 
+    // The kept overlay groups first (the groups built this frame are uploaded by the Unmap),
+    // then what was drawn to the overlay this frame.
+    this.m_overlayCachedManager!.Unmap();
+    this.m_overlayCachedManager!.EndDrawing();
     this.m_overlayManager!.EndDrawing();
 
     // Be sure that the framebuffer is not colorized (happens on specific GPU&drivers combinations)
@@ -2068,7 +2081,57 @@ export class OPENGL_GAL extends GAL {
     for (const [, group] of this.m_groups) group.destroy();
     this.m_groups.clear();
 
-    if (this.m_isInitialized) this.m_cachedManager!.Clear();
+    for (const [, group] of this.m_overlayGroups) group.destroy();
+    this.m_overlayGroups.clear();
+
+    if (this.m_isInitialized) {
+      this.m_cachedManager!.Clear();
+      this.m_overlayCachedManager!.Clear();
+    }
+  }
+
+  override SupportsOverlayGroups(): boolean {
+    return this.m_isInitialized;
+  }
+
+  override BeginOverlayGroup(): number {
+    this.m_isGrouping = true;
+    this.m_managerBeforeOverlayGroup = this.m_currentManager;
+    this.m_currentManager = this.m_overlayCachedManager;
+
+    const newItem = new VERTEX_ITEM(this.m_overlayCachedManager!);
+
+    while (this.m_overlayGroups.has(this.m_overlayGroupCounter)) this.m_overlayGroupCounter++;
+
+    const groupNumber = this.m_overlayGroupCounter++;
+    this.m_overlayGroups.set(groupNumber, newItem);
+
+    return groupNumber;
+  }
+
+  override EndOverlayGroup(): void {
+    this.m_overlayCachedManager!.FinishItem();
+    this.m_currentManager = this.m_managerBeforeOverlayGroup;
+    this.m_managerBeforeOverlayGroup = null;
+    this.m_isGrouping = false;
+  }
+
+  override DrawOverlayGroup(aGroupNumber: number): boolean {
+    const group = this.m_overlayGroups.get(aGroupNumber);
+
+    if (group === undefined) return false;
+
+    this.m_overlayCachedManager!.DrawItem(group);
+    return true;
+  }
+
+  override DeleteOverlayGroup(aGroupNumber: number): void {
+    const group = this.m_overlayGroups.get(aGroupNumber);
+
+    if (group !== undefined) {
+      group.destroy();
+      this.m_overlayGroups.delete(aGroupNumber);
+    }
   }
 
   // --------------------------------------------------------
@@ -2911,12 +2974,14 @@ export class OPENGL_GAL extends GAL {
     this.m_nonCachedManager = new VERTEX_MANAGER(gl, false);
     this.m_overlayManager = new VERTEX_MANAGER(gl, false);
     this.m_tempManager = new VERTEX_MANAGER(gl, false);
+    this.m_overlayCachedManager = new VERTEX_MANAGER(gl, true);
 
     // Make VBOs use shaders
     this.m_cachedManager.SetShader(this.m_shader);
     this.m_nonCachedManager.SetShader(this.m_shader);
     this.m_overlayManager.SetShader(this.m_shader);
     this.m_tempManager.SetShader(this.m_shader);
+    this.m_overlayCachedManager.SetShader(this.m_shader);
 
     this.SetTarget(this.m_currentTarget);
 

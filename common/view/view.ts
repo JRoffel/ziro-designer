@@ -29,6 +29,14 @@ const { TARGET_CACHED, TARGET_NONCACHED, TARGET_OVERLAY, TARGETS_NUMBER } = REND
 
 export type LAYER_ITEM_PAIR = [VIEW_ITEM, number];
 
+/** A kept selection drawing: VIEW_GROUP::ViewDraw's GAL overlay group for one item on one layer. */
+export interface OVERLAY_GROUP {
+  group: number;
+  /// The GAL layer depth the item was drawn from, and the depth its drawing left the GAL at.
+  depthIn: number;
+  depthOut: number;
+}
+
 export class VIEW_ITEM_DATA {
   /** `friend class VIEW`: the view reads and writes these directly. */
   m_view: VIEW | null; ///< Current dynamic view the item is assigned to.
@@ -381,6 +389,8 @@ export class VIEW {
    * @param aItem: item to be removed. Caller must dispose the removed item if necessary
    */
   Remove(aItem: VIEW_ITEM | null): void {
+    if (aItem) this.DropOverlayGroups(aItem);
+
     if (aItem?.m_viewPrivData) {
       if (aItem.m_viewPrivData.m_view !== null && aItem.m_viewPrivData.m_view !== this) {
         // wxLogDebug( "VIEW::Remove: item %s belongs to a different view", aItem->GetClass() )
@@ -631,6 +641,9 @@ export class VIEW {
    */
   SetGAL(aGal: GAL): void {
     const recacheGroups = this.m_gal !== null; // recache groups only if GAL is reassigned
+
+    // A new GAL has none of the old one's overlay groups.
+    if (recacheGroups) this.ClearOverlayGroups();
     this.m_gal = aGal;
 
     // clear group numbers, so everything is going to be recached
@@ -945,6 +958,8 @@ export class VIEW {
     const r = new BOX2I();
     r.SetMaximum();
 
+    this.ClearOverlayGroups();
+
     // Invalidate viewPrivData for all items before clearing. This ensures that items
     // which persist outside the view (like selection groups) won't have stale references
     // to this view, which could cause issues if they're later removed and re-added.
@@ -1164,6 +1179,9 @@ export class VIEW {
     // There is no point in updating non-cached layers
     if (!this.IsCached(aLayer)) return;
 
+    // The kept selection drawings were coloured by the old settings.
+    this.ClearOverlayGroups();
+
     const r = new BOX2I();
 
     r.SetMaximum();
@@ -1192,6 +1210,9 @@ export class VIEW {
    * @see RENDER_SETTINGS
    */
   UpdateAllLayersColor(): void {
+    // The kept selection drawings were coloured by the old settings.
+    this.ClearOverlayGroups();
+
     if (this.m_gal!.IsVisible()) {
       GAL_UPDATE_CONTEXT(this.m_gal!, () => {
         for (const item of this.m_allItems) {
@@ -1357,6 +1378,8 @@ export class VIEW {
    * Rebuild GAL display lists.
    */
   RecacheAllItems(): void {
+    this.ClearOverlayGroups();
+
     const r = new BOX2I();
 
     r.SetMaximum();
@@ -1820,6 +1843,60 @@ export class VIEW {
     for (const [, layer] of this.m_layers) layer.items.Query(r, visitor);
   }
 
+  // --------------------------------------------------------------------------------------
+  // Kept selection drawings. Not KiCad's: see VIEW_GROUP::ViewDraw.
+  // --------------------------------------------------------------------------------------
+
+  /**
+   * What VIEW_GROUP::ViewDraw kept of each selected item's drawing on each layer: the GAL
+   * overlay group, and the depth it was drawn at and left the GAL at. Dropped whenever the item
+   * is invalidated, exactly when its cached layers are re-drawn, and wholesale when colours
+   * change without the items being touched.
+   */
+  private m_overlayGroups = new Map<VIEW_ITEM, Map<number, OVERLAY_GROUP>>();
+
+  /** The kept drawing of \a aItem on \a aLayer, if any. */
+  GetOverlayGroup(aItem: VIEW_ITEM, aLayer: number): OVERLAY_GROUP | undefined {
+    return this.m_overlayGroups.get(aItem)?.get(aLayer);
+  }
+
+  SetOverlayGroup(aItem: VIEW_ITEM, aLayer: number, aGroup: OVERLAY_GROUP): void {
+    let byLayer = this.m_overlayGroups.get(aItem);
+
+    if (!byLayer) {
+      byLayer = new Map();
+      this.m_overlayGroups.set(aItem, byLayer);
+    }
+
+    const old = byLayer.get(aLayer);
+
+    if (old) this.m_gal?.DeleteOverlayGroup(old.group);
+
+    byLayer.set(aLayer, aGroup);
+  }
+
+  /** Forget \a aItem's kept drawings, on every layer. */
+  DropOverlayGroups(aItem: VIEW_ITEM): void {
+    const byLayer = this.m_overlayGroups.get(aItem);
+
+    if (!byLayer) return;
+
+    for (const [, g] of byLayer) this.m_gal?.DeleteOverlayGroup(g.group);
+
+    this.m_overlayGroups.delete(aItem);
+  }
+
+  /** Forget the kept drawings of every item not in \a aKeep (a deselected item's). */
+  PruneOverlayGroups(aKeep: ReadonlySet<VIEW_ITEM>): void {
+    for (const item of [...this.m_overlayGroups.keys()]) {
+      if (!aKeep.has(item)) this.DropOverlayGroups(item);
+    }
+  }
+
+  ClearOverlayGroups(): void {
+    for (const item of [...this.m_overlayGroups.keys()]) this.DropOverlayGroups(item);
+  }
+
   /**
    * Manage dirty flags & redraw queuing when updating an item.
    *
@@ -1827,6 +1904,9 @@ export class VIEW {
    * @param aUpdateFlags determines the way an item is refreshed.
    */
   protected invalidateItem(aItem: VIEW_ITEM, aUpdateFlags: number): void {
+    // Whatever made the cached layers re-draw this item makes its selection drawing stale too.
+    this.DropOverlayGroups(aItem);
+
     if (aUpdateFlags & INITIAL_ADD) {
       // Don't update layers or bbox, since it was done in VIEW::Add()
       // Now that we have initialized, set flags to ALL for the code below

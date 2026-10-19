@@ -31,6 +31,8 @@ import { VIEW_ITEM } from './view_item.js';
 export class VIEW_GROUP extends VIEW_ITEM {
   protected m_layer: number;
   protected m_groupItems: VIEW_ITEM[] = []; // No ownership.
+  /// Not KiCad's: the items whose drawing this group keeps in the VIEW (see ViewDraw).
+  private m_keptItems = new Set<VIEW_ITEM>();
 
   constructor(_aView: VIEW | null = null) {
     super();
@@ -102,6 +104,26 @@ export class VIEW_GROUP extends VIEW_ITEM {
 
     const drawList = this.updateDrawList();
 
+    // Not KiCad's. The selection is on TARGET_OVERLAY, which is redrawn from scratch every
+    // frame, so upstream re-tessellates every selected item on every zoom and pan step - with
+    // a whole board selected, millions of vertices a frame. What the painter draws for an item
+    // on a layer the VIEW caches does not depend on the view (that is why the VIEW can cache
+    // it), so the drawing is kept per item and layer, as a GAL overlay group, and dropped
+    // whenever the VIEW re-draws that item's cached layers (VIEW::invalidateItem) or recolours
+    // them. The frame that reaches the screen is the same.
+    const keep = isSelection && gal.SupportsOverlayGroups();
+
+    if (keep) {
+      const live = new Set(drawList);
+
+      for (const item of this.m_keptItems) {
+        if (!live.has(item)) {
+          aView.DropOverlayGroups(item);
+          this.m_keptItems.delete(item);
+        }
+      }
+    }
+
     // A std::map: iterated by key, so the layers come out in id order below.
     const layer_item_map = new Map<number, VIEW_ITEM[]>();
 
@@ -165,16 +187,51 @@ export class VIEW_GROUP extends VIEW_ITEM {
         if (draw) {
           gal.AdvanceDepth();
 
+          const keepLayer = keep && aView.IsCached(layer);
+
           for (const item of layer_item_map.get(layer)!) {
             // Ignore LOD scale for selected items, but don't ignore things explicitly
             // hidden.
             if (item.ViewGetLOD(layer, aView) === VIEW_ITEM.LOD_HIDE) continue;
+
+            // Only an item the VIEW owns: its invalidation is what drops the kept drawing.
+            if (keepLayer && item.viewPrivData()?.m_view === aView) {
+              this.drawKept(item, layer, aView);
+              continue;
+            }
 
             if (!painter.Draw(item, layer)) item.ViewDraw(layer, aView); // Alternative drawing method
           }
         }
       }
     });
+  }
+
+  /**
+   * Draw \a aItem on \a aLayer from its kept overlay group, or draw it into a new one. A
+   * group drawn from another starting depth is redrawn: the painter may advance the depth
+   * inside an item (the backdrill indicators), so its vertices cannot simply be moved.
+   */
+  private drawKept(aItem: VIEW_ITEM, aLayer: number, aView: VIEW): void {
+    const gal = aView.GetGAL();
+    const depthIn = gal.getLayerDepth();
+    const kept = aView.GetOverlayGroup(aItem, aLayer);
+
+    if (kept && kept.depthIn === depthIn && gal.DrawOverlayGroup(kept.group)) {
+      if (kept.depthOut !== depthIn) gal.SetLayerDepth(kept.depthOut);
+
+      return;
+    }
+
+    const group = gal.BeginOverlayGroup();
+
+    if (!aView.GetPainter().Draw(aItem, aLayer)) aItem.ViewDraw(aLayer, aView); // Alternative drawing method
+
+    gal.EndOverlayGroup();
+
+    aView.SetOverlayGroup(aItem, aLayer, { group, depthIn, depthOut: gal.getLayerDepth() });
+    this.m_keptItems.add(aItem);
+    gal.DrawOverlayGroup(group);
   }
 
   /**

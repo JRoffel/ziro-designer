@@ -705,6 +705,33 @@ export class GAL implements GAL_DISPLAY_OPTIONS_OBSERVER {
   ClearCache(): void {}
 
   // --------------------------------------------------------
+  // Overlay groups. Not KiCad's: see VIEW_GROUP::ViewDraw.
+  // --------------------------------------------------------
+
+  /**
+   * True when this GAL can keep groups drawn on the overlay target. KiCad's groups live in
+   * the cached target only, so the selection (TARGET_OVERLAY) is re-tessellated every frame;
+   * these let it be kept across frames the way the cached layers are.
+   */
+  SupportsOverlayGroups(): boolean {
+    return false;
+  }
+
+  /** `BeginGroup` for the overlay target: what is drawn until EndOverlayGroup is kept. */
+  BeginOverlayGroup(): number {
+    return -1;
+  }
+
+  EndOverlayGroup(): void {}
+
+  /** Draw a kept overlay group; false when it no longer exists (the cache was cleared). */
+  DrawOverlayGroup(aGroupNumber: number): boolean {
+    return false;
+  }
+
+  DeleteOverlayGroup(aGroupNumber: number): void {}
+
+  // --------------------------------------------------------
   // Handling the world <-> screen transformation
   // --------------------------------------------------------
 
