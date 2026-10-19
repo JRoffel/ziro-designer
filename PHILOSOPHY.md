@@ -10,9 +10,8 @@ held against us.
 
 ## What ZiroEDA is
 
-- A **browser-native reimplementation of the KiCad workflow** (TypeScript and
-  Canvas/WebGL instead of C++ and wxWidgets) that reads and writes KiCad's
-  native file formats directly.
+- A **browser-native port of KiCad** (TypeScript and WebGL instead of C++
+  and wxWidgets) that reads and writes KiCad's native file formats directly.
 - **A complement to KiCad desktop, not a replacement for it.** KiCad remains
   the deep, mature desktop suite. ZiroEDA is the way you open, share, review,
   and edit those same projects from any machine with a browser.
@@ -22,9 +21,10 @@ held against us.
 
 ## What ZiroEDA is not
 
-- **Not a fork of KiCad.** We share no code with KiCad; this is a ground-up
-  reimplementation that stays format-compatible (see
-  [README: Why a reimplementation](./README.md)).
+- **Not a fork of KiCad's repository.** ZiroEDA is a TypeScript translation
+  of KiCad's C++ source, kept file for file against a pinned KiCad release, so
+  it carries KiCad's GPL and credits it in [NOTICE.md](./NOTICE.md) (see
+  [README: How it is built](./README.md#how-it-is-built)).
 - **Not affiliated with or endorsed by the KiCad project.** "KiCad" is a
   trademark of its respective owners. We describe ourselves as
   *KiCad-compatible*; we do not use the KiCad name or logo as our brand.

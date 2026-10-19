@@ -1,228 +1,163 @@
 # ZiroEDA
 
-**Professional electronics design in a browser tab: zero learning curve, zero
-installs.**
+**KiCad-compatible electronics design in a browser tab. Nothing to install.**
 
-**ZiroEDA** is a browser-native, open-source electronics design suite. It speaks the industry's open file formats
-natively: projects made in KiCad open directly with no import step, no
-migration, no retraining, while everything about the product (cloud projects,
-sharing, and the AI-assisted design tools on our roadmap) is built web-first.
+**[Open the editor →](https://designer.ziroeda.com)** ·
+**[Try a demo project, no sign-up →](https://designer.ziroeda.com/demo/ecc83)**
 
-The core is free software (GPL-3.0-or-later). The plan is to charge only for
-what a hosted service uniquely adds on top: cloud compute (simulation,
-autorouting, batch DRC), real-time team collaboration, and AI assistance,
-never for the editor itself. See **[PHILOSOPHY.md](./PHILOSOPHY.md)** for our
-format-compatibility promise and how we relate to the upstream ecosystem.
+ZiroEDA is an open-source, browser-native port of KiCad 10: the schematic
+editor, the PCB editor, and the tools around them, running in any modern
+browser. It reads and writes KiCad's native files directly, so a `.kicad_pro`
+made on the desktop opens here with no import step, and a project saved here
+opens back in KiCad unchanged.
 
-> ZiroEDA is an independent project. It is **not** affiliated
-> with or endorsed by the KiCad project; "KiCad" is a trademark of its
-> respective owners.
+The goal is that you cannot tell whether you are in KiCad or in ZiroEDA: same
+menus, same hotkeys, same dialogs, same results. On top of that comes what a
+browser makes possible: open your projects from any machine, share them by
+link, and keep them in the cloud **end-to-end encrypted**, so not even we can
+read them.
 
-## Goals
+> ZiroEDA is an independent project. It is **not** affiliated with or endorsed
+> by the KiCad project; "KiCad" is a trademark of its respective owners. See
+> [PHILOSOPHY.md](./PHILOSOPHY.md) for how we relate to it.
 
-- **Familiar.** Behave like the tools electronics engineers already know:
-  same conventions, same hotkeys, same visual language, so switching costs
-  nothing.
-- **Interoperable.** Open formats are the source of truth. Your designs are
-  plain files you own, readable by other tools, forever.
-- **Web-native.** TypeScript + Canvas/WebGL in the browser. Heavy batch compute
-  (simulation, 3D kernel ops, autorouting) offloads to a server when needed.
-- **Expandable.** A shared engine underpins every editor (schematic, symbol,
-  board, footprint today), so capabilities compound rather than being rebuilt
-  per tool, and the coming AI copilot plugs into all of them at once.
+## Who it is for
 
-## License
+- **Students and labs.** College lab PCs and Chromebooks where you cannot
+  install software. Open a tab and design.
+- **Teams and reviewers.** Send a link instead of a zip; the other side opens
+  the real project, not a screenshot.
+- **Anyone already on KiCad.** Same files, same muscle memory, from any
+  machine.
 
-GPL-3.0-or-later. See [LICENSE](./LICENSE).
+## What works today
 
-This project reuses a substantial amount of KiCad's work: much of the engine is
-a TypeScript port of KiCad's C++, the icons are KiCad's, and the symbol,
-footprint and 3D model libraries are KiCad's official libraries. Those carry two
-different licences, GPL for the code and icons and CC-BY-SA 4.0 with the KiCad
-library exception for the libraries. See [NOTICE](./NOTICE.md) for the full
-attribution.
+| | |
+|---|---|
+| **Schematic editor** | KiCad's eeschema: symbols, wires, buses, labels, hierarchical sheets, annotation, ERC, symbol fields table, plot and print |
+| **PCB editor** | KiCad's pcbnew: footprints, interactive router, zones with KiCad's own fill algorithm, DRC, board setup, 3D viewer, plotting and fabrication outputs |
+| **Library editors** | Symbol editor, footprint editor, Assign Footprints (CvPcb) |
+| **Other KiCad tools** | Gerber viewer, PCB calculator, image converter, drawing sheet editor |
+| **Libraries** | KiCad's official symbol, footprint and 3D model libraries, served from the cloud |
+| **Cloud projects** | Sign in to keep projects in the cloud, end-to-end encrypted; open them from any device; share with collaborators |
+| **Offline** | Everything also works with no account: projects stay in your browser and export as ordinary KiCad files |
 
-## Tech stack
+The port is ongoing and some dialogs and rarely used tools are not there yet.
+If something you rely on is missing, [open an issue](https://github.com/ZiroEDA/ziro-designer/issues).
 
-| Concern                | Choice                                             |
-| ---------------------- | -------------------------------------------------- |
-| Core language          | TypeScript (Rust/WASM reserved for measured hot paths) |
-| UI                     | React                                              |
-| 2D rendering           | Canvas2D → WebGL behind an interface               |
-| 3D viewer              | three.js                                           |
-| State / undo / actions | command bus with lossless document sources         |
-| Auth / cloud sync      | Supabase                                           |
-| Crash reporting        | Sentry (opt-out, scrubbed)                         |
-| Build / monorepo       | Vite + pnpm workspaces                             |
-| Tests                  | Vitest                                             |
+## Your designs stay yours: end-to-end encryption
 
-## Configuration
+Cloud projects are encrypted **in your browser, before upload**, with a key the
+server never sees. What we store is ciphertext; there is no master key on our
+side that opens it.
 
-Every integration is env-gated and degrades to a fully offline app when its
-variables are absent, so a clone runs with no configuration at all.
+- Every project has its own random key. Board files, schematics, file names and
+  the project's metadata are all encrypted with it (AES-256-GCM).
+- The project key is wrapped under your account key. Your account key is
+  wrapped twice: once by a key derived from your password (Argon2id), once by a
+  **recovery key** shown to you once at sign-up. Your password itself never
+  reaches the server.
+- Sharing a project seals only its key to the collaborator's public key
+  (ECDH P-256), so sharing never re-encrypts or exposes the boards.
+- Live collaboration traffic (edits, cursors, selections) travels under the
+  same project key.
+- All of it uses the browser's built-in Web Crypto, so the whole scheme is in
+  this repository for anyone to audit.
 
-| Variable                       | Effect when unset                        |
-| ------------------------------ | ---------------------------------------- |
-| `VITE_SUPABASE_URL`            | Auth and cloud sync disabled             |
-| `VITE_SUPABASE_ANON_KEY`       | Auth and cloud sync disabled             |
-| `VITE_SUPABASE_STORAGE_BUCKET` | Cloud file storage disabled              |
-| `VITE_SENTRY_DSN`              | Crash reporting disabled                 |
-| `VITE_RELEASE`                 | Falls back to the build's git SHA        |
-| `SENTRY_ORG`                   | Source maps not uploaded (set in `vercel.json`) |
-| `SENTRY_PROJECT`               | Source maps not uploaded (set in `vercel.json`) |
-| `SENTRY_AUTH_TOKEN`            | Source maps not uploaded (secret, dashboard only) |
-| `SENTRY_URL`                   | Defaults to `https://de.sentry.io/`      |
+The trade-off is real: lose both your password and your recovery key and your
+encrypted projects cannot be recovered by anyone, including us.
+Plain-language details: [docs/security.md](./docs/security.md). Design and
+reasoning: [docs/encryption-design.md](./docs/encryption-design.md).
 
-### Cloud sync
+## How it is built
 
-Run `supabase/projects.sql`, `supabase/storage.sql` and `supabase/manifest.sql`
-once each in the Supabase SQL editor, and turn on **object versioning** for the
-bucket. The app works without any of it — everything is local-first — but a
-deployment that syncs should have all four.
+ZiroEDA is a **TypeScript port of KiCad's C++ source**, mirrored file for file
+(`eeschema/`, `pcbnew/`, `common/`, `libs/` …) against the KiCad 10.0.6 tag, so
+behaviour can be checked against the original line by line. KiCad's own
+`kicad-cli` is used as a test oracle: our file writers, zone fills and plots are
+compared against what KiCad itself produces.
 
-Project files are stored **content-addressed**: a blob's key is the SHA-256 of
-its bytes, at `<userId>/blobs/<hash>`. Three properties follow, and they are the
-whole design:
-
-- **A write cannot destroy.** Different contents cannot share a key, so an
-  upload only ever adds. Keying blobs by `<project>/<filename>` instead — which
-  is what the first version did — makes every save an overwrite of the only
-  copy.
-- **A read is verifiable.** The key states what the bytes must hash to, so a
-  truncated or substituted download is caught rather than handed to the parser.
-- **History is nearly free.** Superseded blobs are still there under their own
-  keys, so `project_versions` recording each committed manifest is enough to
-  restore any earlier state.
-
-The commit protocol is: store every blob, **confirm every blob is present**,
-then write the row — and only then. Until that row lands the previous version is
-entirely intact, so a push that fails at any point changes nothing. A row can
-therefore never reference an object that is not in the store.
-
-Reconciliation is last-write-wins on `updatedAt`, with the losing side kept as a
-`(local copy, <date>)` project rather than discarded. A per-project failure is
-reported in the UI, not logged to the console.
-
-The transport is an interface (`cloud/backend.ts`) whose every method throws or
-fulfils; `cloud/supabaseBackend.ts` is the only file that touches Supabase's
-`{ data, error }` convention. That is deliberate. The convention's failure mode
-is silent — `await` succeeds whether or not `error` is set — and the first
-version, which called the client directly from the store and so could not be
-reached by any test, lost the contents of eleven projects to exactly that.
-
-### Crash reporting
-
-Reports are **opt-out**: on by default, switched off under
-Preferences → Common → Privacy. Payloads are scrubbed before sending
-(`designer/src/telemetry/scrub.ts`): file names are redacted, URLs lose their
-query strings, console breadcrumbs are dropped, and neither the signed-in
-account nor an IP address is attached. Reports are grouped by a random
-per-browser id that is not linked to the user's account.
-
-Tracing, session replay and profiling are all disabled: this collects stack
-traces to fix bugs, not usage analytics.
-
-The deployed DSN lives in `vercel.json` rather than the Vercel dashboard. A
-Sentry DSN is a public, write-only ingest key: it ships inside the client
-bundle by design and can neither read issues nor reach the account, so keeping
-it in the repo means every deploy and preview is configured identically, with
-nothing to forget. Local development stays off unless you set `VITE_SENTRY_DSN`
-yourself, so debugging never pollutes production issues.
-
-The project is on Sentry's **EU (`de`) region**, which `vite.config.ts` already
-defaults to. Note that an auth token must also be created on `de.sentry.io`:
-tokens are region-scoped, and the CLI otherwise talks to the US instance and
-uploads into a void.
-
-#### Source maps
-
-Without them every stack trace arrives minified (`index-a1b2c3.js:1:48291`),
-which is close to useless. The org and project slugs are plain identifiers and
-live in `vercel.json` with the DSN; `SENTRY_AUTH_TOKEN` is a real secret and
-belongs in the Vercel dashboard only. Uploading starts as soon as all three are
-present.
-
-Because the slugs are committed, **renaming the Sentry project changes its slug
-and silently stops symbolication**: the upload 401s, the build still succeeds,
-and traces quietly go back to being minified. Rename in Sentry and here
-together.
-
-Maps are generated as `hidden` and **deleted after upload**: no
-`sourceMappingURL` comment is emitted and no `.map` file is ever deployed, so
-Sentry can symbolicate while the public site never serves our source. Deletion
-happens even when the upload fails, so a bad token cannot leak source.
-
-Upload failures are logged but **do not fail the build**, so an expired token
-degrades symbolication instead of breaking a deploy. That means a silent
-failure mode: if traces come back minified, check the build log rather than
-assuming it is working.
-
-Both the running app and the uploaded maps take their release from the same
-value in `vite.config.ts` (Vercel's commit SHA, else the git SHA). They must
-match exactly: Sentry binds events to maps by release name, and a mismatch
-just silently leaves stacks minified.
-
-## Repository layout
-
-See **[STRUCTURE.md](./STRUCTURE.md)** for the full map and the conventions
-behind it.
+| Concern | Choice |
+| --- | --- |
+| Language | TypeScript |
+| UI | React, with KiCad's wxWidgets dialogs rebuilt to the same layout |
+| 2D rendering | WebGL, with KiCad's own stroke and outline fonts |
+| 3D viewer | three.js |
+| Auth, cloud, realtime | Supabase |
+| Crash reporting | Sentry (opt-out, scrubbed) |
+| Build / monorepo | Vite + pnpm workspaces |
+| Tests | Vitest (1,500+ test files), mutation-tested |
 
 ```
 ziro-designer/
-  designer/      # the app: launcher, editor frames, cloud sync, served libraries
-  eeschema/      # schematic engine: document model, file io, connectivity/ERC, tools
-  pcbnew/        # board engine: object model, file io, board editing
-  common/        # shared EDA classes: shapes, text, units, transforms, stroke font
-  libs/
-    kimath/      # math: vectors, angles, trigonometry
-    core/        # small shared utilities
-    sexpr/       # lossless S-expression parser/serializer
-  qa/            # unit tests (qa/unittests/<module>) + fixtures (qa/data)
+  designer/          # the app: launcher, editor frames, cloud sync, encryption
+  eeschema/          # schematic engine (port of KiCad's eeschema/)
+  pcbnew/            # board engine (port of KiCad's pcbnew/)
+  common/            # shared KiCad classes: shapes, text, units, plotters, widgets
+  libs/              # kimath, core, sexpr (lossless S-expression parser)
+  gerbview/ cvpcb/ pcb_calculator/ pagelayout_editor/ bitmap2component/
+  qa/                # unit tests (qa/unittests/<module>) + fixtures
 ```
 
-### `@ziroeda/designer`: the app
+See **[STRUCTURE.md](./STRUCTURE.md)** for the full map and conventions.
 
-A React + Canvas2D suite with four editors: schematic, symbol, board, and
-footprint (plus a 3D board viewer), each wrapped in familiar window chrome:
-menu bar, toolbars, panels, and a live status bar. Run it with:
-
-```bash
-pnpm -C designer dev      # http://localhost:5173
-pnpm -C designer build    # typecheck + production build
-```
-
-### The engine packages
-
-Two layers, both built for round-trip fidelity:
-
-- **Lossless S-expression layer**: the parser/serializer for the open design
-  formats. "Lossless" is a hard requirement: it preserves every node (including
-  fields ZiroEDA does not yet model) and the exact source text of numeric
-  atoms, so saving a file never silently corrupts data the user cares about.
-  Correctness is enforced by round-trip tests against real design files
-  (`parse ∘ serialize ∘ parse` is identity over the AST).
-
-- **Typed document models**: typed views over that AST (symbols, pins, wires,
-  labels, boards, footprints, pads, zones). Coordinates are integer internal
-  units (100 nm), not float millimetres, so geometry and equality stay exact.
-  Every modelled item keeps its source AST node, so unmodified items round-trip
-  byte-for-byte.
+## Run it locally
 
 ```bash
 pnpm install
-pnpm -C qa test      # run all unit tests (parser round-trips, model, editing, ERC)
-pnpm -r typecheck    # typecheck every package
+pnpm -C designer dev      # http://localhost:5173
+pnpm -C designer build    # typecheck + production build
+pnpm -r test              # all unit tests
+pnpm -r typecheck
 ```
 
-## Roadmap
+A clone runs with **no configuration**: every integration is env-gated and the
+app degrades to a fully offline, local-only editor when its variables are
+absent.
 
-1. **Schematic capture**: lossless file io, typed model, faithful rendering,
-   editing with undo/redo, symbol placement, save. ✅
-2. **Connectivity + ERC**: net building, dangling detection, rule checks. ✅
-3. **Board + footprint editing**: object model, file io, move/rotate/delete/
-   duplicate, 3D viewer. ✅ (in progress: routing tools)
-4. **Cloud projects**: auth, project storage, templates. ✅ (hardening)
-5. **Quality pass**: CI, lint, bug inventory, launcher/editor cleanup. ⟵ *now*
-6. **Collaboration**: sharing, review, multiplayer.
-7. **AI copilot**: assisted placement/routing/review, growing into agentic
-   design tools.
+| Variable | Effect when unset |
+| --- | --- |
+| `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | Accounts, cloud sync and sharing disabled |
+| `VITE_SUPABASE_STORAGE_BUCKET` | Cloud file storage disabled |
+| `VITE_SENTRY_DSN` | Crash reporting disabled |
+| `VITE_RELEASE` | Falls back to the build's git SHA |
+| `SENTRY_ORG`, `SENTRY_PROJECT` | Source maps not uploaded (set in `vercel.json`) |
+| `SENTRY_AUTH_TOKEN` | Source maps not uploaded (secret, dashboard only) |
+| `SENTRY_URL` | Defaults to `https://de.sentry.io/` |
+
+To self-host the cloud side, apply the migrations in `supabase/migrations/` to
+your own Supabase project.
+
+### Cloud sync design
+
+- **Content-addressed, encrypted blobs.** Each file is stored under the hash of
+  its plaintext as `iv‖ciphertext`, so an upload only ever adds, a download is
+  verified after decryption, and earlier versions stay restorable.
+- **Commit last.** Every blob is stored and confirmed present before the
+  project row that references it is written, so a failed push changes nothing.
+- **Compare-and-swap on the version.** Two devices cannot silently overwrite
+  each other's work.
+- **One transport interface** (`designer/src/cloud/backend.ts`); only
+  `supabaseBackend.ts` touches Supabase, so the sync logic is fully testable.
+
+### Crash reporting
+
+Opt-out (Preferences → Common → Privacy). Reports are scrubbed in
+`designer/src/telemetry/scrub.ts`: file names and URL query strings are
+removed, and no account or IP address is attached. Tracing, session replay and
+profiling are off: this collects stack traces to fix bugs, not usage
+analytics. Source maps are uploaded to Sentry and never deployed.
+
+## License
+
+GPL-3.0-or-later, the same as KiCad. See [LICENSE](./LICENSE).
+
+Much of the engine is a TypeScript port of KiCad's C++, the icons are KiCad's,
+and the symbol, footprint and 3D model libraries are KiCad's official
+libraries. Code and icons are GPL; the libraries are CC-BY-SA 4.0 with the
+KiCad library exception. Full attribution: [NOTICE.md](./NOTICE.md).
+
+## Contact
+
+Questions, bugs or collaboration: [open an issue](https://github.com/ZiroEDA/ziro-designer/issues)
+or write to **admin@ziroeda.com**.
