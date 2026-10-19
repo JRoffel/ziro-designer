@@ -492,6 +492,8 @@ export const TREE_EXCEPTIONS: Record<string, string> = {
     "browser-only: the app's half of the editor, no KiCad counterpart by design (browser/ subfolders, agreed 10-10)",
   'pcbnew/browser/pcb_draw_panel_gal_host.tsx':
     "browser-only: the app's half of the editor, no KiCad counterpart by design (browser/ subfolders, agreed 10-10)",
+  'pcbnew/browser/render_sync.ts':
+    "browser-only: the app's half of the editor, no KiCad counterpart by design (browser/ subfolders, agreed 10-10)",
   'pcbnew/browser/render_worker.ts':
     "browser-only: the app's half of the editor, no KiCad counterpart by design (browser/ subfolders, agreed 10-10)",
   'pcbnew/browser/pcb_script_api.ts':
