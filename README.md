@@ -11,11 +11,13 @@ browser. It reads and writes KiCad's native files directly, so a `.kicad_pro`
 made on the desktop opens here with no import step, and a project saved here
 opens back in KiCad unchanged.
 
-The goal is that you cannot tell whether you are in KiCad or in ZiroEDA: same
-menus, same hotkeys, same dialogs, same results. On top of that comes what a
-browser makes possible: open your projects from any machine, share them by
-link, and keep them in the cloud **end-to-end encrypted**, so not even we can
-read them.
+ZiroEDA **extends the KiCad ecosystem; it does not replace KiCad.** For very
+large, heavy designs, desktop KiCad is the right tool. ZiroEDA is for
+everything around it: small and medium projects, working from any machine,
+reviewing a board without installing anything, and sharing a project by link.
+Your projects live in the cloud **end-to-end encrypted**, so not even we can
+read them, and they stay ordinary KiCad files you can take back to the desktop
+at any time.
 
 > ZiroEDA is an independent project. It is **not** affiliated with or endorsed
 > by the KiCad project; "KiCad" is a trademark of its respective owners. See
@@ -27,8 +29,10 @@ read them.
   install software. Open a tab and design.
 - **Teams and reviewers.** Send a link instead of a zip; the other side opens
   the real project, not a screenshot.
-- **Anyone already on KiCad.** Same files, same muscle memory, from any
-  machine.
+- **KiCad users away from their desk.** Open, check and edit the same
+  projects from any machine, then carry on in desktop KiCad.
+- **Anyone browsing open hardware.** Open any public KiCad project on GitHub
+  straight from its address.
 
 ## What works today
 
@@ -39,8 +43,8 @@ read them.
 | **Library editors** | Symbol editor, footprint editor, Assign Footprints (CvPcb) |
 | **Other KiCad tools** | Gerber viewer, PCB calculator, image converter, drawing sheet editor |
 | **Libraries** | KiCad's official symbol, footprint and 3D model libraries, served from the cloud |
-| **Cloud projects** | Sign in to keep projects in the cloud, end-to-end encrypted; open them from any device; share with collaborators |
-| **Offline** | Everything also works with no account: projects stay in your browser and export as ordinary KiCad files |
+| **Cloud projects** | End-to-end encrypted; open them from any device; share with collaborators by invite or link; export as ordinary KiCad files at any time |
+| **Open from GitHub** | Any public repository's KiCad project opens read-only at `designer.ziroeda.com/gh/<owner>/<repo>`, with "Save a copy" to make it yours |
 
 The port is ongoing and some dialogs and rarely used tools are not there yet.
 If something you rely on is missing, [open an issue](https://github.com/ZiroEDA/ziro-designer/issues).
@@ -111,9 +115,9 @@ pnpm -r test              # all unit tests
 pnpm -r typecheck
 ```
 
-A clone runs with **no configuration**: every integration is env-gated and the
-app degrades to a fully offline, local-only editor when its variables are
-absent.
+For development, a clone starts with no configuration. Accounts, cloud
+projects and sharing need a Supabase project; every integration is env-gated
+and simply switches off when its variables are absent.
 
 | Variable | Effect when unset |
 | --- | --- |

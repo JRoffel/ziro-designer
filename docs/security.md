@@ -62,12 +62,12 @@ So when you first sign up, we give you a **recovery key** — a one-time code.
 cannot be recovered by anyone — including us.** That is the cost of the guarantee
 that no one but you can read them.
 
-## Using ZiroEDA without the cloud
+## Your files stay yours
 
-You don't have to put anything in our cloud at all. You can keep a project local
-to your own machine and export it as ordinary files you own. The cloud is there
-for convenience — access from anywhere, and real-time collaboration — and it's
-your choice, per project.
+ZiroEDA lives in the cloud because that is what makes it useful: open your
+projects from anywhere, share them, and work on them together. Encryption is
+what makes that safe. And you are never locked in: export any project at any
+time as ordinary KiCad files that open in desktop KiCad.
 
 ## It's open source — you don't have to take our word for it
 
