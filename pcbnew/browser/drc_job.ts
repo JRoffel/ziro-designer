@@ -130,7 +130,7 @@ export interface DRC_JOB_HOOKS {
  * actually uses is `AdvancePhase( msg )`, `SetCurrentProgress`,
  * `KeepRefreshing` and `IsCancelled`, and those are what this answers.
  */
-class JOB_REPORTER {
+export class JOB_REPORTER {
   private readonly hooks: DRC_JOB_HOOKS;
 
   constructor(aHooks: DRC_JOB_HOOKS) {
@@ -153,8 +153,18 @@ class JOB_REPORTER {
     this.hooks.onProgress(aProgress);
   }
 
-  SetMaxProgress(_aMaxProgress: number): void {}
-  AdvanceProgress(): void {}
+  private m_maxProgress = 0;
+  private m_progress = 0;
+
+  SetMaxProgress(aMaxProgress: number): void {
+    this.m_maxProgress = aMaxProgress;
+    this.m_progress = 0;
+  }
+
+  /** `AdvanceProgress`: one of SetMaxProgress's steps done (the zone filler counts zones). */
+  AdvanceProgress(): void {
+    if (this.m_maxProgress > 0) this.hooks.onProgress(++this.m_progress / this.m_maxProgress);
+  }
   SetTitle(_aTitle: string): void {}
 
   KeepRefreshing(_aWait = false): boolean {
@@ -180,7 +190,12 @@ class JOB_REPORTER {
  * only way to be sure the worker's board IS the editor's board. A mutant that
  * deletes this line survives, and should.
  */
-export function loadBoardForDrc(aRequest: DRC_JOB_REQUEST): BOARD {
+export function loadBoardForDrc(
+  aRequest: Pick<
+    DRC_JOB_REQUEST,
+    'boardText' | 'boardPath' | 'boardUuid' | 'projectText' | 'rulesText' | 'rulesPath'
+  >,
+): BOARD {
   const board = ParseBoard(aRequest.boardText, aRequest.boardPath);
 
   board.m_Uuid = aRequest.boardUuid;

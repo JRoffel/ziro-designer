@@ -663,11 +663,14 @@ export class SHAPE_POLY_SET extends SHAPE {
     return { polys, partition: aPartition, simplify: aSimplify };
   }
 
-  /** Run a TRIANGULATION_JOB: the set it describes, triangulated the one way there is. */
-  static RunTriangulationJob(aJob: TRIANGULATION_JOB): TRIANGULATION_RESULT {
+  /**
+   * The set a TRIANGULATION_JOB's `polys` describe - the inverse of the chains TriangulationJob
+   * writes. Arcs are not carried, so it is for sets that have none (a fill, after ClearArcs).
+   */
+  static FromChains(aPolys: TRIANGULATION_JOB['polys']): SHAPE_POLY_SET {
     const set = new SHAPE_POLY_SET();
 
-    for (const poly of aJob.polys) {
+    for (const poly of aPolys) {
       const chains = poly.map(({ pts, closed }) => {
         const v: Vec2[] = [];
 
@@ -678,6 +681,13 @@ export class SHAPE_POLY_SET extends SHAPE {
 
       set.m_polys.push(chains);
     }
+
+    return set;
+  }
+
+  /** Run a TRIANGULATION_JOB: the set it describes, triangulated the one way there is. */
+  static RunTriangulationJob(aJob: TRIANGULATION_JOB): TRIANGULATION_RESULT {
+    const set = SHAPE_POLY_SET.FromChains(aJob.polys);
 
     set.CacheTriangulation(aJob.partition, aJob.simplify);
 

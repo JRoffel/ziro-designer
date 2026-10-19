@@ -59,6 +59,8 @@ import { SHAPE_NULL } from '@ziroeda/kimath/src/geometry/shape_null.js';
 import {
   CornerStrategy,
   type HASH_128,
+  type TRIANGULATION_JOB,
+  type TRIANGULATION_RESULT,
   SHAPE_POLY_SET,
   VERTEX_INDEX,
 } from '@ziroeda/kimath/src/geometry/shape_poly_set.js';
@@ -120,6 +122,24 @@ type MSG_PANEL_FRAME = EDA_DRAW_FRAME_LIKE & UNITS_PROVIDER;
 
 /** `static SHAPE_POLY_SET g_nullPoly`. */
 const g_nullPoly = new SHAPE_POLY_SET();
+
+
+/** ZONE::GetFillState's result: a fill, carried between two copies of a board. Not KiCad's. */
+export interface ZONE_FILL_STATE {
+  layers: {
+    layer: PCB_LAYER_ID;
+    /** The filled polygons as TriangulationJob chains, or null when the layer has none. */
+    polys: TRIANGULATION_JOB['polys'] | null;
+    /** Their triangulation, when it was up to date. */
+    triangulation: TRIANGULATION_RESULT | null;
+    hash: HASH_128 | null;
+    islands: number[];
+  }[];
+  fillFlags: PCB_LAYER_ID[];
+  isFilled: boolean;
+  needRefill: boolean;
+  area: number;
+}
 
 /**
  * Handle a list of polygons defining a copper zone.
@@ -1662,6 +1682,64 @@ export class ZONE extends BOARD_CONNECTED_ITEM {
     }
 
     islands.add(aPolyIdx);
+  }
+
+  /**
+   * Not KiCad's: everything ZONE_FILLER::Fill leaves on this zone, to carry a fill run on another
+   * thread (a worker's copy of the board) back to this one. The fields are exactly the ones the
+   * fill writes - the polygons with their triangulation, the per-layer fill flags and hashes,
+   * the islands, IsFilled, NeedRefill and the area.
+   */
+  GetFillState(): ZONE_FILL_STATE {
+    const layers = new Set<PCB_LAYER_ID>([
+      ...this.m_FilledPolysList.keys(),
+      ...this.m_filledPolysHash.keys(),
+      ...this.m_insulatedIslands.keys(),
+    ]);
+
+    return {
+      layers: [...layers].map((layer) => {
+        const poly = this.m_FilledPolysList.get(layer);
+
+        return {
+          layer,
+          polys: poly ? poly.TriangulationJob().polys : null,
+          triangulation: poly?.IsTriangulationUpToDate() ? poly.TriangulationResult() : null,
+          hash: this.m_filledPolysHash.has(layer) ? this.m_filledPolysHash.get(layer)! : null,
+          islands: [...(this.m_insulatedIslands.get(layer) ?? [])],
+        };
+      }),
+      fillFlags: [...this.m_fillFlags.Seq()],
+      isFilled: this.m_isFilled,
+      needRefill: this.m_needRefill,
+      area: this.m_area,
+    };
+  }
+
+  /** Install what GetFillState returned, on the same zone of another copy of the board. */
+  SetFillState(aState: ZONE_FILL_STATE): void {
+    this.m_FilledPolysList.clear();
+    this.m_filledPolysHash.clear();
+    this.m_insulatedIslands.clear();
+
+    for (const l of aState.layers) {
+      if (l.polys) {
+        const poly = SHAPE_POLY_SET.FromChains(l.polys);
+
+        if (l.triangulation) poly.SetTriangulation(l.triangulation);
+
+        this.m_FilledPolysList.set(l.layer, poly);
+      }
+
+      if (l.hash !== null) this.m_filledPolysHash.set(l.layer, l.hash);
+
+      if (l.islands.length > 0) this.m_insulatedIslands.set(l.layer, new Set(l.islands));
+    }
+
+    this.m_fillFlags = new LSET(aState.fillFlags);
+    this.m_isFilled = aState.isFilled;
+    this.m_needRefill = aState.needRefill;
+    this.m_area = aState.area;
   }
 
   BuildSmoothedPoly(
