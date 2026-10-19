@@ -22,6 +22,12 @@ import {
 import type { PAD } from '@ziroeda/pcbnew/pad.js';
 import type { PCB_VIA } from '@ziroeda/pcbnew/pcb_track.js';
 import type { ZONE } from '@ziroeda/pcbnew/zone.js';
+import { ISLAND_REMOVAL_MODE } from '@ziroeda/pcbnew/zone_settings.js';
+import {
+  CTL_ENUMERATE_LAYERS,
+  CTL_FOR_BOARD,
+  FormatBoard,
+} from '@ziroeda/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.js';
 import { ZONE_FILLER } from '@ziroeda/pcbnew/zone_filler.js';
 import { describe, expect, it } from 'vitest';
 
@@ -64,10 +70,56 @@ function filledState(aBoard: BOARD) {
   return { zones, overrides };
 }
 
+/**
+ * \a aStem's board, changed by \a aEdit and written back: the fills a fixture alone does not
+ * reach - islands kept, islands removed by area, a zone inside a footprint.
+ */
+function variant(aStem: string, aEdit: (aBoard: BOARD) => void): FILL_JOB_REQUEST {
+  const req = request(aStem);
+  const board = loadBoardForDrc(req);
+
+  aEdit(board);
+
+  return { ...req, boardText: FormatBoard(board, undefined, CTL_FOR_BOARD | CTL_ENUMERATE_LAYERS) };
+}
+
+const REQUESTS: [string, () => FILL_JOB_REQUEST][] = [
+  ...['ecc83-pp', 'flashing', 'waveorder_1006', 'hatchpads', 'StickHub'].map(
+    (stem) => [stem, () => request(stem)] as [string, () => FILL_JOB_REQUEST],
+  ),
+  [
+    'StickHub, islands never removed',
+    () =>
+      variant('StickHub', (b) => {
+        for (const z of b.Zones()) z.SetIslandRemovalMode(ISLAND_REMOVAL_MODE.NEVER);
+      }),
+  ],
+  [
+    'StickHub, islands removed below an area',
+    () =>
+      variant('StickHub', (b) => {
+        for (const z of b.Zones()) {
+          z.SetIslandRemovalMode(ISLAND_REMOVAL_MODE.AREA);
+          z.SetMinIslandArea(4_000_000_000_000); // 4 mm²
+        }
+      }),
+  ],
+  [
+    'ecc83-pp, its zone inside a footprint',
+    () =>
+      variant('ecc83-pp', (b) => {
+        const zone = b.Zones()[0]!;
+
+        b.Remove(zone);
+        b.Footprints()[0]!.Add(zone);
+      }),
+  ],
+];
+
 describe('a fill run as a job installs exactly what Fill leaves in place', () => {
-  for (const stem of ['ecc83-pp', 'flashing', 'waveorder_1006', 'hatchpads', 'StickHub']) {
-    it(stem, async () => {
-      const req = request(stem);
+  for (const [name, make] of REQUESTS) {
+    it(name, async () => {
+      const req = make();
 
       const inPlace = loadBoardForDrc(req);
       const zones = zonesOf(inPlace).filter((z) => !z.GetIsRuleArea());
