@@ -440,6 +440,8 @@ export const TREE_EXCEPTIONS: Record<string, string> = {
     "UNAUDITED: no KiCad file of this name - port it under KiCad's name, fold it into its owner, or justify it here",
   'libs/sexpr/types.ts':
     "UNAUDITED: no KiCad file of this name - port it under KiCad's name, fold it into its owner, or justify it here",
+  'pagelayout_editor/pl_data_model.ts':
+    "pl_editor's DS_DATA_MODEL::GetTheInstance(): a static per kiface upstream, one realm here, so the page layout editor keeps its own (STRUCTURE.md)",
   'pagelayout_editor/pl_editor_settings_bridge.ts':
     "UNAUDITED: no KiCad file of this name - port it under KiCad's name, fold it into its owner, or justify it here",
   'pcb_calculator/board_classes_values.ts':
@@ -482,11 +484,15 @@ export const TREE_EXCEPTIONS: Record<string, string> = {
     "browser-only: the app's half of the editor, no KiCad counterpart by design (browser/ subfolders, agreed 10-10)",
   'pcbnew/browser/drc_worker.ts':
     "browser-only: the app's half of the editor, no KiCad counterpart by design (browser/ subfolders, agreed 10-10)",
+  'pcbnew/browser/fill_job.ts':
+    "browser-only: the app's half of the editor, no KiCad counterpart by design (browser/ subfolders, agreed 10-10)",
   'pcbnew/browser/headless_netlist.ts':
     "browser-only: the app's half of the editor, no KiCad counterpart by design (browser/ subfolders, agreed 10-10)",
   'pcbnew/browser/pcb_canvas.ts':
     "browser-only: the app's half of the editor, no KiCad counterpart by design (browser/ subfolders, agreed 10-10)",
   'pcbnew/browser/pcb_draw_panel_gal_host.tsx':
+    "browser-only: the app's half of the editor, no KiCad counterpart by design (browser/ subfolders, agreed 10-10)",
+  'pcbnew/browser/render_worker.ts':
     "browser-only: the app's half of the editor, no KiCad counterpart by design (browser/ subfolders, agreed 10-10)",
   'pcbnew/browser/pcb_script_api.ts':
     "browser-only: the app's half of the editor, no KiCad counterpart by design (browser/ subfolders, agreed 10-10)",
