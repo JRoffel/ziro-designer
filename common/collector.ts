@@ -76,8 +76,21 @@ export class COLLECTOR {
    * the collector).
    */
   Remove(a: number | EDA_ITEM): void {
-    if (typeof a === 'number') this.m_list.splice(a, 1);
-    else this.m_list = this.m_list.filter((aCandidate) => aCandidate !== a);
+    if (typeof a === 'number') {
+      this.m_list.splice(a, 1);
+      return;
+    }
+
+    // std::erase_if: remove_if compacts the kept items forward in place, erase drops the tail.
+    let kept = 0;
+
+    for (let i = 0; i < this.m_list.length; i++) {
+      const aCandidate = this.m_list[i]!;
+
+      if (aCandidate !== a) this.m_list[kept++] = aCandidate;
+    }
+
+    this.m_list.length = kept;
   }
 
   /**
