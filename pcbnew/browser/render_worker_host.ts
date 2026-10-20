@@ -4,9 +4,11 @@
 /**
  * The window's half of the render worker (not KiCad's), for the board editor behind `?rw`.
  *
- * The window's PCB_DRAW_PANEL_GAL is transparent and its VIEW overlay-only: it keeps the items
- * for the tools' hit tests and draws the overlay - the selection, previews, the ratsnest, the
- * cursor - while render_worker.ts draws the board, grid and background on a canvas under it.
+ * Once the worker has drawn the board, the window's PCB_DRAW_PANEL_GAL turns transparent and
+ * its VIEW overlay-only: it keeps the items for the tools' hit tests and draws the overlay - the
+ * ratsnest, previews, the cursor - while render_worker.ts draws the board, grid, background and
+ * the selection on a canvas under it. Until then (the board text is written and parsed first)
+ * the window draws the board itself, as without the worker.
  * Each board the panel displays starts a session: a fresh canvas and worker, the board's text,
  * the window's settings and view, and from then on RENDER_VIEW_MIRROR's batches and the view
  * whenever it moves.
@@ -89,7 +91,6 @@ export class RENDER_WORKER_HOST {
     this.m_canvas = aCanvas;
     this.m_env = aEnv;
 
-    aPanel.GetView().SetOverlayOnly(true);
     aPanel.SetOnDisplayBoard((b) => void this.start(b));
 
     // The window's canvas draws over the worker's.
@@ -128,6 +129,14 @@ export class RENDER_WORKER_HOST {
     const view = this.m_panel.GetView();
     const painter = view.GetPainter() as PCB_PAINTER;
 
+    // Until this session's worker has drawn the board, the window draws it: a board opened
+    // while the last worker was drawing went into a view that cached nothing.
+    if (view.IsOverlayOnly()) {
+      view.SetOverlayOnly(false);
+      this.m_panel.SetTransparent(false);
+      view.RecacheAllItems();
+    }
+
     // The VIEW's own adds are done before the worker hears of anything; from now on it hears all.
     view.UpdateItems();
 
@@ -143,10 +152,14 @@ export class RENDER_WORKER_HOST {
 
     worker.onmessage = (e: MessageEvent<RENDER_WORKER_MESSAGE>): void => {
       if (e.data.t === 'error') console.error('render worker:', e.data.message);
-      else if (e.data.t === 'ready')
+      else if (e.data.t === 'ready' && session === this.m_session) {
         console.info(
           `render worker: board drawn (load ${e.data.loadMs.toFixed(0)} ms, first draw ${e.data.firstDrawMs.toFixed(0)} ms)`,
         );
+        // The worker draws the board from now on: the window keeps the overlay.
+        view.SetOverlayOnly(true);
+        this.m_panel.SetTransparent(true);
+      }
     };
 
     worker.onerror = (e: ErrorEvent): void =>

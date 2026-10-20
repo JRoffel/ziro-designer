@@ -1977,6 +1977,17 @@ export class OPENGL_GAL extends GAL {
   /** True for a panel whose canvas is the render worker's overlay (see the constructor). */
   private m_transparentScreen = false;
 
+  /** Not KiCad's: EDA_DRAW_PANEL_GAL::SetTransparent - the presentor follows. */
+  SetTransparentScreen(aTransparent: boolean): void {
+    this.m_transparentScreen = aTransparent;
+    this.m_compositor.m_transparentScreen = aTransparent;
+
+    if (this.effectiveAntialiasingMode() !== this.m_compositor.GetAntialiasingMode()) {
+      this.m_compositor.SetAntialiasingMode(this.effectiveAntialiasingMode());
+      this.m_isFramebufferInitialized = false;
+    }
+  }
+
   private effectiveAntialiasingMode(): GAL_ANTIALIASING_MODE {
     const mode = this.m_options.antialiasing_mode;
 

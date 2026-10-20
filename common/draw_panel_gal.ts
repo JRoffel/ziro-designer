@@ -429,7 +429,24 @@ export class EDA_DRAW_PANEL_GAL
    * background, no grid, and a screen cleared to transparent so the board shows through.
    */
   IsTransparent(): boolean {
-    return this.window.transparent === true;
+    return this.m_transparent;
+  }
+
+  private m_transparent = false;
+
+  /**
+   * Not KiCad's: become (or stop being) the render worker's overlay. Only a panel whose window
+   * asked for a transparent-capable canvas (DRAW_PANEL_GAL_WINDOW::transparent) can; until the
+   * worker has drawn the board, the panel draws it itself.
+   */
+  SetTransparent(aTransparent: boolean): void {
+    if (this.window.transparent !== true || aTransparent === this.m_transparent) return;
+
+    this.m_transparent = aTransparent;
+    (
+      this.m_gal as { SetTransparentScreen?(aTransparent: boolean): void } | null
+    )?.SetTransparentScreen?.(aTransparent);
+    this.Refresh();
   }
 
   GetClientSize(): VECTOR2I {
