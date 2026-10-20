@@ -185,6 +185,17 @@ describe("the render worker's VIEW follows the window's", () => {
     expect(outline(copy)).toBe(outline(h.board));
   });
 
+  it("a conditional update carries the painter's settings it was made for", () => {
+    const rs = (h.view.GetPainter() as PCB_PAINTER).GetSettings();
+    const track = h.board.Tracks()[0]!;
+
+    rs.SetHighlight(true, track.GetNetCode());
+    h.view.UpdateAllItemsConditionally(VIEW_UPDATE_FLAGS.REPAINT, (i) => i === track);
+    settle();
+
+    expect([...wPainter.GetSettings().GetHighlightNetCodes()]).toEqual([track.GetNetCode()]);
+  });
+
   it('an overlay-only VIEW caches nothing, and a recache sends one call, not one per item', () => {
     h.view.RecacheAllItems();
     settle();

@@ -47,6 +47,11 @@ export interface VIEW_MIRROR {
    * is about to be drawn, and the mirror follows what the group then holds.
    */
   DrawsGroup(aGroup: VIEW_GROUP): boolean;
+  /**
+   * UpdateAllItemsConditionally marked items for an update: the callers change the painter's
+   * settings first (a highlighted net, a clearance outline), and the items' updates follow.
+   */
+  ItemsConditionallyUpdated(): void;
 }
 
 /** An update UpdateAllItems marked: the mirror sends the call itself, not one per item. */
@@ -1666,6 +1671,8 @@ export class VIEW {
     a: number | ((aItem: VIEW_ITEM) => number),
     aCondition?: (aItem: VIEW_ITEM) => boolean,
   ): void {
+    this.m_remote?.ItemsConditionallyUpdated();
+
     if (typeof a === 'number') {
       const aUpdateFlags = a;
 

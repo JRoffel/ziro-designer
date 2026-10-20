@@ -272,6 +272,11 @@ export class RENDER_VIEW_MIRROR implements VIEW_MIRROR {
     this.pushOp({ op: 'call', name: aName, args: aArgs });
   }
 
+  ItemsConditionallyUpdated(): void {
+    // The items' updates arrive one by one (ItemInvalidated); what they are drawn with goes first.
+    this.pushOp({ op: 'settings', settings: snapshotRenderSettings(this.m_settings()) });
+  }
+
   DrawsGroup(aGroup: VIEW_GROUP): boolean {
     if (aGroup.ViewGetLayers()[0] !== LAYER_SELECT_OVERLAY) return false;
 
