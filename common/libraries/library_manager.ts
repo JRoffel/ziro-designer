@@ -226,8 +226,28 @@ export class LIBRARY_MANAGER {
     );
   }
 
-  /** `GetFullURI( aRow, aSubstituted )`. */
-  GetFullURI(aRow: LIBRARY_TABLE_ROW, aSubstituted = false): string {
+  /**
+   * `GetFullURI( aType, aNickname, aSubstituted )` (:953): the URI of \a aNickname's row, or null
+   * when there is none; and `GetFullURI( aRow, aSubstituted )` (:963).
+   */
+  GetFullURI(aType: LIBRARY_TABLE_TYPE, aNickname: string, aSubstituted?: boolean): string | null;
+  GetFullURI(aRow: LIBRARY_TABLE_ROW, aSubstituted?: boolean): string;
+  GetFullURI(
+    a: LIBRARY_TABLE_TYPE | LIBRARY_TABLE_ROW,
+    b: string | boolean = false,
+    c = false,
+  ): string | null {
+    if (typeof b === 'string') {
+      const result = this.GetRow(a as LIBRARY_TABLE_TYPE, b);
+
+      if (result) return this.GetFullURI(result, c);
+
+      return null;
+    }
+
+    const aRow = a as LIBRARY_TABLE_ROW;
+    const aSubstituted = b;
+
     if (!aSubstituted) return aRow.URI();
 
     return LIBRARY_MANAGER.ExpandURI(aRow.URI(), PgmOrNull()?.GetSettingsManager().Prj() ?? null);

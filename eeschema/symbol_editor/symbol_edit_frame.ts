@@ -65,6 +65,7 @@ import { SCH_IO_MGR } from '../sch_io/sch_io_mgr.js';
 import type { SYMBOL_LIBRARY_SAVE_AS_FILEDLG_HOOK } from '../widgets/symbol_library_save_as_filedlg_hook.js';
 import { SYMBOL_EDITOR_UNDO_REDO_MIXIN } from './symbol_editor_undo_redo.js';
 import { SYMBOL_EDITOR_FILES_MIXIN, SYMBOL_EDITOR_MIXIN } from './symbol_editor.js';
+import { SYMBOL_EDITOR_IMPORT_EXPORT_MIXIN } from './symbol_editor_import_export.js';
 import { applyMixins } from '@ziroeda/core/mixins.js';
 import { LIB_ID } from '@ziroeda/common/lib_id.js';
 import type { SCH_SYMBOL } from '../sch_symbol.js';
@@ -114,7 +115,7 @@ export interface SYMBOL_EDIT_FRAME_HOOKS {
     aTitle: string,
     aDefaultDir: string,
     aDefaultFile: string,
-    aWildcard: ChooserFilter,
+    aWildcard: ChooserFilter | readonly ChooserFilter[],
     aStyle: number,
     aCustomizeHook?: SYMBOL_LIBRARY_SAVE_AS_FILEDLG_HOOK,
   ): Promise<string | null>;
@@ -159,7 +160,8 @@ export interface SYMBOL_EDIT_FRAME_HOOKS {
 export interface SYMBOL_EDIT_FRAME
   extends SYMBOL_EDITOR_UNDO_REDO_MIXIN,
     SYMBOL_EDITOR_MIXIN,
-    SYMBOL_EDITOR_FILES_MIXIN {}
+    SYMBOL_EDITOR_FILES_MIXIN,
+    SYMBOL_EDITOR_IMPORT_EXPORT_MIXIN {}
 
 // biome-ignore lint/suspicious/noUnsafeDeclarationMerging: TS multiple inheritance (see libs/core/mixins.ts)
 export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
@@ -310,7 +312,7 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
     aTitle: string,
     aDefaultDir: string,
     aDefaultFile: string,
-    aWildcard: ChooserFilter,
+    aWildcard: ChooserFilter | readonly ChooserFilter[],
     aStyle: number,
     aCustomizeHook?: SYMBOL_LIBRARY_SAVE_AS_FILEDLG_HOOK,
   ): Promise<string | null> {
@@ -944,4 +946,5 @@ applyMixins(SYMBOL_EDIT_FRAME, [
   SYMBOL_EDITOR_UNDO_REDO_MIXIN,
   SYMBOL_EDITOR_MIXIN,
   SYMBOL_EDITOR_FILES_MIXIN,
+  SYMBOL_EDITOR_IMPORT_EXPORT_MIXIN,
 ]);

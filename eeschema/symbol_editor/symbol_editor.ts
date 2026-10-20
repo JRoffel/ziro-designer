@@ -200,6 +200,7 @@ import {
   kicadSymbolLibWildcard,
 } from '@ziroeda/common/wildcards_and_files_ext.js';
 import { wxFD_OVERWRITE_PROMPT, wxFD_SAVE } from '@ziroeda/wx/defs.js';
+import { wxFileExists, wxIsDirWritable } from '@ziroeda/wx/filefn.js';
 import { wxID_CANCEL, wxID_HIGHEST, wxID_NO, wxID_OK } from '@ziroeda/wx/menu.js';
 import { LIB_SYMBOL } from '../lib_symbol.js';
 import { SymbolLibAdapter } from '../project_sch.js';
@@ -1258,6 +1259,144 @@ export class SYMBOL_EDITOR_FILES_MIXIN {
     this.SyncLibraries(false);
 
     if (aOpenCopy) await this.LoadSymbol(params.m_SymbolName, params.m_LibraryName, 1);
+  }
+
+  /**
+   * `ExportSymbol()`: the target symbol, flattened, written to a library file the user names - into
+   * the buffer when that file is a library in the table, else straight to the file.
+   */
+  async ExportSymbol(this: SYMBOL_EDIT_FRAME): Promise<void> {
+    const symbol = this.getTargetSymbol();
+
+    if (!symbol) {
+      this.ShowInfoBarError('There is no symbol selected to save.');
+      return;
+    }
+
+    const libMgr = this.GetLibManager();
+
+    // fn.SetName( symbol->GetName().Lower() ); fn.SetExt( KiCadSymbolLibFileExtension );
+    const defaultName = `${symbol.GetName().toLowerCase()}.${KiCadSymbolLibFileExtension}`;
+
+    const path = await this.FileDialog(
+      'Export Symbol',
+      this.GetMruPath(),
+      defaultName,
+      kicadSymbolLibWildcard(),
+      wxFD_SAVE,
+    );
+
+    if (path === null) return;
+
+    const strategy = CONFLICT_STRATEGY.OVERWRITE;
+
+    // fn = dlg.GetPath(); fn.MakeAbsolute(): the chooser hands back an absolute path.
+    const fullPath = path;
+    const slash = fullPath.lastIndexOf('/');
+    const fullName = fullPath.slice(slash + 1);
+
+    const manager = Pgm().GetLibraryManager();
+
+    let libraryName = '';
+    const flattenedSymbol = symbol.Flatten();
+
+    for (const candidate of libMgr.GetLibraryNames()) {
+      const uri = manager.GetFullURI(LIBRARY_TABLE_TYPE.SYMBOL, candidate, true);
+
+      if (uri !== null && uri === fullPath) libraryName = candidate;
+    }
+
+    if (libraryName !== '') {
+      const saver = new SYMBOL_SAVE_AS_HANDLER(libMgr, strategy, false);
+
+      if (libMgr.IsLibraryReadOnly(libraryName)) {
+        DisplayErrorMessage(`Library '${libraryName}' is read-only.`);
+        return;
+      }
+
+      if (libMgr.SymbolNameInUse(symbol.GetName(), libraryName)) {
+        const msg = `Symbol '${symbol.GetName()}' already exists in library '${libraryName}'.`;
+
+        if (
+          (await this.ShowKiDialog({
+            caption: 'Confirmation',
+            message: msg,
+            icon: 'warning',
+            labels: { ok: 'Overwrite' },
+            doNotShowKey: 'eeschema/symbol_editor/symbol_editor.cpp:ExportSymbol:library',
+          })) === 'cancel'
+        )
+          return;
+      }
+
+      saver.DoSave(flattenedSymbol, symbol.GetName(), libraryName, false);
+
+      this.SyncLibraries(false);
+      return;
+    }
+
+    let old_symbol: LIB_SYMBOL | null = null;
+    let pluginType = SCH_IO_MGR.GuessPluginTypeFromLibPath(fullPath);
+
+    if (pluginType === SCH_FILE_T.SCH_FILE_UNKNOWN) pluginType = SCH_FILE_T.SCH_KICAD;
+
+    const pi = SCH_IO_MGR.FindPlugin(pluginType)!;
+
+    if (wxFileExists(fullPath)) {
+      try {
+        old_symbol = pi.LoadSymbol(fullPath, symbol.GetName());
+      } catch (ioe) {
+        if (!(ioe instanceof IO_ERROR) && !(ioe instanceof PARSE_ERROR)) throw ioe;
+
+        DisplayErrorMessage(
+          `Error occurred attempting to load symbol library file '${fullPath}'.`,
+          // catch( const IO_ERROR& ), which upstream's PARSE_ERROR derives from (ours does not yet).
+          ioe instanceof IO_ERROR ? ioe.What() : ioe.message,
+        );
+        return;
+      }
+
+      if (old_symbol) {
+        const msg = `Symbol ${unescapeString(symbol.GetName())} already exists in library '${fullName}'.`;
+
+        if (
+          (await this.ShowKiDialog({
+            caption: 'Confirmation',
+            message: msg,
+            icon: 'warning',
+            labels: { ok: 'Overwrite' },
+            doNotShowKey: 'eeschema/symbol_editor/symbol_editor.cpp:ExportSymbol:file',
+          })) === 'cancel'
+        )
+          return;
+      }
+    }
+
+    if (!wxIsDirWritable(slash < 0 ? '' : fullPath.slice(0, slash) || '/')) {
+      DisplayErrorMessage(`Insufficient permissions to save library '${fullPath}'.`);
+      return;
+    }
+
+    try {
+      if (!wxFileExists(fullPath)) pi.CreateLibrary(fullPath);
+
+      // The flattened symbol is most likely what the user would want.  As some point in
+      // the future as more of the symbol library inheritance is implemented, this may have
+      // to be changes to save symbols of inherited symbols.
+      pi.SaveSymbol(fullPath, flattenedSymbol);
+    } catch (ioe) {
+      if (!(ioe instanceof IO_ERROR)) throw ioe;
+
+      DisplayErrorMessage(`Failed to create symbol library file '${fullPath}'.`, ioe.What());
+      this.SetStatusText(`Error creating symbol library '${fullName}'.`);
+      return;
+    }
+
+    this.SetMruPath(slash < 0 ? '' : fullPath.slice(0, slash));
+
+    this.SetStatusText(
+      `Symbol ${unescapeString(symbol.GetName())} saved to library '${fullPath}'.`,
+    );
   }
 
   /**

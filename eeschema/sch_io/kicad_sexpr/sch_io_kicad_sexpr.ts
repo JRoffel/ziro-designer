@@ -39,7 +39,11 @@ import {
   formatG,
 } from '@ziroeda/common/string_utils.js';
 import { IO_ERROR } from '@ziroeda/common/exceptions.js';
-import { KiCadSymbolLibFileExtension } from '@ziroeda/common/wildcards_and_files_ext.js';
+import {
+  KiCadSchematicFileExtension,
+  KiCadSymbolLibFileExtension,
+} from '@ziroeda/common/wildcards_and_files_ext.js';
+import { IO_FILE_DESC } from '@ziroeda/common/io/io_base.js';
 import {
   wxDirEnumerate,
   wxDirExists,
@@ -188,6 +192,22 @@ export class SCH_IO_KICAD_SEXPR {
 
   GetName(): string {
     return 'Eeschema s-expression';
+  }
+
+  GetSchematicFileDesc(): IO_FILE_DESC {
+    return new IO_FILE_DESC('KiCad s-expression schematic files', [KiCadSchematicFileExtension]);
+  }
+
+  GetLibraryDesc(): IO_FILE_DESC {
+    return new IO_FILE_DESC('KiCad symbol library files', [KiCadSymbolLibFileExtension]);
+  }
+
+  /**
+   * `IO_BASE::GetLibraryFileDesc()`: this class does not derive from SCH_IO / IO_BASE here, so it
+   * carries the base's one-liner itself.
+   */
+  GetLibraryFileDesc(): IO_FILE_DESC {
+    return this.GetLibraryDesc();
   }
 
   /** Return any error text accumulated by a partial load (a child sheet that failed). */

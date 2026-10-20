@@ -55,7 +55,7 @@ export enum SCH_FILE_T {
 }
 
 /** `SCH_FILE_T_vector` (DEFINE_ENUM_VECTOR): every value, in order. */
-const SCH_FILE_T_vector: readonly SCH_FILE_T[] = Object.values(SCH_FILE_T).filter(
+export const SCH_FILE_T_vector: readonly SCH_FILE_T[] = Object.values(SCH_FILE_T).filter(
   (v): v is SCH_FILE_T => typeof v === 'number',
 );
 

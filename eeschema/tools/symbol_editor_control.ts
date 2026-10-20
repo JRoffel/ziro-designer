@@ -6,8 +6,8 @@
  * view toggles, unit stepping, flattening a derived symbol, and the library fields table.
  *
  * Still to come, with the library tree and what they call: Init's tree context menu, DdAddLibrary
- * (a file dropped from the desktop), Import Symbol (symbol_editor_import_export.cpp), RenameSymbol
- * (LIBRARY_EDITOR_CONTROL::RenameLibrary), ExportSymbol, ExportView, ExportSymbolAsSVG,
+ * (a file dropped from the desktop), RenameSymbol (LIBRARY_EDITOR_CONTROL::RenameLibrary),
+ * ExportView, ExportSymbolAsSVG,
  * AddSymbolToSchematic, OpenWithTextEditor and OpenDirectory. PreviousSymbol / NextSymbol are
  * SYMBOL_VIEWER_FRAME's and come with its tools. Their actions are not bound until they are.
  */
@@ -207,6 +207,8 @@ export class SYMBOL_EDITOR_CONTROL extends SCH_TOOL_BASE<SCH_BASE_FRAME> {
       yield* this.RunMainStackModal(() => editFrame.CreateNewSymbol());
     else if (aEvent.IsAction(SCH_ACTIONS.deriveFromExistingSymbol))
       yield* this.RunMainStackModal(() => editFrame.CreateNewSymbol(target.GetLibItemName()));
+    else if (aEvent.IsAction(SCH_ACTIONS.importSymbol))
+      yield* this.RunMainStackModal(() => editFrame.ImportSymbol());
 
     return 0;
   }
@@ -299,6 +301,13 @@ export class SYMBOL_EDITOR_CONTROL extends SCH_TOOL_BASE<SCH_BASE_FRAME> {
     return 0;
   }
 
+  *ExportSymbol(_aEvent: TOOL_EVENT): COROUTINE_BODY<number> {
+    if (this.m_frame!.IsType(FRAME_T.FRAME_SCH_SYMBOL_EDITOR))
+      yield* this.RunMainStackModal(() => this.editFrame().ExportSymbol());
+
+    return 0;
+  }
+
   *FlattenSymbol(_aEvent: TOOL_EVENT): COROUTINE_BODY<number> {
     if (!this.m_isSymbolEditor) return 0;
 
@@ -380,6 +389,7 @@ export class SYMBOL_EDITOR_CONTROL extends SCH_TOOL_BASE<SCH_BASE_FRAME> {
     this.Go(this.AddLibrary, ACTIONS.addLibrary.MakeEvent());
     this.Go(this.AddSymbol, SCH_ACTIONS.newSymbol.MakeEvent());
     this.Go(this.AddSymbol, SCH_ACTIONS.deriveFromExistingSymbol.MakeEvent());
+    this.Go(this.AddSymbol, SCH_ACTIONS.importSymbol.MakeEvent());
     this.Go(this.EditSymbol, SCH_ACTIONS.editSymbol.MakeEvent());
     this.Go(this.EditLibrarySymbol, SCH_ACTIONS.editLibSymbolWithLibEdit.MakeEvent());
 
@@ -395,6 +405,7 @@ export class SYMBOL_EDITOR_CONTROL extends SCH_TOOL_BASE<SCH_BASE_FRAME> {
     this.Go(this.CutCopyDelete, SCH_ACTIONS.cutSymbol.MakeEvent());
     this.Go(this.CutCopyDelete, SCH_ACTIONS.copySymbol.MakeEvent());
     this.Go(this.DuplicateSymbol, SCH_ACTIONS.pasteSymbol.MakeEvent());
+    this.Go(this.ExportSymbol, SCH_ACTIONS.exportSymbol.MakeEvent());
 
     this.Go(this.FlattenSymbol, SCH_ACTIONS.flattenSymbol.MakeEvent());
 
