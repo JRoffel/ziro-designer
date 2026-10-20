@@ -28,6 +28,9 @@ describe('MarkupParser', () => {
   it('Parse', () => {
     const cases: [string, string][] = [
       ['A normal string', " { {'A normal string'} } "],
+      // Not upstream's case: a bus group is text, braces and all - kicad-cli plots the CM5 demo's
+      // sheet pin as `USB_PI{USB}` (only ~{, _{, ^{ and ${ open anything).
+      ['USB_PI{USB}', " { {'USB_PI{USB}'} } "],
       ['_{A subscript String}', " { {SUB {'A subscript String'} } } "],
       ['^{A superscript String}', " { {SUP {'A superscript String'} } } "],
       ['~{An overbar String}', " { {OVER {'An overbar String'} } } "],
