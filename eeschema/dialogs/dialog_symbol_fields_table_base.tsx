@@ -93,7 +93,8 @@ export interface DIALOG_SYMBOL_FIELDS_TABLE_BASE_PROPS {
   m_checkKeepLineBreaks: CHECK;
   m_cbBomFmtPresets: PRESET_CHOICE;
   m_outputFileName: ENTRY & { hint: string };
-  onBrowse: () => void;
+  /** Absent: no browse button (see the window's saveFileDialog). */
+  onBrowse?: () => void;
   onRefreshPreview: () => void;
   m_textOutput: string;
   onSidebarToggle: () => void;
@@ -400,12 +401,16 @@ export function DIALOG_SYMBOL_FIELDS_TABLE_BASE(
               ariaLabel="Output file"
             />
           </SizerItem>
-          <SizerItem flag={wxALIGN_CENTER_VERTICAL | wxTOP | wxBOTTOM | wxRIGHT} border={5}>
+          <SizerItem
+            flag={wxALIGN_CENTER_VERTICAL | wxTOP | wxBOTTOM | wxRIGHT}
+            border={5}
+            shown={p.onBrowse !== undefined}
+          >
             <StdBitmapButton
               bitmap="small_folder"
               title="Browse"
               tooltip={null}
-              onClick={p.onBrowse}
+              onClick={() => p.onBrowse?.()}
             />
           </SizerItem>
         </BoxSizer>

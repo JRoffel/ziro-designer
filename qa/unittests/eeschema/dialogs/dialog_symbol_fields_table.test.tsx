@@ -145,6 +145,16 @@ function open(
 }
 
 describe('DIALOG_SYMBOL_FIELDS_TABLE_BASE', () => {
+  it('offers no Browse for the output file when the window has no file picker (the BOM downloads)', () => {
+    open('export', { saveFileDialog: undefined });
+    expect(screen.queryByRole('button', { name: 'Browse' })).toBeNull();
+  });
+
+  it('offers Browse when the window has one', () => {
+    open('export');
+    expect(screen.getByRole('button', { name: 'Browse' })).not.toBeNull();
+  });
+
   it('Edit / Export notebook, view presets as a choice, no native select', () => {
     open();
     expect(screen.getByRole('tab', { name: 'Edit' })).toBeTruthy();

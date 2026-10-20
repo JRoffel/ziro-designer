@@ -110,6 +110,18 @@ function shownLabel(name: string): string {
 }
 
 describe('DialogGendrill', () => {
+  it('has no Browse button by its output folder: drill files are downloaded', () => {
+    render(
+      <DialogGendrill
+        board={testBoard()}
+        fileName="gerber_oracle.kicad_pcb"
+        onOutputFile={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: 'Browse' })).toBeNull();
+  });
+
   it('TransferDataToWindow: KiCad interactive defaults (mm, decimal, absolute origin, all four Excellon checks off, tenting greyed)', () => {
     const { container } = render(
       <DialogGendrill

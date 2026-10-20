@@ -2616,25 +2616,8 @@ export function PcbEditor({
     null,
   );
   const [plotDlgOpen, setPlotDlgOpen] = useState(false);
-  // Folders that already exist in the project, relative to the project's own
-  // folder, the Plot dialog's "Output directory:" choices (the cloud file
-  // manager stands in for upstream's wxDirDialog).
   const projectFilesRef = useRef(projectFiles);
   projectFilesRef.current = projectFiles;
-  const projectFolders = useMemo(() => {
-    const files = projectFiles ?? [];
-    const pro = files.find((f) => /\.kicad_pro$/i.test(f.name))?.name.replace(/\\/g, '/');
-    const prefix = pro?.includes('/') ? pro.slice(0, pro.lastIndexOf('/') + 1) : '';
-    const dirs = new Set<string>();
-    for (const f of files) {
-      const p = f.name.replace(/\\/g, '/');
-      if (prefix && !p.startsWith(prefix)) continue;
-      const rel = p.slice(prefix.length);
-      const dir = rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) : '';
-      if (dir) dirs.add(dir);
-    }
-    return [...dirs];
-  }, [projectFiles]);
   // Board Setup (DIALOG_BOARD_SETUP). Hydrated from the project's .kicad_pro
   // + the board file's setup sections + the .kicad_dru; committed back to all
   // three on OK (see commitBoardSetup below).
@@ -7863,7 +7846,6 @@ export function PcbEditor({
           board={frameRef.current!.GetBoard()!}
           fileName={fileName ?? ''}
           units={unitLabel}
-          projectFolders={projectFolders}
           onOutputFile={onOutputFile}
           onRunDrc={() => {
             // DIALOG_PLOT's Run DRC... hands off to the DRC dialog.
@@ -8475,7 +8457,6 @@ export function PcbEditor({
         <DialogGendrill
           board={frameRef.current.GetBoard()!}
           fileName={fileName ?? ''}
-          projectFolders={projectFolders}
           {...(onOutputFile ? { onOutputFile } : {})}
           onClose={() => {
             const done = drillDlg.done;
@@ -8488,7 +8469,6 @@ export function PcbEditor({
         <DialogGenFootprintPosition
           board={frameRef.current.GetBoard()!}
           fileName={fileName ?? ''}
-          projectFolders={projectFolders}
           {...(onOutputFile ? { onOutputFile } : {})}
           onClose={() => {
             const done = posFileDlg.done;
@@ -8500,10 +8480,7 @@ export function PcbEditor({
       {vrmlDlg && frameRef.current && (
         <DialogExportVrml
           initialPath={vrmlDlg.path}
-          projectFolders={projectFolders}
           unitsProvider={frameRef.current}
-          fileExists={(aPath) => frameRef.current?.FileExists(aPath) ?? false}
-          confirmOverwrite={() => IsOK('Are you sure you want to overwrite the existing file?')}
           onClose={(aResult) => {
             const resolve = vrmlDlg.resolve;
             setVrmlDlg(null);
@@ -8514,7 +8491,6 @@ export function PcbEditor({
       {odbppDlg && (
         <DialogExportOdbpp
           fileName={fileName ?? ''}
-          projectFolders={projectFolders}
           onClose={(aResult) => {
             const resolve = odbppDlg.resolve;
             setOdbppDlg(null);
@@ -8526,7 +8502,6 @@ export function PcbEditor({
         <DialogExport2581
           board={frameRef.current.GetBoard()!}
           fileName={fileName ?? ''}
-          projectFolders={projectFolders}
           {...(onOutputFile ? { onOutputFile } : {})}
           onClose={() => {
             const done = ipc2581Dlg.done;

@@ -42,7 +42,6 @@ import {
   JOB_EXPORT_PCB_IPC2581,
 } from '@ziroeda/common/jobs/job_export_pcb_ipc2581.js';
 import { RPT_SEVERITY_ALL } from '@ziroeda/common/widgets/wx_html_report_panel.js';
-import { WxDirDialog } from '@ziroeda/wx/dirdlg.js';
 import { DIALOG_EXPORT_2581_BASE } from './dialog_export_2581_base.js';
 import type { BOARD } from '../board.js';
 import { PCB_IO_IPC2581 } from '../pcb_io/ipc2581/pcb_io_ipc2581.js';
@@ -51,8 +50,6 @@ interface Props {
   board: BOARD;
   /** The board's file name, which names the default output. */
   fileName: string;
-  /** Folders that already exist in the project (browse choices). */
-  projectFolders?: readonly string[];
   /** Write a generated file into the project (path relative to the project folder). Absent when
    *  the board is open standalone, then the file downloads. */
   onOutputFile?: (path: string, bytes: Uint8Array, mime: string) => void;
@@ -142,13 +139,7 @@ export function GenerateFile(
   return true;
 }
 
-export function DialogExport2581({
-  board,
-  fileName,
-  projectFolders = [],
-  onOutputFile,
-  onClose,
-}: Props): JSX.Element {
+export function DialogExport2581({ board, fileName, onOutputFile, onClose }: Props): JSX.Element {
   // init(): every field name of every footprint, sorted (std::set).
   const fieldNames = useMemo(() => {
     const options = new Set<string>();
@@ -167,7 +158,6 @@ export function DialogExport2581({
   const defaultPath = (): string =>
     setExt((fileName || 'board.kicad_pcb').split('/').pop()!, 'xml');
   const [outputFileName, setOutputFileName] = useState(defaultPath);
-  const [browsing, setBrowsing] = useState(false);
   const [units, setUnits] = useState(0);
   const [precision, setPrecision] = useState(6);
   const [version, setVersion] = useState(1);
@@ -313,7 +303,6 @@ export function DialogExport2581({
       <DIALOG_EXPORT_2581_BASE
         m_outputFileName={outputFileName}
         onOutputFileName={setOutputFileName}
-        onBrowseClicked={() => setBrowsing(true)}
         m_choiceUnits={units}
         onChoiceUnits={setUnits}
         m_precision={precision}
@@ -346,19 +335,6 @@ export function DialogExport2581({
         onOKClick={onExport}
         onCancel={onClose}
       />
-      {browsing && (
-        <WxDirDialog
-          title="IPC-2581 XML File"
-          folders={projectFolders}
-          initial={folder}
-          onDone={(aFolder) => {
-            setBrowsing(false);
-            if (aFolder === null) return;
-            const base = outputFileName.substring(outputFileName.lastIndexOf('/') + 1);
-            setOutputFileName(aFolder ? `${aFolder}/${base}` : base);
-          }}
-        />
-      )}
     </>
   );
 }

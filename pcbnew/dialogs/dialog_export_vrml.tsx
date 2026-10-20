@@ -25,7 +25,6 @@
 import { useState, type JSX } from 'react';
 import { COORD_TYPES_T } from '@ziroeda/common/origin_transforms.js';
 import { unitLabel } from '@ziroeda/common/eda_units.js';
-import { WxDirDialog } from '@ziroeda/wx/dirdlg.js';
 import { DIALOG_EXPORT_VRML_BASE } from './dialog_export_vrml_base.js';
 import {
   UNIT_BINDER,
@@ -57,22 +56,10 @@ interface Props {
   initialPath: string;
   /** The frame, as the UNIT_BINDERs' units and origin. */
   unitsProvider: UNIT_BINDER_UNITS_PROVIDER;
-  /** `TransferDataFromWindow`'s question for an existing file: true to overwrite. */
-  fileExists: (aPath: string) => boolean;
-  confirmOverwrite: () => Promise<boolean>;
   onClose: (aResult: VRML_DIALOG_RESULT | null) => void;
-  /** Folders in the project, for the file picker's Browse (wxDirDialog). */
-  projectFolders?: readonly string[];
 }
 
-export function DialogExportVrml({
-  initialPath,
-  unitsProvider,
-  fileExists,
-  confirmOverwrite,
-  onClose,
-  projectFolders,
-}: Props): JSX.Element {
+export function DialogExportVrml({ initialPath, unitsProvider, onClose }: Props): JSX.Element {
   const cancel = (): void => onClose(null);
 
   const [path, setPath] = useState(initialPath);
@@ -81,7 +68,6 @@ export function DialogExportVrml({
   const [xText, setXText] = useState('0');
   const [yText, setYText] = useState('0');
   const [units, setUnits] = useState(1);
-  const [browsing, setBrowsing] = useState(false);
   const [noDNP, setNoDNP] = useState(false);
   const [noUnspecified, setNoUnspecified] = useState(false);
 
@@ -96,9 +82,9 @@ export function DialogExportVrml({
   const unitWord = unitLabel(binders.x.GetUnits());
   const mm = (aIU: number): number => aIU / unitsProvider.GetIuScale().IU_PER_MM;
 
-  const onOK = async (): Promise<void> => {
-    // TransferDataFromWindow
-    if (fileExists(path) && !(await confirmOverwrite())) return;
+  const onOK = (): void => {
+    // TransferDataFromWindow. Upstream first asks before overwriting an existing file; the
+    // export is downloaded here, which overwrites nothing, so there is nothing to ask.
 
     binders.x.SetText(xText);
     binders.y.SetText(yText);
@@ -122,7 +108,6 @@ export function DialogExportVrml({
       <DIALOG_EXPORT_VRML_BASE
         m_filePicker={path}
         onFilePicker={setPath}
-        onBrowse={projectFolders ? () => setBrowsing(true) : undefined}
         m_SubdirNameCtrl={subdir}
         onSubdirName={setSubdir}
         m_cbUserDefinedOrigin={userOrigin}
@@ -144,22 +129,9 @@ export function DialogExportVrml({
         m_cbUseRelativePaths={false}
         onUseRelativePaths={() => {}}
         useRelativePathsEnabled={false}
-        onOK={() => void onOK()}
+        onOK={onOK}
         onCancel={cancel}
       />
-      {browsing && projectFolders && (
-        <WxDirDialog
-          title="Save VRML Board File"
-          folders={projectFolders}
-          initial={path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : ''}
-          onDone={(aFolder) => {
-            setBrowsing(false);
-            if (aFolder === null) return;
-            const base = path.substring(path.lastIndexOf('/') + 1);
-            setPath(aFolder ? `${aFolder}/${base}` : base);
-          }}
-        />
-      )}
     </>
   );
 }

@@ -60,15 +60,12 @@ import {
   type ReportLine,
 } from '@ziroeda/common';
 import { RPT_SEVERITY_ALL } from '@ziroeda/common/widgets/wx_html_report_panel.js';
-import { WxDirDialog } from '@ziroeda/wx/dirdlg.js';
 import { DIALOG_GEN_FOOTPRINT_POSITION_BASE } from './dialog_gen_footprint_position_file_base.js';
 
 interface Props {
   board: BOARD;
   /** The board's file name, which names the position files. */
   fileName: string;
-  /** Folders that already exist in the project (browse choices). */
-  projectFolders?: readonly string[];
   /** Write a generated file into the project (path relative to the project
    *  folder). Absent when the board is open standalone, then files download. */
   onOutputFile?: (path: string, bytes: Uint8Array, mime: string) => void;
@@ -89,14 +86,12 @@ const download = (name: string, bytes: Uint8Array): void => {
 export function DialogGenFootprintPosition({
   board,
   fileName,
-  projectFolders = [],
   onOutputFile,
   onClose,
 }: Props): JSX.Element {
   const variantNames = board.GetVariantNamesForUI();
   const [variant] = useState(0); // greyed: see the file comment.
   const [outputDir, setOutputDir] = useState('');
-  const [browsing, setBrowsing] = useState(false);
   const [format, setFormat] = useState('0');
   const [units, setUnits] = useState('1');
   const [onlySMD, setOnlySMD] = useState(false);
@@ -323,7 +318,6 @@ export function DialogGenFootprintPosition({
         variantTip="Not wired: place_file_exporter.ts does not filter by variant yet."
         m_outputDirectoryName={outputDir}
         onOutputDirectoryName={setOutputDir}
-        onOutputDirectoryBrowseClicked={() => setBrowsing(true)}
         m_formatCtrl={Number(format)}
         onFormat={(aIndex) => changeFormat(String(aIndex))}
         m_unitsCtrl={Number(units)}
@@ -343,17 +337,6 @@ export function DialogGenFootprintPosition({
         onGenerate={generate}
         onCancel={onClose}
       />
-      {browsing && (
-        <WxDirDialog
-          title="Select Output Directory"
-          folders={projectFolders}
-          initial={outputDir}
-          onDone={(aFolder) => {
-            setBrowsing(false);
-            if (aFolder !== null) setOutputDir(aFolder);
-          }}
-        />
-      )}
     </>
   );
 }

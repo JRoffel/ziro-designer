@@ -1007,7 +1007,8 @@ export class BOARD_EDITOR_CONTROL extends PCB_TOOL_BASE {
       job,
       board,
       {
-        fileExists: (aPath) => frame.FileExists(aPath),
+        // The export is downloaded, which overwrites nothing: no file 'exists' to ask about.
+        fileExists: () => false,
         confirmOverwrite: async (aMessage) =>
           (await frame.ShowKiDialog({
             caption: 'Confirmation',

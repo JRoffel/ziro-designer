@@ -46,7 +46,8 @@ export interface DIALOG_GEN_FOOTPRINT_POSITION_BASE_PROPS {
   m_outputDirectoryName: string;
   onOutputDirectoryName: (aValue: string) => void;
   /** `onOutputDirectoryBrowseClicked`. */
-  onOutputDirectoryBrowseClicked: () => void;
+  /** Absent: no browse button - the output is downloaded, so there is no folder on disk to pick. */
+  onOutputDirectoryBrowseClicked?: () => void;
   /** `m_formatCtrl`: an index into POS_FORMAT_CHOICES. */
   m_formatCtrl: number;
   onFormat: (aIndex: number) => void;
@@ -133,13 +134,17 @@ export function DIALOG_GEN_FOOTPRINT_POSITION_BASE(
                     title="Target directory for plot files. Can be absolute or relative to the board file location."
                   />
                 </SizerItem>
-                <SizerItem flag={wxALIGN_CENTER_VERTICAL} border={5}>
+                <SizerItem
+                  flag={wxALIGN_CENTER_VERTICAL}
+                  border={5}
+                  shown={p.onOutputDirectoryBrowseClicked !== undefined}
+                >
                   {/* m_browseButton: small_folder */}
                   <StdBitmapButton
                     bitmap="small_folder"
                     title="Browse"
                     tooltip={null}
-                    onClick={p.onOutputDirectoryBrowseClicked}
+                    onClick={() => p.onOutputDirectoryBrowseClicked?.()}
                   />
                 </SizerItem>
               </BoxSizer>

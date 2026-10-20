@@ -26,14 +26,13 @@
  */
 
 import { Button, Combo } from '@ziroeda/wx/controls.js';
-import { useMemo, useRef, useState, type JSX } from 'react';
+import { useRef, useState, type JSX } from 'react';
 import { mmToIU, iuToMM, type ReportLine } from '@ziroeda/common';
 import type { PlotOpts, PlotPageSize } from '../sch_plotter.js';
 import { IU_PER_MILS } from '../schematic_settings.js';
 import { BUILTIN_THEMES } from '../sch_render_settings.js';
 import type { EESCHEMA_SETTINGS_STORE } from '../browser/eeschema_app.js';
 import { HtmlReportPanel, RPT_SEVERITY_ALL } from '@ziroeda/common/widgets/wx_html_report_panel.js';
-import { Icon } from '@ziroeda/common/widgets/icons.js';
 import { DialogShim } from '@ziroeda/common/dialog_shim.js';
 
 export type PlotFormat = 'ps' | 'pdf' | 'svg' | 'dxf' | 'png';
@@ -64,8 +63,6 @@ export interface PlotRequest {
 interface Props {
   /** The editor's active theme id (the "Color theme:" default selection). */
   themeId?: string;
-  /** Folders that already exist in the project, for the browse button. */
-  projectFolders?: readonly string[];
   onPlot: (request: PlotRequest) => void;
   onClose: () => void;
   /** `Pgm().GetSettingsManager()`'s eeschema slice (`EESCHEMA_APP.settings`),
@@ -88,13 +85,7 @@ const PEN_WIDTH_FORMATS: PlotFormat[] = ['ps', 'pdf', 'svg', 'png'];
 /** Formats a browser tab can display ("Open file after plot"). */
 const VIEWABLE_FORMATS: PlotFormat[] = ['pdf', 'svg', 'png'];
 
-export function DialogPlot({
-  settings,
-  themeId,
-  projectFolders = [],
-  onPlot,
-  onClose,
-}: Props): JSX.Element {
+export function DialogPlot({ settings, themeId, onPlot, onClose }: Props): JSX.Element {
   const [format, setFormat] = useState<PlotFormat>('pdf');
   const [pageSize, setPageSize] = useState<PlotPageSize>('auto');
   const [color, setColor] = useState(true);
@@ -119,7 +110,6 @@ export function DialogPlot({
   );
   // Output directory: a folder inside the project, '' = the project folder.
   const [outputDir, setOutputDir] = useState('');
-  const [browseOpen, setBrowseOpen] = useState(false);
   const [openAfter, setOpenAfter] = useState(false);
 
   // Output Messages (WX_HTML_REPORT_PANEL).
@@ -132,11 +122,6 @@ export function DialogPlot({
   const bgAvailable = color && BACKGROUND_FORMATS.includes(format);
   const penEnabled = PEN_WIDTH_FORMATS.includes(format);
   const canOpenAfter = VIEWABLE_FORMATS.includes(format);
-
-  const folders = useMemo(
-    () => [...new Set(projectFolders.filter(Boolean))].sort((a, b) => a.localeCompare(b)),
-    [projectFolders],
-  );
 
   const doPlot = (allPages: boolean): void => {
     const opts: PlotOpts = {
@@ -203,64 +188,18 @@ export function DialogPlot({
         className="ze-modal-body"
         style={{ display: 'block', padding: '10px 14px', overflow: 'auto' }}
       >
-        {/* Output directory (upstream bOutputDir): a folder in the project. */}
-        <div
-          style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}
-          onMouseDown={() => setBrowseOpen(false)}
-        >
+        {/* Output directory (upstream bOutputDir): the folder inside the download. No browse
+            button: the files are downloaded, so there is no folder on disk to pick. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
           <span style={lab}>Output directory:</span>
           <input
             className="ze-search"
             style={{ flex: 1 }}
             value={outputDir}
-            placeholder="Project folder"
+            placeholder="(none)"
             title="Folder for the plotted files. They are downloaded; a plot of several files comes as one zip with this folder inside it."
             onChange={(e) => setOutputDir(e.target.value)}
           />
-          <div style={{ position: 'relative' }}>
-            <button
-              className="ze-btn sm"
-              title="Select output directory"
-              onMouseDown={(e) => {
-                e.stopPropagation();
-                setBrowseOpen((v) => !v);
-              }}
-            >
-              <Icon name="folder" size={14} />
-            </button>
-            {browseOpen && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '100%',
-                  right: 0,
-                  zIndex: 20,
-                  minWidth: 180,
-                  marginTop: 2,
-                  background: 'var(--chrome-bg2)',
-                  border: '1px solid var(--chrome-border)',
-                  borderRadius: 3,
-                  fontSize: 12,
-                  boxShadow: '0 6px 20px rgba(0,0,0,0.4)',
-                }}
-                onMouseDown={(e) => e.stopPropagation()}
-              >
-                {['', ...folders].map((f) => (
-                  <div
-                    key={f || '.'}
-                    className="ze-menu-item"
-                    style={{ padding: '4px 12px', cursor: 'default' }}
-                    onClick={() => {
-                      setOutputDir(f);
-                      setBrowseOpen(false);
-                    }}
-                  >
-                    {f || 'Project folder'}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
 
         {/* Three columns (upstream m_optionsSizer): Output Format and Options

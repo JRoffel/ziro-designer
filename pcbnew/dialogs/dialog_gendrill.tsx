@@ -43,15 +43,12 @@ import { EXCELLON_WRITER } from '../exporters/gendrill_excellon_writer.js';
 import { GERBER_WRITER } from '../exporters/gendrill_gerber_writer.js';
 import { DRILL_PRECISION, ZEROS_FMT } from '../exporters/gendrill_writer_base.js';
 import { PLOT_FORMAT } from '@ziroeda/common/plotters/plotter.js';
-import { WxDirDialog } from '@ziroeda/wx/dirdlg.js';
 import { DIALOG_GENDRILL_BASE } from './dialog_gendrill_base.js';
 
 interface Props {
   board: BOARD;
   /** The board's file name, which names the drill files. */
   fileName: string;
-  /** Folders that already exist in the project (browse choices). */
-  projectFolders?: readonly string[];
   /** Write a generated file into the project (path relative to the project
    *  folder). Absent when the board is open standalone, then files download. */
   onOutputFile?: (path: string, bytes: Uint8Array, mime: string) => void;
@@ -81,16 +78,9 @@ const download = (name: string, bytes: Uint8Array): void => {
   URL.revokeObjectURL(a.href);
 };
 
-export function DialogGendrill({
-  board,
-  fileName,
-  projectFolders = [],
-  onOutputFile,
-  onClose,
-}: Props): JSX.Element {
+export function DialogGendrill({ board, fileName, onOutputFile, onClose }: Props): JSX.Element {
   const [initial] = useState(() => board.GetPlotOptions());
   const [outputDir, setOutputDir] = useState(() => initial.GetOutputDirectory());
-  const [browsing, setBrowsing] = useState(false);
   const [origin, setOrigin] = useState(() => (initial.GetUseAuxOrigin() ? '1' : '0'));
   const [format, setFormat] = useState<'excellon' | 'gerberx2'>('excellon');
   const [generateTenting, setGenerateTenting] = useState(false);
@@ -229,7 +219,6 @@ export function DialogGendrill({
       <DIALOG_GENDRILL_BASE
         m_outputDirectoryName={outputDir}
         onOutputDirectoryName={setOutputDir}
-        onOutputDirectoryBrowseClicked={() => setBrowsing(true)}
         excellon={excellonSelected}
         onFileFormatSelection={(aExcellon) => setFormat(aExcellon ? 'excellon' : 'gerberx2')}
         m_Check_Mirror={check(mirror, setMirror, excellonSelected)}
@@ -249,17 +238,6 @@ export function DialogGendrill({
         onGenerate={generate}
         onCancel={onClose}
       />
-      {browsing && (
-        <WxDirDialog
-          title="Select Output Directory"
-          folders={projectFolders}
-          initial={outputDir}
-          onDone={(aFolder) => {
-            setBrowsing(false);
-            if (aFolder !== null) setOutputDir(aFolder);
-          }}
-        />
-      )}
     </>
   );
 }

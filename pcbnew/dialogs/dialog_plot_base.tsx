@@ -71,7 +71,11 @@ export interface DIALOG_PLOT_BASE_PROPS {
   variants: readonly string[];
   m_variantChoiceCtrl: CHOICE;
   m_outputDirectoryName: TEXT;
-  onOutputDirectoryBrowseClicked: () => void;
+  /**
+   * `OnOutputDirectoryBrowseClicked`. Absent: no browse button - in a browser the plot files are
+   * downloaded, so there is no folder on disk to pick (the text names the folder inside the zip).
+   */
+  onOutputDirectoryBrowseClicked?: () => void;
   onOpenOutputDirectory: () => void;
   /** `m_openDirButton->Hide()`, as the job version does, when there is no folder to open. */
   openDirShown?: boolean;
@@ -215,16 +219,20 @@ export function DIALOG_PLOT_BASE(p: DIALOG_PLOT_BASE_PROPS): JSX.Element {
                   <Text
                     text={p.m_outputDirectoryName}
                     ariaLabel="Output directory"
-                    title="Target directory for plot files. Can be absolute or relative to the board file location."
+                    title="Folder for the plot files. They are downloaded; a plot of several files comes as one zip with this folder inside it."
                   />
                 </SizerItem>
-                <SizerItem flag={wxALIGN_CENTER_VERTICAL} border={5}>
+                <SizerItem
+                  flag={wxALIGN_CENTER_VERTICAL}
+                  border={5}
+                  shown={p.onOutputDirectoryBrowseClicked !== undefined}
+                >
                   {/* m_browseButton: small_folder */}
                   <StdBitmapButton
                     bitmap="small_folder"
                     title="Browse"
                     tooltip={null}
-                    onClick={p.onOutputDirectoryBrowseClicked}
+                    onClick={() => p.onOutputDirectoryBrowseClicked?.()}
                   />
                 </SizerItem>
                 <SizerItem

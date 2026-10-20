@@ -49,8 +49,6 @@ interface Props {
    * `.subckt`. Falls back to `baseName` for a schematic with no project.
    */
   projectName?: string;
-  /** Folders that already exist in the project, for the output-path list. */
-  projectFolders?: readonly string[];
   /**
    * Hand the netlist to the App, which downloads it, as plotting does. When
    * absent the dialog streams the download itself.
@@ -99,7 +97,6 @@ export function DialogExportNetlist({
   projectFiles,
   baseName,
   projectName = baseName,
-  projectFolders = [],
   onOutputFile,
   onClose,
 }: Props): JSX.Element {
@@ -130,10 +127,10 @@ export function DialogExportNetlist({
 
   const doExport = (): void => {
     // Allegro is the one format that is not a single file: a netlist plus a
-    // sibling devices/ directory of package definitions. With a project sink
-    // each file lands in its own place, folder and all; without one a browser
-    // download cannot create a folder, so the set goes out as a .zip rather
-    // than as names with the slashes flattened out of them.
+    // sibling devices/ directory of package definitions. Through the App's sink
+    // the set downloads as one zip with its folders (output_downloads.ts);
+    // without one the dialog zips it itself, rather than flattening the slashes
+    // out of the names.
     if (tab === 'allegro') {
       const filename = `${baseName}.${active.ext}`;
       const schematic = liveSchematic();

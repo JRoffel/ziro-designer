@@ -240,11 +240,7 @@ import {
   LIBRARY_TABLE_TYPE,
 } from '@ziroeda/common/libraries/library_table.js';
 import { hostedLibraryTable } from '@ziroeda/common/dialogs/lib_table_panel.js';
-import {
-  csvFileWildcard,
-  jsonFileWildcard,
-  reportFileWildcard,
-} from '@ziroeda/common/wildcards_and_files_ext.js';
+import { jsonFileWildcard, reportFileWildcard } from '@ziroeda/common/wildcards_and_files_ext.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import {
   fetchHostedSymbolFile,
@@ -1555,10 +1551,6 @@ export function SchematicEditor({
     message: string;
     resolve: (aResult: UnsavedChangesResult) => void;
   } | null>(null);
-  const [fieldsSaveFile, setFieldsSaveFile] = useState<{
-    defaultName: string;
-    resolve: (aPath: string | null) => void;
-  } | null>(null);
   /** `new DIALOG_SYMBOL_FIELDS_TABLE( this )`, as GetSymbolFieldsTableDialog asks for one. */
   const fieldsTableFactoryRef = useRef<() => DIALOG_SYMBOL_FIELDS_TABLE | null>(() => null);
   /** `new DIALOG_ERC( this )`, as SCH_EDIT_FRAME::GetErcDialog asks for one. */
@@ -2566,22 +2558,6 @@ export function SchematicEditor({
   } | null>(null);
   const [printOpen, setPrintOpen] = useState(false);
   const [plotOpen, setPlotOpen] = useState(false);
-  // Folders that already exist inside the project, relative to the project's
-  // own folder, the Plot dialog's "Output directory:" browse choices (the
-  // cloud file manager stands in for upstream's wxDirDialog).
-  const projectFolders = useMemo(() => {
-    const pro = rawFiles.find((f) => /\.kicad_pro$/i.test(f.name))?.name.replace(/\\/g, '/');
-    const prefix = pro?.includes('/') ? pro.slice(0, pro.lastIndexOf('/') + 1) : '';
-    const dirs = new Set<string>();
-    for (const f of rawFiles) {
-      const p = f.name.replace(/\\/g, '/');
-      if (prefix && !p.startsWith(prefix)) continue;
-      const rel = p.slice(prefix.length);
-      const dir = rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) : '';
-      if (dir) dirs.add(dir);
-    }
-    return [...dirs];
-  }, [rawFiles]);
   // Paste Special (DIALOG_PASTE_SPECIAL): pick the PASTE_MODE before pasting.
   // DIALOG_PASTE_SPECIAL for the live SCH_EDITOR_CONTROL::Paste: its { pasteMode } and answer.
   const [pasteSpecialDialog, setPasteSpecialDialog] = useState<{
@@ -4330,9 +4306,7 @@ export function SchematicEditor({
         );
         return handleUnsavedChanges(result, save);
       },
-      saveFileDialog: (defaultName) =>
-        new Promise<string | null>((resolve) => setFieldsSaveFile({ defaultName, resolve })),
-      // The BOM lands in the project's files (the cloud "disk"), as every generated output does.
+      // The BOM is downloaded, as every generated output is (the App's onOutputFile).
       writeFile: (path, text) => {
         const file = projectRelative(path);
         if (onOutputFile) onOutputFile(file, new TextEncoder().encode(text), 'text/csv');
@@ -6328,23 +6302,6 @@ export function SchematicEditor({
                 }}
               />
             )}
-            {fieldsSaveFile && (
-              // DIALOG_SYMBOL_FIELDS_TABLE::OnOutputFileBrowseClicked: wxFileDialog(
-              //   _( "Bill of Materials Output File" ), path, fn.GetFullName(),
-              //   CsvFileWildcard(), wxFD_SAVE ).
-              <SaveAsDialog
-                title="Bill of Materials Output File"
-                initialName={fieldsSaveFile.defaultName}
-                filters={[csvFileWildcard()]}
-                {...(projectName
-                  ? { projectDir: `/${projectName}`, initialPath: `/${projectName}` }
-                  : {})}
-                onDone={(path) => {
-                  fieldsSaveFile.resolve(path);
-                  setFieldsSaveFile(null);
-                }}
-              />
-            )}
             {ercComment && (
               <WX_TEXT_ENTRY_DIALOG
                 label=""
@@ -6622,7 +6579,6 @@ export function SchematicEditor({
               <DialogPlot
                 settings={app.settings}
                 themeId={es.appearance.color_theme}
-                projectFolders={projectFolders}
                 onPlot={doPlot}
                 onClose={() => setPlotOpen(false)}
               />
@@ -6673,7 +6629,6 @@ export function SchematicEditor({
                 libById={libById}
                 baseName={outputBaseName()}
                 {...(projectName ? { projectName } : {})}
-                projectFolders={projectFolders}
                 onOutputFile={onOutputFile}
                 onClose={() => setNetlistOpen(false)}
               />

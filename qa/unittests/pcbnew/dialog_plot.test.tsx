@@ -58,6 +58,12 @@ function show(board = testBoard(), onOutputFile = vi.fn()) {
 }
 
 describe('DIALOG_PLOT', () => {
+  it('has no Browse button by its output directory: plot files are downloaded', () => {
+    show();
+    expect(screen.queryByRole('button', { name: 'Browse' })).toBeNull();
+    expect(screen.getByLabelText('Output directory')).not.toBeNull();
+  });
+
   it('opens on Gerber: its options shown, the others hidden, drill marks and mirror greyed', () => {
     show();
     expect(groupShown('Gerber Options')).toBe(true);

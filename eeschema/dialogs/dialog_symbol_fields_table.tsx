@@ -114,8 +114,12 @@ export interface DIALOG_SYMBOL_FIELDS_TABLE_WINDOW {
   listDialog(aCaption: string, aLabel: string, aItems: readonly string[]): Promise<string | null>;
   /** `HandleUnsavedChanges( this, aMessage, aSaveFunction )`: false = the close is cancelled. */
   handleUnsavedChanges(aMessage: string, aSave: () => boolean): Promise<boolean>;
-  /** `wxFileDialog( "Bill of Materials Output File", ..., CsvFileWildcard(), wxFD_SAVE )`. */
-  saveFileDialog(aDefaultName: string): Promise<string | null>;
+  /**
+   * `wxFileDialog( "Bill of Materials Output File", ..., CsvFileWildcard(), wxFD_SAVE )`. Absent:
+   * no browse button - the BOM is downloaded, so there is no file on disk to pick and the output
+   * file box is just its name.
+   */
+  saveFileDialog?(aDefaultName: string): Promise<string | null>;
   /** `wxFFile( aPath, "wb" ).Write( aText )`: false when the file cannot be written. */
   writeFile(aPath: string, aText: string): boolean;
   /** `KIWAY::Player( FRAME_FOOTPRINT_CHOOSER )->ShowModal( &fpid )`: the picked LIB_ID or null. */
@@ -1130,7 +1134,7 @@ export class DIALOG_SYMBOL_FIELDS_TABLE
     // Calculate the export filename
     const fn = this.m_parent.Prj().AbsolutePath(this.m_parent.Schematic().GetFileName());
     const fullName = fn.replace(/^.*\//, '').replace(/\.[^.]*$/, '.csv');
-    let file = await this.m_window.saveFileDialog(fullName);
+    let file = (await this.m_window.saveFileDialog?.(fullName)) ?? null;
 
     if (file === null) return;
 
@@ -2127,7 +2131,7 @@ export function DialogSymbolFieldsTable({
         (i) => void d.onBomFmtPresetChanged(i),
       )}
       m_outputFileName={{ ...entry(d.m_outputFileName, (t) => (d.m_outputFileName = t)), hint: '' }}
-      onBrowse={() => void d.OnOutputFileBrowseClicked()}
+      onBrowse={d.m_window.saveFileDialog ? () => void d.OnOutputFileBrowseClicked() : undefined}
       onRefreshPreview={() => d.OnPreviewRefresh()}
       m_textOutput={d.m_textOutput}
       onSidebarToggle={() => d.OnSidebarToggle()}

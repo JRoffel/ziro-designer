@@ -54,7 +54,8 @@ export interface DIALOG_GENDRILL_BASE_PROPS {
   m_outputDirectoryName: string;
   onOutputDirectoryName: (aValue: string) => void;
   /** `onOutputDirectoryBrowseClicked`. */
-  onOutputDirectoryBrowseClicked: () => void;
+  /** Absent: no browse button - the output is downloaded, so there is no folder on disk to pick. */
+  onOutputDirectoryBrowseClicked?: () => void;
   /** `m_rbExcellon` / `m_rbGerberX2`, and `onFileFormatSelection`. */
   excellon: boolean;
   onFileFormatSelection: (aExcellon: boolean) => void;
@@ -137,13 +138,17 @@ export function DIALOG_GENDRILL_BASE(p: DIALOG_GENDRILL_BASE_PROPS): JSX.Element
                 ariaLabel="Output folder"
               />
             </SizerItem>
-            <SizerItem flag={wxALIGN_CENTER_VERTICAL} border={5}>
+            <SizerItem
+              flag={wxALIGN_CENTER_VERTICAL}
+              border={5}
+              shown={p.onOutputDirectoryBrowseClicked !== undefined}
+            >
               {/* m_browseButton: small_folder */}
               <StdBitmapButton
                 bitmap="small_folder"
                 title="Browse"
                 tooltip={null}
-                onClick={p.onOutputDirectoryBrowseClicked}
+                onClick={() => p.onOutputDirectoryBrowseClicked?.()}
               />
             </SizerItem>
           </BoxSizer>

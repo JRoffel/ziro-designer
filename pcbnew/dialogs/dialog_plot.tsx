@@ -43,7 +43,6 @@ import {
   wxRIGHT,
   wxVERTICAL,
 } from '@ziroeda/wx/defs.js';
-import { WxDirDialog } from '@ziroeda/wx/dirdlg.js';
 import type { MenuItem } from '@ziroeda/wx/menu.js';
 import { ContextMenu } from '@ziroeda/wx/menu_ui.js';
 import { BoxSizer, SizerItem, StaticBoxSizer } from '@ziroeda/wx/sizer.js';
@@ -61,7 +60,6 @@ interface Props {
   /** The frame's display units: `m_trackWidthCorrection` is a UNIT_BINDER on the edit frame. */
   units: StatusUnits;
   /** Folders that already exist in the project (wxDirDialog's choices). */
-  projectFolders?: readonly string[];
   /** Write a generated file into the project (path relative to the project folder). Absent when
    *  the board is open standalone, then plots download. */
   onOutputFile?: (path: string, bytes: Uint8Array, mime: string) => void;
@@ -107,7 +105,6 @@ export function DialogPcbPlot({
   board,
   fileName,
   units,
-  projectFolders = [],
   onOutputFile,
   onRunDrc,
   onCreateDrillFile,
@@ -226,7 +223,6 @@ export function DialogPcbPlot({
 
   const [messages, setMessages] = useState<readonly ReportLine[]>([]);
   const [severities, setSeverities] = useState<number>(RPT_SEVERITY_ALL);
-  const [browsing, setBrowsing] = useState(false);
   const [menu, setMenu] = useState<{ items: MenuItem[]; x: number; y: number } | null>(null);
   // reInitDialog runs again after the drill, DRC and Board Setup dialogs.
   const [, setTick] = useState(0);
@@ -626,7 +622,6 @@ export function DialogPcbPlot({
         variants={variants}
         m_variantChoiceCtrl={choice(variant, setVariant)}
         m_outputDirectoryName={text(outputDir, setOutputDir)}
-        onOutputDirectoryBrowseClicked={() => setBrowsing(true)}
         onOpenOutputDirectory={() => onOpenOutputDirectory?.(outputDir)}
         openDirShown={!!onOpenOutputDirectory}
         layerNames={layerList.map((l) => board.GetLayerName(l))}
@@ -703,17 +698,6 @@ export function DialogPcbPlot({
         onPlot={() => void plot()}
         onCancel={close}
       />
-      {browsing && (
-        <WxDirDialog
-          title="Select Output Directory"
-          folders={projectFolders}
-          initial={outputDir}
-          onDone={(aFolder) => {
-            setBrowsing(false);
-            if (aFolder !== null) setOutputDir(aFolder);
-          }}
-        />
-      )}
       {menu && (
         <ContextMenu items={menu.items} x={menu.x} y={menu.y} onClose={() => setMenu(null)} />
       )}

@@ -35,7 +35,6 @@ import { wxTarOutputStream } from '@ziroeda/wx/tarstrm.js';
 import type { BOARD } from '../board.js';
 import { PCB_IO_ODBPP } from '../pcb_io/odbpp/pcb_io_odbpp.js';
 import { DIALOG_EXPORT_ODBPP_BASE } from './dialog_export_odbpp_base.js';
-import { WxDirDialog } from '@ziroeda/wx/dirdlg.js';
 
 /** What the dialog hands BOARD_EDITOR_CONTROL::GenerateODBPPFiles on OK. */
 export interface ODBPP_DIALOG_RESULT {
@@ -56,8 +55,6 @@ export interface ODBPP_OUTPUT {
 interface Props {
   /** The board's file name, which names the default output. */
   fileName: string;
-  /** Folders that already exist in the project (browse choices). */
-  projectFolders?: readonly string[];
   onClose: (aResult: ODBPP_DIALOG_RESULT | null) => void;
 }
 
@@ -178,7 +175,7 @@ export async function GenerateODBPPFiles(
  * DIALOG_EXPORT_ODBPP_BASE; Browse asks wxDirDialog for the folder and keeps the file name, as
  * the output is downloaded.
  */
-export function DialogExportOdbpp({ fileName, projectFolders = [], onClose }: Props): JSX.Element {
+export function DialogExportOdbpp({ fileName, onClose }: Props): JSX.Element {
   // TransferDataToWindow(): <board>-odb.zip, then OnFmtChoiceOptionChanged.
   const [compress, setCompress] = useState<number>(ODB_COMPRESSION.ZIP);
   const [outputFileName, setOutputFileName] = useState(() => {
@@ -188,7 +185,6 @@ export function DialogExportOdbpp({ fileName, projectFolders = [], onClose }: Pr
   });
   const [units, setUnits] = useState(0);
   const [precision, setPrecision] = useState(6);
-  const [browsing, setBrowsing] = useState(false);
 
   const onFormatChoice = (aIndex: number): void => {
     setCompress(aIndex);
@@ -239,24 +235,9 @@ export function DialogExportOdbpp({ fileName, projectFolders = [], onClose }: Pr
         onPrecision={setPrecision}
         m_choiceCompress={compress}
         onFormatChoice={onFormatChoice}
-        onBrowseClicked={() => setBrowsing(true)}
         onOKClick={onOKClick}
         onCancel={() => onClose(null)}
       />
-      {browsing && (
-        <WxDirDialog
-          title="Export ODB++ File"
-          folders={projectFolders}
-          initial={folder}
-          onDone={(aFolder) => {
-            setBrowsing(false);
-            if (aFolder === null) return;
-            const base = trimmed.substring(trimmed.lastIndexOf('/') + 1);
-            const tail = isDir(outputFileName) ? '/' : '';
-            setOutputFileName(aFolder ? `${aFolder}/${base}${tail}` : `${base}${tail}`);
-          }}
-        />
-      )}
     </>
   );
 }

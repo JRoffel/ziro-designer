@@ -41,7 +41,8 @@ export const IPC_VERSION_CHOICES = ['B', 'C'] as const;
 export interface DIALOG_EXPORT_2581_BASE_PROPS {
   m_outputFileName: string;
   onOutputFileName: (aValue: string) => void;
-  onBrowseClicked: () => void;
+  /** Absent: no browse button - the output is downloaded, so there is no folder on disk to pick. */
+  onBrowseClicked?: () => void;
   /** `m_choiceUnits` / `m_versionChoice`: indices into the choices above. */
   m_choiceUnits: number;
   onChoiceUnits: (aIndex: number) => void;
@@ -116,13 +117,17 @@ export function DIALOG_EXPORT_2581_BASE(p: DIALOG_EXPORT_2581_BASE_PROPS): JSX.E
                 }
               />
             </SizerItem>
-            <SizerItem flag={wxALIGN_CENTER_VERTICAL} border={10}>
+            <SizerItem
+              flag={wxALIGN_CENTER_VERTICAL}
+              border={10}
+              shown={p.onBrowseClicked !== undefined}
+            >
               {/* m_browseButton: small_folder */}
               <StdBitmapButton
                 bitmap="small_folder"
                 title="Browse"
                 tooltip={null}
-                onClick={p.onBrowseClicked}
+                onClick={() => p.onBrowseClicked?.()}
               />
             </SizerItem>
           </BoxSizer>

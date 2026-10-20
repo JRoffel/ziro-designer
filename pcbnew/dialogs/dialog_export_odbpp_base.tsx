@@ -52,7 +52,8 @@ export interface DIALOG_EXPORT_ODBPP_BASE_PROPS {
   /** `onFormatChoice` (wxEVT_COMMAND_CHOICE_SELECTED). */
   onFormatChoice: (aIndex: number) => void;
   /** `onBrowseClicked`. */
-  onBrowseClicked: () => void;
+  /** Absent: no browse button - the output is downloaded, so there is no folder on disk to pick. */
+  onBrowseClicked?: () => void;
   /** `onOKClick`. */
   onOKClick: () => void;
   /** wxID_CANCEL. */
@@ -88,13 +89,17 @@ export function DIALOG_EXPORT_ODBPP_BASE(p: DIALOG_EXPORT_ODBPP_BASE_PROPS): JSX
                 }
               />
             </SizerItem>
-            <SizerItem flag={wxALIGN_CENTER_VERTICAL | wxRIGHT} border={5} shown={p.browseShown}>
+            <SizerItem
+              flag={wxALIGN_CENTER_VERTICAL | wxRIGHT}
+              border={5}
+              shown={p.browseShown !== false && p.onBrowseClicked !== undefined}
+            >
               {/* m_browseButton: small_folder (DIALOG_EXPORT_ODBPP's constructor) */}
               <StdBitmapButton
                 bitmap="small_folder"
                 title="Browse"
                 tooltip={null}
-                onClick={p.onBrowseClicked}
+                onClick={() => p.onBrowseClicked?.()}
               />
             </SizerItem>
           </BoxSizer>
