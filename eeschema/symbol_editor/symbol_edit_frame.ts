@@ -29,6 +29,7 @@ import { SCH_INSPECTION_TOOL } from '../tools/sch_inspection_tool.js';
 import { SCH_POINT_EDITOR } from '../tools/sch_point_editor.js';
 import { SCH_SELECTION_TOOL } from '../tools/sch_selection_tool.js';
 import { SYMBOL_EDITOR_EDIT_TOOL } from '../tools/symbol_editor_edit_tool.js';
+import { SYMBOL_EDITOR_CONTROL } from '../tools/symbol_editor_control.js';
 import { SYMBOL_EDITOR_PIN_TOOL } from '../tools/symbol_editor_pin_tool.js';
 import { SYMBOL_EDITOR_DRAWING_TOOLS } from '../tools/symbol_editor_drawing_tools.js';
 import type { EDA_ITEM } from '@ziroeda/common/eda_item.js';
@@ -87,6 +88,8 @@ export interface SYMBOL_EDIT_FRAME_HOOKS {
   getTreeLibId?(): LIB_ID | null;
   /** `UpdateLibraryTree( aTreeItem, aSymbol )`: the tree node shows the symbol's new name/text. */
   updateLibraryTree?(aLibId: LIB_ID, aSymbol: LIB_SYMBOL): void;
+  /** `ToggleProperties()`: the properties pane shown or hidden, its width remembered. */
+  toggleProperties?(): void;
 }
 
 // biome-ignore lint/suspicious/noUnsafeDeclarationMerging: TS multiple inheritance (see libs/core/mixins.ts)
@@ -162,6 +165,25 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
     return this.hooks.getTreeLibId?.() ?? new LIB_ID();
   }
 
+  /**
+   * `GetTargetLibId()` (symbol_edit_frame.cpp:1359): the tree's selection when the tree is shown,
+   * else (or when it names no library) the loaded symbol's.
+   */
+  override GetTargetLibId(): LIB_ID {
+    let id = new LIB_ID();
+
+    if (this.IsLibraryTreeShown()) id = this.GetTreeLIBID();
+
+    if (id.GetLibNickname() === '' && this.m_symbol) id = this.m_symbol.GetLibId();
+
+    return id;
+  }
+
+  /** `ToggleProperties()` (:790): the window's AUI pane. */
+  override ToggleProperties(): void {
+    this.hooks.toggleProperties?.();
+  }
+
   /** `UpdateLibraryTree( aTreeItem, aSymbol )`: the window's tree. */
   UpdateLibraryTree(aLibId: LIB_ID, aSymbol: LIB_SYMBOL): void {
     this.hooks.updateLibraryTree?.(aLibId, aSymbol);
@@ -207,8 +229,8 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
     this.m_toolManager.RegisterTool(new SCH_FIND_REPLACE_TOOL());
     this.m_toolManager.RegisterTool(new SYMBOL_EDITOR_MOVE_TOOL());
     this.m_toolManager.RegisterTool(new SYMBOL_EDITOR_EDIT_TOOL());
-    // LIBRARY_EDITOR_CONTROL and
-    // SYMBOL_EDITOR_CONTROL: stage 4.
+    // LIBRARY_EDITOR_CONTROL: with the library tree (stage 5).
+    this.m_toolManager.RegisterTool(new SYMBOL_EDITOR_CONTROL());
     this.m_toolManager.RegisterTool(new PROPERTIES_TOOL());
     this.m_toolManager.RegisterTool(new EMBED_TOOL());
     this.m_toolManager.InitTools();
