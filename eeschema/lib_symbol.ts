@@ -451,6 +451,59 @@ export class LIB_SYMBOL extends SYMBOL {
     this.cacheChooserFields();
   }
 
+  /**
+   * `const LIB_SYMBOL& operator=( const LIB_SYMBOL& aSymbol )` (lib_symbol.cpp:314-362): this
+   * symbol becomes a copy of \a aSymbol in place - the symbol editor's buffers are assigned to,
+   * not replaced, so everything holding this object sees the change. Unlike the copy
+   * constructor it leaves the source library id alone.
+   */
+  Assign(aSymbol: LIB_SYMBOL): this {
+    if (aSymbol === this) return this;
+
+    SYMBOL.copySymbol(this, aSymbol);
+
+    this.m_name = aSymbol.m_name;
+    this.m_fpFilters = [...aSymbol.m_fpFilters];
+    this.m_unitCount = aSymbol.m_unitCount;
+    this.m_demorgan = aSymbol.m_demorgan;
+    this.m_unitsLocked = aSymbol.m_unitsLocked;
+    this.m_lastModDate = aSymbol.m_lastModDate;
+    this.m_options = aSymbol.m_options;
+    this.m_libId = aSymbol.m_libId.clone();
+    this.m_keyWords = aSymbol.m_keyWords;
+    this.m_parentName = aSymbol.m_parentName;
+
+    this.m_jumperPinGroups = aSymbol.m_jumperPinGroups.map((g) => new Set(g));
+    this.m_duplicatePinNumbersAreJumpers = aSymbol.m_duplicatePinNumbersAreJumpers;
+
+    this.m_unitDisplayNames = new Map(aSymbol.GetUnitDisplayNames());
+    this.m_bodyStyleNames = [...aSymbol.GetBodyStyleNames()];
+
+    this.m_drawings.clear();
+
+    for (const oldItem of aSymbol.m_drawings) {
+      if ((oldItem.GetFlags() & (IS_NEW | STRUCT_DELETED)) !== 0) continue;
+
+      const newItem = oldItem.Clone() as SCH_ITEM;
+      newItem.SetParent(this);
+      this.m_drawings.push_back(newItem);
+    }
+
+    this.m_drawings.sort(drawItemLess);
+
+    this.SetLibParent(aSymbol.m_parentLib);
+
+    // EMBEDDED_FILES::operator=( aSymbol )
+    this.initEmbeddedFilesFrom(aSymbol, true);
+
+    this.m_searchTermsCache = aSymbol.m_searchTermsCache.map((t) => ({ ...t }));
+    this.m_pinCountCache = aSymbol.m_pinCountCache;
+    this.m_shownDescriptionCache = aSymbol.m_shownDescriptionCache;
+    this.m_chooserFieldsCache = new Map(aSymbol.m_chooserFieldsCache);
+
+    return this;
+  }
+
   /** `LIB_SYMBOL( const LIB_SYMBOL& aSymbol, …, bool aCopyEmbeddedFiles )`. */
   static copyOf(aSymbol: LIB_SYMBOL, aCopyEmbeddedFiles = true): LIB_SYMBOL {
     const copy = new LIB_SYMBOL('');
