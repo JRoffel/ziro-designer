@@ -35,3 +35,14 @@ export function signUpOutcome(data: {
  * reference's `email_already_registered`, set on the email field.
  */
 export const ACCOUNT_EXISTS_MESSAGE = 'Email already registered';
+
+/**
+ * Supabase's refused-password error, as the sign-in form shows it. Also what an
+ * account from before encryption (2026-09-10) gets with its RIGHT password: the
+ * server still holds that password, while sign-in now sends the login secret
+ * derived from it (`loginSecret`). It cannot be retried with the raw password -
+ * for an encrypted account that would hand the server the key's root - so the
+ * form says how such an account gets in: one password reset, which needs no
+ * recovery key because the account has no keys yet (`completeRecovery`).
+ */
+export const INCORRECT_PASSWORD_MESSAGE = 'Incorrect password or email not registered';

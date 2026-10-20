@@ -271,10 +271,27 @@ describe('the screens say what the reference design says', () => {
     expect(SIGNIN).toContain('if ((await loadZxcvbn())(password).score < 2) {');
   });
 
+  it('an account from before encryption is told how to get in, on both forms', () => {
+    // Its right password is refused (the server still holds the raw password,
+    // sign-in sends the derived secret), so the refusal must point at the one
+    // way in, and the reset form must not demand a recovery key it never had.
+    expect(SIGNIN).toMatch(/error === INCORRECT_PASSWORD_MESSAGE && \(/);
+    expect(SIGNIN).toContain('Account created before 10 September 2026?');
+    expect(SIGNIN).toContain('No recovery key is needed.');
+    expect(SIGNIN).toContain('Created your account before 10 September 2026?');
+  });
+
   it("the errors are the reference design's words", () => {
     const provider = read('auth/AuthProvider.tsx');
     // ('Incorrect password' was the unlock screen's, which is gone - #639.)
-    expect(provider).toContain("'Incorrect password or email not registered'");
+    // The refused-password words live beside the sign-up ones so the form can
+    // recognise them; the provider maps Supabase's error onto that constant.
+    expect(read('auth/signup_outcome.ts')).toContain(
+      "INCORRECT_PASSWORD_MESSAGE = 'Incorrect password or email not registered'",
+    );
+    expect(provider).toMatch(
+      /invalid login credentials\/i\.test\(message\) \? INCORRECT_PASSWORD_MESSAGE/,
+    );
     expect(provider).toContain("'Incorrect recovery key'");
     expect(SIGNIN).toContain("Passwords don't match");
     expect(SIGNIN).toContain("'Generating encryption keys...'");

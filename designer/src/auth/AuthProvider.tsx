@@ -39,7 +39,11 @@ import { askSiblingsForMasterKey, onSiblingKeyReady, serveMasterKey } from './ta
 import { forgetOnDevice, recallFromDevice, rememberOnDevice } from './device_key.js';
 import { forgetPrimedLoginSecret, loginSecretFor } from './login_secret_cache.js';
 import { setSessionKeys } from '../cloud/session_keys.js';
-import { ACCOUNT_EXISTS_MESSAGE, signUpOutcome } from './signup_outcome.js';
+import {
+  ACCOUNT_EXISTS_MESSAGE,
+  INCORRECT_PASSWORD_MESSAGE,
+  signUpOutcome,
+} from './signup_outcome.js';
 import { setLocalVaultFromMasterKey } from '../home/local_vault.js';
 import { forgetLocalProjectsOf, sealLocalStore } from '../home/projectStore.js';
 import { cloudBackend } from '../cloud/cloudStore.js';
@@ -174,9 +178,7 @@ const STORAGE_CONCURRENCY = 4;
 
 /** Supabase's wording for a refused password, with the fact it hides restored. */
 const describe = (message: string): string =>
-  /invalid login credentials/i.test(message)
-    ? 'Incorrect password or email not registered'
-    : message;
+  /invalid login credentials/i.test(message) ? INCORRECT_PASSWORD_MESSAGE : message;
 
 export function AuthProvider({ children }: { children: ReactNode }): JSX.Element {
   const [session, setSession] = useState<Session | null>(null);

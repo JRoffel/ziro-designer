@@ -7,7 +7,7 @@ import { RecoveryKeyContents } from './RecoveryKeyContents.js';
 import { useAuth } from './AuthProvider.js';
 import { primeLoginSecret } from './login_secret_cache.js';
 import { useModalEscape } from '@ziroeda/common/dialog_shim.js';
-import { ACCOUNT_EXISTS_MESSAGE } from './signup_outcome.js';
+import { ACCOUNT_EXISTS_MESSAGE, INCORRECT_PASSWORD_MESSAGE } from './signup_outcome.js';
 import { ZiroLogo } from '../ui/ZiroLogo.js';
 import type { AuthStep } from '../nav/route.js';
 
@@ -410,6 +410,10 @@ export function SignInDialog({
                   We will email you a link to set a new password. Your projects stay encrypted: to
                   open them under the new password you will also need your recovery key.
                 </p>
+                <p className="ze-auth-note">
+                  Created your account before 10 September 2026? It has no recovery key yet and does
+                  not need one: the link lets you choose a password and sets up encryption.
+                </p>
                 {emailField}
                 {error && <div className="ze-auth-error">{error}</div>}
                 <button type="submit" className="ze-btn primary ze-auth-submit" disabled={busy}>
@@ -529,6 +533,15 @@ export function SignInDialog({
             {emailField}
             {passwordField}
             {error && <div className="ze-auth-error">{error}</div>}
+            {error === INCORRECT_PASSWORD_MESSAGE && (
+              // An account from before encryption is refused with its right
+              // password (see INCORRECT_PASSWORD_MESSAGE); one reset gets it in.
+              <p className="ze-auth-note">
+                Account created before 10 September 2026? It needs a one-time upgrade for end-to-end
+                encryption: use <strong>Forgot password?</strong> below to set your password again.
+                No recovery key is needed.
+              </p>
+            )}
             <button type="submit" className="ze-btn primary ze-auth-submit" disabled={busy}>
               {busy ? 'Signing in...' : 'Sign in'}
             </button>
