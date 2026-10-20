@@ -15,7 +15,18 @@ import { RECURSE_MODE } from '@ziroeda/common/eda_item.js';
 import { PAGE_INFO, PAGE_SIZE_TYPE } from '@ziroeda/common/page_info.js';
 import { TITLE_BLOCK } from '@ziroeda/common/title_block.js';
 import { IS_MOVING } from '@ziroeda/common/eda_item_flags.js';
-import { LAYER_GP_OVERLAY, LAYER_SELECT_OVERLAY, PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
+import {
+  LAYER_GP_OVERLAY,
+  LAYER_RATSNEST,
+  LAYER_SELECT_OVERLAY,
+  PCB_LAYER_ID,
+} from '@ziroeda/common/layer_id.js';
+import { EDA_ITEM } from '@ziroeda/common/eda_item.js';
+import { RENDER_TARGET } from '@ziroeda/common/gal/definitions.js';
+import type { VIEW } from '@ziroeda/common/view/view.js';
+import { BOX2I } from '@ziroeda/kimath/src/math/box2.js';
+import type { Vec2 } from '@ziroeda/kimath/src/math/vector2.js';
+import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { VIEW_GROUP } from '@ziroeda/common/view/view_group.js';
 import { VIEW_UPDATE_FLAGS, VIEW_VISIBILITY_FLAGS } from '@ziroeda/common/view/view_item.js';
 import type { BOARD } from '@ziroeda/pcbnew/board.js';
@@ -25,7 +36,9 @@ import {
   ApplyRenderViewBatch,
   RENDER_VIEW_MIRROR,
   type RENDER_VIEW_BATCH,
+  type RENDER_VIEW_OP,
   RenderGroupsOf,
+  RenderReplaysOf,
 } from '@ziroeda/pcbnew/browser/render_mirror.js';
 import { FormatRenderSyncItems } from '@ziroeda/pcbnew/browser/render_sync.js';
 import { ApplyProjectToBoard } from '@ziroeda/pcbnew/browser/drc_job.js';
@@ -364,5 +377,142 @@ describe('the selection is drawn by the worker while it stands still', () => {
     other.Add(h.board.Footprints()[0]!);
 
     expect(h.view.IsGroupDrawnRemotely(other)).toBe(false);
+  });
+});
+
+describe('the ratsnest is drawn by the worker, beneath its selection (RECORDED_LAYERS)', () => {
+  /** An item on the ratsnest layer drawing what RATSNEST_VIEW_ITEM draws: lines of a set width. */
+  class LINES extends EDA_ITEM {
+    m_lines: [Vec2, Vec2][] = [
+      [
+        { x: 0, y: 0 },
+        { x: 1_000_000, y: 0 },
+      ],
+    ];
+
+    constructor() {
+      super(KICAD_T.NOT_USED);
+    }
+
+    override ViewBBox(): BOX2I {
+      const bbox = new BOX2I();
+      bbox.SetMaximum();
+      return bbox;
+    }
+
+    override ViewGetLayers(): number[] {
+      return [LAYER_RATSNEST];
+    }
+
+    override ViewDraw(_aLayer: number, aView: VIEW): void {
+      const gal = aView.GetGAL();
+      gal.SetIsStroke(true);
+      gal.SetLineWidth(3 / gal.GetWorldScale());
+      gal.SetStrokeColor({ r: 1, g: 0, b: 0, a: 1 });
+
+      for (const [a, b] of this.m_lines) gal.DrawLine(a, b);
+    }
+
+    override GetClass(): string {
+      return 'LINES';
+    }
+  }
+
+  let lines: LINES;
+  /** What each GAL was asked to draw, by DrawLine and SetLineWidth. */
+  const spy = (aGal: GAL): unknown[][] => {
+    const calls: unknown[][] = [];
+    const g = aGal as unknown as Record<string, (...a: unknown[]) => void>;
+
+    for (const name of ['DrawLine', 'SetLineWidth']) {
+      const real = g[name]!.bind(aGal);
+      g[name] = (...a: unknown[]) => {
+        calls.push([name, ...a]);
+        real(...a);
+      };
+    }
+
+    return calls;
+  };
+  const all = new BOX2I({ x: -1e10, y: -1e10 }, { x: 2e10, y: 2e10 });
+  const redraw = (aView: VIEW): void => {
+    aView.MarkDirty();
+    (aView as unknown as { redrawRect(r: BOX2I): void }).redrawRect(all);
+  };
+  const layerOps = (): RENDER_VIEW_OP[] =>
+    batches.flatMap((b) => b.ops).filter((o) => o.op === 'layer');
+
+  beforeEach(() => {
+    for (const v of [h.view, wView]) {
+      v.SetLayerTarget(LAYER_RATSNEST, RENDER_TARGET.TARGET_OVERLAY);
+      v.SetLayerTarget(LAYER_SELECT_OVERLAY, RENDER_TARGET.TARGET_OVERLAY);
+    }
+
+    lines = new LINES();
+    h.view.Add(lines);
+    settle();
+  });
+
+  it('the window records it instead of drawing it, and the worker draws it at its own zoom', () => {
+    const window = spy(h.view.GetGAL());
+    redraw(h.view);
+    mirror.Flush();
+
+    expect(window).toEqual([]);
+    expect(layerOps()).toHaveLength(1);
+
+    // At another zoom than the window's: the line keeps its width in pixels.
+    wView.GetGAL().SetWorldUnitLength(2e-6);
+    wView.GetGAL().SetZoomFactor(3);
+    wView.GetGAL().ComputeWorldScreenMatrix();
+    const scale = wView.GetGAL().GetWorldScale();
+    wView.SetOverlayKept([LAYER_SELECT_OVERLAY, LAYER_RATSNEST]);
+    const worker = spy(wView.GetGAL());
+    redraw(wView);
+
+    expect(RenderReplaysOf(wView).get(LAYER_RATSNEST)).toBeDefined();
+    expect(worker).toEqual([
+      ['SetLineWidth', 3 / scale],
+      ['DrawLine', { x: 0, y: 0 }, { x: 1_000_000, y: 0 }],
+    ]);
+  });
+
+  it('a drawing that has not changed is not sent again; one that has, is', () => {
+    redraw(h.view);
+    mirror.Flush();
+    redraw(h.view);
+    mirror.Flush();
+
+    expect(layerOps()).toHaveLength(1);
+
+    lines.m_lines.push([
+      { x: 0, y: 0 },
+      { x: 0, y: 5 },
+    ]);
+    redraw(h.view);
+    mirror.Flush();
+
+    expect(layerOps()).toHaveLength(2);
+    expect((RenderReplaysOf(wView).get(LAYER_RATSNEST)!.m_calls ?? []).length).toBe(5);
+  });
+
+  it('until the worker has drawn the board, the window draws it itself', () => {
+    h.view.SetOverlayOnly(false);
+    const window = spy(h.view.GetGAL());
+    redraw(h.view);
+    mirror.Flush();
+
+    expect(window.filter((c) => c[0] === 'DrawLine')).toHaveLength(1);
+    expect(layerOps()).toEqual([]);
+  });
+
+  it('the worker leaves the ratsnest to the window unless it keeps that layer', () => {
+    redraw(h.view);
+    mirror.Flush();
+    wView.SetOverlayKept([LAYER_SELECT_OVERLAY]);
+    const worker = spy(wView.GetGAL());
+    redraw(wView);
+
+    expect(worker.filter((c) => c[0] === 'DrawLine')).toEqual([]);
   });
 });

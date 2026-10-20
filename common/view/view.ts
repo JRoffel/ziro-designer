@@ -52,6 +52,13 @@ export interface VIEW_MIRROR {
    * settings first (a highlighted net, a clearance outline), and the items' updates follow.
    */
   ItemsConditionallyUpdated(): void;
+  /**
+   * A GAL that records what \a aLayer draws, for the other VIEW to draw in its place, standing in
+   * for \a aGal while the layer's items draw; null draws the layer here.
+   */
+  LayerRecorder?(aLayer: number, aGal: GAL): GAL | null;
+  /** \a aLayer's items have drawn into LayerRecorder's GAL. */
+  LayerRecorded?(aLayer: number): void;
 }
 
 /** An update UpdateAllItems marked: the mirror sends the call itself, not one per item. */
@@ -1797,7 +1804,11 @@ export class VIEW {
 
       if (this.m_overlayOnly && l.target !== TARGET_OVERLAY) continue;
 
-      if (this.m_overlayKept !== null && l.target === TARGET_OVERLAY && l.id !== this.m_overlayKept)
+      if (
+        this.m_overlayKept !== null &&
+        l.target === TARGET_OVERLAY &&
+        !this.m_overlayKept.has(l.id)
+      )
         continue;
 
       if (l.visible && this.IsTargetDirty(l.target) && this.areRequiredLayersEnabled(l.id)) {
@@ -1816,9 +1827,23 @@ export class VIEW {
         if (l.diffLayer) this.m_gal!.StartDiffLayer();
         else if (l.hasNegatives) this.m_gal!.StartNegativesLayer();
 
-        l.items.Query(aRect, drawFunc.visit);
+        // The render worker draws this layer from what its items draw here (VIEW_MIRROR).
+        const real = this.m_gal!;
+        const recorder = this.m_overlayOnly
+          ? (this.m_remote?.LayerRecorder?.(l.id, real) ?? null)
+          : null;
 
-        if (this.m_useDrawPriority) drawFunc.deferredDraw();
+        if (recorder) this.m_gal = recorder;
+
+        try {
+          l.items.Query(aRect, drawFunc.visit);
+
+          if (this.m_useDrawPriority) drawFunc.deferredDraw();
+        } finally {
+          this.m_gal = real;
+        }
+
+        if (recorder) this.m_remote!.LayerRecorded?.(l.id);
 
         if (l.diffLayer) this.m_gal!.EndDiffLayer();
         else if (l.hasNegatives) this.m_gal!.EndNegativesLayer();
@@ -1957,16 +1982,16 @@ export class VIEW {
     return this.m_overlayOnly;
   }
 
-  /** The one TARGET_OVERLAY layer this view draws, when another draws the rest (SetOverlayKept). */
-  private m_overlayKept: number | null = null;
+  /** The TARGET_OVERLAY layers this view draws, when another draws the rest (SetOverlayKept). */
+  private m_overlayKept: ReadonlySet<number> | null = null;
 
   /**
-   * The render worker's VIEW: the window's draws the overlay - the ratsnest, markers, previews -
-   * and this one draws, of the overlay, only \a aLayer (the selection it was handed), so nothing
-   * is drawn twice. Null draws every layer.
+   * The render worker's VIEW: the window's draws the overlay - markers, previews - and this one
+   * draws, of the overlay, only \a aLayers (the selection it was handed, and the ratsnest the
+   * window recorded beneath it), so nothing is drawn twice. Null draws every layer.
    */
-  SetOverlayKept(aLayer: number | null): void {
-    this.m_overlayKept = aLayer;
+  SetOverlayKept(aLayers: readonly number[] | null): void {
+    this.m_overlayKept = aLayers ? new Set(aLayers) : null;
   }
 
   /** True when the render worker's VIEW draws \a aGroup, and VIEW_GROUP::ViewDraw need not. */

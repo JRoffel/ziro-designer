@@ -131,7 +131,7 @@ describe("the render worker's VIEW and the overlay (VIEW::SetOverlayKept)", () =
     // PCB_DRAW_PANEL_GAL::setDefaultLayerDeps: both are TARGET_OVERLAY layers.
     view.SetLayerTarget(LAYER_SELECT_OVERLAY, RENDER_TARGET.TARGET_OVERLAY);
     view.SetLayerTarget(LAYER_GP_OVERLAY, RENDER_TARGET.TARGET_OVERLAY);
-    view.SetOverlayKept(LAYER_SELECT_OVERLAY);
+    view.SetOverlayKept([LAYER_SELECT_OVERLAY]);
 
     view.MarkDirty();
     painter.drawn.clear();

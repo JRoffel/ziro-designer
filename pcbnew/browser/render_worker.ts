@@ -30,6 +30,7 @@ import type { DRAW_PANEL_GAL_WINDOW } from '@ziroeda/common/draw_panel_gal.js';
 import { DS_PROXY_VIEW_ITEM } from '@ziroeda/common/drawing_sheet/ds_proxy_view_item.js';
 import { pcbIUScale } from '@ziroeda/common/eda_units.js';
 import { LAYER_SELECT_OVERLAY } from '@ziroeda/common/layer_id.js';
+import type { VIEW_ITEM } from '@ziroeda/common/view/view_item.js';
 import type { Vec2 } from '@ziroeda/kimath/src/math/vector2.js';
 import type { BOARD } from '../board.js';
 import { PCB_DRAW_PANEL_GAL } from '../pcb_draw_panel_gal.js';
@@ -39,6 +40,7 @@ import { ApplyProjectToBoard, type DRC_JOB_REQUEST, loadBoardForDrc } from './dr
 import { DRC_ENGINE } from '../drc/drc_engine.js';
 import {
   ApplyRenderViewBatch,
+  RECORDED_LAYERS,
   type RENDER_VIEW_BATCH,
   applyRenderSettings,
 } from './render_mirror.js';
@@ -273,8 +275,13 @@ if (g.WorkerGlobalScope !== undefined) {
     const painter = view.GetPainter() as PCB_PAINTER;
     applyRenderSettings(painter.GetSettings(), msg.renderSettings);
 
-    // The window draws the overlay; this view only the selection it is handed (render_mirror.ts).
-    view.SetOverlayKept(LAYER_SELECT_OVERLAY);
+    // The window draws the overlay; this view only the selection it is handed and the layers the
+    // window records (render_mirror.ts). Its own ratsnest gives way to the window's.
+    view.SetOverlayKept([LAYER_SELECT_OVERLAY, ...RECORDED_LAYERS]);
+
+    const ratsnest = (panel as unknown as { m_ratsnest: VIEW_ITEM | null }).m_ratsnest;
+
+    if (ratsnest) view.Remove(ratsnest);
 
     for (const [layer, visible, order] of msg.layers) {
       view.SetLayerVisible(layer, visible);

@@ -163,8 +163,10 @@ export class RENDER_WORKER_HOST {
         console.info(
           `render worker: board drawn (load ${e.data.loadMs.toFixed(0)} ms, first draw ${e.data.firstDrawMs.toFixed(0)} ms)`,
         );
-        // The worker draws the board from now on: the window keeps the overlay.
+        // The worker draws the board from now on: the window keeps the overlay, and records the
+        // layers the worker draws for it.
         view.SetOverlayOnly(true);
+        view.MarkDirty();
         this.m_panel.SetTransparent(true);
       }
     };

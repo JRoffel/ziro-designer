@@ -21,7 +21,10 @@
 import { BRIGHTENED, ENTERED, IS_MOVING, SELECTED } from '@ziroeda/common/eda_item_flags.js';
 import { BASE_SET } from '@ziroeda/common/base_set.js';
 import { RECURSE_MODE } from '@ziroeda/common/eda_item.js';
-import { LAYER_SELECT_OVERLAY } from '@ziroeda/common/layer_id.js';
+import type { GAL } from '@ziroeda/common/gal/graphics_abstraction_layer.js';
+import { BOX2I } from '@ziroeda/kimath/src/math/box2.js';
+import { EDA_ITEM } from '@ziroeda/common/eda_item.js';
+import { LAYER_RATSNEST, LAYER_SELECT_OVERLAY } from '@ziroeda/common/layer_id.js';
 import type { VIEW, VIEW_MIRROR } from '@ziroeda/common/view/view.js';
 import { VIEW_GROUP } from '@ziroeda/common/view/view_group.js';
 import type { VIEW_ITEM } from '@ziroeda/common/view/view_item.js';
@@ -59,7 +62,45 @@ export type RENDER_VIEW_OP =
    * A selection group the worker draws: its layer, its items (none: the window draws it), and
    * whether it is a PCB_SELECTION, which draws a footprint's children with it.
    */
-  | { op: 'group'; group: number; layer: number; pcbSelection: boolean; ids: string[] };
+  | { op: 'group'; group: number; layer: number; pcbSelection: boolean; ids: string[] }
+  /** What a recorded layer's items drew in the window (RECORDED_LAYERS), for the worker to draw. */
+  | { op: 'layer'; layer: number; calls: RENDER_GAL_CALL[] };
+
+/**
+ * The overlay layers the window's items draw and the worker shows: the ratsnest, which KiCad
+ * draws under the selection - and the selection is the worker's. Its connectivity, its dynamic
+ * lines mid-move and the frame's settings it reads stay the window's; only the drawing moves.
+ */
+export const RECORDED_LAYERS: readonly number[] = [LAYER_RATSNEST];
+
+/** One GAL call: its name and arguments. SetLineWidth's width is in pixels (see recordingGal). */
+export type RENDER_GAL_CALL = [string, ...unknown[]];
+
+/** The GAL state a recorded item sets before it draws; every Draw* call is recorded too. */
+const RECORDED_STATE = new Set(['SetIsStroke', 'SetIsFill', 'SetStrokeColor', 'SetFillColor']);
+
+/**
+ * \a aGal, but every drawing call goes to \a aCalls instead; what the items ask of it (its world
+ * scale, ...) it answers. A line width is world units at the window's zoom: recorded in pixels,
+ * it stays the same recording at any zoom and the worker sets it at its own.
+ */
+function recordingGal(aGal: GAL, aCalls: RENDER_GAL_CALL[]): GAL {
+  return new Proxy(aGal, {
+    get(aTarget, aKey) {
+      const value = Reflect.get(aTarget, aKey, aTarget) as unknown;
+
+      if (typeof aKey !== 'string' || typeof value !== 'function') return value;
+
+      if (aKey === 'SetLineWidth')
+        return (aWidth: number) => aCalls.push(['SetLineWidth', aWidth * aTarget.GetWorldScale()]);
+
+      if (RECORDED_STATE.has(aKey) || aKey.startsWith('Draw'))
+        return (...aArgs: unknown[]) => aCalls.push([aKey, ...aArgs]);
+
+      return (value as (...a: unknown[]) => unknown).bind(aTarget);
+    },
+  });
+}
 
 /** One task's worth of what the window's VIEW did. */
 export interface RENDER_VIEW_BATCH {
@@ -170,6 +211,9 @@ export class RENDER_VIEW_MIRROR implements VIEW_MIRROR {
   /** The project file's text, as the window has it now, and as the worker last had it. */
   private readonly m_projectText: () => string | null;
   private m_project: string | null;
+  /** RECORDED_LAYERS: the calls being recorded, and what the worker last drew, as JSON. */
+  private m_recording = new Map<number, RENDER_GAL_CALL[]>();
+  private m_recorded = new Map<number, string>();
 
   /**
    * \a aBoard's items are the worker's already (it parsed the same board); \a aSettings answers
@@ -309,6 +353,32 @@ export class RENDER_VIEW_MIRROR implements VIEW_MIRROR {
   ItemsConditionallyUpdated(): void {
     // The items' updates arrive one by one (ItemInvalidated); what they are drawn with goes first.
     this.pushOp({ op: 'settings', settings: snapshotRenderSettings(this.m_settings()) });
+  }
+
+  LayerRecorder(aLayer: number, aGal: GAL): GAL | null {
+    if (!RECORDED_LAYERS.includes(aLayer)) return null;
+
+    const calls: RENDER_GAL_CALL[] = [];
+
+    this.m_recording.set(aLayer, calls);
+
+    return recordingGal(aGal, calls);
+  }
+
+  LayerRecorded(aLayer: number): void {
+    const calls = this.m_recording.get(aLayer);
+
+    if (!calls) return;
+
+    this.m_recording.delete(aLayer);
+
+    // The overlay redraws for a moved cursor or preview as well: send only a changed drawing.
+    const key = JSON.stringify(calls);
+
+    if (key === this.m_recorded.get(aLayer)) return;
+
+    this.m_recorded.set(aLayer, key);
+    this.pushOp({ op: 'layer', layer: aLayer, calls: JSON.parse(key) as RENDER_GAL_CALL[] });
   }
 
   DrawsGroup(aGroup: VIEW_GROUP): boolean {
@@ -468,6 +538,49 @@ interface RENDER_GROUP {
 
 const RENDER_GROUPS = new WeakMap<VIEW, Map<number, RENDER_GROUP>>();
 
+/** A recorded layer, in the worker's VIEW: draws the window's calls again (RECORDED_LAYERS). */
+export class RENDER_LAYER_REPLAY extends EDA_ITEM {
+  private readonly m_layer: number;
+  m_calls: RENDER_GAL_CALL[] = [];
+
+  constructor(aLayer: number) {
+    super(KICAD_T.NOT_USED);
+    this.m_layer = aLayer;
+  }
+
+  override ViewBBox(): BOX2I {
+    const bbox = new BOX2I();
+    bbox.SetMaximum();
+
+    return bbox;
+  }
+
+  override ViewGetLayers(): number[] {
+    return [this.m_layer];
+  }
+
+  override ViewDraw(_aLayer: number, aView: VIEW): void {
+    const gal = aView.GetGAL();
+    const calls = gal as unknown as Record<string, (...a: unknown[]) => void>;
+
+    for (const [name, ...args] of this.m_calls) {
+      if (name === 'SetLineWidth') gal.SetLineWidth((args[0] as number) / gal.GetWorldScale());
+      else calls[name]!.call(gal, ...args);
+    }
+  }
+
+  override GetClass(): string {
+    return 'RENDER_LAYER_REPLAY';
+  }
+}
+
+const RENDER_REPLAYS = new WeakMap<VIEW, Map<number, RENDER_LAYER_REPLAY>>();
+
+/** The recorded layers the worker's \a aView draws, by layer. */
+export function RenderReplaysOf(aView: VIEW): ReadonlyMap<number, RENDER_LAYER_REPLAY> {
+  return RENDER_REPLAYS.get(aView) ?? new Map();
+}
+
 /** The selection groups the worker's \a aView draws, by the window's id. */
 export function RenderGroupsOf(aView: VIEW): ReadonlyMap<number, RENDER_GROUP> {
   return RENDER_GROUPS.get(aView) ?? new Map();
@@ -575,6 +688,27 @@ export function ApplyRenderViewBatch(
 
         g.ids = op.ids;
         fillRenderGroup(aBoard, aView, g);
+        break;
+      }
+      case 'layer': {
+        let replays = RENDER_REPLAYS.get(aView);
+
+        if (!replays) {
+          replays = new Map();
+          RENDER_REPLAYS.set(aView, replays);
+        }
+
+        let replay = replays.get(op.layer);
+
+        if (!replay) {
+          replay = new RENDER_LAYER_REPLAY(op.layer);
+          replays.set(op.layer, replay);
+          replay.m_calls = op.calls;
+          aView.Add(replay);
+        } else {
+          replay.m_calls = op.calls;
+          aView.Update(replay);
+        }
         break;
       }
     }
