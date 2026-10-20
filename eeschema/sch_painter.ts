@@ -12,6 +12,7 @@
  * follow KiCad's per-orientation direction.
  */
 
+import { unescapeString } from '@ziroeda/common/string_utils.js';
 import { PrintableCharCount } from '@ziroeda/common/string_utils.js';
 import { GetPenSizeForNormal } from '@ziroeda/common/gr_text.js';
 import { GAL_LAYER_ID } from '@ziroeda/common/layer_id.js';
@@ -2528,6 +2529,10 @@ function drawLabel(
   // which is what makes a `USB_PI{USB}` sheet pin blue among teal ones. Plain
   // free text has no connection and is left alone.
   const busColored = g_connectivity && l.kind !== 'text' && labelDrawsAsBus(l.text, l.at, g_onBus);
+  // EDA_TEXT::GetShownText is the UNESCAPED text (eda_text.cpp:617, cacheShownText): a label
+  // "GPIO21{slash}PCM.DOUT" reads GPIO21/PCM.DOUT. The bus test above keeps the escaped text,
+  // which is what a net name carries.
+  if (l.text.includes('{')) l = { ...l, text: unescapeString(l.text) };
   const color = shadow
     ? shadow.color
     : brightened
