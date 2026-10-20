@@ -115,6 +115,7 @@ export class RENDER_WORKER_HOST {
         origin: { ...gal.GetGridOrigin() },
         visible: gal.GetGridVisibility(),
       },
+      gal: plainFields(this.m_frame.GetGalDisplayOptions()),
     };
   }
 

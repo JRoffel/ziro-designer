@@ -58,6 +58,8 @@ export interface RENDER_VIEW_STATE {
   width: number;
   height: number;
   grid: { size: Vec2; origin: Vec2; visible: boolean };
+  /** The window's GAL_DISPLAY_OPTIONS fields: grid style, antialiasing, ... (Preferences). */
+  gal: Record<string, unknown>;
 }
 
 export type RENDER_WORKER_REQUEST =
@@ -126,6 +128,8 @@ if (g.WorkerGlobalScope !== undefined) {
   let board: BOARD | null = null;
   // Messages that arrive while the board loads wait for it.
   let pending: RENDER_WORKER_REQUEST[] | null = [];
+  let options: GAL_DISPLAY_OPTIONS | null = null;
+  let lastGal = '';
 
   /**
    * What EDA_DRAW_PANEL_GAL::onSize does to the canvas and the GAL, unconditionally: onSize itself
@@ -151,6 +155,15 @@ if (g.WorkerGlobalScope !== undefined) {
       size.w = aView.width;
       size.h = aView.height;
       resize();
+    }
+
+    // GAL_DISPLAY_OPTIONS::NotifyChanged, as the window's options did when the user changed them.
+    const galKey = JSON.stringify(aView.gal);
+
+    if (galKey !== lastGal) {
+      lastGal = galKey;
+      Object.assign(options!, aView.gal);
+      options!.NotifyChanged();
     }
 
     gal.SetGridSize(aView.grid.size);
@@ -202,8 +215,9 @@ if (g.WorkerGlobalScope !== undefined) {
     size.w = msg.view.width;
     size.h = msg.view.height;
 
-    const options = new GAL_DISPLAY_OPTIONS();
+    options = new GAL_DISPLAY_OPTIONS();
     Object.assign(options, msg.galOptions);
+    lastGal = JSON.stringify(msg.galOptions);
 
     const window: DRAW_PANEL_GAL_WINDOW = {
       canvas: canvasShim(msg.canvas, size),
