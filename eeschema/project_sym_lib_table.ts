@@ -23,7 +23,12 @@ import { parse } from '@ziroeda/sexpr';
 import { readSymbolLib } from './sch_io/sexpr/read-schematic.js';
 import type { LibSymbol } from './types.js';
 import { LIBRARY_TABLE_TYPE } from '@ziroeda/common/libraries/library_table.js';
-import { libraryTableOf, parseFpLibTable, type FpLibRow } from '@ziroeda/common/fp_lib_table.js';
+import {
+  type ADD_LIBRARY_RESULT,
+  libraryTableOf,
+  parseFpLibTable,
+  type FpLibRow,
+} from '@ziroeda/common/fp_lib_table.js';
 import { findProjectFile as findProjectFileByUri } from '@ziroeda/common/project_paths.js';
 
 /** A project file as the editor holds it. */
@@ -186,4 +191,50 @@ const SYM_LIB_TABLE_ANCHOR = /(^|\/)sym-lib-table$/i;
 
 function findProjectFile(files: readonly ProjectFile[], uri: string): ProjectFile | undefined {
   return findProjectFileByUri(files, uri, SYM_LIB_TABLE_ANCHOR);
+}
+
+/**
+ * `SYMBOL_EDIT_FRAME::AddLibraryFile` (symbol_edit_frame.cpp:1180) then
+ * `SYMBOL_LIBRARY_MANAGER::addLibrary` (symbol_library_manager.cpp:748), for a `.kicad_sym` read
+ * off the computer: the file copied into the project beside the `sym-lib-table`, and the project
+ * table given a KiCad row for it at `${KIPRJMOD}/<file>`. The nickname is the file's name less
+ * the extension (`fn.GetName()`), refused as upstream refuses it when any table already has it
+ * ("Library '%s' already exists.") - \a aOtherNicknames are the global table's.
+ *
+ * Web delta: upstream points the row at the file where it lies, which a page cannot, so the file
+ * is copied - and refused rather than written over a different file of the same name.
+ */
+export function AddSymbolLibraryToProject(
+  aProjectFiles: readonly ProjectFile[],
+  aFile: { name: string; text: string },
+  aOtherNicknames: readonly string[] = [],
+): ADD_LIBRARY_RESULT {
+  const leaf = aFile.name.replace(/\\/g, '/').split('/').pop() ?? '';
+  const nickname = leaf.replace(/\.kicad_sym$/i, '');
+
+  if (!/\.kicad_sym$/i.test(leaf) || nickname === '')
+    return { ok: false, error: `'${leaf}' is not a KiCad symbol library (*.kicad_sym).` };
+
+  const rows = projectSymLibTable(aProjectFiles);
+
+  if ([...rows.map((r) => r.name), ...aOtherNicknames].includes(nickname))
+    return { ok: false, error: `Library '${nickname}' already exists.` };
+
+  const tablePath = projectSymLibTablePath(aProjectFiles);
+  const name = `${tablePath.slice(0, tablePath.lastIndexOf('/') + 1)}${leaf}`;
+  const existing = aProjectFiles.find((f) => f.name.toLowerCase() === name.toLowerCase());
+
+  if (existing && existing.text !== aFile.text)
+    return { ok: false, error: `The project already has a different '${leaf}'.` };
+
+  const table = serializeSymLibTable([
+    ...rows,
+    { name: nickname, type: 'KiCad', uri: `\${KIPRJMOD}/${leaf}`, options: '', descr: '' },
+  ]);
+
+  return {
+    ok: true,
+    nickname,
+    files: [...(existing ? [] : [{ name, text: aFile.text }]), { name: tablePath, text: table }],
+  };
 }

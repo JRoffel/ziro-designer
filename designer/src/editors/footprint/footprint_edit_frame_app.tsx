@@ -87,6 +87,7 @@ export function FootprintEditor(props: {
   onExitToHome: () => void;
   initialProject?: FootprintEditorFile[] | null;
   kiway?: KIWAY;
+  onWriteProjectFiles?: ((files: { name: string; text: string }[]) => void) | undefined;
 }): JSX.Element {
   const app = useFootprintEditFrameApp();
   return <FootprintEditFrame app={app} {...props} />;

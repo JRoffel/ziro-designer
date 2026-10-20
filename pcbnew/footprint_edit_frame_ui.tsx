@@ -32,7 +32,12 @@ import {
 } from 'react';
 import { ShowAboutDialog } from '@ziroeda/common/dialog_about/AboutDialog_main.js';
 import type { UnsavedChangesResult } from '@ziroeda/common/confirm.js';
-import { CONFIRM_REVERT_EXTENDED } from '@ziroeda/common/confirm.js';
+import { CONFIRM_REVERT_EXTENDED, DisplayErrorMessage } from '@ziroeda/common/confirm.js';
+import {
+  AddFootprintLibraryToProject,
+  projectFpLibTablePath,
+} from '@ziroeda/common/fp_lib_table.js';
+import { ChooseLocalFolder } from '@ziroeda/wx/dirdlg.js';
 import { UnsavedChangesDialog } from '@ziroeda/common/dialogs/dialog_unsaved_changes.js';
 import { EdaListDialog } from '@ziroeda/common/dialogs/eda_list_dialog.js';
 import type { LIB_TREE } from '@ziroeda/common/eda_draw_frame.js';
@@ -285,13 +290,23 @@ export function FootprintEditFrame({
   onExitToHome,
   initialProject,
   kiway,
+  onWriteProjectFiles,
 }: {
   app: FOOTPRINT_EDIT_FRAME_APP;
   onExitToHome: () => void;
   initialProject?: FootprintEditorFile[] | null;
   /** The program's KIWAY, on which the frame registers as FRAME_FOOTPRINT_EDITOR. */
   kiway?: KIWAY;
+  /**
+   * Write files into the open project: a footprint library's `.kicad_mod` files and the
+   * `fp-lib-table`, where Save and Add Library write them upstream. None without a project.
+   */
+  onWriteProjectFiles?: ((files: { name: string; text: string }[]) => void) | undefined;
 }): JSX.Element {
+  const projectRef = useRef(initialProject);
+  projectRef.current = initialProject;
+  const writeRef = useRef(onWriteProjectFiles);
+  writeRef.current = onWriteProjectFiles;
   const fpCfg = app.useFpEditSettings();
   const userColors = app.useUserColors();
   const userThemes = app.useUserThemes();
@@ -350,9 +365,10 @@ export function FootprintEditFrame({
   const [checkerOpen, setCheckerOpen] = useState(false);
   // `Show( false )` after a double click: the dialog lives on, hidden, until shown again.
   const [checkerShown, setCheckerShown] = useState(true);
-  const [fpOpenDlg, setFpOpenDlg] = useState<
-    null | { kind: 'addLibrary' } | { kind: 'import'; done: (f: OpenedFile | null) => void }
-  >(null);
+  const [fpOpenDlg, setFpOpenDlg] = useState<null | {
+    kind: 'import';
+    done: (f: OpenedFile | null) => void;
+  }>(null);
   const [newLibName, setNewLibName] = useState(false);
   const [unsaved, setUnsaved] = useState<{
     message: string;
@@ -397,9 +413,30 @@ export function FootprintEditFrame({
       new FOOTPRINT_LIBRARY_STORE({
         footprintText: (n, f) => app.libraryIo.footprintText(n, f),
         flipLeftRight: () => app.libraryIo.flipLeftRight(),
-        // FootprintSave's file write. A project library's folder is the
-        // project's; the bytes go to the browser's downloads, as Save did.
-        writeFootprintFile: (_aDir, aFileName, aText) => {
+        // FootprintSave's file write: `<dir>/<name>.kicad_mod`, a project library's folder being
+        // the project's. With no project to write into, the bytes go to the browser's downloads.
+        writeFootprintFile: (aDir, aFileName, aText) => {
+          const write = writeRef.current;
+
+          if (write) {
+            const files = projectRef.current ?? [];
+            const dir = aDir.toLowerCase();
+            // The folder where the project has it; a new one beside the fp-lib-table.
+            const held = files
+              .map((f) => f.name.replace(/\\/g, '/'))
+              .find(
+                (n) =>
+                  n.toLowerCase().startsWith(`${dir}/`) || n.toLowerCase().includes(`/${dir}/`),
+              );
+            const table = projectFpLibTablePath(files);
+            const at = held
+              ? held.slice(0, held.toLowerCase().lastIndexOf(`${dir}/`) + aDir.length)
+              : `${table.slice(0, table.lastIndexOf('/') + 1)}${aDir}`;
+
+            write([{ name: `${at}/${aFileName}`, text: aText }]);
+            return;
+          }
+
           const url = URL.createObjectURL(new Blob([aText], { type: 'application/octet-stream' }));
           const a = document.createElement('a');
           a.href = url;
@@ -953,6 +990,37 @@ export function FootprintEditFrame({
   );
 
   /** A menu row: its action, or the few rows that are the window's. */
+  /**
+   * `PCB_BASE_EDIT_FRAME::AddLibrary` (footprint_libraries_utils.cpp:484) over a folder on the
+   * computer: copied into the project with its fp-lib-table row (AddFootprintLibraryToProject),
+   * after which the project's libraries are synced again and the new one is in the tree.
+   * Upstream's table chooser offers Global as well; the global table here is the hosted set.
+   */
+  const addLibraryFolder = useCallback(async (): Promise<void> => {
+    const write = writeRef.current;
+
+    if (!write) {
+      DisplayErrorMessage('Open a project to add a footprint library to.');
+      return;
+    }
+
+    const folder = await ChooseLocalFolder();
+
+    if (!folder) return; // wxID_CANCEL
+
+    const decoder = new TextDecoder();
+    const result = AddFootprintLibraryToProject(projectRef.current ?? [], {
+      name: folder.name,
+      files: folder.files.map((f) => ({ path: f.path, text: decoder.decode(f.bytes) })),
+    });
+    if (!result.ok) {
+      DisplayErrorMessage(result.error);
+      return;
+    }
+
+    write(result.files);
+  }, []);
+
   const onMenuAction = useCallback(
     (id: string) => {
       switch (id) {
@@ -962,7 +1030,9 @@ export function FootprintEditFrame({
           setNewLibName(true);
           return;
         case 'addLibrary':
-          setFpOpenDlg({ kind: 'addLibrary' });
+          // `PCB_BASE_EDIT_FRAME::AddLibrary`: LibraryFileBrowser with isDirectory, the library
+          // being a `.pretty` folder - on the computer, and copied into the project.
+          void addLibraryFolder();
           return;
         case 'openPreferences':
           setPrefsOpen(true);
@@ -978,7 +1048,7 @@ export function FootprintEditFrame({
       const action = actionForId(id);
       if (action) runAction(action);
     },
-    [kiway, onExitToHome, runAction],
+    [kiway, onExitToHome, runAction, addLibraryFolder],
   );
 
   const onTreeMenuAction = useCallback(
@@ -1129,25 +1199,13 @@ export function FootprintEditFrame({
     <div className="ze-app">
       {fpOpenDlg &&
         app.OpenFileDialog({
-          title: fpOpenDlg.kind === 'addLibrary' ? 'Add Library' : 'Import Footprint',
-          accept: fpOpenDlg.kind === 'addLibrary' ? 'Add' : 'Import',
+          title: 'Import Footprint',
+          accept: 'Import',
           filters: [kicadFootprintLibWildcard()],
           onDone: (file) => {
             const which = fpOpenDlg;
             setFpOpenDlg(null);
-
-            if (which.kind === 'import') {
-              which.done(file);
-              return;
-            }
-
-            if (!file) return; // wxID_CANCEL
-
-            const leaf = file.path.split('/').filter(Boolean).pop() ?? file.path;
-            store.AddProjectLibrary('Imported', 'Imported.pretty', [
-              { fileName: leaf, text: file.text },
-            ]);
-            frame.SyncLibraryTree(true);
+            which.done(file);
           },
         })}
 

@@ -157,3 +157,57 @@ export function projectPrettyDirs(
     registeredAs: rows.find((r) => rowPrettyDir(r).toLowerCase() === dir.toLowerCase())?.name ?? '',
   }));
 }
+
+/** A library brought into the project, or why it was not. */
+export type ADD_LIBRARY_RESULT =
+  | { ok: true; nickname: string; files: { name: string; text: string }[] }
+  | { ok: false; error: string };
+
+/**
+ * `PCB_BASE_EDIT_FRAME::AddLibrary` (footprint_libraries_utils.cpp:484) for a folder read off the
+ * computer: its `.kicad_mod` files copied into the project under `<name>.pretty/`, beside the
+ * `fp-lib-table`, and the project table given a KiCad row for it at `${KIPRJMOD}/<name>.pretty`.
+ * The nickname is the folder's name less `.pretty`, as `fn.GetName()` is.
+ *
+ * Web deltas: upstream points the row at the folder where it lies, which a page cannot, so the
+ * folder is copied - and refused rather than written over a library folder of the same name.
+ * A folder not named `.pretty` (a vendor download) gets the extension, which is how the project
+ * finds its libraries. Only the folder's own `.kicad_mod` files are a library (`FP_CACHE::Load`
+ * reads no subfolder); one with none is refused rather than added empty.
+ */
+export function AddFootprintLibraryToProject(
+  aProjectFiles: readonly { name: string; text: string }[],
+  aFolder: { name: string; files: readonly { path: string; text: string }[] },
+): ADD_LIBRARY_RESULT {
+  const tablePath = projectFpLibTablePath(aProjectFiles);
+  const dir = tablePath.slice(0, tablePath.lastIndexOf('/') + 1);
+  const libDir = /\.pretty$/i.test(aFolder.name) ? aFolder.name : `${aFolder.name}.pretty`;
+  const nickname = libDir.replace(/\.pretty$/i, '');
+  const footprints = aFolder.files.filter(
+    (f) => !f.path.includes('/') && /\.kicad_mod$/i.test(f.path),
+  );
+
+  if (nickname === '') return { ok: false, error: 'The folder has no name.' };
+
+  if (footprints.length === 0)
+    return { ok: false, error: `No footprint files (*.kicad_mod) in '${aFolder.name}'.` };
+
+  const target = `${dir}${libDir}/`.toLowerCase();
+
+  if (aProjectFiles.some((f) => f.name.replace(/\\/g, '/').toLowerCase().startsWith(target)))
+    return { ok: false, error: `The project already has a library folder '${libDir}'.` };
+
+  const rows = [
+    ...projectFpLibTable(aProjectFiles),
+    { name: nickname, type: 'KiCad', uri: `\${KIPRJMOD}/${libDir}`, options: '', descr: '' },
+  ];
+
+  return {
+    ok: true,
+    nickname,
+    files: [
+      ...footprints.map((f) => ({ name: `${dir}${libDir}/${f.path}`, text: f.text })),
+      { name: tablePath, text: serializeFpLibTable(rows) },
+    ],
+  };
+}

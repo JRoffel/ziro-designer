@@ -23,7 +23,9 @@
  */
 
 import type { JSX } from 'react';
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
+import { Button } from '@ziroeda/wx/controls.js';
+import { acceptAttribute, openFileDialog } from './open_file_dialog.js';
 import { FileChooser } from './FileChooser.js';
 import { projectStoreFileSystem } from './project_store_fs.js';
 import { type AssetKind, chooserPlacesFor, projectsOnlyFileSystem } from './chooser_places.js';
@@ -61,7 +63,11 @@ export interface OpenFileDialogProps {
    * layers (gerbview/files.cpp:151-152).
    */
   multiple?: boolean;
-  /** Rendered beside the buttons — where "Open from Computer..." goes. */
+  /**
+   * Rendered beside the buttons. Omitted, the dialog puts its own
+   * "Open from Computer..." there: the disk upstream's wxFileDialog browses,
+   * which a page reaches only through the browser's own picker.
+   */
   extra?: JSX.Element;
   /** `wxFileDialog`'s title. */
   title?: string;
@@ -120,6 +126,51 @@ export function OpenFileDialog({
     })();
   };
 
+  /**
+   * "Open from Computer...": the browser's picker over the same wildcards, its
+   * files handed back exactly as a pick from the account's tree is. The hidden
+   * input is the picker where `showOpenFilePicker` is missing.
+   */
+  const inputRef = useRef<HTMLInputElement>(null);
+  const doneFromComputer = (files: readonly File[]): void => {
+    if (files.length === 0) return;
+    void (async () => {
+      const read = await Promise.all(
+        files.map(async (f) => {
+          const bytes = new Uint8Array(await f.arrayBuffer());
+          return { path: f.name, text: new TextDecoder().decode(bytes), bytes };
+        }),
+      );
+      const [first, ...rest] = read;
+      onDone({ ...first!, rest });
+    })();
+  };
+  const fromComputer = (
+    <>
+      <Button
+        label="Open from Computer..."
+        onClick={() => {
+          void openFileDialog(filters ?? [], {
+            multiple,
+            fallback: () => inputRef.current?.click(),
+          }).then(doneFromComputer);
+        }}
+      />
+      <input
+        ref={inputRef}
+        type="file"
+        accept={acceptAttribute(filters ?? []) || undefined}
+        multiple={multiple}
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const files = Array.from(e.target.files ?? []);
+          e.target.value = '';
+          doneFromComputer(files);
+        }}
+      />
+    </>
+  );
+
   // GTK gives every wxFileDialog in the process the same
   // GtkPlacesSidebar; ours had one only in the project manager, so an
   // editor's dialog opened with no sidebar at all.
@@ -141,7 +192,7 @@ export function OpenFileDialog({
       {...(initialPath === undefined ? {} : { initialPath })}
       {...(filters === undefined ? {} : { filters })}
       multiple={multiple}
-      {...(extra === undefined ? {} : { extra })}
+      extra={extra ?? fromComputer}
       onAccept={(path, rest) => readAndDone(fs, path, rest)}
       onCancel={() => onDone(null)}
     />

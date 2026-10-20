@@ -58,7 +58,12 @@ import {
 } from './toolbars_symbol_editor.js';
 import type { SymbolCanvasController } from '../sch_draw_panel.js';
 import { SymbolLibraryManager, type ManagedLibrary } from '../symbol_library_manager.js';
-import { findSymLibRowByUri, resolvedProjectSymLibs } from '../project_sym_lib_table.js';
+import {
+  AddSymbolLibraryToProject,
+  findSymLibRowByUri,
+  projectSymLibTable,
+  resolvedProjectSymLibs,
+} from '../project_sym_lib_table.js';
 import { unescapeString } from '@ziroeda/common/string_utils.js';
 import { SYM_FRAME_NAME, symFrameTitle, deleteSymbolPrompts } from './symbol_editor.js';
 import {
@@ -204,6 +209,16 @@ const lastPinDefaults = (cfg = currentSymbolEditorSettings()): LastPinState => {
 
 const basename = (p: string): string => p.split('/').pop()!.split('\\').pop()!;
 
+/** A file handed to the browser's downloads: where a library with no project file is saved. */
+const downloadText = (fileName: string, text: string): void => {
+  const url = URL.createObjectURL(new Blob([text], { type: 'application/octet-stream' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
 /** Resolve a derived symbol's geometry against the live library (LIB_SYMBOL::Flatten). */
 function flattenAgainst(sym: LibSymbol, lib: ManagedLibrary, depth = 0): LibSymbol {
   if (sym.extends === undefined || depth > 10) return sym;
@@ -237,6 +252,7 @@ export function SymbolEditor({
   schematicSymbol,
   onSaveToSchematic,
   readOnlyNotice,
+  onWriteProjectFiles,
 }: {
   /** What the program gives this window (`SYMBOL_EDIT_FRAME_APP`,
    *  `symbol_edit_frame_app.ts`). Built by designer's `useSymbolEditFrameApp()`. */
@@ -282,6 +298,11 @@ export function SymbolEditor({
    * project - not one symbol - the thing "Save a copy" copies.
    */
   readOnlyNotice?: ReactNode;
+  /**
+   * Write files into the open project: a `.kicad_sym` and the `sym-lib-table`, where Save and
+   * Add Library write them upstream. None without a project.
+   */
+  onWriteProjectFiles?: ((files: { name: string; text: string }[]) => void) | undefined;
 }): JSX.Element {
   const {
     settings,
@@ -765,27 +786,42 @@ export function SymbolEditor({
     fromSchematic !== null && curLib === SCHEMATIC_LIB && curName === fromSchematic;
 
   // ----- save / revert ------------------------------------------------------------
-  const downloadText = (fileName: string, text: string): void => {
-    const url = URL.createObjectURL(new Blob([text], { type: 'application/octet-stream' }));
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
 
-  /** saveLibrary: serialize the buffered library and hand the bytes to the browser. */
+  /**
+   * saveLibrary: the buffered library written where it lives. A project library is the
+   * project's file - one the project table does not name yet (New Library) gets its row too,
+   * as `AddLibraryFile( true )` writes both. Anything else, and anything with no project open,
+   * goes to the browser's downloads.
+   */
   const saveLibrary = useCallback(
     async (libName: string) => {
-      await manager.current.ensureLoaded(libName);
+      const lib = await manager.current.ensureLoaded(libName);
       const text = manager.current.saveLibraryText(libName);
-      if (text !== undefined) {
+      if (text === undefined) return;
+
+      const project = initialProject ?? [];
+
+      if (lib?.scope === 'project' && onWriteProjectFiles) {
+        if (projectSymLibTable(project).some((r) => r.name === libName)) {
+          onWriteProjectFiles([{ name: lib.fileName, text }]);
+        } else {
+          const added = AddSymbolLibraryToProject(project, { name: lib.fileName, text });
+
+          if (!added.ok) {
+            setLibError({ title: 'Error', message: added.error });
+            return;
+          }
+
+          onWriteProjectFiles(added.files);
+        }
+      } else {
         downloadText(`${libName}.kicad_sym`, text);
-        setStatus(`Saved library '${libName}'`);
-        bump();
       }
+
+      setStatus(`Saved library '${libName}'`);
+      bump();
     },
-    [bump],
+    [bump, initialProject, onWriteProjectFiles],
   );
 
   /** Save: back to the schematic when the symbol came from there
@@ -2452,8 +2488,28 @@ export function SymbolEditor({
             setSymOpenDlg(null);
             if (!file) return; // wxID_CANCEL
             const leaf = file.path.split('/').filter(Boolean).pop() ?? file.path;
-            if (which === 'addLibrary') addLibraryText(leaf, file.text);
-            else void importSymbolText(leaf, file.text);
+            if (which === 'addLibrary') {
+              if (!onWriteProjectFiles) {
+                addLibraryText(leaf, file.text);
+                return;
+              }
+
+              // Copied into the project with its row; the project's libraries are then synced
+              // again and the new one is in the tree.
+              const added = AddSymbolLibraryToProject(
+                initialProject ?? [],
+                { name: leaf, text: file.text },
+                manager.current
+                  .libraryNames()
+                  .filter((n) => manager.current.library(n)?.scope !== 'project'),
+              );
+
+              if (!added.ok) setLibError({ title: 'Error', message: added.error });
+              else {
+                onWriteProjectFiles(added.files);
+                setSelectLibId(added.nickname);
+              }
+            } else void importSymbolText(leaf, file.text);
           }}
         />
       )}

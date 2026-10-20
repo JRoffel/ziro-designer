@@ -1270,6 +1270,22 @@ export function App(): JSX.Element {
   }, []);
 
   /**
+   * A library editor's write into the open project - a symbol or footprint library file, or
+   * the library table naming it - where the editor's Save and Add Library write upstream: the
+   * project's own folder. A demo takes it for the session only, as its other edits.
+   */
+  const writeProjectFiles = useCallback(
+    (files: { name: string; text: string }[]) => {
+      if (files.length === 0) return;
+      setProjectFiles((prev) =>
+        prev ? [...prev.filter((f) => !files.some((n) => n.name === f.name)), ...files] : prev,
+      );
+      if (!demoProject) persistFilesNow(files);
+    },
+    [demoProject, persistFilesNow],
+  );
+
+  /**
    * Drawing Sheet Editor → Save / Save As: write the `.kicad_wks` where the
    * dialog said, which is one of exactly two folders (`chooserPlacesFor`).
    *
@@ -2010,6 +2026,7 @@ export function App(): JSX.Element {
                 kiway={kiway}
                 schematicSymbol={symFromSchematic}
                 onSaveToSchematic={saveSymbolToSchematic}
+                onWriteProjectFiles={projectFiles ? writeProjectFiles : undefined}
                 /* `SYMBOL_EDIT_FRAME::ShowInfoBarMessages` puts up "Library is
                  read-only.  Changes cannot be saved to this library." with a
                  "Create an editable copy" link. When a demo project is what
@@ -2027,7 +2044,12 @@ export function App(): JSX.Element {
         <div style={frameStyle(view === 'footprints')}>
           <Frozen shown={view === 'footprints'}>
             <Suspense fallback={frameLoading}>
-              <FootprintEditor onExitToHome={goHome} initialProject={projectFiles} kiway={kiway} />
+              <FootprintEditor
+                onExitToHome={goHome}
+                initialProject={projectFiles}
+                kiway={kiway}
+                onWriteProjectFiles={projectFiles ? writeProjectFiles : undefined}
+              />
             </Suspense>
           </Frozen>
         </div>

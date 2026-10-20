@@ -60,3 +60,86 @@ export function WxDirDialog({
     </Dialog>
   );
 }
+
+/** One file of a folder read off the computer, relative to that folder. */
+export interface LocalFolderFile {
+  /** `sub/name.ext`, below the chosen folder. */
+  path: string;
+  bytes: Uint8Array;
+}
+
+/** A folder read off the computer: its name and every file under it. */
+export interface LocalFolder {
+  name: string;
+  files: LocalFolderFile[];
+}
+
+interface DirHandle {
+  kind: 'directory';
+  name: string;
+  values(): AsyncIterable<DirHandle | { kind: 'file'; name: string; getFile(): Promise<File> }>;
+}
+
+async function walk(aDir: DirHandle, aPrefix: string, aOut: LocalFolderFile[]): Promise<void> {
+  for await (const entry of aDir.values()) {
+    if (entry.kind === 'directory') await walk(entry, `${aPrefix}${entry.name}/`, aOut);
+    else
+      aOut.push({
+        path: `${aPrefix}${entry.name}`,
+        bytes: new Uint8Array(await (await entry.getFile()).arrayBuffer()),
+      });
+  }
+}
+
+/**
+ * `wxDirDialog` over the computer's own disk, where KiCad's opens on it: the folder a library
+ * lives in (a footprint library is a `.pretty` folder). The browser's directory picker where it
+ * has one, else a folder `<input>`; null for `wxID_CANCEL`. The whole folder is read, as a
+ * library folder is a handful of small text files.
+ */
+export async function ChooseLocalFolder(): Promise<LocalFolder | null> {
+  const picker = (globalThis as { showDirectoryPicker?: () => Promise<DirHandle> })
+    .showDirectoryPicker;
+
+  if (typeof picker === 'function') {
+    try {
+      const dir = await picker();
+      const files: LocalFolderFile[] = [];
+      await walk(dir, '', files);
+      return { name: dir.name, files };
+    } catch (err) {
+      if ((err as DOMException).name === 'AbortError') return null;
+      // Anything else (an insecure context, a refused system folder): the input below.
+    }
+  }
+
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    (input as HTMLInputElement & { webkitdirectory: boolean }).webkitdirectory = true;
+    input.addEventListener('cancel', () => resolve(null));
+    input.addEventListener('change', () => {
+      void (async () => {
+        const list = Array.from(input.files ?? []);
+
+        if (list.length === 0) {
+          resolve(null);
+          return;
+        }
+
+        // `webkitRelativePath` is `<folder>/<path below it>`.
+        const rel = (f: File): string =>
+          (f as File & { webkitRelativePath: string }).webkitRelativePath || f.name;
+        const name = rel(list[0]!).split('/')[0] ?? '';
+        const files = await Promise.all(
+          list.map(async (f) => ({
+            path: rel(f).split('/').slice(1).join('/'),
+            bytes: new Uint8Array(await f.arrayBuffer()),
+          })),
+        );
+        resolve({ name, files });
+      })();
+    });
+    input.click();
+  });
+}
