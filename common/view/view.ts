@@ -1779,6 +1779,9 @@ export class VIEW {
 
       if (this.m_overlayOnly && l.target !== TARGET_OVERLAY) continue;
 
+      if (this.m_overlayKept !== null && l.target === TARGET_OVERLAY && l.id !== this.m_overlayKept)
+        continue;
+
       if (l.visible && this.IsTargetDirty(l.target) && this.areRequiredLayersEnabled(l.id)) {
         const drawFunc = new DRAW_ITEM_VISITOR(
           this,
@@ -1934,6 +1937,18 @@ export class VIEW {
 
   IsOverlayOnly(): boolean {
     return this.m_overlayOnly;
+  }
+
+  /** The one TARGET_OVERLAY layer this view draws, when another draws the rest (SetOverlayKept). */
+  private m_overlayKept: number | null = null;
+
+  /**
+   * The render worker's VIEW: the window's draws the overlay - the ratsnest, markers, previews -
+   * and this one draws, of the overlay, only \a aLayer (the selection it was handed), so nothing
+   * is drawn twice. Null draws every layer.
+   */
+  SetOverlayKept(aLayer: number | null): void {
+    this.m_overlayKept = aLayer;
   }
 
   /** True when the render worker's VIEW draws \a aGroup, and VIEW_GROUP::ViewDraw need not. */

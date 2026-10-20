@@ -32,6 +32,8 @@ import {
 import { checkGlError } from './utils.js';
 
 const COLOR4D_BLACK: Color4d = { r: 0, g: 0, b: 0, a: 1 };
+/** Not KiCad's: the clear colour of a transparent screen (OPENGL_COMPOSITOR::m_transparentScreen). */
+const COLOR4D_TRANSPARENT: Color4d = { r: 0, g: 0, b: 0, a: 0 };
 
 export interface OPENGL_PRESENTOR {
   Init(): boolean;
@@ -155,7 +157,9 @@ export class ANTIALIASING_SUPERSAMPLING implements OPENGL_PRESENTOR {
 
   Begin(): void {
     this.compositor.SetBuffer(this.ssaaMainBuffer);
-    this.compositor.ClearBuffer(COLOR4D_BLACK);
+    this.compositor.ClearBuffer(
+      this.compositor.m_transparentScreen ? COLOR4D_TRANSPARENT : COLOR4D_BLACK,
+    );
   }
 
   DrawBuffer(aBuffer: number): void {
@@ -171,7 +175,8 @@ export class ANTIALIASING_SUPERSAMPLING implements OPENGL_PRESENTOR {
     gl.bindTexture(gl.TEXTURE_2D, this.compositor.GetBufferTexture(this.ssaaMainBuffer));
     this.compositor.SetBuffer(DIRECT_RENDERING);
 
-    gl.colorMask(true, true, true, false);
+    // A transparent screen takes the buffer's alpha too: it is what the board shows through.
+    gl.colorMask(true, true, true, this.compositor.m_transparentScreen);
     draw_fullscreen_primitive(this.compositor);
     gl.colorMask(true, true, true, true);
   }

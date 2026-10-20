@@ -29,6 +29,7 @@ import { loadBitmapFontImage } from '@ziroeda/common/gal/gal_window.js';
 import type { DRAW_PANEL_GAL_WINDOW } from '@ziroeda/common/draw_panel_gal.js';
 import { DS_PROXY_VIEW_ITEM } from '@ziroeda/common/drawing_sheet/ds_proxy_view_item.js';
 import { pcbIUScale } from '@ziroeda/common/eda_units.js';
+import { LAYER_SELECT_OVERLAY } from '@ziroeda/common/layer_id.js';
 import type { Vec2 } from '@ziroeda/kimath/src/math/vector2.js';
 import type { BOARD } from '../board.js';
 import { PCB_DRAW_PANEL_GAL } from '../pcb_draw_panel_gal.js';
@@ -248,6 +249,9 @@ if (g.WorkerGlobalScope !== undefined) {
     const view = panel.GetView();
     const painter = view.GetPainter() as PCB_PAINTER;
     applyRenderSettings(painter.GetSettings(), msg.renderSettings);
+
+    // The window draws the overlay; this view only the selection it is handed (render_mirror.ts).
+    view.SetOverlayKept(LAYER_SELECT_OVERLAY);
 
     for (const [layer, visible, order] of msg.layers) {
       view.SetLayerVisible(layer, visible);

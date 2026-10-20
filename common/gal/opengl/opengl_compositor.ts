@@ -57,6 +57,12 @@ export class OPENGL_COMPOSITOR extends COMPOSITOR {
   /// Stores information about initialized buffers
   protected m_buffers: OPENGL_BUFFER[] = [];
 
+  /**
+   * Not KiCad's: the screen is the render worker's overlay, transparent where nothing is drawn,
+   * so a presentor clears to transparent and writes alpha (OPENGL_GAL's m_transparentScreen).
+   */
+  m_transparentScreen = false;
+
   /// Store the used FBO name in case there was more than one compositor used
   protected m_curFbo: WebGLFramebuffer | number;
 

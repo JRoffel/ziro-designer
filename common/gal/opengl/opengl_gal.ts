@@ -430,10 +430,11 @@ export class OPENGL_GAL extends GAL {
 
     this.m_compositor = new OPENGL_COMPOSITOR(this.gl, this.ff);
 
-    // Not KiCad's: a transparent panel (the render worker's overlay) presents without an
-    // antialiasing pass - those write the screen with its alpha masked off.
+    // Not KiCad's: a transparent panel (the render worker's overlay) keeps its alpha through the
+    // presentor; SMAA's passes cannot, so it presents without them (effectiveAntialiasingMode).
     this.m_transparentScreen =
       (aCanvas as { IsTransparent?(): boolean }).IsTransparent?.() === true;
+    this.m_compositor.m_transparentScreen = this.m_transparentScreen;
     this.m_compositor.SetAntialiasingMode(this.effectiveAntialiasingMode());
 
     // Initialize the flags
@@ -1977,9 +1978,11 @@ export class OPENGL_GAL extends GAL {
   private m_transparentScreen = false;
 
   private effectiveAntialiasingMode(): GAL_ANTIALIASING_MODE {
-    return this.m_transparentScreen
+    const mode = this.m_options.antialiasing_mode;
+
+    return this.m_transparentScreen && mode === GAL_ANTIALIASING_MODE.AA_FAST
       ? GAL_ANTIALIASING_MODE.AA_NONE
-      : this.m_options.antialiasing_mode;
+      : mode;
   }
 
   /// @copydoc GAL::ClearScreen()

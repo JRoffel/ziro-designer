@@ -26,6 +26,7 @@ import type { VIEW, VIEW_MIRROR } from '@ziroeda/common/view/view.js';
 import { VIEW_GROUP } from '@ziroeda/common/view/view_group.js';
 import type { VIEW_ITEM } from '@ziroeda/common/view/view_item.js';
 import { VIEW_UPDATE_FLAGS, VIEW_VISIBILITY_FLAGS } from '@ziroeda/common/view/view_item.js';
+import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import type { BOARD } from '../board.js';
 import type { BOARD_ITEM } from '../board_item.js';
 import type { PCB_RENDER_SETTINGS } from '../pcb_painter.js';
@@ -122,6 +123,11 @@ export function applyRenderSettings(
   }
 }
 
+/** A DRC marker: drawn on the window's overlay, and not an item the board file holds. */
+function isOverlayItem(aItem: BOARD_ITEM): boolean {
+  return aItem.Type() === KICAD_T.PCB_MARKER_T;
+}
+
 /** The top-level item that carries \a aItem: itself, or its footprint. */
 function topLevel(aItem: BOARD_ITEM): BOARD_ITEM {
   return (aItem.GetParentFootprint() as BOARD_ITEM | null) ?? aItem;
@@ -160,6 +166,8 @@ export class RENDER_VIEW_MIRROR implements VIEW_MIRROR {
     this.m_post = aPost;
 
     for (const item of aBoard.GetItemSet()) {
+      if (isOverlayItem(item)) continue;
+
       this.m_mirrored.add(item);
       item.RunOnChildren((c: BOARD_ITEM) => this.m_mirrored.add(c), RECURSE_MODE.RECURSE);
     }
@@ -168,7 +176,11 @@ export class RENDER_VIEW_MIRROR implements VIEW_MIRROR {
   private isBoardItem(aItem: VIEW_ITEM): aItem is BOARD_ITEM {
     const item = aItem as Partial<BOARD_ITEM>;
 
-    return typeof item.GetBoard === 'function' && item.GetBoard() === this.m_board;
+    return (
+      typeof item.GetBoard === 'function' &&
+      item.GetBoard() === this.m_board &&
+      !isOverlayItem(item as BOARD_ITEM)
+    );
   }
 
   ItemAdded(aItem: VIEW_ITEM): void {
