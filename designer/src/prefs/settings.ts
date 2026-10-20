@@ -1800,10 +1800,16 @@ export const BITMAP2CMP_DEFAULTS: Bitmap2CmpSettings = new BITMAP2CMP_SETTINGS()
 export interface PrivacySettings {
   /** Send anonymous crash reports. Opt-out: on by default. */
   crash_reports: boolean;
+  /**
+   * Send anonymous usage counts (`telemetry/usage.ts`): which kind of screen is
+   * open and for how long, never which project. Opt-out: on by default.
+   */
+  usage_stats: boolean;
 }
 
 export const PRIVACY_DEFAULTS: PrivacySettings = {
   crash_reports: true,
+  usage_stats: true,
 };
 
 // ----- persistence + store --------------------------------------------------------

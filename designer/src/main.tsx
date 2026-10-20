@@ -22,6 +22,7 @@ import { SENTRY, SetSentryBackend, SetSentryBuildInfo } from '@ziroeda/common/ap
 import { GetBuildVersion, GetMajorMinorVersion } from '@ziroeda/common/build_version.js';
 import { SENTRY_RELEASE, sentryBackend } from './telemetry/sentry_backend.js';
 import { installGlobalErrorHandlers } from './telemetry/global_handlers.js';
+import { startUsageStats } from './telemetry/usage.js';
 import { installOverlayScrollbars } from '@ziroeda/common/widgets/overlay_scrollbars.js';
 import { installDialogSizeHints } from '@ziroeda/common/dialog_shim.js';
 import { SetFileDialog } from '@ziroeda/wx/filedlg.js';
@@ -49,6 +50,9 @@ SENTRY.Instance().Init();
 // pointer handler, a key handler or an await — none of which reach a boundary,
 // all of which were going to a console nobody reads.
 installGlobalErrorHandlers();
+// Anonymous usage counts (screens, active minutes, referrer). Nothing is sent
+// without VITE_POSTHOG_KEY, with privacy.usage_stats off, or under DNT/GPC.
+startUsageStats();
 // KiCad's scrollbars are GTK3 overlay scrollbars: no layout cost, invisible
 // until the pointer is inside that scrolled window, a 3 px indicator that
 // thickens near the edge. shell.css turns the browser's permanent 15 px ones
