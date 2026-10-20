@@ -16,8 +16,10 @@
  * account; the session id is random per tab and renewed after 30 idle minutes.
  *
  * Nothing is sent when `VITE_POSTHOG_KEY` is unset (local builds), when
- * `privacy.usage_stats` is off, or when the browser asks not to be tracked
- * (Do Not Track / Global Privacy Control). The events go to PostHog's capture
+ * `privacy.usage_stats` is off, or when the browser sends Global Privacy
+ * Control. Do Not Track is not honoured: the W3C abandoned it in 2019, Safari
+ * removed it, and these counts are anonymous (no project, no account), while
+ * GPC is the signal some privacy laws treat as an opt-out. The events go to PostHog's capture
  * endpoint with `fetch` - no SDK, so no autocapture of clicks or text, no
  * session recording and no cookies can ever be switched on by accident.
  */
@@ -56,7 +58,7 @@ function browserId(): string {
 
 function trackingRefused(): boolean {
   const n = navigator as Navigator & { globalPrivacyControl?: boolean };
-  return n.doNotTrack === '1' || n.globalPrivacyControl === true;
+  return n.globalPrivacyControl === true;
 }
 
 let distinctId = '';

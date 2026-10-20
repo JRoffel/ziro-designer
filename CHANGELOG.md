@@ -11,6 +11,11 @@ the engineering detail (3,700+ commits since 29 June 2026).
 
 ## [Unreleased]
 
+### Changed
+- Anonymous usage counts no longer switch off for Do Not Track, a signal the
+  W3C abandoned in 2019. They still switch off for Global Privacy Control and
+  with the in-app privacy setting, and they never include which project.
+
 ## [0.9.0] - 2026-10-20
 
 KiCad's own outputs, GitHub projects, and a faster board editor.
