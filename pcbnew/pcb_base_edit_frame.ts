@@ -90,6 +90,10 @@ import type { PCB_VIEW } from './pcb_view.js';
 import { PCB_BASE_FRAME } from './pcb_base_frame.js';
 import type { PROGRESS_REPORTER_LIKE } from './connectivity/connectivity_algo.js';
 import { UNDO_REDO_MIXIN } from './undo_redo.js';
+import type { DIALOG_POSITION_RELATIVE } from './dialogs/dialog_position_relative.js';
+import type { DIALOG_OFFSET_ITEM } from './dialogs/dialog_offset_item.js';
+import type { DIALOG_CREATE_ARRAY } from './dialogs/dialog_create_array.js';
+import type { ARRAY_OPTIONS } from '@ziroeda/common/array_options.js';
 
 /**
  * `APPEARANCE_CONTROLS` as the frame calls it (`pcbnew/widgets/appearance_controls.h`):
@@ -165,6 +169,12 @@ export interface PCB_BASE_EDIT_FRAME_DIALOG_HOOKS {
   showPadPropertiesDialog?(aDialog: DIALOG_PAD_PROPERTIES): void;
   /** `DIALOG_DIMENSION_PROPERTIES dlg( this, dim ); dlg.ShowModal()`. */
   showDimensionPropertiesDialog?(aDialog: DIALOG_DIMENSION_PROPERTIES): void;
+  /** POSITION_RELATIVE_TOOL's modeless DIALOG_POSITION_RELATIVE, drawn while it lives. */
+  attachPositionRelativeDialog?(aDialog: DIALOG_POSITION_RELATIVE): void;
+  /** POSITION_RELATIVE_TOOL's `DIALOG_OFFSET_ITEM( ... ).ShowModal() == wxID_OK`. */
+  showOffsetItemDialog?(aDialog: DIALOG_OFFSET_ITEM): Promise<boolean>;
+  /** ARRAY_TOOL's DIALOG_CREATE_ARRAY: the options its OK left, or null. */
+  showCreateArrayDialog?(aDialog: DIALOG_CREATE_ARRAY): Promise<ARRAY_OPTIONS | null>;
   /** `ShowGraphicItemPropertiesDialog`: DIALOG_SHAPE_PROPERTIES, modal; `aOnOK` on wxID_OK. */
   showGraphicItemPropertiesDialog?(aDialog: DIALOG_SHAPE_PROPERTIES, aOnOK?: () => void): void;
   /** PAD_TOOL's DIALOG_PUSH_PAD_PROPERTIES: 0 OK, 1 Apply, wxID_CANCEL dismissed. */
@@ -248,6 +258,21 @@ export abstract class PCB_BASE_EDIT_FRAME extends PCB_BASE_FRAME {
    */
   protected dialogHooks(): PCB_BASE_EDIT_FRAME_DIALOG_HOOKS {
     return {};
+  }
+
+  // ---- POSITION_RELATIVE_TOOL's and ARRAY_TOOL's window halves -----------------
+  // Upstream both tools ask getEditFrame<PCB_BASE_FRAME>(), so both editors answer.
+
+  AttachPositionRelativeDialog(aDialog: DIALOG_POSITION_RELATIVE): void {
+    this.dialogHooks().attachPositionRelativeDialog?.(aDialog);
+  }
+
+  ShowOffsetItemDialog(aDialog: DIALOG_OFFSET_ITEM): Promise<boolean> {
+    return this.dialogHooks().showOffsetItemDialog?.(aDialog) ?? Promise.resolve(false);
+  }
+
+  ShowCreateArrayDialog(aDialog: DIALOG_CREATE_ARRAY): Promise<ARRAY_OPTIONS | null> {
+    return this.dialogHooks().showCreateArrayDialog?.(aDialog) ?? Promise.resolve(null);
   }
 
   /**

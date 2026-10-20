@@ -33,6 +33,7 @@ import { TOOL_MANAGER } from '@ziroeda/common/tool/tool_manager.js';
 import { TOOL_DISPATCHER } from '@ziroeda/common/tool/tool_dispatcher.js';
 import { RESET_REASON } from '@ziroeda/common/tool/tool_base.js';
 import { COMMON_CONTROL } from '@ziroeda/common/tool/common_control.js';
+import { ARRAY_TOOL } from './tools/array_tool.js';
 import { COMMON_TOOLS } from '@ziroeda/common/tool/common_tools.js';
 import { ZOOM_TOOL } from '@ziroeda/common/tool/zoom_tool.js';
 import { EMBED_TOOL } from '@ziroeda/common/tool/embed_tool.js';
@@ -257,6 +258,7 @@ export class FOOTPRINT_EDIT_FRAME extends PCB_BASE_EDIT_FRAME {
     this.m_toolManager.RegisterTool(new ALIGN_DISTRIBUTE_TOOL());
     this.m_toolManager.RegisterTool(new PCB_PICKER_TOOL());
     this.m_toolManager.RegisterTool(new POSITION_RELATIVE_TOOL());
+    this.m_toolManager.RegisterTool(new ARRAY_TOOL());
     // Not yet a TOOL: ARRAY_TOOL.
     this.m_toolManager.RegisterTool(new PCB_VIEWER_TOOLS());
     this.m_toolManager.RegisterTool(new PCB_GROUP_TOOL());

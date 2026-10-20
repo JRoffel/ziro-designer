@@ -135,11 +135,11 @@ class POSREL_FRAME extends TEST_PCB_FRAME implements POSITION_RELATIVE_TOOL_FRAM
     this.warnings.push(aMsg);
   }
 
-  AttachPositionRelativeDialog(aDialog: DIALOG_POSITION_RELATIVE): void {
+  override AttachPositionRelativeDialog(aDialog: DIALOG_POSITION_RELATIVE): void {
     this.attached.push(aDialog);
   }
 
-  ShowOffsetItemDialog(aDialog: DIALOG_OFFSET_ITEM): Promise<boolean> {
+  override ShowOffsetItemDialog(aDialog: DIALOG_OFFSET_ITEM): Promise<boolean> {
     aDialog.TransferDataToWindow();
     this.offsetAsked.push([aDialog.m_xOffset.GetDoubleValue(), aDialog.m_yOffset.GetDoubleValue()]);
 

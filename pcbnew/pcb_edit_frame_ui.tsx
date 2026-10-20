@@ -379,7 +379,6 @@ import { wxID_OK as DB_wxID_OK } from '@ziroeda/wx/menu.js';
 import { PCB_DESIGN_BLOCK_PANE, PcbDesignBlockPane } from './widgets/pcb_design_block_pane.js';
 import { PcbDesignBlockPreviewWidget } from './widgets/pcb_design_block_preview_widget.js';
 import { EDA_ANGLE, EDA_ANGLE_T } from '@ziroeda/kimath/src/geometry/eda_angle.js';
-import { ARRAY_TOOL } from './tools/array_tool.js';
 import type { PCB_SELECTION } from './tools/pcb_selection.js';
 import { PCB_ACTIONS } from './tools/pcb_actions.js';
 import { MwavePolygonalShapeDlg } from './microwave/microwave_polygon.js';
@@ -1655,7 +1654,11 @@ export function PcbEditor({
     dialog: DIALOG_TRACK_VIA_SIZE;
     resolve: (aOk: boolean) => void;
   } | null>(null);
-  const [arrayOpen, setArrayOpen] = useState(false);
+  /** ARRAY_TOOL's DIALOG_CREATE_ARRAY while it is up, and the tool's answer. */
+  const [arrayReq, setArrayReq] = useState<{
+    dialog: DIALOG_CREATE_ARRAY;
+    resolve: (aOptions: ARRAY_OPTIONS | null) => void;
+  } | null>(null);
   // Kept across openings, as upstream persists its ARRAY_OPTIONS.
   // Kept across openings, as upstream keeps its PARAMETERS on the tool.
   // Live (world) cursor position read by draw()'s crosshair pass without
@@ -2428,6 +2431,8 @@ export function PcbEditor({
         new Promise<boolean>((resolve) => setOutsetDlg({ dialog: aDialog, resolve })),
       // POSITION_RELATIVE_TOOL's window half.
       attachPositionRelativeDialog: (aDialog) => setPosRelDialog(aDialog),
+      showCreateArrayDialog: (aDialog) =>
+        new Promise((resolve) => setArrayReq({ dialog: aDialog, resolve })),
       showOffsetItemDialog: (aDialog) =>
         new Promise<boolean>((resolve) => setOffsetDlg({ dialog: aDialog, resolve })),
       // GLOBAL_EDIT_TOOL's window half.
@@ -4302,17 +4307,6 @@ export function PcbEditor({
     onClose: () => void;
   } | null>(null);
 
-  /** ARRAY_TOOL::CreateArray. */
-  const applyArray = useCallback((aSettings: ARRAY_OPTIONS) => {
-    setArrayOpen(false);
-
-    const frame = frameRef.current;
-    if (!frame || frame.GetSelectionTool().GetSelection().Empty()) return;
-
-    // ARRAY_TOOL::onDialogClosed on the live selection: one BOARD_COMMIT.
-    new ARRAY_TOOL(frame).onDialogClosed(frame.GetSelectionTool().GetSelection(), aSettings);
-  }, []);
-
   /**
    * `ALIGN_DISTRIBUTE_TOOL`'s submenu (align_distribute_tool.cpp:66-88), built
    * ONCE.
@@ -4462,10 +4456,6 @@ export function PcbEditor({
     },
     windowAction: (aAction) => {
       switch (aAction) {
-        // ARRAY_TOOL::CreateArray: the window's Create Array dialog.
-        case PCB_ACTIONS.createArray:
-          setArrayOpen(true);
-          break;
         case ACTIONS.zoomFitScreen:
           zoomToFit();
           break;
@@ -8093,10 +8083,10 @@ export function PcbEditor({
         />
       )}
       {kiDialogNode}
-      {arrayOpen && board && (
+      {arrayReq && board && (
         <DialogCreateArray
-          // ARRAY_TOOL::CreateArray: the board editor's, so no pad numbering.
-          dialog={new DIALOG_CREATE_ARRAY(false, { x: 0, y: 0 })}
+          // ARRAY_TOOL::CreateArray's dialog, with its origin.
+          dialog={arrayReq.dialog}
           units={unitLabel}
           picker={{
             // PCB_PICKER_TOOL's two actions, with this window as their receiver.
@@ -8119,8 +8109,14 @@ export function PcbEditor({
                 });
               }),
           }}
-          onApply={applyArray}
-          onClose={() => setArrayOpen(false)}
+          onApply={(aSettings) => {
+            arrayReq.resolve(aSettings);
+            setArrayReq(null);
+          }}
+          onClose={() => {
+            arrayReq.resolve(null);
+            setArrayReq(null);
+          }}
         />
       )}
       {pnsSettingsReq && (

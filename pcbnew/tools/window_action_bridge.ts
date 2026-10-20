@@ -5,8 +5,7 @@
  *
  * PCB_SELECTION_TOOL and EDIT_TOOL are ported whole and run on the live
  * BOARD, but some of the actions they run belong to tools that are not ported
- * yet: `PCB_ACTIONS::createArray` (ARRAY_TOOL), a middle double click
- * `ACTIONS::zoomFitScreen` (COMMON_TOOLS). Until each of
+ * yet: a middle double click `ACTIONS::zoomFitScreen` (COMMON_TOOLS). Until each of
  * those tools lands, this tool answers its actions by handing them to the
  * window, which still implements them.
  *
@@ -33,8 +32,6 @@ export type WINDOW_ACTION_HANDLER = (aAction: TOOL_ACTION, aEvent: TOOL_EVENT) =
 
 /** The actions the window still answers, by the tool that will take each over. */
 export const WINDOW_BRIDGED_ACTIONS: readonly TOOL_ACTION[] = [
-  // ARRAY_TOOL::CreateArray, run from CONVERT_TOOL's "Create from Selection"
-  PCB_ACTIONS.createArray,
   // COMMON_TOOLS
   ACTIONS.zoomFitScreen,
   ACTIONS.zoomFitObjects,

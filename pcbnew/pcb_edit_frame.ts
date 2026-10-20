@@ -177,8 +177,7 @@ import type { DOGBONE_PARAMETERS } from './tools/item_modification_routine.js';
 import { ALIGN_DISTRIBUTE_TOOL } from './tools/align_distribute_tool.js';
 import { BOARD_INSPECTION_TOOL } from './tools/board_inspection_tool.js';
 import { POSITION_RELATIVE_TOOL } from './tools/position_relative_tool.js';
-import type { DIALOG_POSITION_RELATIVE } from './dialogs/dialog_position_relative.js';
-import type { DIALOG_OFFSET_ITEM } from './dialogs/dialog_offset_item.js';
+import { ARRAY_TOOL } from './tools/array_tool.js';
 import { PAD_TOOL } from './tools/pad_tool.js';
 import { GLOBAL_EDIT_TOOL } from './tools/global_edit_tool.js';
 import { ZONE_FILLER_TOOL } from './tools/zone_filler_tool.js';
@@ -950,10 +949,6 @@ export interface PCB_EDIT_FRAME_HOOKS extends PCB_BASE_EDIT_FRAME_DIALOG_HOOKS {
   selectOneLayer?(aDefaultLayer: PCB_LAYER_ID, aNotAllowedLayersMask: LSET): Promise<PCB_LAYER_ID>;
   /** `DIALOG_OUTSET_ITEMS::ShowModal() != wxID_CANCEL`. */
   showOutsetItemsDialog?(aDialog: DIALOG_OUTSET_ITEMS): Promise<boolean>;
-  /** POSITION_RELATIVE_TOOL's modeless DIALOG_POSITION_RELATIVE, drawn while it lives. */
-  attachPositionRelativeDialog?(aDialog: DIALOG_POSITION_RELATIVE): void;
-  /** POSITION_RELATIVE_TOOL's `DIALOG_OFFSET_ITEM( ... ).ShowModal() == wxID_OK`. */
-  showOffsetItemDialog?(aDialog: DIALOG_OFFSET_ITEM): Promise<boolean>;
   /** GLOBAL_EDIT_TOOL's DIALOG_GLOBAL_EDIT_TEARDROPS, quasi-modal; it closes itself. */
   showGlobalEditTeardropsDialog?(aDialog: DIALOG_GLOBAL_EDIT_TEARDROPS): void;
   /** GLOBAL_EDIT_TOOL's DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS, modal; it closes itself. */
@@ -1576,16 +1571,6 @@ export class PCB_EDIT_FRAME extends PCB_BASE_EDIT_FRAME {
 
   ShowOutsetItemsDialog(aDialog: DIALOG_OUTSET_ITEMS): Promise<boolean> {
     return this.hooks.showOutsetItemsDialog?.(aDialog) ?? Promise.resolve(false);
-  }
-
-  // ---- POSITION_RELATIVE_TOOL's window half (POSITION_RELATIVE_TOOL_FRAME) --
-
-  AttachPositionRelativeDialog(aDialog: DIALOG_POSITION_RELATIVE): void {
-    this.hooks.attachPositionRelativeDialog?.(aDialog);
-  }
-
-  ShowOffsetItemDialog(aDialog: DIALOG_OFFSET_ITEM): Promise<boolean> {
-    return this.hooks.showOffsetItemDialog?.(aDialog) ?? Promise.resolve(false);
   }
 
   // ---- GLOBAL_EDIT_TOOL's window half (GLOBAL_EDIT_TOOL_FRAME) --------------
@@ -2291,7 +2276,7 @@ export class PCB_EDIT_FRAME extends PCB_BASE_EDIT_FRAME {
 
     // TRANSITIONAL (#636): not a KiCad tool. The actions it hands the window -
     // zoomFitScreen and zoomFitObjects while the window still owns its view
-    // transform, createArray until ARRAY_TOOL is a TOOL - are commands, which
+    // transform - are commands, which
     // only the first tool with a transition gets, so it is registered first.
     this.m_toolManager.RegisterTool(
       new WINDOW_ACTION_BRIDGE((aAction, aEvent) => this.hooks.windowAction?.(aAction, aEvent)),
@@ -2318,7 +2303,7 @@ export class PCB_EDIT_FRAME extends PCB_BASE_EDIT_FRAME {
     this.m_toolManager.RegisterTool(new ALIGN_DISTRIBUTE_TOOL());
     this.m_toolManager.RegisterTool(new MICROWAVE_TOOL());
     this.m_toolManager.RegisterTool(new POSITION_RELATIVE_TOOL());
-    // Not yet a TOOL: ARRAY_TOOL.
+    this.m_toolManager.RegisterTool(new ARRAY_TOOL());
     this.m_toolManager.RegisterTool(new ZONE_FILLER_TOOL());
     this.m_toolManager.RegisterTool(new AUTOPLACE_TOOL());
     this.m_toolManager.RegisterTool(new MULTICHANNEL_TOOL());

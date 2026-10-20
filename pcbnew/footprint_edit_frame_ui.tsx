@@ -144,6 +144,13 @@ import {
   type SelectionFilterItem,
 } from './widgets/panel_selection_filter.js';
 import { HIGH_CONTRAST_MODE } from '@ziroeda/common/project/board_project_settings.js';
+import type { ARRAY_OPTIONS } from '@ziroeda/common/array_options.js';
+import { type DIALOG_CREATE_ARRAY, DialogCreateArray } from './dialogs/dialog_create_array.js';
+import { DialogOffsetItem, type DIALOG_OFFSET_ITEM } from './dialogs/dialog_offset_item.js';
+import {
+  type DIALOG_POSITION_RELATIVE,
+  DialogPositionRelativeModeless,
+} from './dialogs/dialog_position_relative.js';
 
 /**
  * `fpedit.json` as this window reads it.
@@ -467,6 +474,16 @@ export function FootprintEditFrame({
     return () => frame?.SetPointEntryPresenter(null);
   }, []);
 
+  // POSITION_RELATIVE_TOOL's and ARRAY_TOOL's dialogs, which the tools hand the frame.
+  const [posRelDialog, setPosRelDialog] = useState<DIALOG_POSITION_RELATIVE | null>(null);
+  const [offsetDlg, setOffsetDlg] = useState<{
+    dialog: DIALOG_OFFSET_ITEM;
+    resolve: (aOk: boolean) => void;
+  } | null>(null);
+  const [arrayReq, setArrayReq] = useState<{
+    dialog: DIALOG_CREATE_ARRAY;
+    resolve: (aOptions: ARRAY_OPTIONS | null) => void;
+  } | null>(null);
   const fpEditRef = useRef<(aFile: string) => void>(() => {});
   const [frame] = useState(() => {
     const h = (): typeof itemDialogHooksRef.current => itemDialogHooksRef.current;
@@ -531,6 +548,12 @@ export function FootprintEditFrame({
       askKiDialog: (aRequest) => askKiDialogRef.current(aRequest),
       showFootprintPropertiesFpEditorDialog: (aDialog) =>
         new Promise((resolve) => setFpProps({ dialog: aDialog, done: resolve })),
+      // POSITION_RELATIVE_TOOL's and ARRAY_TOOL's window halves.
+      attachPositionRelativeDialog: (aDialog) => setPosRelDialog(aDialog),
+      showOffsetItemDialog: (aDialog) =>
+        new Promise<boolean>((resolve) => setOffsetDlg({ dialog: aDialog, resolve })),
+      showCreateArrayDialog: (aDialog) =>
+        new Promise((resolve) => setArrayReq({ dialog: aDialog, resolve })),
       updateUserInterface: () => repaint(),
       showPadPropertiesDialog: (d) => h().showPadPropertiesDialog(d),
       showTextPropertiesDialog: (d) => h().showTextPropertiesDialog(d),
@@ -1562,6 +1585,50 @@ export function FootprintEditFrame({
 
       {itemDialogs.node}
       {kiDialogNode}
+      {posRelDialog && <DialogPositionRelativeModeless dialog={posRelDialog} />}
+      {offsetDlg && (
+        <DialogOffsetItem
+          dialog={offsetDlg.dialog}
+          onResult={(aOk) => {
+            setOffsetDlg(null);
+            offsetDlg.resolve(aOk);
+          }}
+        />
+      )}
+      {arrayReq && (
+        <DialogCreateArray
+          // ARRAY_TOOL::CreateArray's dialog: the footprint editor's, with pad numbering.
+          dialog={arrayReq.dialog}
+          units={unitLabel}
+          picker={{
+            // PCB_PICKER_TOOL's two actions, with this window as their receiver.
+            pickPoint: (aPrompt) =>
+              new Promise((resolve) => {
+                frame.GetToolManager()?.RunAction(PCB_ACTIONS.selectPointInteractively, {
+                  m_Receiver: { UpdatePickedPoint: resolve },
+                  m_Prompt: aPrompt,
+                  m_ItemFilter: null,
+                });
+              }),
+            pickItem: (aPrompt) =>
+              new Promise((resolve) => {
+                frame.GetToolManager()?.RunAction(PCB_ACTIONS.selectItemInteractively, {
+                  m_Receiver: { UpdatePickedItem: resolve },
+                  m_Prompt: aPrompt,
+                  m_ItemFilter: null,
+                });
+              }),
+          }}
+          onApply={(aSettings) => {
+            arrayReq.resolve(aSettings);
+            setArrayReq(null);
+          }}
+          onClose={() => {
+            arrayReq.resolve(null);
+            setArrayReq(null);
+          }}
+        />
+      )}
 
       {aboutOpen && (
         <ShowAboutDialog title={ABOUT_TITLES.footprint} onClose={() => setAboutOpen(false)} />
