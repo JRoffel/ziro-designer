@@ -11,7 +11,10 @@ import { resolve } from 'node:path';
 import { FRAME_T } from '@ziroeda/common/frame_type.js';
 import { GAL } from '@ziroeda/common/gal/graphics_abstraction_layer.js';
 import { GAL_DISPLAY_OPTIONS } from '@ziroeda/common/gal/gal_display_options.js';
-import { PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
+import { RECURSE_MODE } from '@ziroeda/common/eda_item.js';
+import { IS_MOVING } from '@ziroeda/common/eda_item_flags.js';
+import { LAYER_GP_OVERLAY, LAYER_SELECT_OVERLAY, PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
+import { VIEW_GROUP } from '@ziroeda/common/view/view_group.js';
 import { VIEW_UPDATE_FLAGS, VIEW_VISIBILITY_FLAGS } from '@ziroeda/common/view/view_item.js';
 import type { BOARD } from '@ziroeda/pcbnew/board.js';
 import { BOARD_COMMIT } from '@ziroeda/pcbnew/board_commit.js';
@@ -20,12 +23,14 @@ import {
   ApplyRenderViewBatch,
   RENDER_VIEW_MIRROR,
   type RENDER_VIEW_BATCH,
+  RenderGroupsOf,
 } from '@ziroeda/pcbnew/browser/render_mirror.js';
 import { FormatRenderSyncItems } from '@ziroeda/pcbnew/browser/render_sync.js';
 import { ParseBoard } from '@ziroeda/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.js';
 import { ZONE_DISPLAY_MODE } from '@ziroeda/common/project/board_project_settings.js';
 import { PCB_PAINTER } from '@ziroeda/pcbnew/pcb_painter.js';
 import { PCB_VIEW } from '@ziroeda/pcbnew/pcb_view.js';
+import { PCB_SELECTION } from '@ziroeda/pcbnew/tools/pcb_selection.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { TEST_PCB_FRAME } from './support/test_pcb_frame.js';
 import { type TOOL_HARNESS, toolHarness } from './support/pcb_tool_harness.js';
@@ -161,6 +166,25 @@ describe("the render worker's VIEW follows the window's", () => {
     expect(ops.slice(-2)).toEqual(['settings', 'RecacheAllItems']);
   });
 
+  it('a moved board edge moves the worker’s board outline', () => {
+    const edge = h.board.Drawings().find((d) => d.GetLayer() === PCB_LAYER_ID.Edge_Cuts)!;
+    const outline = (aBoard: BOARD): string =>
+      JSON.stringify(aBoard.BoardOutline().GetOutline().BBox());
+
+    h.board.UpdateBoardOutline();
+    copy.UpdateBoardOutline();
+    const before = outline(copy);
+
+    const commit = new BOARD_COMMIT(h.frame);
+    commit.Modify(edge);
+    edge.Move({ x: 5_000_000, y: 0 });
+    commit.Push('test');
+    settle();
+
+    expect(outline(h.board)).not.toBe(before);
+    expect(outline(copy)).toBe(outline(h.board));
+  });
+
   it('an overlay-only VIEW caches nothing, and a recache sends one call, not one per item', () => {
     h.view.RecacheAllItems();
     settle();
@@ -168,5 +192,126 @@ describe("the render worker's VIEW follows the window's", () => {
     const last = batches.at(-1)!;
     expect(last.upsert).toBe('');
     expect(last.ops.filter((o) => o.op === 'update')).toEqual([]);
+  });
+});
+
+describe('the selection is drawn by the worker while it stands still', () => {
+  let sel: VIEW_GROUP;
+
+  beforeEach(() => {
+    sel = new VIEW_GROUP();
+    sel.SetLayer(LAYER_SELECT_OVERLAY);
+    h.view.Add(sel);
+  });
+
+  /** The worker's selection groups, as the items they hold. */
+  const groupItems = (): BOARD_ITEM[][] =>
+    [...RenderGroupsOf(wView).values()].map((g) =>
+      Array.from({ length: g.group.GetSize() }, (_, i) => g.group.GetItem(i) as BOARD_ITEM),
+    );
+  // By uuid: a failing comparison of the items themselves prints the whole board.
+  const workerGroups = (): string[][] => groupItems().map((g) => g.map((i) => i.m_Uuid));
+  /** Whether the worker's groups hold its board's own items, not stale copies. */
+  const holdsBoardItems = (): boolean => groupItems().every((g) => g.every((i) => i === inCopy(i)));
+
+  it('a selected footprint is the worker’s to draw, as its own item', () => {
+    const fp = h.board.Footprints()[0]!;
+
+    sel.Add(fp);
+    expect(h.view.IsGroupDrawnRemotely(sel)).toBe(true);
+    mirror.Flush();
+
+    expect(workerGroups()).toEqual([[fp.m_Uuid]]);
+    expect(holdsBoardItems()).toBe(true);
+  });
+
+  it('a moving item is the window’s to draw, and the worker lets go of the group', () => {
+    const fp = h.board.Footprints()[0]!;
+
+    sel.Add(fp);
+    h.view.IsGroupDrawnRemotely(sel);
+    mirror.Flush();
+
+    fp.SetFlags(IS_MOVING);
+    expect(h.view.IsGroupDrawnRemotely(sel)).toBe(false);
+    mirror.Flush();
+
+    expect(workerGroups()).toEqual([[]]);
+  });
+
+  it('a group emptied without being drawn again is emptied there too', () => {
+    sel.Add(h.board.Footprints()[0]!);
+    h.view.IsGroupDrawnRemotely(sel);
+    mirror.Flush();
+
+    sel.Clear();
+    mirror.Flush();
+
+    expect(workerGroups()).toEqual([[]]);
+  });
+
+  it('a selected item that is edited is the new object in the worker’s group', () => {
+    const fp = h.board.Footprints()[0]!;
+
+    sel.Add(fp);
+    h.view.IsGroupDrawnRemotely(sel);
+    mirror.Flush();
+
+    const commit = new BOARD_COMMIT(h.frame);
+    commit.Modify(fp);
+    fp.Move({ x: 1_000_000, y: 0 });
+    commit.Push('test');
+    settle();
+
+    expect(workerGroups()).toEqual([[fp.m_Uuid]]);
+    expect(holdsBoardItems()).toBe(true);
+    expect(inCopy(fp).GetPosition()).toEqual(fp.GetPosition());
+  });
+
+  it('an edited selected footprint stays hidden there, its pads selected', () => {
+    const fp = h.board.Footprints().find((f) => f.Pads().length > 0)!;
+    const pad = fp.Pads()[0]!;
+    const select = (aItem: BOARD_ITEM): void => {
+      aItem.SetSelected();
+      h.view.Hide(aItem, true);
+    };
+
+    select(fp);
+    fp.RunOnChildren(select, RECURSE_MODE.RECURSE);
+    settle();
+
+    const commit = new BOARD_COMMIT(h.frame);
+    commit.Modify(fp);
+    fp.Move({ x: 0, y: 1_000_000 });
+    commit.Push('test');
+    settle();
+
+    const hidden = (aItem: BOARD_ITEM): boolean =>
+      (inCopy(aItem).viewPrivData()!.m_flags & VIEW_VISIBILITY_FLAGS.HIDDEN) !== 0;
+
+    expect([hidden(fp), hidden(pad)]).toEqual([true, true]);
+    expect(inCopy(pad).IsSelected()).toBe(true);
+  });
+
+  it('a PCB_SELECTION is one there too, so a footprint’s pads are drawn with it', () => {
+    const pcbSel = new PCB_SELECTION();
+    const fp = h.board.Footprints().find((f) => f.Pads().length > 0)!;
+
+    h.view.Add(pcbSel);
+    pcbSel.Add(fp);
+    h.view.IsGroupDrawnRemotely(pcbSel);
+    mirror.Flush();
+
+    const groups = [...RenderGroupsOf(wView).values()];
+    expect(groups.map((g) => g.group instanceof PCB_SELECTION)).toEqual([true]);
+  });
+
+  it('a group on any other layer stays the window’s', () => {
+    const other = new VIEW_GROUP();
+    other.SetLayer(LAYER_GP_OVERLAY);
+    h.view.Add(other);
+    other.Add(h.board.Footprints()[0]!);
+
+    expect(h.view.IsGroupDrawnRemotely(other)).toBe(false);
   });
 });

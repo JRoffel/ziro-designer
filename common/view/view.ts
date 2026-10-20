@@ -42,6 +42,11 @@ export interface VIEW_MIRROR {
   ItemVisible(aItem: VIEW_ITEM, aVisible: boolean): void;
   /** A view-wide call, by name, with its (cloneable) arguments. */
   Call(aName: string, aArgs: unknown[]): void;
+  /**
+   * Whether the other VIEW draws \a aGroup, so this one need not; asked each time the group
+   * is about to be drawn, and the mirror follows what the group then holds.
+   */
+  DrawsGroup(aGroup: VIEW_GROUP): boolean;
 }
 
 /** An update UpdateAllItems marked: the mirror sends the call itself, not one per item. */
@@ -1929,6 +1934,11 @@ export class VIEW {
 
   IsOverlayOnly(): boolean {
     return this.m_overlayOnly;
+  }
+
+  /** True when the render worker's VIEW draws \a aGroup, and VIEW_GROUP::ViewDraw need not. */
+  IsGroupDrawnRemotely(aGroup: VIEW_GROUP): boolean {
+    return this.m_overlayOnly && this.m_remote !== null && this.m_remote.DrawsGroup(aGroup);
   }
 
   // --------------------------------------------------------------------------------------

@@ -12,16 +12,24 @@
  * format, a child as its footprint); a repaint, a hide or a selection travels as its uuid and
  * flags; a view-wide call (layer visibility, the top layer, a recolour, a recache) travels by
  * name, after the painter's settings it reads.
+ *
+ * The selection (a VIEW_GROUP on LAYER_SELECT_OVERLAY) is drawn by the worker too, which keeps
+ * each selected item's drawing (VIEW_GROUP::ViewDraw) instead of redrawing a whole selection on
+ * every zoom step on the window's thread. A drag moves items without telling the VIEW, so a
+ * group holding a moving item is drawn by the window, every frame, as KiCad draws it.
  */
 import { BRIGHTENED, ENTERED, IS_MOVING, SELECTED } from '@ziroeda/common/eda_item_flags.js';
 import { BASE_SET } from '@ziroeda/common/base_set.js';
 import { RECURSE_MODE } from '@ziroeda/common/eda_item.js';
+import { LAYER_SELECT_OVERLAY } from '@ziroeda/common/layer_id.js';
 import type { VIEW, VIEW_MIRROR } from '@ziroeda/common/view/view.js';
+import { VIEW_GROUP } from '@ziroeda/common/view/view_group.js';
 import type { VIEW_ITEM } from '@ziroeda/common/view/view_item.js';
-import { VIEW_UPDATE_FLAGS } from '@ziroeda/common/view/view_item.js';
+import { VIEW_UPDATE_FLAGS, VIEW_VISIBILITY_FLAGS } from '@ziroeda/common/view/view_item.js';
 import type { BOARD } from '../board.js';
 import type { BOARD_ITEM } from '../board_item.js';
 import type { PCB_RENDER_SETTINGS } from '../pcb_painter.js';
+import { PCB_SELECTION } from '../tools/pcb_selection.js';
 import { ApplyRenderSync, FormatRenderSyncItems } from './render_sync.js';
 
 /** The item flags the painter reads (IsSelected, IsBrightened, IsEntered, IsMoving). */
@@ -34,7 +42,14 @@ export type RENDER_VIEW_OP =
   | { op: 'visible'; id: string; visible: boolean }
   /** PCB_RENDER_SETTINGS, as `snapshotRenderSettings` wrote it. */
   | { op: 'settings'; settings: Record<string, unknown> }
-  | { op: 'call'; name: string; args: unknown[] };
+  | { op: 'call'; name: string; args: unknown[] }
+  /** The board outline (the Board Area Shadow) changed: UpdateBoardOutline, as BOARD_COMMIT. */
+  | { op: 'outline' }
+  /**
+   * A selection group the worker draws: its layer, its items (none: the window draws it), and
+   * whether it is a PCB_SELECTION, which draws a footprint's children with it.
+   */
+  | { op: 'group'; group: number; layer: number; pcbSelection: boolean; ids: string[] };
 
 /** One task's worth of what the window's VIEW did. */
 export interface RENDER_VIEW_BATCH {
@@ -127,6 +142,9 @@ export class RENDER_VIEW_MIRROR implements VIEW_MIRROR {
   private m_remove = new Set<string>();
   private m_ops: RENDER_VIEW_OP[] = [];
   private m_scheduled = false;
+  /** The selection groups the worker has heard of, and what it was last told each holds. */
+  private m_groups = new Map<VIEW_GROUP, { id: number; items: VIEW_ITEM[] }>();
+  private m_nextGroup = 1;
 
   /**
    * \a aBoard's items are the worker's already (it parsed the same board); \a aSettings answers
@@ -154,6 +172,11 @@ export class RENDER_VIEW_MIRROR implements VIEW_MIRROR {
   }
 
   ItemAdded(aItem: VIEW_ITEM): void {
+    if (aItem === this.m_board.BoardOutline()) {
+      this.pushOp({ op: 'outline' });
+      return;
+    }
+
     if (!this.isBoardItem(aItem)) return;
 
     this.m_mirrored.add(aItem);
@@ -161,6 +184,12 @@ export class RENDER_VIEW_MIRROR implements VIEW_MIRROR {
   }
 
   ItemRemoved(aItem: VIEW_ITEM): void {
+    if (aItem instanceof VIEW_GROUP && this.m_groups.has(aItem)) {
+      this.sendGroup(aItem, []);
+      this.m_groups.delete(aItem);
+      return;
+    }
+
     if (!this.m_mirrored.has(aItem)) return;
 
     this.m_mirrored.delete(aItem);
@@ -179,6 +208,12 @@ export class RENDER_VIEW_MIRROR implements VIEW_MIRROR {
   }
 
   ItemInvalidated(aItem: VIEW_ITEM, aUpdateFlags: number): void {
+    // Not one of the board's items: the worker's board computes its own from its edges.
+    if (aItem === this.m_board.BoardOutline() && aUpdateFlags !== VIEW_UPDATE_FLAGS.INITIAL_ADD) {
+      this.pushOp({ op: 'outline' });
+      return;
+    }
+
     if (!this.m_mirrored.has(aItem)) return;
 
     // VIEW::Add's own first update: the item reached the worker with ItemAdded (or with the board).
@@ -225,8 +260,65 @@ export class RENDER_VIEW_MIRROR implements VIEW_MIRROR {
     this.pushOp({ op: 'call', name: aName, args: aArgs });
   }
 
+  DrawsGroup(aGroup: VIEW_GROUP): boolean {
+    if (aGroup.ViewGetLayers()[0] !== LAYER_SELECT_OVERLAY) return false;
+
+    const items = this.drawableItems(aGroup);
+
+    this.sendGroup(aGroup, items ?? []);
+
+    return items !== null;
+  }
+
+  /**
+   * \a aGroup's items, when the worker can draw every one as it is: items it has, none of them
+   * moving. Null when the window must draw the group.
+   */
+  private drawableItems(aGroup: VIEW_GROUP): VIEW_ITEM[] | null {
+    const items: VIEW_ITEM[] = [];
+
+    for (let i = 0; i < aGroup.GetSize(); i++) {
+      const item = aGroup.GetItem(i)!;
+
+      if (!this.m_mirrored.has(item) || (item as BOARD_ITEM).IsMoving()) return null;
+
+      items.push(item);
+    }
+
+    return items;
+  }
+
+  /** Tell the worker \a aGroup now holds \a aItems, unless it already knows. */
+  private sendGroup(aGroup: VIEW_GROUP, aItems: VIEW_ITEM[]): void {
+    let sent = this.m_groups.get(aGroup);
+
+    if (!sent) {
+      if (aItems.length === 0) return;
+
+      sent = { id: this.m_nextGroup++, items: [] };
+      this.m_groups.set(aGroup, sent);
+    }
+
+    if (sent.items.length === aItems.length && sent.items.every((it, i) => it === aItems[i]))
+      return;
+
+    sent.items = aItems;
+    this.pushOp({
+      op: 'group',
+      group: sent.id,
+      layer: aGroup.ViewGetLayers()[0]!,
+      pcbSelection: aGroup instanceof PCB_SELECTION,
+      ids: aItems.map((i) => (i as BOARD_ITEM).m_Uuid),
+    });
+  }
+
   /** Post what has been collected now, rather than at the end of the task. */
   Flush(): void {
+    // A group emptied or changed since it was last drawn: an empty group is never drawn, so
+    // the worker would keep showing the last selection.
+    for (const group of this.m_groups.keys())
+      this.sendGroup(group, this.drawableItems(group) ?? []);
+
     this.m_scheduled = false;
 
     if (this.m_upsert.size === 0 && this.m_remove.size === 0 && this.m_ops.length === 0) return;
@@ -235,19 +327,7 @@ export class RENDER_VIEW_MIRROR implements VIEW_MIRROR {
     const batch: RENDER_VIEW_BATCH = {
       upsert: upsert.length > 0 ? FormatRenderSyncItems(this.m_board, upsert) : '',
       remove: [...this.m_remove],
-      // An upserted item arrives as the board writes it, which knows nothing of the view's
-      // selection: its status follows.
-      ops: [
-        ...upsert.map(
-          (i): RENDER_VIEW_OP => ({
-            op: 'update',
-            id: i.m_Uuid,
-            flags: VIEW_UPDATE_FLAGS.COLOR,
-            status: i.GetFlags() & STATUS_MASK,
-          }),
-        ),
-        ...this.m_ops,
-      ],
+      ops: [...upsert.flatMap((i) => this.viewState(i)), ...this.m_ops],
     };
 
     this.m_upsert.clear();
@@ -255,6 +335,39 @@ export class RENDER_VIEW_MIRROR implements VIEW_MIRROR {
     this.m_ops = [];
 
     this.m_post(batch);
+  }
+
+  /**
+   * An upserted item arrives as the board writes it, a new object that knows nothing of the
+   * view: its status (selected, brightened, moving) and whether the view hides it - a selected
+   * item is hidden, drawn by the selection instead - follow, for it and every child.
+   */
+  private viewState(aTop: BOARD_ITEM): RENDER_VIEW_OP[] {
+    const ops: RENDER_VIEW_OP[] = [];
+
+    const state = (aItem: BOARD_ITEM, aAlways: boolean): void => {
+      const status = aItem.GetFlags() & STATUS_MASK;
+
+      if (aAlways || status !== 0)
+        ops.push({ op: 'update', id: aItem.m_Uuid, flags: VIEW_UPDATE_FLAGS.COLOR, status });
+
+      const flags = aItem.viewPrivData()?.m_flags ?? VIEW_VISIBILITY_FLAGS.VISIBLE;
+
+      if (!(flags & VIEW_VISIBILITY_FLAGS.VISIBLE))
+        ops.push({ op: 'visible', id: aItem.m_Uuid, visible: false });
+      else if (flags & (VIEW_VISIBILITY_FLAGS.HIDDEN | VIEW_VISIBILITY_FLAGS.OVERLAY_HIDDEN))
+        ops.push({
+          op: 'hide',
+          id: aItem.m_Uuid,
+          hide: (flags & VIEW_VISIBILITY_FLAGS.HIDDEN) !== 0,
+          overlay: (flags & VIEW_VISIBILITY_FLAGS.OVERLAY_HIDDEN) !== 0,
+        });
+    };
+
+    state(aTop, true);
+    aTop.RunOnChildren((c: BOARD_ITEM) => state(c, false), RECURSE_MODE.RECURSE);
+
+    return ops;
   }
 
   private upsert(aItem: BOARD_ITEM): void {
@@ -280,6 +393,32 @@ export class RENDER_VIEW_MIRROR implements VIEW_MIRROR {
   }
 }
 
+/** A selection group as the worker draws it: its VIEW_GROUP, and its items by uuid. */
+interface RENDER_GROUP {
+  group: VIEW_GROUP;
+  ids: string[];
+}
+
+const RENDER_GROUPS = new WeakMap<VIEW, Map<number, RENDER_GROUP>>();
+
+/** The selection groups the worker's \a aView draws, by the window's id. */
+export function RenderGroupsOf(aView: VIEW): ReadonlyMap<number, RENDER_GROUP> {
+  return RENDER_GROUPS.get(aView) ?? new Map();
+}
+
+/** Fill \a aGroup's VIEW_GROUP with the board's items of its uuids. */
+function fillRenderGroup(aBoard: BOARD, aView: VIEW, aGroup: RENDER_GROUP): void {
+  aGroup.group.Clear();
+
+  for (const id of aGroup.ids) {
+    const item = aBoard.ResolveItem(id, true);
+
+    if (item) aGroup.group.Add(item);
+  }
+
+  aView.Update(aGroup.group);
+}
+
 /** The worker's side: apply a batch to its board, its VIEW and its painter's settings. */
 export function ApplyRenderViewBatch(
   aBoard: BOARD,
@@ -288,6 +427,17 @@ export function ApplyRenderViewBatch(
   aBatch: RENDER_VIEW_BATCH,
 ): void {
   ApplyRenderSync(aBoard, aView, { upsert: aBatch.upsert, remove: aBatch.remove });
+
+  let groups = RENDER_GROUPS.get(aView);
+
+  if (!groups) {
+    groups = new Map();
+    RENDER_GROUPS.set(aView, groups);
+  }
+
+  // An upserted item is a new object: a group still holding the old one draws a ghost.
+  if (aBatch.upsert !== '' || aBatch.remove.length > 0)
+    for (const g of groups.values()) fillRenderGroup(aBoard, aView, g);
 
   const find = (aId: string): BOARD_ITEM | null => aBoard.ResolveItem(aId, true);
 
@@ -321,6 +471,29 @@ export function ApplyRenderViewBatch(
       case 'call':
         (aView as unknown as Record<string, (...a: unknown[]) => void>)[op.name]!(...op.args);
         break;
+      case 'outline': {
+        const outline = aBoard.BoardOutline();
+
+        aBoard.UpdateBoardOutline();
+
+        if (aView.HasItem(outline)) aView.Update(outline);
+        else aView.Add(outline);
+        break;
+      }
+      case 'group': {
+        let g = groups.get(op.group);
+
+        if (!g) {
+          g = { group: op.pcbSelection ? new PCB_SELECTION() : new VIEW_GROUP(), ids: [] };
+          g.group.SetLayer(op.layer);
+          groups.set(op.group, g);
+          aView.Add(g.group);
+        }
+
+        g.ids = op.ids;
+        fillRenderGroup(aBoard, aView, g);
+        break;
+      }
     }
   }
 }

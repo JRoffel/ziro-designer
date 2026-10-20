@@ -28,6 +28,11 @@ import {
 import type { VIEW } from './view.js';
 import { VIEW_ITEM } from './view_item.js';
 
+/** EDA_ITEM::IsMoving, for the items of a group (a VIEW_ITEM need not be an EDA_ITEM). */
+function isMoving(aItem: VIEW_ITEM): boolean {
+  return (aItem as { IsMoving?(): boolean }).IsMoving?.() === true;
+}
+
 export class VIEW_GROUP extends VIEW_ITEM {
   protected m_layer: number;
   protected m_groupItems: VIEW_ITEM[] = []; // No ownership.
@@ -98,6 +103,9 @@ export class VIEW_GROUP extends VIEW_ITEM {
    * Draw all the stored items in the group on the given layer.
    */
   override ViewDraw(aLayer: number, aView: VIEW): void {
+    // Not KiCad's: the render worker draws this group (VIEW::IsGroupDrawnRemotely).
+    if (aView.IsGroupDrawnRemotely(this)) return;
+
     const gal = aView.GetGAL();
     const painter = aView.GetPainter();
     const isSelection = this.m_layer === LAYER_SELECT_OVERLAY;
@@ -194,10 +202,16 @@ export class VIEW_GROUP extends VIEW_ITEM {
             // hidden.
             if (item.ViewGetLOD(layer, aView) === VIEW_ITEM.LOD_HIDE) continue;
 
-            // Only an item the VIEW owns: its invalidation is what drops the kept drawing.
+            // Only an item the VIEW owns: its invalidation is what drops the kept drawing. Not
+            // a moving one: a drag moves items without telling the VIEW, so a kept drawing
+            // would stay where the drag started.
             if (keepLayer && item.viewPrivData()?.m_view === aView) {
-              this.drawKept(item, layer, aView);
-              continue;
+              if (!isMoving(item)) {
+                this.drawKept(item, layer, aView);
+                continue;
+              }
+
+              aView.DropOverlayGroups(item);
             }
 
             if (!painter.Draw(item, layer)) item.ViewDraw(layer, aView); // Alternative drawing method
