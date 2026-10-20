@@ -4429,8 +4429,19 @@ export class PCB_SELECTION_TOOL extends SELECTION_TOOL {
       for (let j = 0; j < aCollector.GetCount(); j++) aCollector.At(j)!.SetFlags(CANDIDATE);
     }
 
+    // Not KiCad's: upstream erases each item from the collector as it goes (COLLECTOR::Remove,
+    // a pass over the whole list), O(n^2) - 0.1 s for a Select All on a large board. The same
+    // items go, erased once at the end; the loop and its decisions are upstream's.
+    const removed = new Set<EDA_ITEM>();
+
     for (let j = 0; j < aCollector.GetCount(); ) {
       const item = aCollector.At(j) as BOARD_ITEM;
+
+      if (removed.has(item)) {
+        ++j;
+        continue;
+      }
+
       const fp = item.GetParentFootprint();
       let start: BOARD_ITEM = item;
 
@@ -4441,7 +4452,8 @@ export class PCB_SELECTION_TOOL extends SELECTION_TOOL {
         this.m_enteredGroup &&
         !PCB_GROUP.WithinScope(item, this.m_enteredGroup, this.m_isFootprintEditor)
       ) {
-        aCollector.Remove(item);
+        removed.add(item);
+        ++j;
         continue;
       }
 
@@ -4454,7 +4466,8 @@ export class PCB_SELECTION_TOOL extends SELECTION_TOOL {
           toAdd.add(top.AsEdaItem());
           top.AsEdaItem().SetFlags(CANDIDATE);
 
-          aCollector.Remove(item);
+          removed.add(item);
+          ++j;
           continue;
         }
       }
@@ -4462,11 +4475,26 @@ export class PCB_SELECTION_TOOL extends SELECTION_TOOL {
       // Footprints are a bit easier as they can't be nested.
       if (fp && fp.GetFlags() & CANDIDATE) {
         // Remove children of selected items
-        aCollector.Remove(item);
+        removed.add(item);
+        ++j;
         continue;
       }
 
       ++j;
+    }
+
+    if (removed.size > 0) {
+      const kept: EDA_ITEM[] = [];
+
+      for (let j = 0; j < aCollector.GetCount(); j++) {
+        const item = aCollector.At(j)!;
+
+        if (!removed.has(item)) kept.push(item);
+      }
+
+      aCollector.Empty();
+
+      for (const item of kept) aCollector.Append(item);
     }
 
     // std::unordered_set: any order; insertion order here
