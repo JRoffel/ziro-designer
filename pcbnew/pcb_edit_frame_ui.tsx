@@ -3679,7 +3679,7 @@ export function PcbEditor({
     // `EDA_DRAW_FRAME::EDA_DRAW_FRAME`: `m_galDisplayOptions.ReadCommonConfig(
     // *Pgm().GetCommonSettings(), this )` before the canvas is built.
     frame.GetGalDisplayOptions().ReadCommonConfig(commonSettingsOf(), window);
-    // `?rw`: the board on the render worker, this canvas the transparent overlay over it.
+    // The board on the render worker (`?rw=0` off), this canvas the transparent overlay over it.
     const rw = RenderWorkerEnabled();
     const panel = createPcbDrawPanel(frame, canvas, fontImage, rw);
     if (!panel) {

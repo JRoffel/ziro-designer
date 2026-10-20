@@ -2,7 +2,7 @@
 // Copyright (C) 2026 ZiroEDA and contributors.
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
 /**
- * The window's half of the render worker (not KiCad's), for the board editor behind `?rw`.
+ * The window's half of the render worker (not KiCad's), for the board editor (`?rw=0` turns it off).
  *
  * Once the worker has drawn the board, the window's PCB_DRAW_PANEL_GAL turns transparent and
  * its VIEW overlay-only: it keeps the items for the tools' hit tests and draws the overlay - the
@@ -33,17 +33,23 @@ import type {
 } from './render_worker.js';
 
 /**
- * Draw the board on the render worker: `?rw` in the address, or `ze.renderWorker` = `1` in this
- * browser's storage (the address does not survive every route; the storage does).
+ * Draw the board on the render worker - the default wherever the browser can hand a canvas to a
+ * worker. `?rw=0` in the address, or `ze.renderWorker` = `0` in this browser's storage, draws it
+ * in the window instead.
  */
 export function RenderWorkerEnabled(): boolean {
-  if (typeof location !== 'undefined' && new URLSearchParams(location.search).has('rw'))
-    return true;
+  if (typeof OffscreenCanvas === 'undefined' || typeof Worker === 'undefined') return false;
+
+  if (typeof location !== 'undefined') {
+    const rw = new URLSearchParams(location.search).get('rw');
+
+    if (rw !== null) return rw !== '0';
+  }
 
   try {
-    return localStorage.getItem('ze.renderWorker') === '1';
+    return localStorage.getItem('ze.renderWorker') !== '0';
   } catch {
-    return false;
+    return true;
   }
 }
 
