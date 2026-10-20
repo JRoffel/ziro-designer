@@ -10,9 +10,12 @@
  * Every dialog is the window's, through the frame's ShowModalDialog; with no window each is
  * cancelled.
  *
- * Still to come with the clipboard: ConvertStackedPins, ExplodeStackedPin, UpdateSymbolFields,
- * Cut, Copy, CopyAsText, Paste and Duplicate - their menu entries are added with them, so no
- * entry runs nothing.
+ * The clipboard (Cut, Copy, CopyAsText, Paste) and Duplicate. Copy carries the symbol text only:
+ * the SVG and PNG copies (plotSymbolToSvg, renderSymbolToImageWithAlpha) need SCH_ITEM::Plot and
+ * the print GAL on the live model, as SCH_EDITOR_CONTROL's Copy notes.
+ *
+ * Still to come: ConvertStackedPins, ExplodeStackedPin and UpdateSymbolFields - their menu
+ * entries are added with them, so no entry runs nothing.
  */
 import type { EDA_ITEM } from '@ziroeda/common/eda_item.js';
 import { RECURSE_MODE } from '@ziroeda/common/eda_item.js';
@@ -29,7 +32,7 @@ import {
 import type { TOOL_EVENT } from '@ziroeda/common/tool/tool_event.js';
 import type { COROUTINE_BODY } from '@ziroeda/common/tool/coroutine.js';
 import { LIB_ID } from '@ziroeda/common/lib_id.js';
-import { titleCaps } from '@ziroeda/common/string_utils.js';
+import { strNumCmp, titleCaps } from '@ziroeda/common/string_utils.js';
 import type { MSG_PANEL_ITEM } from '@ziroeda/common/widgets/msgpanel.js';
 import { wxID_CANCEL, wxID_OK } from '@ziroeda/wx/menu.js';
 import { SYNC_HANDLER } from '@ziroeda/common/tool/tool_interactive.js';
@@ -38,6 +41,17 @@ import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import type { VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
 import { LIB_SYMBOL } from '../lib_symbol.js';
 import { SCH_COMMIT } from '../sch_commit.js';
+import { SCH_IO_KICAD_SEXPR } from '../sch_io/kicad_sexpr/sch_io_kicad_sexpr.js';
+import { SCH_TEXT } from '../sch_text.js';
+import { GetSelectedItemsAsText } from './sch_tool_utils.js';
+import { GetClipboardUTF8, SaveClipboard } from '@ziroeda/common/clipboard.js';
+import { FORMAT_MODE, Prettify } from '@ziroeda/common/io/kicad/kicad_io_utils.js';
+import { IO_ERROR } from '@ziroeda/common/exceptions.js';
+import { PARSE_ERROR } from '@ziroeda/common/dsnlexer.js';
+import { SCH_LAYER_ID } from '@ziroeda/common/layer_id.js';
+import { STRING_FORMATTER } from '@ziroeda/common/richio.js';
+import { IS_NEW, IS_PASTED, SELECTED, STRUCT_DELETED } from '@ziroeda/common/eda_item_flags.js';
+import { LexicographicalCompare } from '@ziroeda/kimath/src/math/vector2.js';
 import type { SCH_SHAPE } from '../sch_shape.js';
 import type { SCH_FIELD } from '../sch_field.js';
 import type { SCH_ITEM } from '../sch_item.js';
@@ -51,6 +65,17 @@ import { SYMBOL_EDITOR_MOVE_TOOL } from './symbol_editor_move_tool.js';
 import { SYMBOL_EDITOR_PIN_TOOL } from './symbol_editor_pin_tool.js';
 
 const veq = (a: VECTOR2I, b: VECTOR2I): boolean => a.x === b.x && a.y === b.y;
+
+const nonFields: readonly KICAD_T[] = [
+  KICAD_T.LIB_SYMBOL_T,
+  KICAD_T.SCH_SHAPE_T,
+  KICAD_T.SCH_TEXT_T,
+  KICAD_T.SCH_TEXTBOX_T,
+  KICAD_T.SCH_PIN_T,
+];
+
+/** `wxString::IsNumber()`: an optional sign, then digits and nothing else. [data] wx's own rule. */
+const isNumber = (aText: string): boolean => /^[+-]?\d+$/.test(aText);
 
 export class SYMBOL_EDITOR_EDIT_TOOL extends SCH_TOOL_BASE<SYMBOL_EDIT_FRAME> {
   static readonly SwappableItems: readonly KICAD_T[] = [
@@ -90,6 +115,15 @@ export class SYMBOL_EDITOR_EDIT_TOOL extends SCH_TOOL_BASE<SYMBOL_EDIT_FRAME> {
       return true;
     };
 
+    const canCopyText = S_C.OnlyTypes([
+      KICAD_T.SCH_TEXT_T,
+      KICAD_T.SCH_TEXTBOX_T,
+      KICAD_T.SCH_FIELD_T,
+      KICAD_T.SCH_PIN_T,
+      KICAD_T.SCH_TABLE_T,
+      KICAD_T.SCH_TABLECELL_T,
+    ]);
+
     const swapSelectionCondition = And(
       And(canEdit, S_C.OnlyTypes(SYMBOL_EDITOR_EDIT_TOOL.SwappableItems)),
       SELECTION_CONDITIONS.MoreThan(1),
@@ -109,6 +143,10 @@ export class SYMBOL_EDITOR_EDIT_TOOL extends SCH_TOOL_BASE<SYMBOL_EDIT_FRAME> {
       moveMenu.AddItem(SCH_ACTIONS.properties, And(canEdit, S_C.Count(1)), 200);
 
       moveMenu.AddSeparator(300);
+      moveMenu.AddItem(ACTIONS.cut, S_C.IdleSelection, 300);
+      moveMenu.AddItem(ACTIONS.copy, S_C.IdleSelection, 300);
+      moveMenu.AddItem(ACTIONS.copyAsText, And(canCopyText, S_C.IdleSelection), 300);
+      moveMenu.AddItem(ACTIONS.duplicate, And(canEdit, S_C.NotEmpty), 300);
       moveMenu.AddItem(ACTIONS.doDelete, And(canEdit, S_C.NotEmpty), 200);
 
       moveMenu.AddSeparator(400);
@@ -128,6 +166,11 @@ export class SYMBOL_EDITOR_EDIT_TOOL extends SCH_TOOL_BASE<SYMBOL_EDIT_FRAME> {
     selToolMenu.AddItem(SCH_ACTIONS.properties, And(canEdit, S_C.Count(1)), 200);
 
     selToolMenu.AddSeparator(300);
+    selToolMenu.AddItem(ACTIONS.cut, S_C.IdleSelection, 300);
+    selToolMenu.AddItem(ACTIONS.copy, S_C.IdleSelection, 300);
+    selToolMenu.AddItem(ACTIONS.copyAsText, And(canCopyText, S_C.IdleSelection), 300);
+    selToolMenu.AddItem(ACTIONS.paste, And(canEdit, S_C.Idle), 300);
+    selToolMenu.AddItem(ACTIONS.duplicate, And(canEdit, S_C.NotEmpty), 300);
     selToolMenu.AddItem(ACTIONS.doDelete, And(canEdit, S_C.NotEmpty), 300);
 
     selToolMenu.AddSeparator(400);
@@ -645,6 +688,190 @@ export class SYMBOL_EDITOR_EDIT_TOOL extends SCH_TOOL_BASE<SYMBOL_EDIT_FRAME> {
     return 0;
   }
 
+  Cut(aEvent: TOOL_EVENT): number {
+    let retVal = this.Copy(aEvent);
+
+    if (retVal === 0) retVal = this.DoDelete(aEvent);
+
+    return retVal;
+  }
+
+  Copy(_aEvent: TOOL_EVENT): number {
+    const symbol = this.m_frame!.GetCurSymbol();
+    const selection = this.m_selectionTool!.RequestSelection(nonFields);
+
+    if (!symbol || !selection.GetSize()) return 0;
+
+    for (const item of symbol.GetDrawItems()) {
+      if (item.Type() === KICAD_T.SCH_FIELD_T) continue;
+
+      console.assert(!item.HasFlag(STRUCT_DELETED));
+
+      if (!item.IsSelected()) item.SetFlags(STRUCT_DELETED);
+    }
+
+    // The copy constructor leaves out what is flagged STRUCT_DELETED: the selection is all it
+    // carries.
+    const partCopy = LIB_SYMBOL.copyOf(symbol);
+
+    const formatter = new STRING_FORMATTER();
+    SCH_IO_KICAD_SEXPR.FormatLibSymbol(partCopy, formatter);
+
+    for (const item of symbol.GetDrawItems()) item.ClearFlags(STRUCT_DELETED);
+
+    const prettyData = Prettify(formatter.GetString(), FORMAT_MODE.COMPACT_TEXT_PROPERTIES);
+
+    // Upstream also offers an SVG and a PNG of the selection here; see the file comment.
+    if (SaveClipboard(prettyData)) return 0;
+    else return -1;
+  }
+
+  CopyAsText(_aEvent: TOOL_EVENT): number {
+    const selTool = this.m_toolMgr!.GetTool(SCH_SELECTION_TOOL)!;
+    const selection = selTool.RequestSelection();
+
+    if (selection.Empty()) return 0;
+
+    const itemsAsText = GetSelectedItemsAsText(selection);
+
+    if (selection.IsHover()) this.m_toolMgr!.RunAction(ACTIONS.selectionClear);
+
+    return SaveClipboard(itemsAsText) ? 1 : 0;
+  }
+
+  *Paste(_aEvent: TOOL_EVENT): COROUTINE_BODY<number> {
+    const frame = this.m_frame!;
+    const symbol = frame.GetCurSymbol();
+    let newPart: LIB_SYMBOL | null = null;
+
+    if (!symbol || symbol.IsDerived()) return 0;
+
+    const clipboardData = GetClipboardUTF8();
+
+    try {
+      const newParts = SCH_IO_KICAD_SEXPR.ParseLibSymbols(clipboardData, 'Clipboard');
+
+      if (newParts.length === 0 || !newParts[0]) return -1;
+
+      newPart = newParts[0];
+    } catch (e) {
+      // catch( IO_ERROR& ): upstream's PARSE_ERROR is an IO_ERROR, ours does not derive from it
+      // yet, so both are named.
+      if (!(e instanceof IO_ERROR) && !(e instanceof PARSE_ERROR)) throw e;
+
+      // If it's not a symbol then paste as text
+      newPart = new LIB_SYMBOL('dummy_part');
+
+      let pasteText = clipboardData;
+
+      // Limit of 5000 is totally arbitrary.  Without a limit, pasting a bitmap image from
+      // eeschema makes KiCad appear to hang.
+      if (pasteText.length > 5000) pasteText = `${pasteText.slice(0, 5000)}...`;
+
+      const newText = new SCH_TEXT({ x: 0, y: 0 }, pasteText, SCH_LAYER_ID.LAYER_DEVICE);
+      newPart.AddDrawItem(newText);
+    }
+
+    const commit = new SCH_COMMIT(this.m_toolMgr!);
+
+    commit.Modify(symbol, frame.GetScreen());
+    this.m_selectionTool!.ClearSelection();
+
+    for (const item of symbol.GetDrawItems()) item.ClearFlags(IS_NEW | IS_PASTED | SELECTED);
+
+    for (const item of newPart.GetDrawItems()) {
+      if (item.Type() === KICAD_T.SCH_FIELD_T) continue;
+
+      const newItem = item.Duplicate(true, commit);
+      newItem.SetParent(symbol);
+      newItem.SetFlags(IS_NEW | IS_PASTED | SELECTED);
+
+      newItem.SetUnit(newItem.GetUnit() ? frame.GetUnit() : 0);
+      newItem.SetBodyStyle(newItem.GetBodyStyle() ? frame.GetBodyStyle() : 0);
+
+      symbol.AddDrawItem(newItem);
+      this.getView()!.Add(newItem);
+    }
+
+    this.m_selectionTool!.RebuildSelection();
+
+    const selection = this.m_selectionTool!.GetSelection();
+
+    if (!selection.Empty()) {
+      selection.SetReferencePoint(this.getViewControls()!.GetCursorPosition(true));
+
+      if (yield* this.RunSynchronousActionWait(SCH_ACTIONS.move, commit)) commit.Push('Paste');
+      else commit.Revert();
+    }
+
+    return 0;
+  }
+
+  *Duplicate(_aEvent: TOOL_EVENT): COROUTINE_BODY<number> {
+    const frame = this.m_frame!;
+    const symbol = frame.GetCurSymbol()!;
+    const selection = this.m_selectionTool!.RequestSelection(nonFields);
+    const commit = new SCH_COMMIT(this.m_toolMgr!);
+
+    if (selection.GetSize() === 0) return 0;
+
+    commit.Modify(symbol, frame.GetScreen());
+
+    const oldItems: EDA_ITEM[] = [...selection];
+    const newItems: EDA_ITEM[] = [];
+
+    oldItems.sort((a, b) => {
+      if (a.Type() !== b.Type()) return a.Type() - b.Type();
+
+      // Create the new pins in the same order as the old pins
+      if (a.Type() === KICAD_T.SCH_PIN_T) {
+        const aNum = (a as SCH_PIN).GetNumber();
+        const bNum = (b as SCH_PIN).GetNumber();
+
+        const cmp = strNumCmp(aNum, bNum);
+
+        // If the pin numbers are not numeric, then just number them by their position
+        // on the screen.
+        if (isNumber(aNum) && isNumber(bNum) && cmp !== 0) return cmp;
+      }
+
+      const cmp = LexicographicalCompare(a.GetPosition(), b.GetPosition());
+
+      if (cmp !== 0) return cmp;
+
+      return a.m_Uuid < b.m_Uuid ? -1 : a.m_Uuid > b.m_Uuid ? 1 : 0;
+    });
+
+    for (const item of oldItems) {
+      const oldItem = item as SCH_ITEM;
+      const newItem = oldItem.Duplicate(true, commit);
+
+      if (newItem.Type() === KICAD_T.SCH_PIN_T) {
+        const newPin = newItem as SCH_PIN;
+
+        if (newPin.GetNumber() !== '') newPin.SetNumber(String(symbol.GetMaxPinNumber() + 1));
+      }
+
+      oldItem.ClearFlags(IS_NEW | IS_PASTED | SELECTED);
+      newItem.SetFlags(IS_NEW | IS_PASTED | SELECTED);
+      newItem.SetParent(symbol);
+      newItems.push(newItem);
+
+      symbol.AddDrawItem(newItem);
+      this.getView()!.Add(newItem);
+    }
+
+    this.m_toolMgr!.RunAction(ACTIONS.selectionClear);
+    this.m_toolMgr!.RunAction(ACTIONS.selectItems, newItems);
+
+    selection.SetReferencePoint(this.getViewControls()!.GetCursorPosition(true));
+
+    if (yield* this.RunSynchronousActionWait(SCH_ACTIONS.move, commit)) commit.Push('Duplicate');
+    else commit.Revert();
+
+    return 0;
+  }
+
   Undo(_aEvent: TOOL_EVENT): number {
     const selTool = this.m_toolMgr!.GetTool(SCH_SELECTION_TOOL)!;
 
@@ -676,6 +903,11 @@ export class SYMBOL_EDITOR_EDIT_TOOL extends SCH_TOOL_BASE<SYMBOL_EDIT_FRAME> {
   protected override setTransitions(): void {
     this.Go(SYNC_HANDLER(this.Undo), ACTIONS.undo.MakeEvent());
     this.Go(SYNC_HANDLER(this.Redo), ACTIONS.redo.MakeEvent());
+    this.Go(SYNC_HANDLER(this.Cut), ACTIONS.cut.MakeEvent());
+    this.Go(SYNC_HANDLER(this.Copy), ACTIONS.copy.MakeEvent());
+    this.Go(SYNC_HANDLER(this.CopyAsText), ACTIONS.copyAsText.MakeEvent());
+    this.Go(this.Paste, ACTIONS.paste.MakeEvent());
+    this.Go(this.Duplicate, ACTIONS.duplicate.MakeEvent());
 
     this.Go(SYNC_HANDLER(this.Rotate), SCH_ACTIONS.rotateCW.MakeEvent());
     this.Go(SYNC_HANDLER(this.Rotate), SCH_ACTIONS.rotateCCW.MakeEvent());
