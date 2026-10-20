@@ -1937,6 +1937,9 @@ export function mount3DViewer(
     const changed = camera.takeParametersChanged();
     if (!needsRender && !changed) return;
     needsRender = false;
+    // DoRePaint times the frame only while the mouse or the camera moves (eda_3d_canvas.cpp:
+    // 581-588): after a reload, "Reload time" stays in the field.
+    const moving = mouseWasMoved || cameraIsMoving;
     const t0 = performance.now();
     pushCameraToThree();
     // Display transparent mask layers: the far one first
@@ -1972,7 +1975,7 @@ export function mount3DViewer(
       renderer.setViewport(0, 0, w, h);
     }
     const ms = performance.now() - t0;
-    if (reloadsPending === 0 && Math.abs(ms - lastRenderMs) >= 1) {
+    if (moving && reloadsPending === 0 && Math.abs(ms - lastRenderMs) >= 1) {
       lastRenderMs = ms;
       status = { ...status, activity: `Last render time ${ms.toFixed(0)} ms` };
       pushStatus();
@@ -2055,6 +2058,8 @@ export function mount3DViewer(
       if (!next) return;
       pending?.dispose();
       pending = next;
+      // EDA_3D_CANVAS::ReloadRequest: m_mouse_was_moved = false (eda_3d_canvas.cpp:1440).
+      mouseWasMoved = false;
       // `load3dModels` is part of the reload; only then does the display change.
       void next.ready.then(() => {
         if (pending !== next) {

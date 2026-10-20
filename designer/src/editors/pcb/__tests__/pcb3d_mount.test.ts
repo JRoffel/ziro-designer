@@ -75,6 +75,9 @@ describe('mount3DViewer', () => {
     // and `status` holds it for the late frame.
     expect(v.status.activity).toMatch(/^Loading \S+\.wrl\.\.\.$/);
     v.onStatus = (s) => statuses.push(s);
+    // No camera animation: a view still flying when the reload lands reports its frames'
+    // render time over the reload clock, as DoRePaint does while m_camera_is_moving.
+    v.setCamera({ animationEnabled: false });
     // the frame's own commands, each once — none may throw
     v.setGrid('10mm');
     v.zoomIn();

@@ -331,6 +331,10 @@ export function mountComponents(
     if (hooks && !hooks.showFootprint(fp)) return;
     for (const model of fp.Models()) {
       if (!model.m_Show || !model.m_Filename) continue;
+      // "Loading %s..." for every shown model, before it is resolved (create_scene.cpp:1663-
+      // 1670): one that is not found is named too.
+      const fullName = model.m_Filename.slice(model.m_Filename.lastIndexOf('/') + 1);
+      report?.(`Loading ${fullName}...`);
       // S3D_CACHE::load -> ResolvePath( aModelFile, aBasePath, aEmbeddedFilesStack ).
       // The footprint's library path is not known here; nor are embedded files
       // (the plain board view does not carry them).
@@ -361,9 +365,7 @@ export function mountComponents(
       if (!p) {
         p = load();
         cache.set(key, p);
-        const fullName = model.m_Filename.slice(model.m_Filename.lastIndexOf('/') + 1);
         inFlight.add(fullName);
-        report?.(`Loading ${fullName}...`);
         void p.finally(() => {
           inFlight.delete(fullName);
           reportInFlight();
