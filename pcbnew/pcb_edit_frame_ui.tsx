@@ -3437,8 +3437,13 @@ export function PcbEditor({
     // A board just opened, not yet fitted: its first frame caches every item
     // (seconds on a big board), so it is drawn once, at the fitted view,
     // rather than first at the blank sheet's.
-    const awaitingFit =
-      panel !== null && firstPaintPendingRef.current === boardRef.current && !fittedRef.current;
+    // The pending board is the one open, by its model: a commit during the load (the zone
+    // refill) re-wraps the same BOARD in a new handle, and an identity check then never matched
+    // again - the Load PCB dialog stayed up for good.
+    const firstPaintPending =
+      firstPaintPendingRef.current !== null &&
+      firstPaintPendingRef.current.k === boardRef.current?.k;
+    const awaitingFit = panel !== null && firstPaintPending && !fittedRef.current;
     if (panel && !awaitingFit) {
       syncWindowViewRef.current(panel);
       // `Refresh()`, as a canvas event does: a repaint only when the view is
@@ -3452,7 +3457,7 @@ export function PcbEditor({
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     // The open's last phase: the loaded board is on screen, so the Load PCB
     // dialog goes.
-    if (firstPaintPendingRef.current === boardRef.current && !awaitingFit) {
+    if (firstPaintPending && !awaitingFit) {
       firstPaintPendingRef.current = null;
       setLoading(null);
     }
