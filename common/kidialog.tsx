@@ -48,7 +48,7 @@ import { CheckBox, StaticText } from '@ziroeda/wx/controls.js';
 import { WxCollapsiblePane } from './widgets/wx_collapsible_pane.js';
 import { useCallback, useEffect, useRef, useState, type JSX } from 'react';
 import { DialogIcon } from './dialogs/dialog_message.js';
-import { type MessageDialogIcon, okCancelButtons } from './confirm_types.js';
+import { type MessageDialogIcon, okCancelButtons, yesNoCancelButtons } from './confirm_types.js';
 import {
   type DoNotShowKey,
   type KiDialogResult,
@@ -86,6 +86,11 @@ export interface KiDialogRequest {
   detailedText?: string;
   /** `wxOK` without `wxCANCEL`: one OK button. */
   okOnly?: boolean;
+  /**
+   * `wxYES_NO | wxCANCEL` with `SetYesNoCancelLabels( yes, no, … )`: Yes, No and Cancel instead
+   * of OK and Cancel, Yes the default.
+   */
+  yesNo?: { yes?: string; no?: string };
 }
 
 /** wxGenericRichMessageDialog's expander labels (wx/richmsgdlg.h). [data] */
@@ -115,7 +120,10 @@ export function KiDialog({
 
   // `wxOK | wxCANCEL` in GTK order — the affirmative LAST, and each button at
   // its own stock label unless this dialog renamed it.
-  const buttons = okCancelButtons(request.labels).filter((b) => !request.okOnly || b.id === 'ok');
+  // `wxYES_NO | wxCANCEL`: the std dialog button sizer's GTK order is the message box's.
+  const buttons: { id: KiDialogResult; label: string; isDefault: boolean }[] = request.yesNo
+    ? yesNoCancelButtons('yes', request.yesNo)
+    : okCancelButtons(request.labels).filter((b) => !request.okOnly || b.id === 'ok');
 
   return (
     <DialogShim

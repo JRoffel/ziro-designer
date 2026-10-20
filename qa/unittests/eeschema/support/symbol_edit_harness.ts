@@ -49,15 +49,26 @@ export interface SYMBOL_EDIT_HARNESS {
   dispose(): void;
 }
 
-/** Make the program, the library and the frame; call dispose() in afterEach. */
+/**
+ * Make the program, the library and the frame; call dispose() in afterEach. \a aExtraLibs adds
+ * more libraries to the table, by nickname: the text of each one's .kicad_sym.
+ */
 export function symbolEditHarness(
   aLibText = LIB_TEXT,
   aHooks: Partial<SYMBOL_EDIT_FRAME_HOOKS> = {},
+  aExtraLibs: Record<string, string> = {},
 ): SYMBOL_EDIT_HARNESS {
   SetPgm(new PGM_BASE(null, new SETTINGS_MANAGER()));
   const fs = new MEMORY_FILESYSTEM();
   const unmount = wxMountFileSystem('/libs', fs);
   fs.Write('mine.kicad_sym', new TextEncoder().encode(aLibText));
+  let rows = '(lib (name "mine")(type "KiCad")(uri "/libs/mine.kicad_sym")(options "")(descr ""))';
+
+  for (const [nickname, text] of Object.entries(aExtraLibs)) {
+    fs.Write(`${nickname}.kicad_sym`, new TextEncoder().encode(text));
+    rows += `(lib (name "${nickname}")(type "KiCad")(uri "/libs/${nickname}.kicad_sym")(options "")(descr ""))`;
+  }
+
   Pgm()
     .GetLibraryManager()
     .SetTable(
@@ -65,12 +76,14 @@ export function symbolEditHarness(
       LIBRARY_TABLE_SCOPE.PROJECT,
       LIBRARY_TABLE.FromFile(
         '/libs/sym-lib-table',
-        '(sym_lib_table (version 7) (lib (name "mine")(type "KiCad")(uri "/libs/mine.kicad_sym")(options "")(descr "")))',
+        `(sym_lib_table (version 7) ${rows})`,
         LIBRARY_TABLE_SCOPE.PROJECT,
         LIBRARY_TABLE_TYPE.SYMBOL,
       ),
     );
   SymbolLibAdapter(null).LoadOne('mine');
+
+  for (const nickname of Object.keys(aExtraLibs)) SymbolLibAdapter(null).LoadOne(nickname);
 
   const frame = new SYMBOL_EDIT_FRAME({ libEdit: () => {}, ...aHooks });
   const harness = schToolHarness(frame as unknown as SCH_EDIT_FRAME);

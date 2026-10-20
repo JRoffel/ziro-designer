@@ -20,7 +20,8 @@
  */
 
 /** The value stored: **the answer the user gave**, not merely "suppressed". */
-export type KiDialogResult = 'ok' | 'cancel';
+/** `wxID_OK` / `wxID_CANCEL`, and `wxID_YES` / `wxID_NO` for a `wxYES_NO | wxCANCEL` one. */
+export type KiDialogResult = 'ok' | 'cancel' | 'yes' | 'no';
 
 /**
  * `g_doNotShowAgainDlgs`. Module state, so it dies with the tab exactly as

@@ -50,6 +50,14 @@ import {
   LIBRARY_TABLE_TYPE,
 } from '@ziroeda/common/libraries/library_table.js';
 import { NormalizePath } from '@ziroeda/common/env_paths.js';
+import {
+  GetUseGlobalTable,
+  MakeFileDlgHookNewLibrary,
+} from '@ziroeda/common/widgets/filedlg_hook_new_library.js';
+import {
+  KiCadSymbolLibFileExtension,
+  kicadSymbolLibWildcard,
+} from '@ziroeda/common/wildcards_and_files_ext.js';
 import { Pgm } from '@ziroeda/common/pgm_base.js';
 import type { ChooserFilter } from '@ziroeda/wx/filedlg.js';
 import { wxICON_ERROR, wxOK } from '@ziroeda/wx/defs.js';
@@ -324,6 +332,119 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
    */
   SaveSymbolToSchematic(aSymbol: LIB_SYMBOL, aSchematicSymbolUUID: KIID): boolean {
     return this.hooks.saveSymbolToSchematic?.(aSymbol, aSchematicSymbolUUID) ?? false;
+  }
+
+  /**
+   * `getTargetSymbol()` (symbol_edit_frame.cpp:1345): the symbol selected in the tree when it is
+   * shown, else the one being edited.
+   */
+  getTargetSymbol(): LIB_SYMBOL | null {
+    if (this.IsLibraryTreeShown()) {
+      const libId = this.GetTreeLIBID();
+
+      if (libId.IsValid())
+        return this.m_libMgr.GetSymbol(libId.GetLibItemName(), libId.GetLibNickname());
+    }
+
+    return this.m_symbol;
+  }
+
+  /**
+   * `AddLibraryFile( aCreateNew )` (symbol_edit_frame.cpp:1180): a library file chosen - or a new
+   * one made - and added to the global or project table; its full path, or empty.
+   */
+  async AddLibraryFile(aCreateNew: boolean): Promise<string> {
+    const fn = { value: this.m_libMgr.GetUniqueLibraryName() };
+    const tableChooser = MakeFileDlgHookNewLibrary(true);
+
+    if (
+      !(await this.LibraryFileBrowser(
+        aCreateNew ? 'New Symbol Library' : 'Add Symbol Library',
+        !aCreateNew,
+        fn,
+        [kicadSymbolLibWildcard()],
+        KiCadSymbolLibFileExtension,
+        false,
+        Pgm().GetSettingsManager().IsProjectOpenNotDummy() ? tableChooser : undefined,
+      ))
+    ) {
+      return '';
+    }
+
+    const scope = GetUseGlobalTable(tableChooser)
+      ? LIBRARY_TABLE_SCOPE.GLOBAL
+      : LIBRARY_TABLE_SCOPE.PROJECT;
+
+    const manager = Pgm().GetLibraryManager();
+
+    if (!manager.Table(LIBRARY_TABLE_TYPE.SYMBOL, scope)) return ''; // wxCHECK
+
+    // fn.GetName()
+    const leaf = fn.value.slice(fn.value.lastIndexOf('/') + 1);
+    const libName = leaf.includes('.') ? leaf.slice(0, leaf.lastIndexOf('.')) : leaf;
+
+    if (libName === '') return '';
+
+    const adapter = SymbolLibAdapter(this.Prj());
+
+    if (adapter.HasLibrary(libName)) {
+      DisplayErrorMessage(`Library '${libName}' already exists.`);
+      return '';
+    }
+
+    if (aCreateNew) {
+      // The file browser already asked to overwrite, so drop the old file here.
+      // CreateLibrary fails on an existing path.
+      if (wxFileExists(fn.value) && !wxRemoveFile(fn.value)) {
+        DisplayErrorMessage(
+          `Could not overwrite the library file '${fn.value}'.\n` +
+            'Make sure you have write permissions and try again.',
+        );
+        return '';
+      }
+
+      if (!this.m_libMgr.CreateLibrary(fn.value, scope)) {
+        DisplayErrorMessage(
+          `Could not create the library file '${fn.value}'.\n` +
+            'Make sure you have write permissions and try again.',
+        );
+        return '';
+      }
+    } else {
+      if (!this.m_libMgr.AddLibrary(fn.value, scope)) {
+        DisplayErrorMessage('Could not open the library file.');
+        return '';
+      }
+    }
+
+    let success = true;
+
+    // Tables are reinitialized by m_libMgr->AddLibrary(). So reinit table reference.
+    const table = manager.Table(LIBRARY_TABLE_TYPE.SYMBOL, scope);
+
+    if (!table) return ''; // wxCHECK
+
+    const result = table.Save();
+
+    if (!result.ok) {
+      await ShowKicadMessageDialog({
+        message: 'Error saving library table.',
+        caption: 'File Save Error',
+        style: wxOK | wxICON_ERROR,
+        extended: result.error.message,
+      });
+      success = false;
+    }
+
+    if (success) adapter.LoadOne(libName);
+
+    this.SyncLibraries(false);
+    this.SetCurLib(libName);
+
+    // GetLibTree()->SelectLibId( libId ); GetLibTree()->CenterLibId( libId ): the window's tree.
+    this.FocusOnLibId(new LIB_ID(libName, ''));
+
+    return fn.value;
   }
 
   /** `getTargetLib()` (symbol_edit_frame.cpp:1381). */

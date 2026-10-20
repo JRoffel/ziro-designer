@@ -159,7 +159,13 @@ export function deleteSymbolPrompts(opts: {
 // ============================================================================
 
 import { frameTitle, type FrameTitleParts } from '@ziroeda/common/use_document_title.js';
-import { unescapeString } from '@ziroeda/common/string_utils.js';
+import {
+  AccumulateDescriptions,
+  ESCAPE_CONTEXT,
+  EscapeString,
+  unescapeString,
+} from '@ziroeda/common/string_utils.js';
+import type { LIBRARY_LIST_ITEM } from '../sch_base_frame.js';
 import type { SYMBOL_EDIT_FRAME } from './symbol_edit_frame.js';
 import {
   ConfirmRevertDialog,
@@ -174,7 +180,10 @@ import { FORMAT_MODE, Prettify } from '@ziroeda/common/io/kicad/kicad_io_utils.j
 import { STRING_FORMATTER } from '@ziroeda/common/richio.js';
 import { wxCENTER, wxICON_WARNING, wxOK, wxYES_NO } from '@ziroeda/wx/defs.js';
 import { SCH_IO_KICAD_SEXPR } from '../sch_io/kicad_sexpr/sch_io_kicad_sexpr.js';
-import type { NEW_SYMBOL_PROPERTIES } from './lib_symbol_library_manager.js';
+import type {
+  LIB_SYMBOL_LIBRARY_MANAGER,
+  NEW_SYMBOL_PROPERTIES,
+} from './lib_symbol_library_manager.js';
 import { IO_ERROR } from '@ziroeda/common/exceptions.js';
 import { LIB_ID } from '@ziroeda/common/lib_id.js';
 import {
@@ -191,7 +200,7 @@ import {
   kicadSymbolLibWildcard,
 } from '@ziroeda/common/wildcards_and_files_ext.js';
 import { wxFD_OVERWRITE_PROMPT, wxFD_SAVE } from '@ziroeda/wx/defs.js';
-import { wxID_CANCEL, wxID_NO, wxID_OK } from '@ziroeda/wx/menu.js';
+import { wxID_CANCEL, wxID_HIGHEST, wxID_NO, wxID_OK } from '@ziroeda/wx/menu.js';
 import { LIB_SYMBOL } from '../lib_symbol.js';
 import { SymbolLibAdapter } from '../project_sch.js';
 import { SCH_FILE_T, SCH_IO_MGR } from '../sch_io/sch_io_mgr.js';
@@ -861,11 +870,7 @@ export class SYMBOL_EDITOR_FILES_MIXIN {
 
     const validator = async (newName: string): Promise<boolean> => {
       if (newName === '') {
-        await ShowKicadMessageDialog({
-          message: 'Symbol must have a name.',
-          caption: '',
-          style: wxOK,
-        });
+        await this.wxMessageBox('Symbol must have a name.');
         return false;
       }
 
@@ -1061,6 +1066,240 @@ export class SYMBOL_EDITOR_FILES_MIXIN {
     this.FocusOnLibId(new LIB_ID(lib, newSymbols[0]!.GetName()));
   }
 
+  /** `wxMessageBox( aMessage )`: caption "Message", one OK (wx/msgdlg.h's defaults). */
+  async wxMessageBox(this: SYMBOL_EDIT_FRAME, aMessage: string): Promise<void> {
+    await this.ShowModalDialog('wxMessageBox', [], {
+      message: aMessage,
+      caption: 'Message',
+      style: wxOK | wxCENTER,
+    });
+  }
+
+  /** `SaveSymbolCopyAs( aOpenCopy )`. */
+  async SaveSymbolCopyAs(this: SYMBOL_EDIT_FRAME, aOpenCopy: boolean): Promise<void> {
+    await this.saveSymbolCopyAs(aOpenCopy);
+
+    this.RefreshLibTree();
+  }
+
+  /**
+   * `saveSymbolCopyAs( aOpenCopy )`: the target symbol saved under a new name and / or into another
+   * library - with its parents, or flattened - through SAVE_SYMBOL_AS_DIALOG, whose validator
+   * refuses a read-only library or a circular inheritance and asks about overwriting.
+   */
+  async saveSymbolCopyAs(this: SYMBOL_EDIT_FRAME, aOpenCopy: boolean): Promise<void> {
+    const symbol = this.getTargetSymbol();
+
+    if (!symbol) return;
+
+    const libMgr = this.GetLibManager();
+    const old_lib_id = symbol.GetLibId();
+    const symbolName = old_lib_id.GetLibItemName();
+    const libraryName = old_lib_id.GetLibNickname();
+    const valueFollowsName = symbol.GetValueField().GetText() === symbolName;
+    let done = false;
+
+    // This is the function that will be called when the user clicks OK in the dialog and checks
+    // if the proposed name has problems, and asks for clarification.
+    const dialogValidatorFunc = async (
+      newLib: string,
+      newName: string,
+      flattenSymbol: boolean,
+    ): Promise<number> => {
+      if (newLib === '') {
+        await this.wxMessageBox('A library must be specified.');
+        return wxID_CANCEL;
+      }
+
+      if (newName === '') {
+        await this.wxMessageBox('Symbol must have a name.');
+        return wxID_CANCEL;
+      }
+
+      if (libMgr.IsLibraryReadOnly(newLib)) {
+        await this.wxMessageBox(
+          `Library '${newLib}' is read-only. Choose a different library to save the symbol ` +
+            `'${unescapeString(newName)}' to.`,
+        );
+        return wxID_CANCEL;
+      }
+
+      /**
+       * If we save over a symbol that is in the inheritance chain of the symbol we're
+       * saving, we'll end up with a circular inheritance chain, which is bad.
+       */
+      const [inAncestry, inDescendents] = CheckSavingIntoOwnInheritance(
+        libMgr,
+        symbol,
+        newName,
+        newLib,
+      );
+
+      if (inAncestry) {
+        await this.wxMessageBox(
+          `Symbol '${symbolName}' cannot replace another symbol '${unescapeString(newName)}' ` +
+            'that it descends from',
+        );
+        return wxID_CANCEL;
+      }
+
+      if (inDescendents) {
+        await this.wxMessageBox(
+          `Symbol '${symbolName}' cannot replace another symbol '${unescapeString(newName)}' ` +
+            'that is a descendent of it.',
+        );
+        return wxID_CANCEL;
+      }
+
+      const conflicts = CheckForParentalChainConflicts(
+        libMgr,
+        symbol,
+        flattenSymbol,
+        newName,
+        newLib,
+      );
+
+      if (conflicts.length === 1 && conflicts[0] === newName) {
+        // The simplest case is when the symbol itself has a conflict
+        const msg =
+          `Symbol '${unescapeString(newName)}' already exists in library '${newLib}'. ` +
+          'Do you want to overwrite it?';
+
+        return (await this.ShowKiDialog({
+          caption: 'Confirmation',
+          message: msg,
+          icon: 'warning',
+          labels: { ok: 'Overwrite' },
+        })) === 'ok'
+          ? SAVE_AS_IDS.ID_OVERWRITE_CONFLICTS
+          : wxID_CANCEL;
+      } else if (conflicts.length > 0) {
+        // If there are conflicts in the parental chain, we need to ask the user
+        // if they want to overwrite all of them.
+        // A more complex UI might allow the user to re-parent the symbol to an
+        // existing symbol in the target lib, or rename all the parents somehow.
+        let msg =
+          `The following symbols in the inheritance chain of '${unescapeString(symbolName)}' ` +
+          `already exist in library '${newLib}':\n`;
+
+        for (const conflict of conflicts) msg += `  ${conflict}\n`;
+
+        msg += '\nDo you want to overwrite all of them, or rename the new symbols?';
+
+        switch (
+          await this.ShowKiDialog({
+            caption: 'Confirmation',
+            message: msg,
+            icon: 'warning',
+            yesNo: { yes: 'Overwrite All', no: 'Rename All' },
+          })
+        ) {
+          case 'yes':
+            return SAVE_AS_IDS.ID_OVERWRITE_CONFLICTS;
+          case 'no':
+            return SAVE_AS_IDS.ID_RENAME_CONFLICTS;
+          default:
+            return wxID_CANCEL;
+        }
+      }
+
+      return wxID_OK;
+    };
+
+    const parentSymbolNames: string[] = [];
+
+    if (symbol.IsDerived()) {
+      // The parents are everything but the leaf symbol
+      for (const parent of GetParentChain(symbol, false)) parentSymbolNames.push(parent.GetName());
+    }
+
+    const params: SAVE_SYMBOL_AS_PARAMS = {
+      m_SymbolName: symbolName,
+      m_LibraryName: libraryName,
+      m_FlattenSymbol: false,
+      m_ConflictStrategy: CONFLICT_STRATEGY.OVERWRITE,
+    };
+
+    // Keep asking the user for a new name until they give a valid one or cancel the operation
+    while (!done) {
+      const dlg = new SAVE_SYMBOL_AS_DIALOG(this, params, dialogValidatorFunc, parentSymbolNames);
+
+      const ret = await this.ShowModalDialog('SAVE_SYMBOL_AS_DIALOG', [], dlg);
+
+      switch (ret) {
+        case wxID_CANCEL:
+          return;
+
+        case wxID_OK: // No conflicts
+        case SAVE_AS_IDS.ID_OVERWRITE_CONFLICTS:
+        case SAVE_AS_IDS.ID_RENAME_CONFLICTS:
+          done = true;
+          break;
+
+        case SAVE_AS_IDS.ID_MAKE_NEW_LIBRARY: {
+          // wxFileName newLibrary( AddLibraryFile( true ) ); newLibrary.GetName()
+          const newLibrary = await this.AddLibraryFile(true);
+          const leaf = newLibrary.slice(newLibrary.lastIndexOf('/') + 1);
+          params.m_LibraryName = leaf.includes('.') ? leaf.slice(0, leaf.lastIndexOf('.')) : leaf;
+
+          // Go round again to ask for the symbol name
+          break;
+        }
+
+        default:
+          break;
+      }
+    }
+
+    const saver = new SYMBOL_SAVE_AS_HANDLER(libMgr, params.m_ConflictStrategy, valueFollowsName);
+
+    saver.DoSave(symbol, params.m_SymbolName, params.m_LibraryName, params.m_FlattenSymbol);
+
+    this.SyncLibraries(false);
+
+    if (aOpenCopy) await this.LoadSymbol(params.m_SymbolName, params.m_LibraryName, 1);
+  }
+
+  /**
+   * `UpdateAfterSymbolProperties( aOldName )`: after DIALOG_LIB_SYMBOL_PROPERTIES - a rename
+   * checked against the library (and undone if the name is taken), the tree, unit lists, title,
+   * view and message panel refreshed.
+   */
+  UpdateAfterSymbolProperties(this: SYMBOL_EDIT_FRAME, aOldName?: string): void {
+    const symbol = this.GetCurSymbol();
+
+    if (!symbol) return; // wxCHECK
+
+    const libMgr = this.GetLibManager();
+    const lib = this.GetCurLib();
+
+    if (lib !== '' && aOldName !== undefined && aOldName !== symbol.GetName()) {
+      // Test the current library for name conflicts
+      if (libMgr.SymbolNameInUse(symbol.GetName(), lib)) {
+        DisplayErrorMessage(`Symbol name '${unescapeString(symbol.GetName())}' already in use.`);
+        symbol.SetName(aOldName);
+      } else {
+        libMgr.UpdateSymbolAfterRename(symbol, aOldName, lib);
+      }
+
+      // Reselect the renamed symbol
+      this.FocusOnLibId(new LIB_ID(lib, symbol.GetName()));
+    }
+
+    // m_libMgr->GetAdapter()->FindItem(): the tree is the window's, which skips an id it lacks.
+    this.UpdateLibraryTree(new LIB_ID(lib, symbol.GetName()), symbol);
+
+    this.RebuildSymbolUnitAndBodyStyleLists();
+    this.UpdateTitle();
+
+    // N.B. The view needs to be rebuilt first as the Symbol Properties change may invalidate
+    // the view pointers by rebuilting the field table
+    this.RebuildView();
+    this.UpdateMsgPanel();
+
+    this.OnModify();
+  }
+
   /** `ensureUniqueName( aSymbol, aLibrary )`: `_1`, `_2`... appended until it is unique. */
   ensureUniqueName(this: SYMBOL_EDIT_FRAME, aSymbol: LIB_SYMBOL | null, aLibrary: string): void {
     if (aSymbol) {
@@ -1154,4 +1393,318 @@ export function GetParentChain(aSymbol: LIB_SYMBOL, aIncludeLeaf = true): LIB_SY
   }
 
   return chain;
+}
+
+/**
+ * `CheckSavingIntoOwnInheritance( aLibMgr, aSymbol, aNewSymbolName, aNewLibraryName )`
+ * (symbol_editor.cpp:512): whether a planned overwrite would put a symbol into its own
+ * ancestry (first) or its own descendents (second). Inheritance must be acyclic.
+ */
+export function CheckSavingIntoOwnInheritance(
+  aLibMgr: LIB_SYMBOL_LIBRARY_MANAGER,
+  aSymbol: LIB_SYMBOL,
+  aNewSymbolName: string,
+  aNewLibraryName: string,
+): [boolean, boolean] {
+  const oldLibraryName = aSymbol.GetLibId().GetLibNickname();
+
+  // Cannot be intersecting if in different libs
+  if (aNewLibraryName !== oldLibraryName) return [false, false];
+
+  // Or if the target symbol doesn't exist
+  if (!aLibMgr.SymbolNameInUse(aNewSymbolName, aNewLibraryName)) return [false, false];
+
+  let inAncestry = false;
+  let inDescendents = false;
+
+  {
+    const parentChainFromUs = GetParentChain(aSymbol, true);
+
+    // Ignore the leaf symbol (0) - that must match
+    for (let i = 1; i < parentChainFromUs.length; ++i) {
+      // Attempting to overwrite a symbol in the parental chain
+      if (parentChainFromUs[i]!.GetName() === aNewSymbolName) {
+        inAncestry = true;
+        break;
+      }
+    }
+  }
+
+  {
+    const targetSymbol = aLibMgr.GetSymbol(aNewSymbolName, aNewLibraryName)!;
+    const parentChainFromTarget = GetParentChain(targetSymbol, true);
+    const oldSymbolName = aSymbol.GetName();
+
+    // Ignore the leaf symbol - it'll match if we're saving the symbol
+    // to the same name, and that would be OK
+    for (let i = 1; i < parentChainFromTarget.length; ++i) {
+      if (parentChainFromTarget[i]!.GetName() === oldSymbolName) {
+        inDescendents = true;
+        break;
+      }
+    }
+  }
+
+  return [inAncestry, inDescendents];
+}
+
+/**
+ * `CheckForParentalChainConflicts( aLibMgr, aSymbol, aFlattenSymbol, newSymbolName,
+ * newLibraryName )` (symbol_editor.cpp:572): the symbols of the parental chain that saving
+ * under these names would overwrite.
+ */
+export function CheckForParentalChainConflicts(
+  aLibMgr: LIB_SYMBOL_LIBRARY_MANAGER,
+  aSymbol: LIB_SYMBOL,
+  aFlattenSymbol: boolean,
+  newSymbolName: string,
+  newLibraryName: string,
+): string[] {
+  const conflicts: string[] = [];
+  const oldLibraryName = aSymbol.GetLibId().GetLibNickname();
+
+  if (newLibraryName === oldLibraryName || aFlattenSymbol) {
+    // Saving into the same library - the only conflict could be the symbol itself
+    // Different library and flattening - ditto
+    if (aLibMgr.SymbolNameInUse(newSymbolName, newLibraryName)) conflicts.push(newSymbolName);
+  } else {
+    // In a different library with parents - check the whole chain
+    const parentChain = GetParentChain(aSymbol, true);
+
+    for (let i = 0; i < parentChain.length; ++i) {
+      if (i === 0) {
+        // This is the leaf symbol which the user actually named
+        if (aLibMgr.SymbolNameInUse(newSymbolName, newLibraryName)) conflicts.push(newSymbolName);
+      } else {
+        const chainSymbol = parentChain[i]!;
+
+        if (aLibMgr.SymbolNameInUse(chainSymbol.GetName(), newLibraryName))
+          conflicts.push(chainSymbol.GetName());
+      }
+    }
+  }
+
+  return conflicts;
+}
+
+/** `SYMBOL_SAVE_AS_HANDLER::CONFLICT_STRATEGY`. */
+export enum CONFLICT_STRATEGY {
+  // Just overwrite any existing symbols in the target library
+  OVERWRITE = 0,
+  // Add a suffix until we find a name that doesn't conflict
+  RENAME = 1,
+  // Could have a mode that asks for every one, be then we'll need a fancier
+  // SAVE_SYMBOL_AS_DIALOG subdialog with Overwrite/Rename/Prompt/Cancel
+  // PROMPT
+}
+
+/**
+ * `SYMBOL_SAVE_AS_HANDLER` (symbol_editor.cpp:625): saves a symbol copy as a new symbol, which also
+ * copies its parents (a chain affair).
+ */
+export class SYMBOL_SAVE_AS_HANDLER {
+  constructor(
+    private readonly m_libMgr: LIB_SYMBOL_LIBRARY_MANAGER,
+    private readonly m_strategy: CONFLICT_STRATEGY,
+    private readonly m_valueFollowsName: boolean,
+  ) {}
+
+  DoSave(
+    symbol: LIB_SYMBOL,
+    aNewSymName: string,
+    aNewLibName: string,
+    aFlattenSymbol: boolean,
+  ): boolean {
+    let parentChain: LIB_SYMBOL[] = [];
+
+    const sameLib = aNewLibName === symbol.GetLibId().GetLibNickname();
+
+    if (aFlattenSymbol) {
+      // If we're not copying parent symbols, we need to flatten the symbol
+      // and only save that.
+      const flattenedSymbol = symbol.Flatten();
+
+      if (!flattenedSymbol) return false; // wxCHECK
+
+      parentChain.push(flattenedSymbol);
+    } else if (sameLib) {
+      // If we're saving into the same library, we don't need to check the parental chain
+      // because we can just keep the same parent symbol
+      parentChain.push(symbol);
+    } else {
+      // Need to copy all parent symbols
+      parentChain = GetParentChain(symbol, true);
+    }
+
+    const newNames: string[] = [];
+
+    // Iterate backwards (i.e. from the root down)
+    for (let i = parentChain.length - 1; i >= 0; --i) {
+      const oldSymbol = parentChain[i]!;
+      const new_symbol = LIB_SYMBOL.copyOf(oldSymbol);
+
+      let newName: string;
+
+      if (i === 0) {
+        // This is the leaf symbol which the user actually named
+        newName = aNewSymName;
+      } else {
+        // Somewhere in the inheritance chain, use the conflict resolution strategy
+        newName = oldSymbol.GetName();
+      }
+
+      newName = this.resolveConflict(newName, aNewLibName);
+      new_symbol.SetName(newName);
+
+      if (this.m_valueFollowsName) new_symbol.GetValueField().SetText(newName);
+
+      if (i === parentChain.length - 1) {
+        // This is the root symbol
+        // Nothing extra to do, it's just a simple symbol with no parents
+      } else {
+        // Get the buffered new copy in the new library (with the name we gave it)
+        const newParent = this.m_libMgr.GetSymbol(newNames[newNames.length - 1]!, aNewLibName);
+
+        // We should have stored this already, why didn't we get it back?
+        console.assert(newParent !== null);
+        new_symbol.SetLibParent(newParent);
+      }
+
+      newNames.push(newName);
+      this.m_libMgr.UpdateSymbol(new_symbol, aNewLibName);
+    }
+
+    return true;
+  }
+
+  private resolveConflict(proposed: string, aNewLibName: string): string {
+    switch (this.m_strategy) {
+      case CONFLICT_STRATEGY.OVERWRITE: {
+        // In an overwrite strategy, we don't care about conflicts
+        return proposed;
+      }
+
+      case CONFLICT_STRATEGY.RENAME: {
+        // In a rename strategy, we need to find a name that doesn't conflict
+        let suffix = 1;
+
+        while (true) {
+          const newName = `${proposed}_${suffix}`;
+
+          if (!this.m_libMgr.SymbolNameInUse(newName, aNewLibName)) return newName;
+
+          ++suffix;
+        }
+      }
+      // No default
+    }
+
+    console.assert(false, 'Invalid conflict strategy');
+    return '';
+  }
+}
+
+/** `SAVE_AS_IDS` (symbol_editor.cpp:766). */
+export const SAVE_AS_IDS = {
+  ID_MAKE_NEW_LIBRARY: wxID_HIGHEST + 1,
+  ID_OVERWRITE_CONFLICTS: wxID_HIGHEST + 2,
+  ID_RENAME_CONFLICTS: wxID_HIGHEST + 3,
+} as const;
+
+/** `SAVE_SYMBOL_AS_DIALOG::PARAMS`. */
+export interface SAVE_SYMBOL_AS_PARAMS {
+  m_SymbolName: string;
+  m_LibraryName: string;
+  m_FlattenSymbol: boolean;
+  m_ConflictStrategy: CONFLICT_STRATEGY;
+}
+
+/**
+ * `SAVE_SYMBOL_AS_DIALOG::SymLibNameValidator`. Upstream's lambda reads the flatten box through the
+ * PARAMS it captured; here the dialog hands it over.
+ */
+export type SymLibNameValidator = (
+  libName: string,
+  symbolName: string,
+  flattenSymbol: boolean,
+) => Promise<number>;
+
+/**
+ * `SAVE_SYMBOL_AS_DIALOG` (symbol_editor.cpp:774), an EDA_LIST_DIALOG of the libraries with a
+ * Name field, a New Library... button (ending the dialog with ID_MAKE_NEW_LIBRARY) and, for a
+ * derived symbol, the flatten checkbox. The window draws it from this; its OK runs
+ * TransferDataFromWindow, which keeps the dialog up when it returns false.
+ */
+export class SAVE_SYMBOL_AS_DIALOG {
+  readonly title = 'Save Symbol As';
+  readonly listLabel = 'Save in library:';
+  readonly okLabel = 'Save';
+  readonly headers: string[];
+  readonly items: LIBRARY_LIST_ITEM[];
+  /** The flatten checkbox's label, or null when the symbol has no parents. */
+  readonly flattenLabel: string | null;
+
+  constructor(
+    aParent: SYMBOL_EDIT_FRAME,
+    readonly m_params: SAVE_SYMBOL_AS_PARAMS,
+    private readonly m_validator: SymLibNameValidator,
+    aParentSymbolNames: readonly string[],
+  ) {
+    // This is a little trick to word - when saving to another library, "copy parents" makes sense,
+    // but when in the same library, the parents will be untouched in any case.
+    this.flattenLabel =
+      aParentSymbolNames.length > 0
+        ? `Flatten/remove symbol inheritance (current parent symbols: ${AccumulateDescriptions(
+            aParentSymbolNames,
+          )})`
+        : null;
+
+    const { headers, items } = aParent.GetLibraryItemsForListDialog();
+    this.headers = headers;
+    this.items = items;
+  }
+
+  /** The list's initial selection: initDialog( headers, items, m_params.m_LibraryName ). */
+  get selection(): string {
+    return this.m_params.m_LibraryName;
+  }
+
+  /** `getSymbolName()`: trimmed, spaces to underscores, escaped as a LIB_ID part. */
+  static getSymbolName(aText: string): string {
+    return EscapeString(aText.trim().replaceAll(' ', '_'), ESCAPE_CONTEXT.CTX_LIBID);
+  }
+
+  /** `TransferDataToWindow()`: the Name field's text. */
+  TransferDataToWindow(): string {
+    return unescapeString(this.m_params.m_SymbolName);
+  }
+
+  /** `TransferDataFromWindow()`: the field, the selected library and the flatten box. */
+  async TransferDataFromWindow(
+    aNameText: string,
+    aTextSelection: string,
+    aFlatten: boolean,
+  ): Promise<boolean> {
+    // This updates m_params.m_FlattenSymbol
+    // Do this now, so the validator can use it
+    this.m_params.m_FlattenSymbol = aFlatten;
+
+    this.m_params.m_SymbolName = SAVE_SYMBOL_AS_DIALOG.getSymbolName(aNameText);
+    this.m_params.m_LibraryName = aTextSelection;
+
+    const ret = await this.m_validator(
+      this.m_params.m_LibraryName,
+      this.m_params.m_SymbolName,
+      this.m_params.m_FlattenSymbol,
+    );
+
+    if (ret === wxID_CANCEL) return false;
+
+    if (ret === SAVE_AS_IDS.ID_OVERWRITE_CONFLICTS)
+      this.m_params.m_ConflictStrategy = CONFLICT_STRATEGY.OVERWRITE;
+    else if (ret === SAVE_AS_IDS.ID_RENAME_CONFLICTS)
+      this.m_params.m_ConflictStrategy = CONFLICT_STRATEGY.RENAME;
+
+    return true;
+  }
 }

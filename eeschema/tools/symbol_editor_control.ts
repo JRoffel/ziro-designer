@@ -5,8 +5,8 @@
  * `SYMBOL_EDITOR_CONTROL` (eeschema/tools/symbol_editor_control.{h,cpp}): the symbol editor's
  * view toggles, unit stepping, flattening a derived symbol, and the library fields table.
  *
- * Still to come, with the library tree and what they call: Init's tree context menu, AddLibrary /
- * DdAddLibrary, Import Symbol and Save Symbol As / Save Copy As (symbedit.cpp), RenameSymbol
+ * Still to come, with the library tree and what they call: Init's tree context menu, DdAddLibrary
+ * (a file dropped from the desktop), Import Symbol (symbol_editor_import_export.cpp), RenameSymbol
  * (LIBRARY_EDITOR_CONTROL::RenameLibrary), ExportSymbol, ExportView, ExportSymbolAsSVG,
  * AddSymbolToSchematic, OpenWithTextEditor and OpenDirectory. PreviousSymbol / NextSymbol are
  * SYMBOL_VIEWER_FRAME's and come with its tools. Their actions are not bound until they are.
@@ -131,6 +131,15 @@ export class SYMBOL_EDITOR_CONTROL extends SCH_TOOL_BASE<SCH_BASE_FRAME> {
     return 0;
   }
 
+  *AddLibrary(aEvent: TOOL_EVENT): COROUTINE_BODY<number> {
+    const createNew = aEvent.IsAction(ACTIONS.newLibrary);
+
+    if (this.m_frame!.IsType(FRAME_T.FRAME_SCH_SYMBOL_EDITOR))
+      yield* this.RunMainStackModal(() => this.editFrame().AddLibraryFile(createNew));
+
+    return 0;
+  }
+
   *EditSymbol(_aEvent: TOOL_EVENT): COROUTINE_BODY<number> {
     if (!this.m_isSymbolEditor) return 0;
 
@@ -210,6 +219,10 @@ export class SYMBOL_EDITOR_CONTROL extends SCH_TOOL_BASE<SCH_BASE_FRAME> {
     if (aEvt.IsAction(ACTIONS.save)) yield* this.RunMainStackModal(() => editFrame.Save());
     else if (aEvt.IsAction(SCH_ACTIONS.saveLibraryAs))
       yield* this.RunMainStackModal(() => editFrame.SaveLibraryAs());
+    else if (aEvt.IsAction(SCH_ACTIONS.saveSymbolAs))
+      yield* this.RunMainStackModal(() => editFrame.SaveSymbolCopyAs(true));
+    else if (aEvt.IsAction(SCH_ACTIONS.saveSymbolCopyAs))
+      yield* this.RunMainStackModal(() => editFrame.SaveSymbolCopyAs(false));
     else if (aEvt.IsAction(ACTIONS.saveAll))
       yield* this.RunMainStackModal(() => editFrame.SaveAll());
 
@@ -363,6 +376,8 @@ export class SYMBOL_EDITOR_CONTROL extends SCH_TOOL_BASE<SCH_BASE_FRAME> {
   }
 
   protected override setTransitions(): void {
+    this.Go(this.AddLibrary, ACTIONS.newLibrary.MakeEvent());
+    this.Go(this.AddLibrary, ACTIONS.addLibrary.MakeEvent());
     this.Go(this.AddSymbol, SCH_ACTIONS.newSymbol.MakeEvent());
     this.Go(this.AddSymbol, SCH_ACTIONS.deriveFromExistingSymbol.MakeEvent());
     this.Go(this.EditSymbol, SCH_ACTIONS.editSymbol.MakeEvent());
@@ -370,6 +385,8 @@ export class SYMBOL_EDITOR_CONTROL extends SCH_TOOL_BASE<SCH_BASE_FRAME> {
 
     this.Go(this.Save, ACTIONS.save.MakeEvent());
     this.Go(this.Save, SCH_ACTIONS.saveLibraryAs.MakeEvent());
+    this.Go(this.Save, SCH_ACTIONS.saveSymbolAs.MakeEvent());
+    this.Go(this.Save, SCH_ACTIONS.saveSymbolCopyAs.MakeEvent());
     this.Go(this.Save, ACTIONS.saveAll.MakeEvent());
     this.Go(this.Revert, ACTIONS.revert.MakeEvent());
 

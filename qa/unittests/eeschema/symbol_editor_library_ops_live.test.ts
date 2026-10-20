@@ -47,6 +47,7 @@ let kiAnswer: KiDialogResult = 'ok';
 let newSymbol: ((aArg: DIALOG_ARG) => number) | null = null;
 let synced = 0;
 let modals: string[] = [];
+let boxes: string[] = [];
 let pickLibrary: string | null = null;
 
 function setUp(aLib = LIB) {
@@ -61,6 +62,7 @@ function setUp(aLib = LIB) {
   newSymbol = null;
   synced = 0;
   modals = [];
+  boxes = [];
   pickLibrary = null;
   SetQuestionPresenter(async (aMessage) => {
     questions.push(aMessage);
@@ -83,6 +85,8 @@ function setUp(aLib = LIB) {
     },
     showModal: async (aName, _aItems, aArg) => {
       modals.push(aName);
+
+      if (aName === 'wxMessageBox') boxes.push((aArg as { message: string }).message);
 
       if (aName === 'EDA_LIST_DIALOG' && pickLibrary !== null) {
         (aArg as { textSelection: string }).textSelection = pickLibrary;
@@ -160,7 +164,7 @@ describe('SYMBOL_EDIT_FRAME::CreateNewSymbol', () => {
 
     expect([...arg.symbolNames!].sort()).toEqual(['D', 'U']);
     expect(await arg.validator!('')).toBe(false);
-    expect(messages.map((m) => m.message)).toEqual(['Symbol must have a name.']);
+    expect(boxes).toEqual(['Symbol must have a name.']);
     expect(await arg.validator!('FREE')).toBe(true);
 
     kiAnswer = 'cancel';
