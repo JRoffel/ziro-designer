@@ -62,7 +62,9 @@ import { BUILTIN_DEFAULT_THEME } from '@ziroeda/common/settings/builtin_color_th
 import { COLOR4D_UNSPECIFIED, parseColor4d } from '@ziroeda/common/gal/color4d.js';
 import type { StackupColors } from './board_adapter_colors.js';
 import {
+  type Board3dLayers,
   buildBoard3dLayers,
+  forEachPolygonList,
   pcbLayerIdOf,
   plotLayerSelection,
   userLayerIndex,
@@ -70,6 +72,7 @@ import {
   type Layer3dOptions,
 } from './board_3d_layers.js';
 import { pcbLayerOfFlag, type Layer3dFlag } from './viewer3d_appearance.js';
+import { Board3dLayersJobAvailable, RunBoard3dLayersJob } from './board_3d_layers_job.js';
 import {
   DELTA_MOVE_STEP_FACTOR,
   INITIAL_CAMERA_DISTANCE,
@@ -301,6 +304,12 @@ function ringArea(r: [number, number][]): number {
 }
 
 /**
+ * A polygon's triangles, when the 3D layer job has made them (board_3d_layers_job.ts): keyed by
+ * the polygon, in board IU and in 3D units alike - the points are the same, in the same order.
+ */
+const TRIANGLES = new WeakMap<object, ArrayLike<number>>();
+
+/**
  * The top and bottom faces of a polygon set, triangulated. KiCad's
  * `ConvertPolygonToTriangles` fans differently, but two triangulations of the
  * same polygon cover the same pixels; the faces are what matters.
@@ -320,7 +329,7 @@ function addTopAndBottom(
       for (const p of ring) flat.push(p[0], p[1]);
     });
     if (flat.length < 6) continue;
-    const tris = earcut(flat, holeIdx.length ? holeIdx : undefined);
+    const tris = TRIANGLES.get(poly) ?? earcut(flat, holeIdx.length ? holeIdx : undefined);
     const nv = flat.length / 2;
     const faces: [number, number][] = [];
     if (which !== 'bottom') faces.push([zTop, 1]);
@@ -616,41 +625,12 @@ export function mount3DViewer(
    */
   let reloadsPending = 0;
 
-  // ---- the board scene (BOARD_ADAPTER::InitSettings + createLayers + RENDER_3D_OPENGL::reload)
   /**
-   * `RENDER_3D_OPENGL::reload()`: everything the board decides — units,
-   * layer Z, colours, geometry, models — built as one object so a
-   * `ReloadRequest` (an appearance toggle, a board edit) rebuilds it BESIDE
-   * the one on screen and swaps when it is ready, the way upstream keeps
-   * the previous frame up until the new display lists exist. The canvas,
-   * the camera, the lights, the gizmo and the input are the frame's and
-   * outlive it.
+   * What `BOARD_ADAPTER::InitSettings` and `createLayers` build the layers from: the render
+   * settings with the pane's flags applied, the board's box, and createLayers' options. The
+   * scene and the 3D layer job (board_3d_layers_job.ts) both start here.
    */
-  interface BoardScene {
-    board: BOARD;
-    render: Viewer3dRenderOptions;
-    adapter: Adapter;
-    s: number;
-    built: ReturnType<typeof buildBoard3dLayers>;
-    scene: THREE.Scene;
-    modelsGroup: THREE.Group;
-    maskMeshes: { layer: 'F.Mask' | 'B.Mask'; mesh: THREE.Mesh }[];
-    bgTop: Color4d;
-    bgBot: Color4d;
-    ready: Promise<void>;
-    dispose: () => void;
-  }
-  const buildBoardScene = (
-    board: BOARD,
-    stackup: StackupColors | undefined,
-    renderIn: Viewer3dRenderOptions,
-    projectFiles: ProjectFile[] | undefined,
-  ): BoardScene | null => {
-    const report = activityReporter;
-    // render_3d_opengl.cpp:527 and create_scene.cpp:690 (stats_startReloadTime)
-    report('Loading...');
-    const startReloadTime = performance.now();
-    reloadsPending++;
+  const layerInputsOf = (board: BOARD, renderIn: Viewer3dRenderOptions) => {
     const render: Viewer3dRenderOptions = renderIn.visible3d
       ? {
           ...renderIn,
@@ -693,12 +673,101 @@ export function mount3DViewer(
       board.Drawings().length === 0 &&
       board.Tracks().length === 0 &&
       board.Zones().length === 0;
-    report('Build board outline'); // board_adapter.cpp:343
+    // ---- geometry (BOARD_ADAPTER::createLayers + RENDER_3D_OPENGL::reload) --
+    // FOLLOW_PLOT_SETTINGS (`GetVisibleLayers`, board_adapter.cpp:907-935):
+    // which layers exist in 3D is the board's plot layer selection.
+    const plot = plotLayerSelection(board);
+    // With a pane, the visible PCB layers are the pane's flags mapped back
+    // through Map3DLayerToPCBLayer; without one, the plot selection is the flags.
+    const visiblePcbLayers = render.visible3d
+      ? new Set(
+          [...render.visible3d]
+            .map((f) => pcbLayerOfFlag(f as Layer3dFlag))
+            .filter((n): n is string => n !== undefined)
+            .flatMap((n) =>
+              // ADHESIVE and SOLDERPASTE are one flag for both sides
+              n === 'F.Adhes'
+                ? ['F.Adhes', 'B.Adhes']
+                : n === 'F.Paste'
+                  ? ['F.Paste', 'B.Paste']
+                  : [n],
+            )
+            .map((n) => pcbLayerIdOf(n)),
+        )
+      : plot.layers;
+    const layerOpts: Layer3dOptions = {
+      showZones: render.showZones !== false,
+      showFpReferences: render.showFpReferences ?? plot.plotReference,
+      showFpValues: render.showFpValues ?? plot.plotValue,
+      showFpText: render.showFpText ?? plot.plotFPText,
+      visibleLayers: visiblePcbLayers,
+      showOffBoardSilk: render.showOffBoardSilk,
+      subtractMaskFromSilk: render.subtractMaskFromSilk,
+      clipSilkOnViaAnnuli: render.clipSilkOnViaAnnuli,
+      showPlatedBarrels: render.showPlatedBarrels,
+      differentiatePlatedCopper: render.differentiatePlatedCopper,
+    };
+    return { render, bbox, empty, layerOpts };
+  };
+
+  // ---- the board scene (BOARD_ADAPTER::InitSettings + createLayers + RENDER_3D_OPENGL::reload)
+  /**
+   * `RENDER_3D_OPENGL::reload()`: everything the board decides — units,
+   * layer Z, colours, geometry, models — built as one object so a
+   * `ReloadRequest` (an appearance toggle, a board edit) rebuilds it BESIDE
+   * the one on screen and swaps when it is ready, the way upstream keeps
+   * the previous frame up until the new display lists exist. The canvas,
+   * the camera, the lights, the gizmo and the input are the frame's and
+   * outlive it.
+   */
+  interface BoardScene {
+    board: BOARD;
+    render: Viewer3dRenderOptions;
+    adapter: Adapter;
+    s: number;
+    built: ReturnType<typeof buildBoard3dLayers>;
+    scene: THREE.Scene;
+    modelsGroup: THREE.Group;
+    maskMeshes: { layer: 'F.Mask' | 'B.Mask'; mesh: THREE.Mesh }[];
+    bgTop: Color4d;
+    bgBot: Color4d;
+    ready: Promise<void>;
+    dispose: () => void;
+  }
+  const buildBoardScene = (
+    board: BOARD,
+    stackup: StackupColors | undefined,
+    renderIn: Viewer3dRenderOptions,
+    projectFiles: ProjectFile[] | undefined,
+    /**
+     * The layers, built by the 3D layer job, and when that reload started. A placeholder is the
+     * first scene while the job builds the real one: the frame, no layers and no models.
+     */
+    aPrebuilt?: { built: Board3dLayers; startReloadTime: number; placeholder?: boolean },
+  ): BoardScene | null => {
+    const report = activityReporter;
+    // render_3d_opengl.cpp:527 and create_scene.cpp:690 (stats_startReloadTime). A scene whose
+    // layers the 3D layer job built has reported these, and started the clock, already.
+    if (!aPrebuilt) {
+      report('Loading...');
+      reloadsPending++;
+    }
+    const startReloadTime = aPrebuilt?.startReloadTime ?? performance.now();
+    const { render, bbox, empty, layerOpts } = layerInputsOf(board, renderIn);
+    if (!aPrebuilt) report('Build board outline'); // board_adapter.cpp:343
     const adapter = initAdapter(board, bbox, render.footprintHolder === true);
     const s = adapter.s;
     const to3d = (p: Vec2): [number, number] => [p.x * s, -p.y * s];
     const polys3d = (polys: Polygon[]): [number, number][][][] =>
-      polys.map((poly) => poly.map((ring) => ring.map(to3d)));
+      polys.map((poly) => {
+        const p3 = poly.map((ring) => ring.map(to3d));
+        // The job's triangles index the same points: they follow the polygon into 3D units.
+        const tris = TRIANGLES.get(poly);
+
+        if (tris) TRIANGLES.set(p3, tris);
+
+        return p3;
+      });
 
     // ---- BOARD_ADAPTER colours ------------------------------------------------
     // `GetLayerColors()` (board_adapter.cpp:638): with no saved preset, the
@@ -755,42 +824,9 @@ export function mount3DViewer(
      */
     const materialMode = render.materialMode ?? 0;
 
-    // ---- geometry (BOARD_ADAPTER::createLayers + RENDER_3D_OPENGL::reload) --
-    // FOLLOW_PLOT_SETTINGS (`GetVisibleLayers`, board_adapter.cpp:907-935):
-    // which layers exist in 3D is the board's plot layer selection.
-    const plot = plotLayerSelection(board);
-    // With a pane, the visible PCB layers are the pane's flags mapped back
-    // through Map3DLayerToPCBLayer; without one, the plot selection is the flags.
-    const visiblePcbLayers = render.visible3d
-      ? new Set(
-          [...render.visible3d]
-            .map((f) => pcbLayerOfFlag(f as Layer3dFlag))
-            .filter((n): n is string => n !== undefined)
-            .flatMap((n) =>
-              // ADHESIVE and SOLDERPASTE are one flag for both sides
-              n === 'F.Adhes'
-                ? ['F.Adhes', 'B.Adhes']
-                : n === 'F.Paste'
-                  ? ['F.Paste', 'B.Paste']
-                  : [n],
-            )
-            .map((n) => pcbLayerIdOf(n)),
-        )
-      : plot.layers;
-    const layerOpts: Layer3dOptions = {
-      showZones: render.showZones !== false,
-      showFpReferences: render.showFpReferences ?? plot.plotReference,
-      showFpValues: render.showFpValues ?? plot.plotValue,
-      showFpText: render.showFpText ?? plot.plotFPText,
-      visibleLayers: visiblePcbLayers,
-      showOffBoardSilk: render.showOffBoardSilk,
-      subtractMaskFromSilk: render.subtractMaskFromSilk,
-      clipSilkOnViaAnnuli: render.clipSilkOnViaAnnuli,
-      showPlatedBarrels: render.showPlatedBarrels,
-      differentiatePlatedCopper: render.differentiatePlatedCopper,
-    };
-    report('Create layers'); // board_adapter.cpp:579
-    const built = buildBoard3dLayers(board, bbox, { ...layerOpts, empty, report });
+    if (!aPrebuilt) report('Create layers'); // board_adapter.cpp:579
+    const built =
+      aPrebuilt?.built ?? buildBoard3dLayers(board, bbox, { ...layerOpts, empty, report });
     report('Load OpenGL: board'); // create_scene.cpp:704
     const showThickness = render.copperThickness !== false;
 
@@ -1141,54 +1177,57 @@ export function mount3DViewer(
 
     const modelsGroup = new THREE.Group();
     scene.add(modelsGroup);
-    report('Loading 3D models...'); // create_scene.cpp:937
-    const components = mountComponents(
-      modelsGroup,
-      board,
-      {
-        // the footprint placement frame, in 3D units: translate( pos.x·s, −pos.y·s, zpos )
-        scale: s,
-        zTopFront: adapter.zTop['F.Cu']!,
-        zTopBack: adapter.zTop['B.Cu']!,
-        // modelunit_to_3d_units_factor = BiuTo3dUnits · IU_PER_MM
-        modelUnitToWorld: s * MM,
-      },
-      modelsBase,
-      projectFiles,
-      () => {
-        needsRender = true; // a model arrived: Request_refresh()
-      },
-      render.showModelBbox === true,
-      report,
-      {
-        material: modelMaterial,
-        opaqueOrder: RENDER_ORDER.opaqueModels,
-        transparentOrder: RENDER_ORDER.transparentModels,
-        showFootprint: (fp) => {
-          // BOARD_ADAPTER::IsFootprintShown (board_adapter.cpp:280-312).
-          if (render.footprintHolder === true) return true;
+    const placeholder = aPrebuilt?.placeholder === true;
+    if (!placeholder) report('Loading 3D models...'); // create_scene.cpp:937
+    const components = placeholder
+      ? { ready: Promise.resolve(), dispose: (): void => {} }
+      : mountComponents(
+          modelsGroup,
+          board,
+          {
+            // the footprint placement frame, in 3D units: translate( pos.x·s, −pos.y·s, zpos )
+            scale: s,
+            zTopFront: adapter.zTop['F.Cu']!,
+            zTopBack: adapter.zTop['B.Cu']!,
+            // modelunit_to_3d_units_factor = BiuTo3dUnits · IU_PER_MM
+            modelUnitToWorld: s * MM,
+          },
+          modelsBase,
+          projectFiles,
+          () => {
+            needsRender = true; // a model arrived: Request_refresh()
+          },
+          render.showModelBbox === true,
+          report,
+          {
+            material: modelMaterial,
+            opaqueOrder: RENDER_ORDER.opaqueModels,
+            transparentOrder: RENDER_ORDER.transparentModels,
+            showFootprint: (fp) => {
+              // BOARD_ADAPTER::IsFootprintShown (board_adapter.cpp:280-312).
+              if (render.footprintHolder === true) return true;
 
-          const variantName = board.GetCurrentVariant();
-          const attributes = fp.GetAttributes();
+              const variantName = board.GetCurrentVariant();
+              const attributes = fp.GetAttributes();
 
-          // show_footprints_not_in_posfile defaults to true, show_footprints_dnp to false.
-          if (
-            fp.GetExcludedFromPosFilesForVariant(variantName) &&
-            render.showFootprintsNotInPosfile === false
-          )
-            return false;
+              // show_footprints_not_in_posfile defaults to true, show_footprints_dnp to false.
+              if (
+                fp.GetExcludedFromPosFilesForVariant(variantName) &&
+                render.showFootprintsNotInPosfile === false
+              )
+                return false;
 
-          if (fp.GetDNPForVariant(variantName) && !(render.showFootprintsDnp ?? false))
-            return false;
+              if (fp.GetDNPForVariant(variantName) && !(render.showFootprintsDnp ?? false))
+                return false;
 
-          if (attributes & FP_SMD) return render.showFootprintsInsert !== false;
+              if (attributes & FP_SMD) return render.showFootprintsInsert !== false;
 
-          if (attributes & FP_THROUGH_HOLE) return render.showFootprintsNormal !== false;
+              if (attributes & FP_THROUGH_HOLE) return render.showFootprintsNormal !== false;
 
-          return render.showFootprintsVirtual !== false;
-        },
-      },
-    );
+              return render.showFootprintsVirtual !== false;
+            },
+          },
+        );
 
     return {
       board,
@@ -1203,6 +1242,7 @@ export function mount3DViewer(
       bgBot: colors.bgBot,
       // create_scene.cpp:941-946: the reload clock stops after load3dModels
       ready: components.ready.then(() => {
+        if (placeholder) return;
         reloadsPending--;
         report(`Reload time ${((performance.now() - startReloadTime) / 1000).toFixed(3)} s`);
       }),
@@ -1214,7 +1254,75 @@ export function mount3DViewer(
   };
   /** The scene a `reload` is building, not yet on screen. */
   let pending: BoardScene | null = null;
-  const first = buildBoardScene(board, stackup, renderIn, projectFiles);
+  /** Bumped by every reload: a layer job answering for an older one is dropped. */
+  let reloadGeneration = 0;
+  let disposed = false;
+  /**
+   * Whether \a aBoard's layers are built by the 3D layer job, off this thread. A footprint
+   * holder's are small, and its text would not read back as a holder.
+   */
+  const layersOffThread = (aBoard: BOARD): boolean =>
+    Board3dLayersJobAvailable() && !aBoard.IsFootprintHolder();
+  /**
+   * `RENDER_3D_OPENGL::reload`'s first half on the 3D layer job: the stages it reports, the
+   * layers, and each polygon's triangles for addTopAndBottom. Null when a newer reload took
+   * over or the job failed.
+   */
+  const buildLayersOffThread = async (
+    aBoard: BOARD,
+    aRender: Viewer3dRenderOptions,
+    aGeneration: number,
+  ): Promise<{ built: Board3dLayers; startReloadTime: number } | null> => {
+    const report = activityReporter;
+    report('Loading...');
+    const startReloadTime = performance.now();
+    const { bbox, empty, layerOpts } = layerInputsOf(aBoard, aRender);
+    report('Build board outline'); // board_adapter.cpp:343
+    report('Create layers'); // board_adapter.cpp:579
+    const result = await RunBoard3dLayersJob(
+      aBoard,
+      bbox,
+      { ...layerOpts, empty },
+      report,
+      () => aGeneration !== reloadGeneration,
+    );
+    if (!result) return null;
+    let i = 0;
+    forEachPolygonList(result.built, (list) => {
+      for (const poly of list) {
+        const tris = result.tris[i++];
+        if (tris) TRIANGLES.set(poly, tris);
+      }
+    });
+    reloadsPending++;
+    return { built: result.built, startReloadTime };
+  };
+  /** A scene with no layers: what the frame shows until the job has built the first one. */
+  const placeholderScene = (): BoardScene | null => {
+    const { bbox } = layerInputsOf(board, renderIn);
+    const built: Board3dLayers = {
+      layers: {},
+      boardPoly: [],
+      boardWithHoles: [],
+      thOD: [],
+      thID: [],
+      npthOD: [],
+      viaAnnuli: [],
+      platedBarrels: [],
+      maskOpenings: { 'F.Mask': [], 'B.Mask': [] },
+      bbox,
+      viaBarrels: [],
+      platedCopper: { 'F.Cu': [], 'B.Cu': [] },
+    };
+    return buildBoardScene(board, stackup, renderIn, projectFiles, {
+      built,
+      startReloadTime: performance.now(),
+      placeholder: true,
+    });
+  };
+  const first = layersOffThread(board)
+    ? placeholderScene()
+    : buildBoardScene(board, stackup, renderIn, projectFiles);
   if (!first) {
     container.removeChild(canvas);
     renderer.dispose();
@@ -2017,6 +2125,54 @@ export function mount3DViewer(
     down: 'pan_down',
   };
 
+  /**
+   * `ReloadRequest` then the reload in the next Redraw: the new scene is built beside the one on
+   * screen and takes its place once `load3dModels` is done. Its layers come from the 3D layer
+   * job where there is one, so the frame - and the app - keep running while they are built.
+   */
+  const reload = (
+    nextBoard: BOARD,
+    nextStackup: StackupColors | undefined,
+    nextRender: Viewer3dRenderOptions,
+    nextFiles: ProjectFile[] | undefined,
+  ): void => {
+    // EDA_3D_CANVAS::ReloadRequest: m_mouse_was_moved = false (eda_3d_canvas.cpp:1440).
+    mouseWasMoved = false;
+    const generation = ++reloadGeneration;
+    const show = (next: BoardScene | null): void => {
+      if (!next) return;
+      pending?.dispose();
+      pending = next;
+      // `load3dModels` is part of the reload; only then does the display change.
+      void next.ready.then(() => {
+        if (pending !== next) {
+          next.dispose();
+          return;
+        }
+        pending = null;
+        cur.dispose();
+        cur = next;
+        camera.setBoardLookAtPos(cur.adapter.boardCenter);
+        applyZoomLimits(cur);
+        setBackground(cur.bgTop, cur.bgBot);
+        setGrid(currentGrid);
+        applyHighlights();
+        needsRender = true;
+      });
+    };
+
+    if (!layersOffThread(nextBoard)) {
+      show(buildBoardScene(nextBoard, nextStackup, nextRender, nextFiles));
+      return;
+    }
+
+    void buildLayersOffThread(nextBoard, nextRender, generation).then((prebuilt) => {
+      if (generation !== reloadGeneration || disposed) return;
+      // A job that failed: build here, as without a worker.
+      show(buildBoardScene(nextBoard, nextStackup, nextRender, nextFiles, prebuilt ?? undefined));
+    });
+  };
+
   const api: Viewer3D = {
     get status() {
       return status;
@@ -2028,6 +2184,8 @@ export function mount3DViewer(
       onStatus = fn;
     },
     dispose: () => {
+      disposed = true;
+      reloadGeneration++;
       cancelAnimationFrame(raf);
       ro.disconnect();
       canvas.removeEventListener('pointerdown', onPointerDown);
@@ -2053,30 +2211,8 @@ export function mount3DViewer(
     },
     // EDA_3D_VIEWER_FRAME::NewDisplay( true ) → ReloadRequest(): the next
     // Redraw rebuilds beside the frame on screen and swaps when complete.
-    reload: (nextBoard, nextStackup, nextRender, nextFiles) => {
-      const next = buildBoardScene(nextBoard, nextStackup, nextRender, nextFiles);
-      if (!next) return;
-      pending?.dispose();
-      pending = next;
-      // EDA_3D_CANVAS::ReloadRequest: m_mouse_was_moved = false (eda_3d_canvas.cpp:1440).
-      mouseWasMoved = false;
-      // `load3dModels` is part of the reload; only then does the display change.
-      void next.ready.then(() => {
-        if (pending !== next) {
-          next.dispose();
-          return;
-        }
-        pending = null;
-        cur.dispose();
-        cur = next;
-        camera.setBoardLookAtPos(cur.adapter.boardCenter);
-        applyZoomLimits(cur);
-        setBackground(cur.bgTop, cur.bgBot);
-        setGrid(currentGrid);
-        applyHighlights();
-        needsRender = true;
-      });
-    },
+    reload: (nextBoard, nextStackup, nextRender, nextFiles) =>
+      reload(nextBoard, nextStackup, nextRender, nextFiles),
     setView: (dir: View3DDir) => void setView3D(dir),
     flip: () => void setView3D('flip'),
     home: () => void setView3D('fit_screen'),
@@ -2120,5 +2256,7 @@ export function mount3DViewer(
   displayStatus();
   animate();
 
+  // The first scene was the placeholder: the job builds the board's.
+  if (layersOffThread(board)) reload(board, stackup, renderIn, projectFiles);
   return api;
 }

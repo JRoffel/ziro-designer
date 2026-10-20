@@ -32,6 +32,8 @@ import {
   remapLegacyLayerSet,
   buildBoard3dLayers,
   defaultPlotLayerSelection,
+  forEachPolygonList,
+  TriangulatePolygon,
   parseLayerSetHex,
   plotLayerSelection,
 } from '@ziroeda/3d-viewer/board_3d_layers.js';
@@ -311,5 +313,70 @@ describe('holes: plated, non-plated, through and blind', () => {
     expect(built.thID).toHaveLength(2);
     expect(built.viaBarrels).toHaveLength(1);
     expect(built.viaBarrels[0]).toMatchObject({ topLayer: 'F.Cu', bottomLayer: 'In1.Cu' });
+  });
+});
+
+describe('the 3D layer job’s answer (board_3d_layers_job.ts)', () => {
+  const board = load('ecc83-pp');
+  const built = buildBoard3dLayers(board, bboxOf(board));
+  const shoelace = (ring: { x: number; y: number }[]): number => {
+    let a = 0;
+    for (let i = 0; i < ring.length; i++) {
+      const p = ring[i]!;
+      const q = ring[(i + 1) % ring.length]!;
+      a += p.x * q.y - q.x * p.y;
+    }
+    return Math.abs(a) / 2;
+  };
+
+  it('every polygon list is walked, once, and in the same order after the copy to the window', () => {
+    const lists: Polygon[][] = [];
+    forEachPolygonList(built, (l) => lists.push(l));
+    const fields = [
+      ...Object.values(built.layers),
+      built.boardPoly,
+      built.boardWithHoles,
+      built.thOD,
+      built.thID,
+      built.npthOD,
+      built.viaAnnuli,
+      built.platedBarrels,
+      built.maskOpenings['F.Mask'],
+      built.maskOpenings['B.Mask'],
+      built.platedCopper['F.Cu'],
+      built.platedCopper['B.Cu'],
+    ];
+    expect(new Set(lists)).toEqual(new Set(fields));
+    expect(lists).toHaveLength(fields.length);
+
+    const copied: number[] = [];
+    forEachPolygonList(structuredClone(built), (l) => copied.push(l.length));
+    expect(copied).toEqual(lists.map((l) => l.length));
+  });
+
+  it('a polygon’s triangles cover it: its area, holes taken out', () => {
+    const polys = built.layers['F.Cu']!;
+    expect(polys.some((p) => p.length > 1)).toBe(true);
+
+    for (const poly of polys) {
+      const tris = TriangulatePolygon(poly)!;
+      const pts = poly.flat();
+      let covered = 0;
+      for (let t = 0; t < tris.length; t += 3)
+        covered += shoelace([pts[tris[t]!]!, pts[tris[t + 1]!]!, pts[tris[t + 2]!]!]);
+      const area = shoelace(poly[0]!) - poly.slice(1).reduce((a, h) => a + shoelace(h), 0);
+      expect(Math.abs(covered - area)).toBeLessThanOrEqual(area * 1e-9 + 1);
+    }
+  });
+
+  it('a polygon with no area has no triangles', () => {
+    expect(
+      TriangulatePolygon([
+        [
+          { x: 0, y: 0 },
+          { x: 1, y: 1 },
+        ],
+      ]),
+    ).toBeNull();
   });
 });

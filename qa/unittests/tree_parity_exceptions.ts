@@ -22,6 +22,8 @@ export const TREE_EXCEPTIONS: Record<string, string> = {
     "UNAUDITED: no KiCad file of this name - port it under KiCad's name, fold it into its owner, or justify it here",
   '3d-viewer/loadmodel.ts':
     "UNAUDITED: no KiCad file of this name - port it under KiCad's name, fold it into its owner, or justify it here",
+  '3d-viewer/board_3d_layers_job.ts':
+    'browser-only: BOARD_ADAPTER::createLayers and the face triangulation on a worker, so a 3D reload never freezes the app; KiCad reloads on its GUI thread',
   '3d-viewer/occt_tessellate.ts':
     "UNAUDITED: no KiCad file of this name - port it under KiCad's name, fold it into its owner, or justify it here",
   '3d-viewer/occt_types.ts':

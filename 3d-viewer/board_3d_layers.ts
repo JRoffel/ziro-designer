@@ -21,6 +21,7 @@
  * 3D units and flips y, as `BiuTo3dUnits()` / `-pos.y` do upstream.
  */
 import { ARC_HIGH_DEF } from '@ziroeda/common/eda_units.js';
+import earcut from 'earcut';
 import {
   type Polygon,
   booleanAdd,
@@ -931,4 +932,51 @@ export function buildBoard3dLayers(
     viaBarrels,
     platedCopper,
   };
+}
+
+/**
+ * Every polygon list of \a aLayers, in one fixed order. Not KiCad's: the 3D layer job
+ * (board_3d_layers_job.ts) triangulates in this order and the scene reads the triangles back in
+ * the same one.
+ */
+export function forEachPolygonList(
+  aLayers: Board3dLayers,
+  aVisit: (aList: Polygon[]) => void,
+): void {
+  for (const k of Object.keys(aLayers.layers).sort()) {
+    const list = aLayers.layers[k as Layer3d];
+
+    if (list) aVisit(list);
+  }
+
+  aVisit(aLayers.boardPoly);
+  aVisit(aLayers.boardWithHoles);
+  aVisit(aLayers.thOD);
+  aVisit(aLayers.thID);
+  aVisit(aLayers.npthOD);
+  aVisit(aLayers.viaAnnuli);
+  aVisit(aLayers.platedBarrels);
+  aVisit(aLayers.maskOpenings['F.Mask']);
+  aVisit(aLayers.maskOpenings['B.Mask']);
+  aVisit(aLayers.platedCopper['F.Cu']);
+  aVisit(aLayers.platedCopper['B.Cu']);
+}
+
+/**
+ * The faces of \a aPoly as triangles, indices into its points ring after ring - what the
+ * scene's addTopAndBottom draws them from. Null for a polygon too small to have a face.
+ */
+export function TriangulatePolygon(aPoly: Polygon): Uint32Array | null {
+  const flat: number[] = [];
+  const holes: number[] = [];
+
+  aPoly.forEach((ring, ri) => {
+    if (ri > 0) holes.push(flat.length / 2);
+
+    for (const p of ring) flat.push(p.x, p.y);
+  });
+
+  if (flat.length < 6) return null;
+
+  return Uint32Array.from(earcut(flat, holes.length ? holes : undefined));
 }
