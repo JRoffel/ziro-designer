@@ -6,6 +6,8 @@
 **[Try a demo project, no sign-up →](https://designer.ziroeda.com/demo/ecc83)** ·
 **[What's new (changelog) →](./CHANGELOG.md)**
 
+<a href="https://www.ziroeda.com/designer#video"><img src="docs/public/screenshots/intro-video.jpg" alt="Watch the one-minute introduction to ZiroEDA Designer" width="100%"></a>
+
 ZiroEDA is an open-source, browser-native port of KiCad 10: the schematic
 editor, the PCB editor, and the tools around them, running in any modern
 browser. It reads and writes KiCad's native files directly, so a `.kicad_pro`
@@ -58,6 +60,15 @@ Paste this into your README, with your own owner and repository name:
 ```markdown
 [![Open in ZiroEDA](https://img.shields.io/badge/Open%20in-ZiroEDA-2f6feb)](https://designer.ziroeda.com/gh/OWNER/REPO)
 ```
+
+## Screenshots
+
+| | |
+|---|---|
+| ![The PCB editor with a four-layer ESP32 board](docs/public/screenshots/pcb.jpg) | ![The schematic editor with the CM5 Minima carrier board](docs/public/screenshots/schematic.jpg) |
+| The PCB editor ([open this board](https://designer.ziroeda.com/demo/openair-max)) | The schematic editor ([open it](https://designer.ziroeda.com/demo/cm5_minima)) |
+| ![The 3D viewer](docs/public/screenshots/3d.jpg) | ![A GitHub project opened from its address](docs/public/screenshots/github.jpg) |
+| The 3D viewer | [Cynthion](https://designer.ziroeda.com/gh/greatscottgadgets/cynthion-hardware), opened from its GitHub address |
 
 ## Your designs stay yours: end-to-end encryption
 
