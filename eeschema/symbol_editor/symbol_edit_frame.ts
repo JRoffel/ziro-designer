@@ -29,6 +29,8 @@ import { SCH_INSPECTION_TOOL } from '../tools/sch_inspection_tool.js';
 import { SCH_POINT_EDITOR } from '../tools/sch_point_editor.js';
 import { SCH_SELECTION_TOOL } from '../tools/sch_selection_tool.js';
 import { LIB_SYMBOL_LIBRARY_MANAGER } from './lib_symbol_library_manager.js';
+import { SYMBOL_EDITOR_UNDO_REDO_MIXIN } from './symbol_editor_undo_redo.js';
+import { applyMixins } from '@ziroeda/core/mixins.js';
 import type { LIB_ID } from '@ziroeda/common/lib_id.js';
 import type { SCH_SYMBOL } from '../sch_symbol.js';
 import {
@@ -38,6 +40,7 @@ import {
 } from './symbol_editor_settings.js';
 import type { APP_SETTINGS_BASE } from '@ziroeda/common/settings/app_settings.js';
 import { LIB_EDIT_FRAME_NAME } from '@ziroeda/common/eda_draw_frame.js';
+import { UNDO_REDO_LIST } from '@ziroeda/common/eda_base_frame.js';
 import { FRAME_T } from '@ziroeda/common/frame_type.js';
 import type { KIWAY_MAIL_EVENT } from '@ziroeda/common/kiway_mail.js';
 import { MAIL_T } from '@ziroeda/common/mail_type.js';
@@ -61,8 +64,18 @@ export interface SYMBOL_EDIT_FRAME_HOOKS {
   isLibraryTreeShown?(): boolean;
   /** `ToggleLibraryTree()`. */
   toggleLibraryTree?(): void;
+  /** `FocusOnLibId( aLibID )`: the library tree selects and shows it. */
+  focusOnLibId?(aLibId: LIB_ID): void;
+  /** `RebuildSymbolUnitAndBodyStyleLists()`: the unit and body style choosers. */
+  rebuildSymbolUnitAndBodyStyleLists?(): void;
+  /** `UpdateTitle()`. */
+  updateTitle?(): void;
 }
 
+// biome-ignore lint/suspicious/noUnsafeDeclarationMerging: TS multiple inheritance (see libs/core/mixins.ts)
+export interface SYMBOL_EDIT_FRAME extends SYMBOL_EDITOR_UNDO_REDO_MIXIN {}
+
+// biome-ignore lint/suspicious/noUnsafeDeclarationMerging: TS multiple inheritance (see libs/core/mixins.ts)
 export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
   /** `Kiface().KifaceSettings()`: SYMBOL_EDITOR_SETTINGS. */
   override config(): APP_SETTINGS_BASE | null {
@@ -83,6 +96,21 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
     this.hooks = hooks;
     this.m_libMgr = new LIB_SYMBOL_LIBRARY_MANAGER(this);
     this.SetScreen(this.m_dummyScreen);
+  }
+
+  /** `FocusOnLibId( aLibID )` (:1490). */
+  FocusOnLibId(aLibId: LIB_ID): void {
+    this.hooks.focusOnLibId?.(aLibId);
+  }
+
+  /** `RebuildSymbolUnitAndBodyStyleLists()` (:735): the window's choosers. */
+  RebuildSymbolUnitAndBodyStyleLists(): void {
+    this.hooks.rebuildSymbolUnitAndBodyStyleLists?.();
+  }
+
+  /** `UpdateTitle()`. */
+  UpdateTitle(): void {
+    this.hooks.updateTitle?.();
   }
 
   /** `GetLibManager()`. */
@@ -273,6 +301,25 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
     this.m_toolManager?.ResetTools(RESET_REASON.MODEL_RELOAD);
   }
 
+  /** `ClearUndoORRedoList( whichList, aItemCount )` (:1939): the oldest \a aItemCount, or all. */
+  override ClearUndoORRedoList(whichList: UNDO_REDO_LIST, aItemCount = -1): void {
+    if (aItemCount === 0) return;
+
+    const list = whichList === UNDO_REDO_LIST.UNDO_LIST ? this.m_undoList : this.m_redoList;
+
+    if (aItemCount < 0) {
+      list.ClearCommandList();
+    } else {
+      for (let ii = 0; ii < aItemCount; ii++) {
+        if (list.m_CommandsList.length === 0) break;
+
+        const curr_cmd = list.m_CommandsList.shift()!;
+
+        curr_cmd.ClearListAndDeleteItems(() => {});
+      }
+    }
+  }
+
   /** `emptyScreen()` (:1546): no library, no symbol, the dummy screen. */
   emptyScreen(): void {
     this.SetCurLib('');
@@ -283,8 +330,9 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
   }
 
   // The live symbol editor's state (symbol_edit_frame.h): the symbol being edited and the unit and
-  // body style shown. The window edits its record copy; these follow when its tools do (S5).
-  private m_symbol: LIB_SYMBOL | null = null;
+  // body style shown. `m_symbol` is public for the frame's mixins (symbol_editor_undo_redo.ts),
+  // which set it as upstream's split methods do.
+  m_symbol: LIB_SYMBOL | null = null;
   private m_unit = 1;
   private m_bodyStyle = 1;
 
@@ -386,3 +434,5 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
     }
   }
 }
+
+applyMixins(SYMBOL_EDIT_FRAME, [SYMBOL_EDITOR_UNDO_REDO_MIXIN]);

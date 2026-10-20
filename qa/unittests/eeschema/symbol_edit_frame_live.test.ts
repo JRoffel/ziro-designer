@@ -89,7 +89,7 @@ describe('SYMBOL_EDIT_FRAME', () => {
   it('shows the symbol it is given, and remembers the library', () => {
     const symbol = open();
 
-    expect(frame.GetCurSymbol()).toBe(symbol);
+    expect(frame.GetCurSymbol() === symbol).toBe(true);
     expect(frame.GetCurLib()).toBe('mine');
     expect(frame.m_SyncPinEdit).toBe(true);
     // The symbol's own items are in the view.
@@ -128,7 +128,43 @@ describe('SYMBOL_EDIT_FRAME', () => {
     expect(frame.GetLibManager().IsSymbolModified('U', 'mine')).toBe(true);
     expect(frame.GetLibManager().GetBufferedSymbol('U', 'mine')!.GetKeyWords()).toBe('amplifier');
     // The buffer holds a copy, not the frame's symbol.
-    expect(frame.GetLibManager().GetBufferedSymbol('U', 'mine')).not.toBe(symbol);
+    expect(frame.GetLibManager().GetBufferedSymbol('U', 'mine') === symbol).toBe(false);
+  });
+
+  it('undo swaps the stored copy in, redo swaps it back (symbol_editor_undo_redo.cpp)', () => {
+    const symbol = open();
+    frame.SaveCopyInUndoList('Edit Symbol', symbol);
+    symbol.SetKeyWords('after');
+    frame.OnModify();
+
+    expect(frame.GetUndoCommandCount()).toBe(1);
+
+    frame.GetSymbolFromUndoList();
+    expect(frame.GetCurSymbol() === symbol).toBe(false);
+    expect(frame.GetCurSymbol()!.GetKeyWords()).toBe('');
+    expect(frame.GetUndoCommandCount()).toBe(0);
+    expect(frame.GetRedoCommandCount()).toBe(1);
+    // OnModify stored the undone symbol in the buffer.
+    expect(frame.GetLibManager().GetBufferedSymbol('U', 'mine')!.GetKeyWords()).toBe('');
+
+    frame.GetSymbolFromRedoList();
+    expect(frame.GetCurSymbol() === symbol).toBe(true);
+    expect(frame.GetCurSymbol()!.GetKeyWords()).toBe('after');
+    expect(frame.GetUndoCommandCount()).toBe(1);
+    expect(frame.GetRedoCommandCount()).toBe(0);
+
+    // A new edit clears the redo list.
+    frame.GetSymbolFromUndoList();
+    frame.SaveCopyInUndoList('Edit Symbol', frame.GetCurSymbol());
+    expect(frame.GetRedoCommandCount()).toBe(0);
+  });
+
+  it('undo and redo with nothing on the list change nothing', () => {
+    const symbol = open();
+    frame.GetSymbolFromUndoList();
+    frame.GetSymbolFromRedoList();
+
+    expect(frame.GetCurSymbol() === symbol).toBe(true);
   });
 
   it('emptyScreen leaves no symbol and no library', () => {
