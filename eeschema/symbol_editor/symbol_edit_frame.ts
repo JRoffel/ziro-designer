@@ -37,6 +37,7 @@ import type { KiDialogRequest } from '@ziroeda/common/kidialog.js';
 import type { KiDialogResult } from '@ziroeda/common/kidialog_do_not_show.js';
 import { wxID_CANCEL } from '@ziroeda/wx/menu.js';
 import { SYMBOL_EDITOR_MOVE_TOOL } from '../tools/symbol_editor_move_tool.js';
+import { LIBRARY_EDITOR_CONTROL } from '@ziroeda/common/tool/library_editor_control.js';
 import { LIB_SYMBOL_LIBRARY_MANAGER } from './lib_symbol_library_manager.js';
 import { wxCopyFile, wxFileExists, wxRemoveFile } from '@ziroeda/wx/filefn.js';
 import { niluuid, type KIID } from '@ziroeda/common/kiid.js';
@@ -661,7 +662,7 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
     this.m_toolManager.RegisterTool(new SCH_FIND_REPLACE_TOOL());
     this.m_toolManager.RegisterTool(new SYMBOL_EDITOR_MOVE_TOOL());
     this.m_toolManager.RegisterTool(new SYMBOL_EDITOR_EDIT_TOOL());
-    // LIBRARY_EDITOR_CONTROL: with the library tree (stage 5).
+    this.m_toolManager.RegisterTool(new LIBRARY_EDITOR_CONTROL());
     this.m_toolManager.RegisterTool(new SYMBOL_EDITOR_CONTROL());
     this.m_toolManager.RegisterTool(new PROPERTIES_TOOL());
     this.m_toolManager.RegisterTool(new EMBED_TOOL());

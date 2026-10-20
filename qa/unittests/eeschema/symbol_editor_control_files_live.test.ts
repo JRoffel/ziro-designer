@@ -10,6 +10,7 @@
 import { GetClipboardUTF8, SaveClipboard } from '@ziroeda/common/clipboard.js';
 import { SetMessageDialogPresenter } from '@ziroeda/common/confirm.js';
 import { LIB_ID } from '@ziroeda/common/lib_id.js';
+import { SetRenameDialogPresenter } from '@ziroeda/common/tool/library_editor_control.js';
 import { ACTIONS } from '@ziroeda/common/tool/actions.js';
 import type { TOOL_ACTION } from '@ziroeda/common/tool/tool_action.js';
 import { TA_NONE, TC_MESSAGE, TOOL_EVENT } from '@ziroeda/common/tool/tool_event.js';
@@ -38,7 +39,27 @@ let infoErrors: string[] = [];
 let newSymbolName = '';
 let dialogs: string[] = [];
 
-function setUp() {
+let kiAnswer: 'ok' | 'cancel' = 'ok';
+let kiAsked: string[] = [];
+let boxes: string[] = [];
+/** What the user types into each RENAME_DIALOG, in order; null cancels. */
+let renames: (string | null)[] = [];
+
+function setUp(aLib = LIB) {
+  kiAnswer = 'ok';
+  kiAsked = [];
+  boxes = [];
+  renames = [];
+  // The window's wxTextEntryDialog: OK re-runs the validator until it accepts, or Cancel.
+  SetRenameDialogPresenter(async (aDialog) => {
+    for (;;) {
+      const typed = renames.shift() ?? null;
+
+      if (typed === null) return false;
+
+      if (await aDialog.TransferDataFromWindow(typed)) return true;
+    }
+  });
   treeLibId = null;
   treeUnit = 0;
   treeSelection = [];
@@ -49,7 +70,11 @@ function setUp() {
   newSymbolName = '';
   dialogs = [];
   SetMessageDialogPresenter(async () => wxID_OK);
-  t = symbolEditHarness(LIB, {
+  t = symbolEditHarness(aLib, {
+    askKiDialog: async (aRequest) => {
+      kiAsked.push(aRequest.message);
+      return kiAnswer;
+    },
     getTreeLibId: (aUnit) => {
       if (aUnit) aUnit.value = treeUnit;
       return treeLibId;
@@ -61,6 +86,8 @@ function setUp() {
     },
     showModal: async (aName, _aItems, aArg) => {
       dialogs.push(aName);
+
+      if (aName === 'wxMessageBox') boxes.push((aArg as { message: string }).message);
 
       if (aName !== 'DIALOG_LIB_NEW_SYMBOL' || newSymbolName === '') return wxID_CANCEL;
 
@@ -77,6 +104,7 @@ function setUp() {
 afterEach(() => {
   t.dispose();
   SetMessageDialogPresenter(async () => wxID_CANCEL);
+  SetRenameDialogPresenter(null);
   SaveClipboard('');
 });
 
@@ -267,5 +295,83 @@ describe('SYMBOL_EDITOR_CONTROL::CutCopyDelete and DuplicateSymbol', () => {
     treeLibId = new LIB_ID('mine', 'U');
     await run(SCH_ACTIONS.duplicateSymbol);
     expect(names()).toEqual(['D', 'U', 'U_1', 'U_2']);
+  });
+});
+
+describe('SYMBOL_EDITOR_CONTROL::RenameSymbol', () => {
+  /** U, D derived from it, and W whose value is not its name. */
+  const RENAME_LIB = `(kicad_symbol_lib (version 20241209) (generator "kicad_symbol_editor")
+  (symbol "U" (in_bom yes) (on_board yes) ${prop('Reference', 'U')} ${prop('Value', 'U')}
+    (symbol "U_1_1" (rectangle (start -5.08 -5.08) (end 5.08 5.08) (stroke (width 0) (type default)) (fill (type none)))))
+  (symbol "D" (extends "U") ${prop('Reference', 'U')} ${prop('Value', 'D')})
+  (symbol "W" (in_bom yes) (on_board yes) ${prop('Reference', 'U')} ${prop('Value', '10k')}))`;
+
+  it('renames the tree selection in its library; a Value that was the name follows it', async () => {
+    setUp(RENAME_LIB);
+    treeLibId = new LIB_ID('mine', 'D');
+    renames = ['  E  '];
+
+    await run(SCH_ACTIONS.renameSymbol);
+
+    expect(names()).toEqual(['E', 'U', 'W']);
+    expect(libMgr().GetBufferedSymbol('E', 'mine')!.IsDerived()).toBe(true);
+    expect(libMgr().GetBufferedSymbol('E', 'mine')!.GetValueField().GetText()).toBe('E');
+    expect(libMgr().IsSymbolModified('E', 'mine')).toBe(true);
+
+    // Escaped as a LIB_ID part; the tree then shows the renamed symbol.
+    const focused: string[] = [];
+    t.frame.FocusOnLibId = (aLibId: LIB_ID) => {
+      focused.push(aLibId.Format());
+    };
+    treeLibId = new LIB_ID('mine', 'W');
+    renames = ['w:2'];
+    await run(SCH_ACTIONS.renameSymbol);
+    expect(libMgr().GetBufferedSymbol('w{colon}2', 'mine')!.GetValueField().GetText()).toBe('10k');
+    expect(focused).toEqual(['mine:w{colon}2']);
+  });
+
+  it('renaming the symbol shown follows it on the canvas', async () => {
+    setUp(RENAME_LIB);
+    await t.frame.LoadSymbol(new LIB_ID('mine', 'W'), 1, 1);
+    treeLibId = new LIB_ID('mine', 'W');
+    renames = ['V'];
+
+    await run(SCH_ACTIONS.renameSymbol);
+
+    expect(t.frame.GetCurSymbol()!.GetName()).toBe('V');
+    expect(names()).toEqual(['D', 'U', 'V']);
+  });
+
+  it('an empty name is refused; a taken one asks to overwrite; the same name changes nothing', async () => {
+    setUp(RENAME_LIB);
+    treeLibId = new LIB_ID('mine', 'W');
+    kiAnswer = 'cancel';
+    renames = ['', 'U', null];
+
+    await run(SCH_ACTIONS.renameSymbol);
+
+    expect(boxes).toEqual(['Symbol must have a name.']);
+    expect(kiAsked).toEqual(["Symbol 'U' already exists in library 'mine'."]);
+    expect(names()).toEqual(['D', 'U', 'W']);
+
+    renames = ['W'];
+    await run(SCH_ACTIONS.renameSymbol);
+    expect(kiAsked).toHaveLength(1);
+    expect(libMgr().IsLibraryModified('mine')).toBe(false);
+  });
+
+  it('overwriting the symbol shown shows the renamed one in its place', async () => {
+    setUp(RENAME_LIB);
+    await t.frame.LoadSymbol(new LIB_ID('mine', 'U'), 1, 1);
+    treeLibId = new LIB_ID('mine', 'W');
+    kiAnswer = 'ok';
+    renames = ['U'];
+
+    await run(SCH_ACTIONS.renameSymbol);
+
+    // The overwritten U goes with the symbols derived from it (LIB_BUFFER::DeleteBuffer).
+    expect(names()).toEqual(['U']);
+    expect(t.frame.GetCurSymbol()!.GetName()).toBe('U');
+    expect(t.frame.GetCurSymbol()!.GetValueField().GetText()).toBe('10k');
   });
 });

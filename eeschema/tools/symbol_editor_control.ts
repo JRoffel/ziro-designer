@@ -6,8 +6,7 @@
  * view toggles, unit stepping, flattening a derived symbol, and the library fields table.
  *
  * Still to come, with the library tree and what they call: Init's tree context menu, DdAddLibrary
- * (a file dropped from the desktop), RenameSymbol (LIBRARY_EDITOR_CONTROL::RenameLibrary),
- * ExportView, ExportSymbolAsSVG,
+ * (a file dropped from the desktop), ExportView, ExportSymbolAsSVG,
  * AddSymbolToSchematic, OpenWithTextEditor and OpenDirectory. PreviousSymbol / NextSymbol are
  * SYMBOL_VIEWER_FRAME's and come with its tools. Their actions are not bound until they are.
  */
@@ -17,7 +16,10 @@ import type { TOOL_EVENT } from '@ziroeda/common/tool/tool_event.js';
 import { SYNC_HANDLER } from '@ziroeda/common/tool/tool_interactive.js';
 import { VIEW_UPDATE_FLAGS } from '@ziroeda/common/view/view_item.js';
 import { DisplayErrorMessage } from '@ziroeda/common/confirm.js';
-import { unescapeString } from '@ziroeda/common/string_utils.js';
+import { ESCAPE_CONTEXT, EscapeString, unescapeString } from '@ziroeda/common/string_utils.js';
+import { LIB_ID } from '@ziroeda/common/lib_id.js';
+import { LIBRARY_EDITOR_CONTROL } from '@ziroeda/common/tool/library_editor_control.js';
+import { LIB_SYMBOL } from '../lib_symbol.js';
 import { wxBell } from '@ziroeda/wx/utils.js';
 import { wxICON_ERROR, wxOK } from '@ziroeda/wx/defs.js';
 import type { SCH_BASE_FRAME } from '../sch_base_frame.js';
@@ -301,6 +303,101 @@ export class SYMBOL_EDITOR_CONTROL extends SCH_TOOL_BASE<SCH_BASE_FRAME> {
     return 0;
   }
 
+  *RenameSymbol(_aEvent: TOOL_EVENT): COROUTINE_BODY<number> {
+    if (!this.m_isSymbolEditor) return 0;
+
+    const editFrame = this.editFrame();
+    const libMgr = editFrame.GetLibManager();
+    const libTool = this.m_toolMgr!.GetTool(LIBRARY_EDITOR_CONTROL);
+
+    const libId = editFrame.GetTreeLIBID();
+    const libName = libId.GetLibNickname();
+    const oldName = libId.GetLibItemName();
+    let newName = '';
+
+    if (!libMgr.LibraryExists(libName)) return 0;
+
+    const renamed = yield* this.RunMainStackModal(() =>
+      libTool!.RenameLibrary('Change Symbol Name', oldName, async (aNewName: string) => {
+        newName = EscapeString(aNewName, ESCAPE_CONTEXT.CTX_LIBID);
+
+        if (newName === '') {
+          await editFrame.wxMessageBox('Symbol must have a name.');
+          return false;
+        }
+
+        // If no change, accept it without prompting
+        if (newName !== oldName && libMgr.SymbolNameInUse(newName, libName)) {
+          const msg = `Symbol '${unescapeString(newName)}' already exists in library '${libName}'.`;
+
+          return (
+            (await editFrame.ShowKiDialog({
+              caption: 'Confirmation',
+              message: msg,
+              icon: 'warning',
+              labels: { ok: 'Overwrite' },
+            })) === 'ok'
+          );
+        }
+
+        return true;
+      }),
+    );
+
+    if (renamed !== true) return 0; // cancelled by user
+
+    if (newName === oldName) return 0;
+
+    let libSymbol = libMgr.GetBufferedSymbol(oldName, libName);
+
+    if (!libSymbol) return 0;
+
+    // Renaming the current symbol
+    const isCurrentSymbol = editFrame.IsCurrentSymbol(libId);
+    let overwritingCurrentSymbol = false;
+
+    if (libMgr.SymbolExists(newName, libName)) {
+      // Overwriting the current symbol also need to update the open symbol
+      const overwrittenSymbol = libMgr.GetBufferedSymbol(newName, libName)!;
+      overwritingCurrentSymbol = editFrame.IsCurrentSymbol(overwrittenSymbol.GetLibId());
+      libMgr.RemoveSymbol(newName, libName);
+    }
+
+    libSymbol.SetName(newName);
+
+    if (libSymbol.GetValueField().GetText() === oldName) libSymbol.GetValueField().SetText(newName);
+
+    libMgr.UpdateSymbolAfterRename(libSymbol, newName, libName);
+    libMgr.SetSymbolModified(newName, libName);
+
+    if (overwritingCurrentSymbol) {
+      // We overwrite the old current symbol with the renamed one, so show
+      // the renamed one now
+      editFrame.SetCurSymbol(LIB_SYMBOL.copyOf(libSymbol), false);
+    } else if (isCurrentSymbol && editFrame.GetCurSymbol()) {
+      // Renamed the current symbol - follow it
+      libSymbol = editFrame.GetCurSymbol()!;
+
+      libSymbol.SetName(newName);
+
+      if (libSymbol.GetValueField().GetText() === oldName)
+        libSymbol.GetValueField().SetText(newName);
+
+      editFrame.RebuildView();
+      editFrame.OnModify();
+      editFrame.UpdateTitle();
+
+      // N.B. The view needs to be rebuilt first as the Symbol Properties change may
+      // invalidate the view pointers by rebuilting the field table
+      editFrame.UpdateMsgPanel();
+    }
+
+    // libMgr.GetAdapter()->FindItem( libId ): the tree is the window's.
+    editFrame.UpdateLibraryTree(libId, libSymbol);
+    editFrame.FocusOnLibId(new LIB_ID(libName, newName));
+    return 0;
+  }
+
   *ExportSymbol(_aEvent: TOOL_EVENT): COROUTINE_BODY<number> {
     if (this.m_frame!.IsType(FRAME_T.FRAME_SCH_SYMBOL_EDITOR))
       yield* this.RunMainStackModal(() => this.editFrame().ExportSymbol());
@@ -401,6 +498,7 @@ export class SYMBOL_EDITOR_CONTROL extends SCH_TOOL_BASE<SCH_BASE_FRAME> {
     this.Go(this.Revert, ACTIONS.revert.MakeEvent());
 
     this.Go(this.DuplicateSymbol, SCH_ACTIONS.duplicateSymbol.MakeEvent());
+    this.Go(this.RenameSymbol, SCH_ACTIONS.renameSymbol.MakeEvent());
     this.Go(this.CutCopyDelete, SCH_ACTIONS.deleteSymbol.MakeEvent());
     this.Go(this.CutCopyDelete, SCH_ACTIONS.cutSymbol.MakeEvent());
     this.Go(this.CutCopyDelete, SCH_ACTIONS.copySymbol.MakeEvent());
