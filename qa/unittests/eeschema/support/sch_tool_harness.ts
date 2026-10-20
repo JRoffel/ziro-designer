@@ -89,6 +89,9 @@ export function schToolHarness(aFrame: SCH_EDIT_FRAME = schFrame()): SCH_HARNESS
       shown.push(aScreen);
       if (aScreen) view.DisplaySheet(aScreen);
     },
+    // SCH_DRAW_PANEL::DisplaySymbol, for the symbol editor's frame.
+    DisplaySymbol: (aSymbol: Parameters<SCH_VIEW['DisplaySymbol']>[0]) =>
+      view.DisplaySymbol(aSymbol),
     SetCurrentCursor: (aCursor: KICURSOR) => {
       h.shape = aCursor;
     },

@@ -7,6 +7,8 @@
  * `designer/src/prefs/settings.ts`, which still owns the store.
  */
 import type { EdaUnits } from '@ziroeda/common/eda_units.js';
+import { APP_SETTINGS_BASE, loadAppSettingsBase } from '@ziroeda/common/settings/app_settings.js';
+import { PgmOrNull } from '@ziroeda/common/pgm_base.js';
 import { defaultUnits } from '@ziroeda/common/settings/app_settings_units.js';
 import {
   DEFAULT_GRID_INDEX,
@@ -280,4 +282,43 @@ export function updateSymbolEditorSettings(mutate: (s: SymbolEditorSettings) => 
 /** The live `symbol_editor.json`. */
 export function currentSymbolEditorSettings(): SymbolEditorSettings {
   return symbolEditorSettingsProvider();
+}
+
+/** `libeditSchemaVersion` (symbol_editor_settings.cpp). */
+const libeditSchemaVersion = 1;
+
+/**
+ * `SYMBOL_EDITOR_SETTINGS` as an APP_SETTINGS_BASE: what `Kiface().KifaceSettings()` hands the
+ * symbol editor's frame, whose base PARAMs (units, the window's grid and cursor) the common tools
+ * read. Its own rows are still read off the JSON slice ({@link currentSymbolEditorSettings}).
+ */
+export class SYMBOL_EDITOR_SETTINGS extends APP_SETTINGS_BASE {
+  constructor() {
+    super('symbol_editor', libeditSchemaVersion);
+  }
+}
+
+/** The one SYMBOL_EDITOR_SETTINGS when no program object exists (the tests, a headless frame). */
+let unregistered: SYMBOL_EDITOR_SETTINGS | null = null;
+
+/**
+ * `GetAppSettings<SYMBOL_EDITOR_SETTINGS>( "symbol_editor" )`: one object for the life of the
+ * program, reloaded in place from the live slice on every ask so a changed preference is seen.
+ */
+export function symbolEditorKifaceSettings(): SYMBOL_EDITOR_SETTINGS {
+  const mgr = PgmOrNull()?.GetSettingsManager() ?? null;
+  let s = mgr?.GetAppSettings<SYMBOL_EDITOR_SETTINGS>('symbol_editor') ?? null;
+
+  if (!(s instanceof SYMBOL_EDITOR_SETTINGS)) {
+    if (mgr) {
+      s = new SYMBOL_EDITOR_SETTINGS();
+      mgr.RegisterSettings('symbol_editor', s);
+    } else {
+      unregistered ??= new SYMBOL_EDITOR_SETTINGS();
+      s = unregistered;
+    }
+  }
+
+  loadAppSettingsBase(s, currentSymbolEditorSettings());
+  return s;
 }
