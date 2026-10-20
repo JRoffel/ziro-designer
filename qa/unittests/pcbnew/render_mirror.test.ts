@@ -28,6 +28,7 @@ import {
   RenderGroupsOf,
 } from '@ziroeda/pcbnew/browser/render_mirror.js';
 import { FormatRenderSyncItems } from '@ziroeda/pcbnew/browser/render_sync.js';
+import { ApplyProjectToBoard } from '@ziroeda/pcbnew/browser/drc_job.js';
 import { ParseBoard } from '@ziroeda/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.js';
 import { ZONE_DISPLAY_MODE } from '@ziroeda/common/project/board_project_settings.js';
 import { PCB_PAINTER } from '@ziroeda/pcbnew/pcb_painter.js';
@@ -65,6 +66,7 @@ let wView: PCB_VIEW;
 let wPainter: PCB_PAINTER;
 let mirror: RENDER_VIEW_MIRROR;
 let batches: RENDER_VIEW_BATCH[];
+let projectText: string | null;
 
 beforeEach(() => {
   h = toolHarness(
@@ -84,14 +86,18 @@ beforeEach(() => {
   for (const item of copy.GetItemSet()) wView.Add(item);
 
   batches = [];
+  projectText = null;
   const painter = h.view.GetPainter() as PCB_PAINTER;
   mirror = new RENDER_VIEW_MIRROR(
     h.board,
     () => painter.GetSettings(),
     (b) => {
       batches.push(b);
-      ApplyRenderViewBatch(copy, wView, wPainter.GetSettings(), b);
+      ApplyRenderViewBatch(copy, wView, wPainter.GetSettings(), b, {
+        projectChanged: (aText) => ApplyProjectToBoard(copy, '', aText),
+      });
     },
+    () => projectText,
   );
   // The window's VIEW has processed its own adds before the worker is attached, as in the editor.
   h.view.UpdateItems();
@@ -212,6 +218,22 @@ describe("the render worker's VIEW follows the window's", () => {
     expect(copy.GetPageSettings().GetSizeMils()).not.toEqual(
       new PAGE_INFO(PAGE_SIZE_TYPE.A4).GetSizeMils(),
     );
+  });
+
+  it('Board Setup: a changed project file reaches the worker’s board, ahead of the repaint', () => {
+    const clearance = (): number =>
+      copy.GetDesignSettings().m_NetSettings.GetDefaultNetclass().GetClearance();
+    const before = clearance();
+
+    projectText = JSON.stringify({
+      net_settings: { classes: [{ name: 'Default', clearance: 0.4321 }] },
+    });
+    h.view.UpdateAllItemsConditionally(VIEW_UPDATE_FLAGS.REPAINT, () => true);
+    settle();
+
+    expect(before).not.toBe(432_100);
+    expect(clearance()).toBe(432_100);
+    expect(batches.at(-1)!.ops[0]!.op).toBe('project');
   });
 
   it('an overlay-only VIEW caches nothing, and a recache sends one call, not one per item', () => {

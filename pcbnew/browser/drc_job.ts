@@ -190,6 +190,35 @@ export class JOB_REPORTER {
  * only way to be sure the worker's board IS the editor's board. A mutant that
  * deletes this line survives, and should.
  */
+/**
+ * SETTINGS_MANAGER::LoadProject + BOARD::SetProject: the project file's board.design_settings and
+ * net_settings become \a aBoard's - at load, and again when the render worker hears the window's
+ * project changed (Board Setup).
+ */
+export function ApplyProjectToBoard(
+  aBoard: BOARD,
+  aBoardPath: string,
+  aProjectText: string | null,
+): void {
+  let pro: JsonValue | null = null;
+
+  if (aProjectText !== null) {
+    try {
+      pro = JSON.parse(aProjectText) as JsonValue;
+    } catch {
+      pro = null;
+    }
+  }
+
+  const manager = new SETTINGS_MANAGER();
+
+  manager.LoadProject(aBoardPath, pro);
+  aBoard.SetProject(manager.Prj());
+
+  aBoard.SynchronizeNetsAndNetClasses(false);
+  aBoard.SynchronizeTuningProfileProperties();
+}
+
 export function loadBoardForDrc(
   aRequest: Pick<
     DRC_JOB_REQUEST,
@@ -203,25 +232,7 @@ export function loadBoardForDrc(
   board.BuildListOfNets();
   board.BuildConnectivity();
 
-  // SETTINGS_MANAGER::LoadProject + BOARD::SetProject: the project file's
-  // board.design_settings and net_settings become the board's.
-  let pro: JsonValue | null = null;
-
-  if (aRequest.projectText !== null) {
-    try {
-      pro = JSON.parse(aRequest.projectText) as JsonValue;
-    } catch {
-      pro = null;
-    }
-  }
-
-  const manager = new SETTINGS_MANAGER();
-
-  manager.LoadProject(aRequest.boardPath, pro);
-  board.SetProject(manager.Prj());
-
-  board.SynchronizeNetsAndNetClasses(false);
-  board.SynchronizeTuningProfileProperties();
+  ApplyProjectToBoard(board, aRequest.boardPath, aRequest.projectText);
 
   // PCB_EDIT_FRAME::OnBoardLoaded's layer enum, which the rule language reads.
   const layerEnum = ENUM_MAP.Instance<PCB_LAYER_ID>('PCB_LAYER_ID');

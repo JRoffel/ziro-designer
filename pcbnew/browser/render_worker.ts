@@ -35,7 +35,8 @@ import type { BOARD } from '../board.js';
 import { PCB_DRAW_PANEL_GAL } from '../pcb_draw_panel_gal.js';
 import type { PCB_PAINTER } from '../pcb_painter.js';
 import { PCBNEW_SETTINGS } from '../pcbnew_settings.js';
-import { type DRC_JOB_REQUEST, loadBoardForDrc } from './drc_job.js';
+import { ApplyProjectToBoard, type DRC_JOB_REQUEST, loadBoardForDrc } from './drc_job.js';
+import { DRC_ENGINE } from '../drc/drc_engine.js';
 import {
   ApplyRenderViewBatch,
   type RENDER_VIEW_BATCH,
@@ -130,6 +131,8 @@ if (g.WorkerGlobalScope !== undefined) {
   // Messages that arrive while the board loads wait for it.
   let pending: RENDER_WORKER_REQUEST[] | null = [];
   let options: GAL_DISPLAY_OPTIONS | null = null;
+  /** What the board was loaded with, for a project reloaded later. */
+  const project = { boardPath: '', rulesText: null as string | null, rulesPath: '' };
   let lastGal = '';
 
   /**
@@ -181,11 +184,23 @@ if (g.WorkerGlobalScope !== undefined) {
     if (msg.t === 'view') applyView(msg.view);
     else if (msg.t === 'batch') {
       const painter = panel.GetView().GetPainter() as PCB_PAINTER;
-      ApplyRenderViewBatch(board, panel.GetView(), painter.GetSettings(), msg.batch, () => {
-        // The sheet reads the board's page and title block, which changed in place.
-        const sheet = panel!.GetDrawingSheet();
+      ApplyRenderViewBatch(board, panel.GetView(), painter.GetSettings(), msg.batch, {
+        sheetChanged: () => {
+          // The sheet reads the board's page and title block, which changed in place.
+          const sheet = panel!.GetDrawingSheet();
 
-        if (sheet) panel!.GetView().Update(sheet);
+          if (sheet) panel!.GetView().Update(sheet);
+        },
+        projectChanged: (aText) => {
+          // As the board was loaded: the project, then the rule engine clearances are read through.
+          ApplyProjectToBoard(board!, project.boardPath, aText);
+
+          const engine = new DRC_ENGINE(board!, board!.GetDesignSettings());
+
+          board!.GetDesignSettings().m_DRCEngine = engine;
+          engine.InitEngine(project.rulesText, project.rulesPath);
+          board!.InitializeClearanceCache();
+        },
       });
     }
 
@@ -217,6 +232,9 @@ if (g.WorkerGlobalScope !== undefined) {
     pcbnew.m_ColorTheme = msg.colorTheme.name;
 
     board = loadBoardForDrc(msg);
+    project.boardPath = msg.boardPath;
+    project.rulesText = msg.rulesText;
+    project.rulesPath = msg.rulesPath;
 
     size.w = msg.view.width;
     size.h = msg.view.height;

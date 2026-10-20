@@ -53,6 +53,8 @@ export type RENDER_VIEW_OP =
   | { op: 'outline' }
   /** The page and title block changed (Page Settings): FormatRenderSyncSheet's text. */
   | { op: 'sheet'; text: string }
+  /** The project file changed (Board Setup: net classes, design settings): its text. */
+  | { op: 'project'; text: string | null }
   /**
    * A selection group the worker draws: its layer, its items (none: the window draws it), and
    * whether it is a PCB_SELECTION, which draws a footprint's children with it.
@@ -165,6 +167,9 @@ export class RENDER_VIEW_MIRROR implements VIEW_MIRROR {
   private m_nextGroup = 1;
   /** The page and title block the worker has, as FormatRenderSyncSheet writes them. */
   private m_sheet: string;
+  /** The project file's text, as the window has it now, and as the worker last had it. */
+  private readonly m_projectText: () => string | null;
+  private m_project: string | null;
 
   /**
    * \a aBoard's items are the worker's already (it parsed the same board); \a aSettings answers
@@ -174,11 +179,14 @@ export class RENDER_VIEW_MIRROR implements VIEW_MIRROR {
     aBoard: BOARD,
     aSettings: () => PCB_RENDER_SETTINGS,
     aPost: (aBatch: RENDER_VIEW_BATCH) => void,
+    aProjectText: () => string | null = () => null,
   ) {
     this.m_board = aBoard;
     this.m_settings = aSettings;
     this.m_post = aPost;
     this.m_sheet = FormatRenderSyncSheet(aBoard);
+    this.m_projectText = aProjectText;
+    this.m_project = aProjectText();
 
     for (const item of aBoard.GetItemSet()) {
       if (isOverlayItem(item)) continue;
@@ -370,6 +378,14 @@ export class RENDER_VIEW_MIRROR implements VIEW_MIRROR {
       this.m_ops.unshift({ op: 'sheet', text: sheet });
     }
 
+    // Board Setup writes the project file; net classes and clearances are drawn from it.
+    const project = this.m_projectText();
+
+    if (project !== this.m_project) {
+      this.m_project = project;
+      this.m_ops.unshift({ op: 'project', text: project });
+    }
+
     this.m_scheduled = false;
 
     if (this.m_upsert.size === 0 && this.m_remove.size === 0 && this.m_ops.length === 0) return;
@@ -471,12 +487,20 @@ function fillRenderGroup(aBoard: BOARD, aView: VIEW, aGroup: RENDER_GROUP): void
 }
 
 /** The worker's side: apply a batch to its board, its VIEW and its painter's settings. */
+/** What a batch asks of the worker beyond its board and VIEW. */
+export interface RENDER_VIEW_HOOKS {
+  /** The board's page and title block changed in place: the drawing sheet follows. */
+  sheetChanged?(): void;
+  /** The project file changed: take it into the board (ApplyProjectToBoard). */
+  projectChanged?(aText: string | null): void;
+}
+
 export function ApplyRenderViewBatch(
   aBoard: BOARD,
   aView: VIEW,
   aSettings: PCB_RENDER_SETTINGS,
   aBatch: RENDER_VIEW_BATCH,
-  aSheetChanged?: () => void,
+  aHooks: RENDER_VIEW_HOOKS = {},
 ): void {
   ApplyRenderSync(aBoard, aView, { upsert: aBatch.upsert, remove: aBatch.remove });
 
@@ -525,7 +549,10 @@ export function ApplyRenderViewBatch(
         break;
       case 'sheet':
         ApplyRenderSyncSheet(aBoard, op.text);
-        aSheetChanged?.();
+        aHooks.sheetChanged?.();
+        break;
+      case 'project':
+        aHooks.projectChanged?.(op.text);
         break;
       case 'outline': {
         const outline = aBoard.BoardOutline();

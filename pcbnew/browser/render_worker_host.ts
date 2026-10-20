@@ -145,6 +145,7 @@ export class RENDER_WORKER_HOST {
       aBoard,
       () => painter.GetSettings(),
       (batch) => worker.postMessage({ t: 'batch', batch } satisfies RENDER_WORKER_REQUEST),
+      () => (this.m_frame as PCB_BASE_FRAME & PROJECT_TEXTS).GetProjectText?.() ?? null,
     );
 
     view.SetRemoteView(mirror);
