@@ -58,7 +58,24 @@ describe('the GAL canvas is an opaque window', () => {
       new URL('../../../common/gal/opengl/antialiasing.ts', import.meta.url),
       'utf8',
     );
-    expect(aa.match(/gl\.colorMask\(true, true, true, false\)/g)?.length).toBe(2);
+    // ANTIALIASING_NONE masks it always; the supersampler masks it unless the screen is the
+    // render worker's transparent overlay (OPENGL_COMPOSITOR::m_transparentScreen), whose alpha
+    // is what lets the board drawn under it show through.
+    expect(aa.match(/gl\.colorMask\(true, true, true, false\)/g)?.length).toBe(1);
+    expect(
+      aa.match(/gl\.colorMask\(true, true, true, this\.compositor\.m_transparentScreen\)/g)?.length,
+    ).toBe(1);
+    expect(aa).not.toMatch(
+      /gl\.colorMask\(true, true, true, (?!false|true\)|this\.compositor\.m_transparentScreen)/,
+    );
+  });
+
+  it('a screen is opaque unless it is made the transparent overlay', () => {
+    const compositor = readFileSync(
+      new URL('../../../common/gal/opengl/opengl_compositor.ts', import.meta.url),
+      'utf8',
+    );
+    expect(compositor).toMatch(/^\s*m_transparentScreen = false;/m);
   });
 });
 
