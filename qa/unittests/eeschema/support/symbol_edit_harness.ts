@@ -13,7 +13,10 @@ import { PGM_BASE, Pgm, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_bas
 import { LIB_SYMBOL } from '@ziroeda/eeschema/lib_symbol.js';
 import { SymbolLibAdapter } from '@ziroeda/eeschema/project_sch.js';
 import type { SCH_EDIT_FRAME } from '@ziroeda/eeschema/sch_edit_frame.js';
-import { SYMBOL_EDIT_FRAME } from '@ziroeda/eeschema/symbol_editor/symbol_edit_frame.js';
+import {
+  SYMBOL_EDIT_FRAME,
+  type SYMBOL_EDIT_FRAME_HOOKS,
+} from '@ziroeda/eeschema/symbol_editor/symbol_edit_frame.js';
 import { MEMORY_FILESYSTEM, wxMountFileSystem } from '@ziroeda/wx/filefn.js';
 import { type SCH_HARNESS, schToolHarness } from './sch_tool_harness.js';
 
@@ -45,7 +48,10 @@ export interface SYMBOL_EDIT_HARNESS {
 }
 
 /** Make the program, the library and the frame; call dispose() in afterEach. */
-export function symbolEditHarness(aLibText = LIB_TEXT): SYMBOL_EDIT_HARNESS {
+export function symbolEditHarness(
+  aLibText = LIB_TEXT,
+  aHooks: Partial<SYMBOL_EDIT_FRAME_HOOKS> = {},
+): SYMBOL_EDIT_HARNESS {
   SetPgm(new PGM_BASE(null, new SETTINGS_MANAGER()));
   const fs = new MEMORY_FILESYSTEM();
   const unmount = wxMountFileSystem('/libs', fs);
@@ -64,7 +70,7 @@ export function symbolEditHarness(aLibText = LIB_TEXT): SYMBOL_EDIT_HARNESS {
     );
   SymbolLibAdapter(null).LoadOne('mine');
 
-  const frame = new SYMBOL_EDIT_FRAME({ libEdit: () => {} });
+  const frame = new SYMBOL_EDIT_FRAME({ libEdit: () => {}, ...aHooks });
   const harness = schToolHarness(frame as unknown as SCH_EDIT_FRAME);
 
   return {

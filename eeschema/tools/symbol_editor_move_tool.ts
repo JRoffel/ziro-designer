@@ -39,6 +39,7 @@ import type { SYMBOL_EDIT_FRAME } from '../symbol_editor/symbol_edit_frame.js';
 import { EE_GRID_HELPER } from './ee_grid_helper.js';
 import { SCH_ACTIONS } from './sch_actions.js';
 import { SCH_TOOL_BASE } from './sch_tool_base.js';
+import { SYMBOL_EDITOR_PIN_TOOL } from './symbol_editor_pin_tool.js';
 
 enum AXIS_LOCK {
   NONE,
@@ -391,9 +392,20 @@ export class SYMBOL_EDITOR_MOVE_TOOL extends SCH_TOOL_BASE<SYMBOL_EDIT_FRAME> {
       // Handle drop
       //
       else if (evt.IsMouseUp(BUT_LEFT) || evt.IsClick(BUT_LEFT) || evt.IsDblClick(BUT_LEFT)) {
-        // A lone pin is dropped through SYMBOL_EDITOR_PIN_TOOL::PlacePin, which checks it
-        // against the pins already there; that tool is the next stage of the port, and until it
-        // is registered the pin is placed as it was moved.
+        if (selection.GetSize() === 1 && selection.Front()!.Type() === KICAD_T.SCH_PIN_T) {
+          const pinTool = this.m_toolMgr!.GetTool(SYMBOL_EDITOR_PIN_TOOL)!;
+          const curr_pin = selection.Front() as SCH_PIN;
+
+          if (yield* pinTool.PlacePin(aCommit, curr_pin, this)) {
+            // PlacePin() clears the current selection, which we don't want.  Not only
+            // is it a poor user experience, but it also prevents us from doing the
+            // proper cleanup at the end of this routine (ie: clearing the edit flags).
+            this.m_selectionTool!.AddItemToSel(curr_pin, true /*quiet mode*/);
+          } else {
+            restore_state = true;
+          }
+        }
+
         break; // Finish
       } else {
         evt.SetPassEvent();

@@ -29,6 +29,11 @@ import { SCH_INSPECTION_TOOL } from '../tools/sch_inspection_tool.js';
 import { SCH_POINT_EDITOR } from '../tools/sch_point_editor.js';
 import { SCH_SELECTION_TOOL } from '../tools/sch_selection_tool.js';
 import { SYMBOL_EDITOR_EDIT_TOOL } from '../tools/symbol_editor_edit_tool.js';
+import { SYMBOL_EDITOR_PIN_TOOL } from '../tools/symbol_editor_pin_tool.js';
+import type { EDA_ITEM } from '@ziroeda/common/eda_item.js';
+import type { KiDialogRequest } from '@ziroeda/common/kidialog.js';
+import type { KiDialogResult } from '@ziroeda/common/kidialog_do_not_show.js';
+import { wxID_CANCEL } from '@ziroeda/wx/menu.js';
 import { SYMBOL_EDITOR_MOVE_TOOL } from '../tools/symbol_editor_move_tool.js';
 import { LIB_SYMBOL_LIBRARY_MANAGER } from './lib_symbol_library_manager.js';
 import { SYMBOL_EDITOR_UNDO_REDO_MIXIN } from './symbol_editor_undo_redo.js';
@@ -72,6 +77,10 @@ export interface SYMBOL_EDIT_FRAME_HOOKS {
   rebuildSymbolUnitAndBodyStyleLists?(): void;
   /** `UpdateTitle()`. */
   updateTitle?(): void;
+  /** The window's dialogs by class name (DIALOG_PIN_PROPERTIES, ...): wxID_OK / wxID_CANCEL. */
+  showModal?(aDialog: string, aItems: readonly EDA_ITEM[], aArg?: unknown): Promise<number>;
+  /** `KIDIALOG( frame, ... ).ShowModal()`. */
+  askKiDialog?(aRequest: KiDialogRequest): Promise<KiDialogResult>;
 }
 
 // biome-ignore lint/suspicious/noUnsafeDeclarationMerging: TS multiple inheritance (see libs/core/mixins.ts)
@@ -125,6 +134,20 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
     );
   }
 
+  /** The window's half of the dialogs the symbol editor opens; with no window, cancelled. */
+  override ShowModalDialog(
+    aDialog: string,
+    aItems: readonly EDA_ITEM[],
+    aArg?: unknown,
+  ): Promise<number> {
+    return this.hooks.showModal?.(aDialog, aItems, aArg) ?? Promise.resolve(wxID_CANCEL);
+  }
+
+  /** `KIDIALOG( this, ... ).ShowModal()`; with no window, cancelled. */
+  ShowKiDialog(aRequest: KiDialogRequest): Promise<KiDialogResult> {
+    return this.hooks.askKiDialog?.(aRequest) ?? Promise.resolve('cancel');
+  }
+
   /** `GetLibManager()`. */
   GetLibManager(): LIB_SYMBOL_LIBRARY_MANAGER {
     return this.m_libMgr;
@@ -159,7 +182,8 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
     this.m_toolManager.RegisterTool(new SCH_SELECTION_TOOL());
     this.m_toolManager.RegisterTool(new PICKER_TOOL());
     this.m_toolManager.RegisterTool(new SCH_INSPECTION_TOOL());
-    // SYMBOL_EDITOR_PIN_TOOL and SYMBOL_EDITOR_DRAWING_TOOLS: stage 3.
+    this.m_toolManager.RegisterTool(new SYMBOL_EDITOR_PIN_TOOL());
+    // SYMBOL_EDITOR_DRAWING_TOOLS: stage 3.
     this.m_toolManager.RegisterTool(new SCH_POINT_EDITOR());
     this.m_toolManager.RegisterTool(new SCH_FIND_REPLACE_TOOL());
     this.m_toolManager.RegisterTool(new SYMBOL_EDITOR_MOVE_TOOL());
