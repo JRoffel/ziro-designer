@@ -14,8 +14,7 @@
  * the SVG and PNG copies (plotSymbolToSvg, renderSymbolToImageWithAlpha) need SCH_ITEM::Plot and
  * the print GAL on the live model, as SCH_EDITOR_CONTROL's Copy notes.
  *
- * Still to come: ConvertStackedPins, ExplodeStackedPin and UpdateSymbolFields - their menu
- * entries are added with them, so no entry runs nothing.
+ * Stacked pins (ConvertStackedPins, ExplodeStackedPin) and Update Symbol Fields.
  */
 import type { EDA_ITEM } from '@ziroeda/common/eda_item.js';
 import { RECURSE_MODE } from '@ziroeda/common/eda_item.js';
@@ -55,7 +54,8 @@ import { LexicographicalCompare } from '@ziroeda/kimath/src/math/vector2.js';
 import type { SCH_SHAPE } from '../sch_shape.js';
 import type { SCH_FIELD } from '../sch_field.js';
 import type { SCH_ITEM } from '../sch_item.js';
-import type { SCH_PIN } from '../sch_pin.js';
+import { SCH_PIN } from '../sch_pin.js';
+import { ELECTRICAL_PINTYPE } from '@ziroeda/common/pin_type.js';
 import type { SYMBOL_EDIT_FRAME } from '../symbol_editor/symbol_edit_frame.js';
 import { SCH_ACTIONS } from './sch_actions.js';
 import { SCH_CONDITIONS, SCH_SELECTION_TOOL } from './sch_selection_tool.js';
@@ -76,6 +76,19 @@ const nonFields: readonly KICAD_T[] = [
 
 /** `wxString::IsNumber()`: an optional sign, then digits and nothing else. [data] wx's own rule. */
 const isNumber = (aText: string): boolean => /^[+-]?\d+$/.test(aText);
+
+/**
+ * `wxString::ToLong( &value )`: strtol over the whole string, base 10 - leading whitespace and a
+ * sign allowed, nothing after the digits. Null where wx answers false. [data] wx's own rule.
+ */
+const toLong = (aText: string): number | null =>
+  /^\s*[+-]?\d+$/.test(aText) ? Number.parseInt(aText, 10) : null;
+
+/** `wxIsdigit`. */
+const isDigit = (aChar: string): boolean => aChar >= '0' && aChar <= '9';
+
+/** `wxString::operator<`: code-unit order. */
+const lessThan = (a: string, b: string): boolean => a < b;
 
 export class SYMBOL_EDITOR_EDIT_TOOL extends SCH_TOOL_BASE<SYMBOL_EDIT_FRAME> {
   static readonly SwappableItems: readonly KICAD_T[] = [
@@ -124,6 +137,59 @@ export class SYMBOL_EDITOR_EDIT_TOOL extends SCH_TOOL_BASE<SYMBOL_EDIT_FRAME> {
       KICAD_T.SCH_TABLECELL_T,
     ]);
 
+    const canConvertStackedPins: SELECTION_CONDITION = (sel) => {
+      // If multiple pins are selected, check they are all at same location
+      if (sel.Size() >= 2) {
+        const pins: SCH_PIN[] = [];
+
+        for (const item of sel) {
+          if (item.Type() !== KICAD_T.SCH_PIN_T) return false;
+          pins.push(item as SCH_PIN);
+        }
+
+        // Check that all pins are at the same location
+        const pos = pins[0]!.GetPosition();
+
+        for (let i = 1; i < pins.length; ++i) {
+          if (!veq(pins[i]!.GetPosition(), pos)) return false;
+        }
+
+        return true;
+      }
+
+      // If single pin is selected, check if there are other pins at same location
+      if (sel.Size() === 1 && sel.Front()!.Type() === KICAD_T.SCH_PIN_T) {
+        const selectedPin = sel.Front() as SCH_PIN;
+        const pos = selectedPin.GetPosition();
+
+        // Get the symbol and check for other pins at same location
+        const symbol = this.m_frame!.GetCurSymbol();
+
+        if (!symbol) return false;
+
+        let coLocatedCount = 0;
+
+        for (const pin of symbol.GetPins()) {
+          if (veq(pin.GetPosition(), pos)) {
+            coLocatedCount++;
+
+            if (coLocatedCount >= 2) return true;
+          }
+        }
+      }
+
+      return false;
+    };
+
+    const canExplodeStackedPin: SELECTION_CONDITION = (sel) => {
+      if (sel.Size() !== 1 || sel.Front()!.Type() !== KICAD_T.SCH_PIN_T) return false;
+
+      const pin = sel.Front() as SCH_PIN;
+      const isValid = { value: false };
+      const stackedNumbers = pin.GetStackedPinNumbers(isValid);
+      return isValid.value && stackedNumbers.length > 1;
+    };
+
     const swapSelectionCondition = And(
       And(canEdit, S_C.OnlyTypes(SYMBOL_EDITOR_EDIT_TOOL.SwappableItems)),
       SELECTION_CONDITIONS.MoreThan(1),
@@ -164,6 +230,10 @@ export class SYMBOL_EDITOR_EDIT_TOOL extends SCH_TOOL_BASE<SYMBOL_EDIT_FRAME> {
 
     selToolMenu.AddItem(SCH_ACTIONS.swap, swapSelectionCondition, 200);
     selToolMenu.AddItem(SCH_ACTIONS.properties, And(canEdit, S_C.Count(1)), 200);
+
+    selToolMenu.AddSeparator(250);
+    selToolMenu.AddItem(SCH_ACTIONS.convertStackedPins, And(canEdit, canConvertStackedPins), 250);
+    selToolMenu.AddItem(SCH_ACTIONS.explodeStackedPin, And(canEdit, canExplodeStackedPin), 250);
 
     selToolMenu.AddSeparator(300);
     selToolMenu.AddItem(ACTIONS.cut, S_C.IdleSelection, 300);
@@ -688,6 +758,306 @@ export class SYMBOL_EDITOR_EDIT_TOOL extends SCH_TOOL_BASE<SYMBOL_EDIT_FRAME> {
     return 0;
   }
 
+  ConvertStackedPins(_aEvent: TOOL_EVENT): number {
+    const frame = this.m_frame!;
+    const commit = new SCH_COMMIT(frame);
+    const symbol = frame.GetCurSymbol();
+
+    if (!symbol) return 0;
+
+    const selTool = this.m_toolMgr!.GetTool(SCH_SELECTION_TOOL);
+
+    if (!selTool) return -1; // wxCHECK
+
+    const selection = selTool.GetSelection();
+
+    // Collect pins to convert - accept pins with any number format
+    const pinsToConvert: SCH_PIN[] = [];
+
+    if (selection.Size() === 1 && selection.Front()!.Type() === KICAD_T.SCH_PIN_T) {
+      // Single pin selected - find all pins at the same location
+      const selectedPin = selection.Front() as SCH_PIN;
+      const pos = selectedPin.GetPosition();
+
+      for (const pin of symbol.GetPins()) {
+        if (veq(pin.GetPosition(), pos)) pinsToConvert.push(pin);
+      }
+    } else {
+      // Multiple pins selected - use them directly, accepting any pin numbers
+      for (const item of selection) {
+        if (item.Type() === KICAD_T.SCH_PIN_T) pinsToConvert.push(item as SCH_PIN);
+      }
+    }
+
+    if (pinsToConvert.length < 2) {
+      frame.ShowInfoBarError('At least two pins are needed to convert to stacked pins');
+      return 0;
+    }
+
+    // Check that all pins are at the same location
+    const pos = pinsToConvert[0]!.GetPosition();
+
+    for (let i = 1; i < pinsToConvert.length; ++i) {
+      if (!veq(pinsToConvert[i]!.GetPosition(), pos)) {
+        frame.ShowInfoBarError('All pins must be at the same location');
+        return 0;
+      }
+    }
+
+    commit.Modify(symbol, frame.GetScreen());
+
+    // Clear selection before modifying pins, like the Delete command does
+    this.m_toolMgr!.RunAction(ACTIONS.selectionClear);
+
+    // Sort pins for consistent ordering - handle arbitrary pin number formats
+    const pinLess = (a: SCH_PIN, b: SCH_PIN): boolean => {
+      const numA = a.GetNumber();
+      const numB = b.GetNumber();
+
+      // Try to convert to integers for proper numeric sorting
+      const longA = toLong(numA);
+      const longB = toLong(numB);
+
+      // Both are purely numeric - sort numerically
+      if (longA !== null && longB !== null) return longA < longB;
+
+      // Mixed numeric/non-numeric - numeric pins come first
+      if (longA !== null && longB === null) return true;
+      if (longA === null && longB !== null) return false;
+
+      // Both non-numeric or mixed alphanumeric - use lexicographic sorting
+      return lessThan(numA, numB);
+    };
+    pinsToConvert.sort((a, b) => (pinLess(a, b) ? -1 : pinLess(b, a) ? 1 : 0));
+
+    // Build the stacked notation string with range collapsing
+    let stackedNotation = '[';
+
+    // Helper function to collapse consecutive numbers into ranges - handles arbitrary pin formats
+    const collapseRanges = (): string => {
+      if (pinsToConvert.length === 0) return '';
+
+      let result = '';
+
+      // Group pins by their alphanumeric prefix for range collapsing (a std::map: walked in
+      // key order)
+      const prefixGroups = new Map<string, number[]>();
+      const nonNumericPins: string[] = [];
+
+      // Parse each pin number to separate prefix from numeric suffix
+      for (const pin of pinsToConvert) {
+        const pinNumber = pin.GetNumber();
+
+        // Skip empty pin numbers (shouldn't happen, but be defensive)
+        if (pinNumber === '') {
+          nonNumericPins.push('(empty)');
+          continue;
+        }
+
+        // Find where numeric part starts (scan from end)
+        let numStart = pinNumber.length;
+
+        for (let i = pinNumber.length - 1; i >= 0; i--) {
+          if (!isDigit(pinNumber[i]!)) {
+            numStart = i + 1;
+            break;
+          }
+
+          if (i === 0) numStart = 0; // All digits
+        }
+
+        if (numStart < pinNumber.length) {
+          // Has numeric suffix
+          const prefix = pinNumber.slice(0, numStart);
+          const numericPart = pinNumber.slice(numStart);
+          const numValue = toLong(numericPart);
+
+          if (numValue !== null && numValue >= 0) {
+            // Valid non-negative number
+            const group = prefixGroups.get(prefix) ?? [];
+            group.push(numValue);
+            prefixGroups.set(prefix, group);
+          } else {
+            // Numeric part couldn't be parsed or is negative - treat as non-numeric
+            nonNumericPins.push(pinNumber);
+          }
+        } else {
+          // No numeric suffix - consolidate as individual value
+          nonNumericPins.push(pinNumber);
+        }
+      }
+
+      // Process each prefix group
+      const prefixes = [...prefixGroups.keys()].sort((a, b) =>
+        lessThan(a, b) ? -1 : lessThan(b, a) ? 1 : 0,
+      );
+
+      for (const prefix of prefixes) {
+        const numbers = prefixGroups.get(prefix)!;
+
+        if (result !== '') result += ',';
+
+        // Sort numeric values for this prefix
+        numbers.sort((a, b) => a - b);
+
+        // Collapse consecutive ranges within this prefix
+        let i = 0;
+
+        while (i < numbers.length) {
+          if (i > 0) result += ','; // Not first number in this prefix group
+
+          const start = numbers[i]!;
+          let end = start;
+
+          // Find the end of consecutive sequence
+          while (i + 1 < numbers.length && numbers[i + 1] === numbers[i]! + 1) {
+            i++;
+            end = numbers[i]!;
+          }
+
+          // Add range or single number with prefix
+          if (end > start + 1)
+            result += `${prefix}${start}-${prefix}${end}`; // Range of 3+ numbers
+          else if (end === start + 1)
+            result += `${prefix}${start},${prefix}${end}`; // Two consecutive
+          else result += `${prefix}${start}`; // Single number
+
+          i++;
+        }
+      }
+
+      // Add non-numeric pin numbers as individual comma-separated values
+      for (const nonNum of nonNumericPins) {
+        if (result !== '') result += ',';
+        result += nonNum;
+      }
+
+      return result;
+    };
+
+    stackedNotation += collapseRanges();
+    stackedNotation += ']';
+
+    // Keep the first pin and give it the stacked notation
+    const masterPin = pinsToConvert[0]!;
+    masterPin.SetNumber(stackedNotation);
+
+    // Remove all other pins from the symbol that were consolidated into the stacked notation
+    // Collect pins to remove first, then remove them all at once like the Delete command
+    const pinsToRemove = pinsToConvert.slice(1);
+
+    // Remove all pins at once, like the Delete command does
+    for (const pin of pinsToRemove) symbol.RemoveDrawItem(pin);
+
+    commit.Push(`Convert ${pinsToConvert.length} Stacked Pins to '${stackedNotation}'`);
+    frame.RebuildView();
+    return 0;
+  }
+
+  ExplodeStackedPin(_aEvent: TOOL_EVENT): number {
+    const frame = this.m_frame!;
+    const commit = new SCH_COMMIT(frame);
+    const symbol = frame.GetCurSymbol();
+
+    if (!symbol) return 0;
+
+    const selTool = this.m_toolMgr!.GetTool(SCH_SELECTION_TOOL);
+
+    if (!selTool) return -1; // wxCHECK
+
+    const selection = selTool.GetSelection();
+
+    if (selection.GetSize() !== 1 || selection.Front()!.Type() !== KICAD_T.SCH_PIN_T) {
+      frame.ShowInfoBarError('Select a single pin with stacked notation to explode');
+      return 0;
+    }
+
+    const pin = selection.Front() as SCH_PIN;
+
+    // Check if the pin has stacked notation
+    const isValid = { value: false };
+    const stackedNumbers = pin.GetStackedPinNumbers(isValid);
+
+    if (!isValid.value || stackedNumbers.length <= 1) {
+      frame.ShowInfoBarError('Selected pin does not have valid stacked notation');
+      return 0;
+    }
+
+    commit.Modify(symbol, frame.GetScreen());
+
+    // Clear selection before modifying pins
+    this.m_toolMgr!.RunAction(ACTIONS.selectionClear);
+
+    // Sort the stacked numbers to find the smallest one
+    const numberLess = (a: string, b: string): boolean => {
+      // Try to convert to integers for proper numeric sorting
+      const numA = toLong(a);
+      const numB = toLong(b);
+
+      if (numA !== null && numB !== null) return numA < numB;
+
+      // Fall back to string comparison if not numeric
+      return lessThan(a, b);
+    };
+    stackedNumbers.sort((a, b) => (numberLess(a, b) ? -1 : numberLess(b, a) ? 1 : 0));
+
+    // Change the original pin to use the first (smallest) number and make it visible
+    pin.SetNumber(stackedNumbers[0]!);
+    pin.SetVisible(true);
+
+    // Create additional pins for the remaining numbers and make them invisible
+    for (let i = 1; i < stackedNumbers.length; ++i) {
+      const newPin = new SCH_PIN(symbol);
+
+      // Copy all properties from the original pin
+      newPin.SetPosition(pin.GetPosition());
+      newPin.SetOrientation(pin.GetOrientation());
+      newPin.SetShape(pin.GetShape());
+      newPin.SetLength(pin.GetLength());
+
+      // Hidden power input pins act as global labels, so demote them to passive
+      if (pin.GetType() === ELECTRICAL_PINTYPE.PT_POWER_IN)
+        newPin.SetType(ELECTRICAL_PINTYPE.PT_PASSIVE);
+      else newPin.SetType(pin.GetType());
+
+      newPin.SetName(pin.GetName());
+      newPin.SetNumber(stackedNumbers[i]!);
+      newPin.SetNameTextSize(pin.GetNameTextSize());
+      newPin.SetNumberTextSize(pin.GetNumberTextSize());
+      newPin.SetUnit(pin.GetUnit());
+      newPin.SetBodyStyle(pin.GetBodyStyle());
+      newPin.SetVisible(false);
+
+      // Add the new pin to the symbol
+      symbol.AddDrawItem(newPin);
+    }
+
+    commit.Push('Explode Stacked Pin');
+    frame.RebuildView();
+    return 0;
+  }
+
+  *UpdateSymbolFields(_aEvent: TOOL_EVENT): COROUTINE_BODY<number> {
+    const frame = this.m_frame!;
+    const symbol = frame.GetCurSymbol();
+
+    if (!symbol) return 0;
+
+    if (!symbol.CanUpdateFieldsFromParent()) {
+      frame.ShowInfoBarError('Symbol is not derived from another symbol.');
+    } else {
+      // DIALOG_UPDATE_SYMBOL_FIELDS dlg( m_frame, symbol ): the window's.
+      if (
+        (yield* this.RunMainStackModal(() =>
+          frame.ShowModalDialog('DIALOG_UPDATE_SYMBOL_FIELDS', [symbol]),
+        )) === wxID_CANCEL
+      )
+        return -1;
+    }
+
+    return 0;
+  }
+
   Cut(aEvent: TOOL_EVENT): number {
     let retVal = this.Copy(aEvent);
 
@@ -926,5 +1296,8 @@ export class SYMBOL_EDITOR_EDIT_TOOL extends SCH_TOOL_BASE<SYMBOL_EDIT_FRAME> {
     this.Go(this.Properties, SCH_ACTIONS.properties.MakeEvent());
     this.Go(this.Properties, SCH_ACTIONS.symbolProperties.MakeEvent());
     this.Go(this.PinTable, SCH_ACTIONS.pinTable.MakeEvent());
+    this.Go(SYNC_HANDLER(this.ConvertStackedPins), SCH_ACTIONS.convertStackedPins.MakeEvent());
+    this.Go(SYNC_HANDLER(this.ExplodeStackedPin), SCH_ACTIONS.explodeStackedPin.MakeEvent());
+    this.Go(this.UpdateSymbolFields, SCH_ACTIONS.updateSymbolFields.MakeEvent());
   }
 }
