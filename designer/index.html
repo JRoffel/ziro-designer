@@ -17,9 +17,11 @@
          re-fetched. -->
     <meta http-equiv="Cache-Control" content="no-cache, must-revalidate" />
     <!-- The tab icon. SVG so it stays sharp at every density the browser asks
-         for; `href` is relative so a GitHub Pages deploy under a repo subpath
-         (VITE_BASE) finds it without the base being spliced in here. -->
-    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+         for. Root-absolute, not `./`: on a deep route (/gh/..., /p/..., /demo/...)
+         a relative href resolves under that path and gets the SPA's HTML back,
+         so the tab shows no icon. Vite prefixes the base (VITE_BASE) at build
+         time, so a deploy under a repo subpath still finds it. -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>ZiroEDA — Browser-native PCB design</title>
     <style>
       html, body, #root { height: 100%; margin: 0; }
