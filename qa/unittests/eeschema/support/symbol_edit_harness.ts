@@ -41,6 +41,8 @@ export const LIB_TEXT = `(kicad_symbol_lib (version 20241209) (generator "kicad_
 
 export interface SYMBOL_EDIT_HARNESS {
   frame: SYMBOL_EDIT_FRAME;
+  /** The in-memory filesystem mounted at /libs, holding mine.kicad_sym and sym-lib-table. */
+  fs: MEMORY_FILESYSTEM;
   harness: SCH_HARNESS;
   /** Open \a aName of "mine" as LoadSymbolFromCurrentLib does: a copy of the buffered one. */
   open(aName?: string): LIB_SYMBOL;
@@ -75,6 +77,7 @@ export function symbolEditHarness(
 
   return {
     frame,
+    fs,
     harness,
     open(aName = 'U') {
       frame.SetCurLib('mine');

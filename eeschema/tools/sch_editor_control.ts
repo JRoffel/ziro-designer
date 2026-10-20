@@ -2183,7 +2183,7 @@ export class SCH_EDITOR_CONTROL extends SCH_TOOL_BASE<SCH_EDIT_FRAME> {
       if (aEvent.IsAction(SCH_ACTIONS.editWithLibEdit)) {
         symbolEditor.LoadSymbolFromSchematic(symbol);
       } else if (aEvent.IsAction(SCH_ACTIONS.editLibSymbolWithLibEdit)) {
-        symbolEditor.LoadSymbol(symbol.GetLibId(), symbol.GetUnit(), symbol.GetBodyStyle());
+        void symbolEditor.LoadSymbol(symbol.GetLibId(), symbol.GetUnit(), symbol.GetBodyStyle());
 
         if (!symbolEditor.IsLibraryTreeShown()) symbolEditor.ToggleLibraryTree();
       }

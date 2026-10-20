@@ -398,13 +398,15 @@ describe('SCH_EDITOR_CONTROL', () => {
     const symEditor = new SYMBOL_EDIT_FRAME({
       libEdit: () => {},
       loadSymbolFromSchematic: (aSymbol) => calls.push(['fromSchematic', aSymbol]),
-      loadSymbol: (aLibId, aUnit, aBodyStyle) => {
-        calls.push(['library', aLibId.Format(), aUnit, aBodyStyle]);
-        return true;
-      },
       isLibraryTreeShown: () => false,
       toggleLibraryTree: () => calls.push(['toggleTree']),
     });
+    // SYMBOL_EDIT_FRAME::LoadSymbol( aLibId, aUnit, aBodyStyle ) is the frame's own now; what this
+    // test pins is the call SCH_EDITOR_CONTROL makes.
+    symEditor.LoadSymbol = ((aLibId: LIB_ID, aUnit: number, aBodyStyle: number) => {
+      calls.push(['library', aLibId.Format(), aUnit, aBodyStyle]);
+      return Promise.resolve(true);
+    }) as typeof symEditor.LoadSymbol;
     kiway.SetPlayerFrame(FRAME_T.FRAME_SCH_SYMBOL_EDITOR, symEditor);
     const symbol = [...h.frame.GetScreen()!.Items().OfType(KICAD_T.SCH_SYMBOL_T)][0] as SCH_SYMBOL;
     h.sel.AddItemToSel(symbol, true);

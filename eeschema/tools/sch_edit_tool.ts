@@ -2312,7 +2312,7 @@ export class SCH_EDIT_TOOL extends SCH_TOOL_BASE<SCH_EDIT_FRAME> {
             FRAME_T.FRAME_SCH_SYMBOL_EDITOR,
           ) as SYMBOL_EDIT_FRAME | null;
 
-          editor?.LoadSymbol(symbol.GetLibId(), symbol.GetUnit(), symbol.GetBodyStyle());
+          void editor?.LoadSymbol(symbol.GetLibId(), symbol.GetUnit(), symbol.GetBodyStyle());
         } else if (retval === SYMBOL_PROPS_RETVALUE.SYMBOL_PROPS_WANT_UPDATE_SYMBOL) {
           yield* this.RunMainStackModal(() =>
             this.m_frame!.ShowModalDialog(

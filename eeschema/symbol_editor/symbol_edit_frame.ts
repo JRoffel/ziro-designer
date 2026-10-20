@@ -38,8 +38,25 @@ import type { KiDialogResult } from '@ziroeda/common/kidialog_do_not_show.js';
 import { wxID_CANCEL } from '@ziroeda/wx/menu.js';
 import { SYMBOL_EDITOR_MOVE_TOOL } from '../tools/symbol_editor_move_tool.js';
 import { LIB_SYMBOL_LIBRARY_MANAGER } from './lib_symbol_library_manager.js';
+import { wxCopyFile, wxFileExists, wxRemoveFile } from '@ziroeda/wx/filefn.js';
+import { niluuid, type KIID } from '@ziroeda/common/kiid.js';
+import {
+  DisplayErrorMessage,
+  ShowKicadMessageDialog,
+  type UnsavedChangesResult,
+} from '@ziroeda/common/confirm.js';
+import {
+  LIBRARY_TABLE_SCOPE,
+  LIBRARY_TABLE_TYPE,
+} from '@ziroeda/common/libraries/library_table.js';
+import { NormalizePath } from '@ziroeda/common/env_paths.js';
+import { Pgm } from '@ziroeda/common/pgm_base.js';
+import type { ChooserFilter } from '@ziroeda/wx/filedlg.js';
+import { wxICON_ERROR, wxOK } from '@ziroeda/wx/defs.js';
+import { SCH_IO_MGR } from '../sch_io/sch_io_mgr.js';
+import type { SYMBOL_LIBRARY_SAVE_AS_FILEDLG_HOOK } from '../widgets/symbol_library_save_as_filedlg_hook.js';
 import { SYMBOL_EDITOR_UNDO_REDO_MIXIN } from './symbol_editor_undo_redo.js';
-import { SYMBOL_EDITOR_MIXIN } from './symbol_editor.js';
+import { SYMBOL_EDITOR_FILES_MIXIN, SYMBOL_EDITOR_MIXIN } from './symbol_editor.js';
 import { applyMixins } from '@ziroeda/core/mixins.js';
 import { LIB_ID } from '@ziroeda/common/lib_id.js';
 import type { SCH_SYMBOL } from '../sch_symbol.js';
@@ -68,8 +85,41 @@ export interface SYMBOL_EDIT_FRAME_HOOKS {
    * library symbol for editing in place. The window's symbol editor does it.
    */
   loadSymbolFromSchematic?(aSymbol: SCH_SYMBOL): void;
-  /** `LoadSymbol( aLibId, aUnit, aBodyStyle )` (symbol_edit_frame.cpp): open a library symbol. */
-  loadSymbol?(aLibId: LIB_ID, aUnit: number, aBodyStyle: number): boolean;
+  /**
+   * `Kiway().Player( FRAME_SCH, false )->SaveSymbolToSchematic( *m_symbol, uuid )`: the edited
+   * symbol back into the open schematic. False when no schematic editor is open.
+   */
+  saveSymbolToSchematic?(aSymbol: LIB_SYMBOL, aSchematicSymbolUUID: KIID): boolean;
+  /**
+   * `UnsavedChangesDialog( this, aMessage, aApplyToAll )`: Save / Discard / Cancel. With
+   * \a aApplyToAll the dialog shows its "apply to all" box and reports it there.
+   */
+  unsavedChangesDialog?(
+    aMessage: string,
+    aApplyToAll?: { value: boolean },
+  ): Promise<UnsavedChangesResult>;
+  /**
+   * `wxFileDialog( this, aTitle, aDefaultDir, aDefaultFile, aWildcard, aStyle )` with its
+   * customize hook, then `GetPath()`. Null is wxID_CANCEL.
+   */
+  fileDialog?(
+    aTitle: string,
+    aDefaultDir: string,
+    aDefaultFile: string,
+    aWildcard: ChooserFilter,
+    aStyle: number,
+    aCustomizeHook?: SYMBOL_LIBRARY_SAVE_AS_FILEDLG_HOOK,
+  ): Promise<string | null>;
+  /** `SyncLibraries( aShowProgress, aPreloadCancelled, aForceRefresh )`: the tree rebuilt. */
+  syncLibraries?(aShowProgress: boolean, aPreloadCancelled: boolean, aForceRefresh: string): void;
+  /** `m_treePane->GetLibTree()->RefreshLibTree()`. */
+  refreshLibTree?(): void;
+  /** `ReCreateMenuBar()` / `RecreateToolbars()`: the window's menu and toolbars rebuilt. */
+  reCreateMenuBar?(): void;
+  recreateToolbars?(): void;
+  /** `FreezeLibraryTree()` / `ThawLibraryTree()`. */
+  freezeLibraryTree?(): void;
+  thawLibraryTree?(): void;
   /** `IsLibraryTreeShown()`. */
   isLibraryTreeShown?(): boolean;
   /** `ToggleLibraryTree()`. */
@@ -93,7 +143,10 @@ export interface SYMBOL_EDIT_FRAME_HOOKS {
 }
 
 // biome-ignore lint/suspicious/noUnsafeDeclarationMerging: TS multiple inheritance (see libs/core/mixins.ts)
-export interface SYMBOL_EDIT_FRAME extends SYMBOL_EDITOR_UNDO_REDO_MIXIN, SYMBOL_EDITOR_MIXIN {}
+export interface SYMBOL_EDIT_FRAME
+  extends SYMBOL_EDITOR_UNDO_REDO_MIXIN,
+    SYMBOL_EDITOR_MIXIN,
+    SYMBOL_EDITOR_FILES_MIXIN {}
 
 // biome-ignore lint/suspicious/noUnsafeDeclarationMerging: TS multiple inheritance (see libs/core/mixins.ts)
 export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
@@ -106,8 +159,11 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
 
   /** `m_libMgr`: the library buffers the editor works on. */
   private readonly m_libMgr: LIB_SYMBOL_LIBRARY_MANAGER;
-  /** `m_dummyScreen`: the screen shown when no symbol is loaded. */
-  private readonly m_dummyScreen = new SCH_SCREEN();
+  /**
+   * `m_dummyScreen`: the screen shown when no symbol is loaded. Public for the frame's mixins
+   * (symbol_editor.ts), which are this class split across files.
+   */
+  readonly m_dummyScreen = new SCH_SCREEN();
   /** `m_SyncPinEdit`: pins of interchangeable units are edited together. */
   m_SyncPinEdit = false;
 
@@ -187,6 +243,221 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
   /** `UpdateLibraryTree( aTreeItem, aSymbol )`: the window's tree. */
   UpdateLibraryTree(aLibId: LIB_ID, aSymbol: LIB_SYMBOL): void {
     this.hooks.updateLibraryTree?.(aLibId, aSymbol);
+  }
+
+  /** `m_schematicSymbolUUID`: the schematic symbol a symbol from the schematic came from. */
+  m_schematicSymbolUUID: KIID = niluuid;
+
+  /**
+   * `UnsavedChangesDialog( this, aMessage, aApplyToAll )` (common/confirm.cpp): the window's;
+   * with none the answer is Cancel, the one that loses nothing.
+   */
+  UnsavedChangesDialog(
+    aMessage: string,
+    aApplyToAll?: { value: boolean },
+  ): Promise<UnsavedChangesResult> {
+    return this.hooks.unsavedChangesDialog?.(aMessage, aApplyToAll) ?? Promise.resolve('cancel');
+  }
+
+  /** `wxFileDialog( ... ).ShowModal()` then `GetPath()`: the window's; null is Cancel. */
+  FileDialog(
+    aTitle: string,
+    aDefaultDir: string,
+    aDefaultFile: string,
+    aWildcard: ChooserFilter,
+    aStyle: number,
+    aCustomizeHook?: SYMBOL_LIBRARY_SAVE_AS_FILEDLG_HOOK,
+  ): Promise<string | null> {
+    return (
+      this.hooks.fileDialog?.(
+        aTitle,
+        aDefaultDir,
+        aDefaultFile,
+        aWildcard,
+        aStyle,
+        aCustomizeHook,
+      ) ?? Promise.resolve(null)
+    );
+  }
+
+  /**
+   * `Kiway().Player( FRAME_SCH, false )->SaveSymbolToSchematic( aSymbol, aUuid )`: false when no
+   * schematic editor is open to take it.
+   */
+  SaveSymbolToSchematic(aSymbol: LIB_SYMBOL, aSchematicSymbolUUID: KIID): boolean {
+    return this.hooks.saveSymbolToSchematic?.(aSymbol, aSchematicSymbolUUID) ?? false;
+  }
+
+  /** `getTargetLib()` (symbol_edit_frame.cpp:1381). */
+  getTargetLib(): string {
+    return this.GetTargetLibId().GetLibNickname();
+  }
+
+  /**
+   * `backupFile( aOriginalFile, aBackupExt )` (symbol_edit_frame.cpp:1507): copy the file beside
+   * itself under \a aBackupExt before it is overwritten.
+   */
+  backupFile(aOriginalFile: string, aBackupExt: string): boolean {
+    if (wxFileExists(aOriginalFile)) {
+      // wxFileName backupFileName( aOriginalFile ); backupFileName.SetExt( aBackupExt );
+      const dot = aOriginalFile.lastIndexOf('.');
+      const slash = aOriginalFile.lastIndexOf('/');
+      const stem = dot > slash ? aOriginalFile.slice(0, dot) : aOriginalFile;
+      const backupFileName = `${stem}.${aBackupExt}`;
+
+      if (wxFileExists(backupFileName)) wxRemoveFile(backupFileName);
+
+      if (!wxCopyFile(aOriginalFile, backupFileName)) {
+        DisplayErrorMessage(`Failed to save backup to '${backupFileName}'.`);
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /** `SyncLibraries( aShowProgress, aPreloadCancelled, aForceRefresh )` (:1387): the window's tree. */
+  SyncLibraries(aShowProgress: boolean, aPreloadCancelled = false, aForceRefresh = ''): void {
+    this.hooks.syncLibraries?.(aShowProgress, aPreloadCancelled, aForceRefresh);
+  }
+
+  /** `m_treePane->GetLibTree()->RefreshLibTree()`. */
+  RefreshLibTree(): void {
+    this.hooks.refreshLibTree?.();
+  }
+
+  /** `ReCreateMenuBar()`: the window's. */
+  ReCreateMenuBar(): void {
+    this.hooks.reCreateMenuBar?.();
+  }
+
+  /** `RecreateToolbars()`: the window's. */
+  RecreateToolbars(): void {
+    this.hooks.recreateToolbars?.();
+  }
+
+  FreezeLibraryTree(): void {
+    this.hooks.freezeLibraryTree?.();
+  }
+
+  ThawLibraryTree(): void {
+    this.hooks.thawLibraryTree?.();
+  }
+
+  /** `UpdateMsgPanel()` (symbol_edit_frame.h:262). */
+  override UpdateMsgPanel(): void {
+    this.UpdateSymbolMsgPanelInfo();
+  }
+
+  /**
+   * `addLibTableEntry( aLibFile, aScope )` (symbol_edit_frame.cpp:2095): a row for \a aLibFile in
+   * the scope's table, its nickname made unique, the table saved.
+   */
+  addLibTableEntry(aLibFile: string, aScope = LIBRARY_TABLE_SCOPE.GLOBAL): boolean {
+    const leaf = aLibFile.slice(aLibFile.lastIndexOf('/') + 1);
+    const fnName = leaf.includes('.') ? leaf.slice(0, leaf.lastIndexOf('.')) : leaf;
+    let libNickname = fnName;
+    const adapter = SymbolLibAdapter(this.Prj());
+    const manager = Pgm().GetLibraryManager();
+    const envVars = Pgm().GetLocalEnvVariables();
+
+    if (adapter.HasLibrary(libNickname)) {
+      let suffix = 1;
+
+      while (adapter.HasLibrary(libNickname)) {
+        libNickname = `${fnName}${suffix}`;
+        suffix += 1;
+      }
+    }
+
+    const table = manager.Table(LIBRARY_TABLE_TYPE.SYMBOL, aScope);
+
+    if (!table) return false; // wxCHECK
+
+    const row = table.InsertRow();
+
+    row.SetNickname(libNickname);
+
+    // We cannot normalize against the current project path when saving to global table.
+    const normalizedPath = NormalizePath(
+      aLibFile,
+      envVars,
+      aScope === LIBRARY_TABLE_SCOPE.PROJECT ? this.Prj().GetProjectPath() : '',
+    );
+
+    row.SetURI(normalizedPath);
+    row.SetType(SCH_IO_MGR.ShowType(SCH_IO_MGR.GuessPluginTypeFromLibPath(normalizedPath)));
+
+    const result = table.Save();
+
+    if (!result.ok) {
+      void ShowKicadMessageDialog({
+        message: 'Error saving library table.',
+        caption: 'File Save Error',
+        style: wxOK | wxICON_ERROR,
+        extended: result.error.message,
+      });
+
+      return false;
+    }
+
+    // manager.ReloadTables( aScope, { SYMBOL } ): the table was edited in memory and is the
+    // manager's own, so there is nothing to read back.
+    adapter.LoadOne(libNickname);
+
+    return true;
+  }
+
+  /**
+   * `replaceLibTableEntry( aLibNickname, aLibFile )` (symbol_edit_frame.cpp:2156): point the
+   * library's existing row, global first, at \a aLibFile.
+   */
+  replaceLibTableEntry(aLibNickname: string, aLibFile: string): boolean {
+    const adapter = SymbolLibAdapter(this.Prj());
+    const manager = Pgm().GetLibraryManager();
+    let table = null;
+    let scope = LIBRARY_TABLE_SCOPE.GLOBAL;
+
+    // Check the global library table first because checking the project library table
+    // checks the global library table as well due to library chaining.
+    if (manager.GetRow(LIBRARY_TABLE_TYPE.SYMBOL, aLibNickname, scope)) {
+      table = manager.Table(LIBRARY_TABLE_TYPE.SYMBOL, scope);
+    } else {
+      scope = LIBRARY_TABLE_SCOPE.PROJECT;
+
+      if (manager.GetRow(LIBRARY_TABLE_TYPE.SYMBOL, aLibNickname, scope))
+        table = manager.Table(LIBRARY_TABLE_TYPE.SYMBOL, scope);
+    }
+
+    if (!table) return false; // wxCHECK
+
+    const row = manager.GetRow(LIBRARY_TABLE_TYPE.SYMBOL, aLibNickname, scope);
+
+    if (!row) return false; // wxCHECK
+
+    const envVars = Pgm().GetLocalEnvVariables();
+    const projectPath = scope === LIBRARY_TABLE_SCOPE.PROJECT ? this.Prj().GetProjectPath() : '';
+    const normalizedPath = NormalizePath(aLibFile, envVars, projectPath);
+
+    row.SetURI(normalizedPath);
+    row.SetType('KiCad');
+
+    const result = table.Save();
+
+    if (!result.ok) {
+      void ShowKicadMessageDialog({
+        message: 'Error saving library table.',
+        caption: 'File Save Error',
+        style: wxOK | wxICON_ERROR,
+        extended: result.error.message,
+      });
+
+      return false;
+    }
+
+    adapter.LoadOne(aLibNickname);
+
+    return true;
   }
 
   /** `GetLibManager()`. */
@@ -412,8 +683,9 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
   // body style shown. `m_symbol` is public for the frame's mixins (symbol_editor_undo_redo.ts),
   // which set it as upstream's split methods do.
   m_symbol: LIB_SYMBOL | null = null;
-  private m_unit = 1;
-  private m_bodyStyle = 1;
+  // Public for the frame's mixins (symbol_editor.ts), as m_symbol is.
+  m_unit = 1;
+  m_bodyStyle = 1;
 
   /** `GetCurSymbol()`. */
   GetCurSymbol(): LIB_SYMBOL | null {
@@ -478,11 +750,6 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
     this.hooks.loadSymbolFromSchematic?.(aSymbol);
   }
 
-  /** `LoadSymbol( aLibId, aUnit, aBodyStyle )`: false when the window cannot. */
-  LoadSymbol(aLibId: LIB_ID, aUnit: number, aBodyStyle: number): boolean {
-    return this.hooks.loadSymbol?.(aLibId, aUnit, aBodyStyle) ?? false;
-  }
-
   /** `IsLibraryTreeShown()`. */
   override IsLibraryTreeShown(): boolean {
     return this.hooks.isLibraryTreeShown?.() ?? false;
@@ -514,4 +781,8 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
   }
 }
 
-applyMixins(SYMBOL_EDIT_FRAME, [SYMBOL_EDITOR_UNDO_REDO_MIXIN, SYMBOL_EDITOR_MIXIN]);
+applyMixins(SYMBOL_EDIT_FRAME, [
+  SYMBOL_EDITOR_UNDO_REDO_MIXIN,
+  SYMBOL_EDITOR_MIXIN,
+  SYMBOL_EDITOR_FILES_MIXIN,
+]);
