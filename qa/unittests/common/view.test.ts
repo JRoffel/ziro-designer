@@ -464,3 +464,56 @@ describe('VIEW::redrawRect and empty layers', () => {
     expect(asked).not.toContain(4);
   });
 });
+
+/// A GAL that hands out cached groups and records how they are recoloured.
+class RECOLOR_GAL extends GAL {
+  private m_next = 1;
+  recolored = new Map<number, Color4d>();
+
+  override BeginGroup(): number {
+    return this.m_next++;
+  }
+
+  override ChangeGroupColor(aGroupNumber: number, aNewColor: Color4d): void {
+    this.recolored.set(aGroupNumber, aNewColor);
+  }
+}
+
+describe('a recolour reaches every cached group, with the colour the painter now gives', () => {
+  const setup = (): { view: VIEW; gal: RECOLOR_GAL; item: MOVABLE_ITEM } => {
+    const gal = new RECOLOR_GAL(new GAL_DISPLAY_OPTIONS());
+    const view = new VIEW();
+    view.SetGAL(gal);
+    view.SetPainter(new RECORDING_PAINTER(gal));
+
+    for (let layer = 0; layer < VIEW.VIEW_MAX_LAYERS; ++layer)
+      view.SetLayerTarget(layer, RENDER_TARGET.TARGET_NONCACHED);
+
+    view.SetLayerTarget(TEST_LAYER, RENDER_TARGET.TARGET_CACHED);
+
+    const item = new MOVABLE_ITEM(new BOX2I({ x: 0, y: 0 }, { x: 1000, y: 1000 }));
+    view.Add(item);
+    view.UpdateItems();
+
+    return { view, gal, item };
+  };
+
+  it('UpdateAllLayersColor', () => {
+    const { view, gal, item } = setup();
+    const group = item.viewPrivData()!.getGroup(TEST_LAYER);
+
+    expect(group).toBeGreaterThan(0);
+    view.UpdateAllLayersColor();
+
+    expect(gal.recolored.get(group)).toEqual({ r: TEST_LAYER, g: 0, b: 0, a: 1 });
+  });
+
+  it('UpdateLayerColor', () => {
+    const { view, gal, item } = setup();
+    const group = item.viewPrivData()!.getGroup(TEST_LAYER);
+
+    view.UpdateLayerColor(TEST_LAYER);
+
+    expect(gal.recolored.get(group)).toEqual({ r: TEST_LAYER, g: 0, b: 0, a: 1 });
+  });
+});

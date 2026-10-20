@@ -1234,11 +1234,15 @@ export class VIEW {
       GAL_UPDATE_CONTEXT(this.m_gal!, () => {
         // UPDATE_COLOR_VISITOR
         const visitor = (aItem: VIEW_ITEM): boolean => {
-          // Obtain the color that should be used for coloring the item
-          const color = this.m_painter!.GetSettings().GetColor(aItem, aLayer);
+          // Obtain the color that should be used for coloring the item - for a cached group
+          // only, as in UpdateAllLayersColor.
           const group = aItem.viewPrivData()!.getGroup(aLayer);
 
-          if (group >= 0) this.m_gal!.ChangeGroupColor(group, color);
+          if (group >= 0)
+            this.m_gal!.ChangeGroupColor(
+              group,
+              this.m_painter!.GetSettings().GetColor(aItem, aLayer),
+            );
 
           return true;
         };
@@ -1269,10 +1273,17 @@ export class VIEW {
           if (!viewData) continue;
 
           for (const layer of viewData.m_layers) {
-            const color = this.m_painter!.GetSettings().GetColor(item, layer);
             const group = viewData.getGroup(layer);
 
-            if (group >= 0) this.m_gal!.ChangeGroupColor(group, color);
+            // Upstream asks the colour first (view.cpp); only a cached group takes it, and an
+            // overlay-only view (the render worker's window) has none - 0.2 s of colours for
+            // nothing on a large board.
+            if (group < 0) continue;
+
+            this.m_gal!.ChangeGroupColor(
+              group,
+              this.m_painter!.GetSettings().GetColor(item, layer),
+            );
           }
         }
       });
