@@ -3,15 +3,17 @@
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
 /**
  * `SYMBOL_EDITOR_DRAWING_TOOLS` (eeschema/tools/symbol_editor_drawing_tools.{h,cpp}): the tool
- * responsible for drawing / placing items in the symbol editor - pins, text, the anchor - and
- * Repeat Last Item.
+ * responsible for drawing / placing items in the symbol editor - body outlines, text boxes, pins,
+ * text, the anchor - and Repeat Last Item.
  *
- * Still to come: doDrawShape (DrawShape, DrawSymbolTextBox) and ImportGraphics; their actions
- * are not bound until they are.
+ * Still to come: ImportGraphics (DIALOG_IMPORT_GFX_SCH); its action is not bound until it is.
  */
 import { type KIID, niluuid } from '@ziroeda/common/kiid.js';
 import { type EDA_ITEM } from '@ziroeda/common/eda_item.js';
 import { IS_MOVING, IS_NEW } from '@ziroeda/common/eda_item_flags.js';
+import { FILL_T, SHAPE_T } from '@ziroeda/common/eda_shape.js';
+import { type Color4d, COLOR4D_UNSPECIFIED } from '@ziroeda/common/gal/color4d.js';
+import { LINE_STYLE, STROKE_PARAMS } from '@ziroeda/common/stroke_params.js';
 import { schIUScale } from '@ziroeda/common/eda_units.js';
 import { GR_TEXT_H_ALIGN_T } from '@ziroeda/common/font/text_attributes.js';
 import { KICURSOR } from '@ziroeda/common/gal/cursors.js';
@@ -31,7 +33,9 @@ import type { LIB_SYMBOL } from '../lib_symbol.js';
 import { SCH_COMMIT } from '../sch_commit.js';
 import { SCH_ITEM } from '../sch_item.js';
 import type { SCH_PIN } from '../sch_pin.js';
+import { SCH_SHAPE } from '../sch_shape.js';
 import { SCH_TEXT } from '../sch_text.js';
+import { SCH_TEXTBOX } from '../sch_textbox.js';
 import { currentSymbolEditorSettings } from '../symbol_editor/symbol_editor_settings.js';
 import type { SYMBOL_EDIT_FRAME } from '../symbol_editor/symbol_edit_frame.js';
 import { EE_GRID_HELPER } from './ee_grid_helper.js';
@@ -44,10 +48,14 @@ export class SYMBOL_EDITOR_DRAWING_TOOLS extends SCH_TOOL_BASE<SYMBOL_EDIT_FRAME
   private m_lastTextItalic = false;
   private m_lastTextAngle: EDA_ANGLE = ANGLE_HORIZONTAL;
   private m_lastTextJust = GR_TEXT_H_ALIGN_T.GR_TEXT_H_ALIGN_LEFT;
+  private m_lastFillStyle = FILL_T.NO_FILL;
+  private m_lastFillColor: Color4d = COLOR4D_UNSPECIFIED;
+  private m_lastStroke = new STROKE_PARAMS(0, LINE_STYLE.DEFAULT, COLOR4D_UNSPECIFIED);
   private m_drawSpecificBodyStyle = true;
   private m_drawSpecificUnit = false;
 
   ///< Re-entrancy guards
+  private m_inDrawShape = false;
   private m_inPlaceAnchor = false;
   private m_inTwoClickPlace = false;
 
@@ -322,6 +330,240 @@ export class SYMBOL_EDITOR_DRAWING_TOOLS extends SCH_TOOL_BASE<SYMBOL_EDIT_FRAME
     }
   }
 
+  *DrawShape(aEvent: TOOL_EVENT): COROUTINE_BODY<number> {
+    const requestedShape = aEvent.Parameter<SHAPE_T>();
+
+    return yield* this.doDrawShape(aEvent, requestedShape);
+  }
+
+  *DrawSymbolTextBox(aEvent: TOOL_EVENT): COROUTINE_BODY<number> {
+    return yield* this.doDrawShape(aEvent, null /* Draw text box */);
+  }
+
+  private *doDrawShape(aEvent: TOOL_EVENT, aDrawingShape: SHAPE_T | null): COROUTINE_BODY<number> {
+    const isTextBox = aDrawingShape === null;
+    const toolType = aDrawingShape ?? SHAPE_T.SEGMENT;
+
+    const controls = this.controls();
+    const cfg = currentSymbolEditorSettings();
+    const grid = new EE_GRID_HELPER(this.m_toolMgr!);
+    let cursorPos: VECTOR2I = { x: 0, y: 0 };
+    const shapeType = toolType === SHAPE_T.SEGMENT ? SHAPE_T.POLY : toolType;
+    const frame = this.m_frame!;
+    let symbol: LIB_SYMBOL | null = frame.GetCurSymbol();
+    let item: SCH_SHAPE | null = null;
+    let description = '';
+
+    if (this.m_inDrawShape) return 0;
+
+    // REENTRANCY_GUARD guard( &m_inDrawShape )
+    this.m_inDrawShape = true;
+
+    try {
+      // We might be running as the same shape in another co-routine.  Make sure that one
+      // gets whacked.
+      this.m_toolMgr!.DeactivateTool();
+
+      this.m_toolMgr!.RunAction(ACTIONS.selectionClear);
+
+      frame.PushTool(aEvent);
+
+      const setCursor = (): void => {
+        frame.GetCanvas()!.SetCurrentCursor(KICURSOR.PENCIL);
+      };
+
+      const cleanup = (): void => {
+        this.m_toolMgr!.RunAction(ACTIONS.selectionClear);
+        this.m_view!.ClearPreview();
+        item = null;
+      };
+
+      this.Activate();
+      // Must be done after Activate() so that it gets set into the correct context
+      controls.ShowCursor(true);
+      // Set initial cursor
+      setCursor();
+
+      if (aEvent.HasPosition()) this.m_toolMgr!.PrimeTool(aEvent.Position());
+
+      // Main loop: keep receiving events
+      for (let evt = yield* this.Wait(); evt; evt = yield* this.Wait()) {
+        setCursor();
+        grid.SetSnap(!evt.Modifier(MD_SHIFT));
+        grid.SetUseGrid(this.getView()!.GetGAL()!.GetGridSnapping() && !evt.DisableGridSnapping());
+
+        cursorPos = grid.Align(controls.GetMousePosition(), grid.GetItemGrid(item));
+        controls.ForceCursorPosition(true, cursorPos);
+
+        // The tool hotkey is interpreted as a click when drawing
+        const isSyntheticClick =
+          !!item && evt.IsActivate() && evt.HasPosition() && evt.Matches(aEvent);
+
+        if (evt.IsCancelInteractive()) {
+          if (item) {
+            cleanup();
+          } else {
+            frame.PopTool(aEvent);
+            break;
+          }
+        } else if (evt.IsActivate() && !isSyntheticClick) {
+          if (item) cleanup();
+
+          if (evt.IsPointEditor()) {
+            // don't exit (the point editor runs in the background)
+          } else if (evt.IsMoveTool()) {
+            // leave ourselves on the stack so we come back after the move
+            break;
+          } else {
+            frame.PopTool(aEvent);
+            break;
+          }
+        } else if (evt.IsClick(BUT_LEFT) && !item) {
+          // Update in case the symbol was changed while the tool was running
+          symbol = frame.GetCurSymbol();
+
+          if (!symbol) continue;
+
+          this.m_toolMgr!.RunAction(ACTIONS.selectionClear);
+
+          const lineWidth = schIUScale.milsToIU(cfg.defaults.line_width);
+
+          if (isTextBox) {
+            const textbox = new SCH_TEXTBOX(
+              SCH_LAYER_ID.LAYER_DEVICE,
+              lineWidth,
+              this.m_lastFillStyle,
+            );
+
+            textbox.SetParent(symbol);
+
+            const size = schIUScale.milsToIU(cfg.defaults.text_size);
+            textbox.SetTextSize({ x: size, y: size });
+
+            // Must be after SetTextSize()
+            textbox.SetBold(this.m_lastTextBold);
+            textbox.SetItalic(this.m_lastTextItalic);
+
+            textbox.SetTextAngle(this.m_lastTextAngle);
+            textbox.SetHorizJustify(this.m_lastTextJust);
+
+            item = textbox;
+            description = 'Add Text Box';
+          } else {
+            item = new SCH_SHAPE(
+              shapeType,
+              SCH_LAYER_ID.LAYER_DEVICE,
+              lineWidth,
+              this.m_lastFillStyle,
+            );
+            item.SetParent(symbol);
+            description = `Add ${item.GetFriendlyName()}`;
+          }
+
+          item.SetStroke(this.m_lastStroke);
+          item.SetFillColor(this.m_lastFillColor);
+
+          item.SetFlags(IS_NEW);
+          item.BeginEdit(cursorPos);
+
+          if (this.m_drawSpecificUnit) item.SetUnit(frame.GetUnit());
+
+          if (this.m_drawSpecificBodyStyle) item.SetBodyStyle(frame.GetBodyStyle());
+
+          this.m_selectionTool!.AddItemToSel(item);
+        } else if (
+          item &&
+          (evt.IsClick(BUT_LEFT) ||
+            evt.IsDblClick(BUT_LEFT) ||
+            isSyntheticClick ||
+            evt.IsAction(ACTIONS.finishInteractive))
+        ) {
+          const drawn: SCH_SHAPE = item;
+
+          if (symbol !== frame.GetCurSymbol()) {
+            symbol = frame.GetCurSymbol();
+            drawn.SetParent(symbol);
+          }
+
+          if (
+            evt.IsDblClick(BUT_LEFT) ||
+            evt.IsAction(ACTIONS.finishInteractive) ||
+            !drawn.ContinueEdit({ x: cursorPos.x, y: cursorPos.y })
+          ) {
+            if (toolType === SHAPE_T.POLY) {
+              drawn.CalcEdit(drawn.GetPosition()); // Close shape
+              drawn.EndEdit(true);
+            } else {
+              drawn.EndEdit();
+            }
+
+            drawn.ClearEditFlags();
+
+            if (isTextBox) {
+              const textbox = drawn as SCH_TEXTBOX;
+
+              // DIALOG_TEXT_PROPERTIES: QuasiModal required for syntax help and Scintilla
+              // auto-complete. The window's.
+              if (
+                (yield* this.RunMainStackModal(() =>
+                  frame.ShowModalDialog('DIALOG_TEXT_PROPERTIES', [textbox]),
+                )) !== wxID_OK
+              ) {
+                cleanup();
+                continue;
+              }
+
+              this.m_lastTextBold = textbox.IsBold();
+              this.m_lastTextItalic = textbox.IsItalic();
+              this.m_lastTextAngle = textbox.GetTextAngle();
+              this.m_lastTextJust = textbox.GetHorizJustify();
+            }
+
+            this.m_lastStroke = drawn.GetStroke();
+            this.m_lastFillStyle = drawn.GetFillMode();
+            this.m_lastFillColor = drawn.GetFillColor();
+
+            this.m_view!.ClearPreview();
+
+            const commit = new SCH_COMMIT(this.m_toolMgr!);
+            commit.Modify(symbol!, frame.GetScreen());
+
+            symbol!.AddDrawItem(drawn);
+            item = null;
+
+            commit.Push(description);
+            frame.RebuildView();
+            this.m_toolMgr!.PostAction(ACTIONS.activatePointEditor);
+          }
+        } else if (item && (evt.IsAction(ACTIONS.refreshPreview) || evt.IsMotion())) {
+          item.CalcEdit(cursorPos);
+          this.m_view!.ClearPreview();
+          this.m_view!.AddToPreview(item.Clone());
+        } else if (evt.IsDblClick(BUT_LEFT) && !item) {
+          this.m_toolMgr!.RunAction(SCH_ACTIONS.properties);
+        } else if (evt.IsClick(BUT_RIGHT)) {
+          // Warp after context menu only if dragging...
+          if (!item) this.m_toolMgr!.VetoContextMenuMouseWarp();
+
+          this.m_menu.ShowContextMenu(this.m_selectionTool!.GetSelection());
+        } else {
+          evt.SetPassEvent();
+        }
+
+        // Enable autopanning and cursor capture only when there is a shape being drawn
+        controls.SetAutoPan(item !== null);
+        controls.CaptureCursor(item !== null);
+      }
+
+      controls.SetAutoPan(false);
+      controls.CaptureCursor(false);
+      frame.GetCanvas()!.SetCurrentCursor(KICURSOR.ARROW);
+      return 0;
+    } finally {
+      this.m_inDrawShape = false;
+    }
+  }
+
   *PlaceAnchor(aEvent: TOOL_EVENT): COROUTINE_BODY<number> {
     if (this.m_inPlaceAnchor) return 0;
 
@@ -415,9 +657,15 @@ export class SYMBOL_EDITOR_DRAWING_TOOLS extends SCH_TOOL_BASE<SYMBOL_EDIT_FRAME
   protected override setTransitions(): void {
     this.Go(this.TwoClickPlace, SCH_ACTIONS.placeSymbolPin.MakeEvent());
     this.Go(this.TwoClickPlace, SCH_ACTIONS.placeSymbolText.MakeEvent());
-    // DrawShape (drawRectangle, drawCircle, drawArc, drawBezier, drawSymbolLines,
-    // drawSymbolPolygon), DrawSymbolTextBox and ImportGraphics: with doDrawShape.
+    this.Go(this.DrawShape, SCH_ACTIONS.drawRectangle.MakeEvent());
+    this.Go(this.DrawShape, SCH_ACTIONS.drawCircle.MakeEvent());
+    this.Go(this.DrawShape, SCH_ACTIONS.drawArc.MakeEvent());
+    this.Go(this.DrawShape, SCH_ACTIONS.drawBezier.MakeEvent());
+    this.Go(this.DrawShape, SCH_ACTIONS.drawSymbolLines.MakeEvent());
+    this.Go(this.DrawShape, SCH_ACTIONS.drawSymbolPolygon.MakeEvent());
+    this.Go(this.DrawSymbolTextBox, SCH_ACTIONS.drawSymbolTextBox.MakeEvent());
     this.Go(this.PlaceAnchor, SCH_ACTIONS.placeSymbolAnchor.MakeEvent());
+    // ImportGraphics (SCH_ACTIONS.importGraphics): with DIALOG_IMPORT_GFX_SCH.
     this.Go(this.RepeatDrawItem, SCH_ACTIONS.repeatDrawItem.MakeEvent());
   }
 }
