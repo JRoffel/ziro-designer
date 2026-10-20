@@ -28,6 +28,8 @@ import { SCH_FIND_REPLACE_TOOL } from '../tools/sch_find_replace_tool.js';
 import { SCH_INSPECTION_TOOL } from '../tools/sch_inspection_tool.js';
 import { SCH_POINT_EDITOR } from '../tools/sch_point_editor.js';
 import { SCH_SELECTION_TOOL } from '../tools/sch_selection_tool.js';
+import { SYMBOL_EDITOR_EDIT_TOOL } from '../tools/symbol_editor_edit_tool.js';
+import { SYMBOL_EDITOR_MOVE_TOOL } from '../tools/symbol_editor_move_tool.js';
 import { LIB_SYMBOL_LIBRARY_MANAGER } from './lib_symbol_library_manager.js';
 import { SYMBOL_EDITOR_UNDO_REDO_MIXIN } from './symbol_editor_undo_redo.js';
 import { applyMixins } from '@ziroeda/core/mixins.js';
@@ -113,6 +115,16 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
     this.hooks.updateTitle?.();
   }
 
+  /** `SynchronizePins()` (:1174): pins of interchangeable units are edited together. */
+  SynchronizePins(): boolean {
+    return (
+      this.m_SyncPinEdit &&
+      !!this.m_symbol &&
+      this.m_symbol.IsMultiUnit() &&
+      !this.m_symbol.UnitsLocked()
+    );
+  }
+
   /** `GetLibManager()`. */
   GetLibManager(): LIB_SYMBOL_LIBRARY_MANAGER {
     return this.m_libMgr;
@@ -150,7 +162,9 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
     // SYMBOL_EDITOR_PIN_TOOL and SYMBOL_EDITOR_DRAWING_TOOLS: stage 3.
     this.m_toolManager.RegisterTool(new SCH_POINT_EDITOR());
     this.m_toolManager.RegisterTool(new SCH_FIND_REPLACE_TOOL());
-    // SYMBOL_EDITOR_MOVE_TOOL and SYMBOL_EDITOR_EDIT_TOOL: stage 2. LIBRARY_EDITOR_CONTROL and
+    this.m_toolManager.RegisterTool(new SYMBOL_EDITOR_MOVE_TOOL());
+    this.m_toolManager.RegisterTool(new SYMBOL_EDITOR_EDIT_TOOL());
+    // LIBRARY_EDITOR_CONTROL and
     // SYMBOL_EDITOR_CONTROL: stage 4.
     this.m_toolManager.RegisterTool(new PROPERTIES_TOOL());
     this.m_toolManager.RegisterTool(new EMBED_TOOL());

@@ -6,75 +6,32 @@
  * the symbol it shows - SetCurSymbol, SetUnit, OnModify into LIB_SYMBOL_LIBRARY_MANAGER's buffer -
  * and the selection tool picking the symbol's own items on the canvas.
  */
-import {
-  LIBRARY_TABLE,
-  LIBRARY_TABLE_SCOPE,
-  LIBRARY_TABLE_TYPE,
-} from '@ziroeda/common/libraries/library_table.js';
-import { PGM_BASE, Pgm, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
-import { MEMORY_FILESYSTEM, wxMountFileSystem } from '@ziroeda/wx/filefn.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
-import { LIB_SYMBOL } from '@ziroeda/eeschema/lib_symbol.js';
-import { SymbolLibAdapter } from '@ziroeda/eeschema/project_sch.js';
-import type { SCH_EDIT_FRAME } from '@ziroeda/eeschema/sch_edit_frame.js';
+import type { LIB_SYMBOL } from '@ziroeda/eeschema/lib_symbol.js';
 import { SCH_SELECTION_TOOL } from '@ziroeda/eeschema/tools/sch_selection_tool.js';
-import { SYMBOL_EDIT_FRAME } from '@ziroeda/eeschema/symbol_editor/symbol_edit_frame.js';
+import { SCH_ACTIONS } from '@ziroeda/eeschema/tools/sch_actions.js';
+import { ACTIONS } from '@ziroeda/common/tool/actions.js';
+import { TA_MOUSE_MOTION } from '@ziroeda/common/tool/tool_event.js';
+import type { SYMBOL_EDIT_FRAME } from '@ziroeda/eeschema/symbol_editor/symbol_edit_frame.js';
 import { LIB_SYMBOL_LIBRARY_MANAGER } from '@ziroeda/eeschema/symbol_editor/lib_symbol_library_manager.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { click, schToolHarness, type SCH_HARNESS } from './support/sch_tool_harness.js';
+import { click, mouse, type SCH_HARNESS } from './support/sch_tool_harness.js';
+import { G, type SYMBOL_EDIT_HARNESS, symbolEditHarness } from './support/symbol_edit_harness.js';
 
-const prop = (aName: string, aValue: string) =>
-  `(property "${aName}" "${aValue}" (at 0 0 0) (effects (font (size 1.27 1.27))))`;
-
-/** A two-unit symbol: a rectangle in unit 1, a pin at (10, 0) mm in each unit. */
-const LIB_TEXT = `(kicad_symbol_lib (version 20241209) (generator "kicad_symbol_editor")
-  (symbol "U" (in_bom yes) (on_board yes)
-    ${prop('Reference', 'U')} ${prop('Value', 'U')}
-    (symbol "U_1_1"
-      (rectangle (start -5 -5) (end 5 5) (stroke (width 0) (type default)) (fill (type none)))
-      (pin input line (at 10 0 180) (length 5) (name "A" (effects (font (size 1.27 1.27)))) (number "1" (effects (font (size 1.27 1.27))))))
-    (symbol "U_2_1"
-      (pin input line (at 10 0 180) (length 5) (name "B" (effects (font (size 1.27 1.27)))) (number "2" (effects (font (size 1.27 1.27))))))))`;
-
-let unmount: () => void = () => {};
+let t: SYMBOL_EDIT_HARNESS;
 let frame: SYMBOL_EDIT_FRAME;
 let harness: SCH_HARNESS;
 
 beforeEach(() => {
-  SetPgm(new PGM_BASE(null, new SETTINGS_MANAGER()));
-  const fs = new MEMORY_FILESYSTEM();
-  unmount = wxMountFileSystem('/libs', fs);
-  fs.Write('mine.kicad_sym', new TextEncoder().encode(LIB_TEXT));
-  Pgm()
-    .GetLibraryManager()
-    .SetTable(
-      LIBRARY_TABLE_TYPE.SYMBOL,
-      LIBRARY_TABLE_SCOPE.PROJECT,
-      LIBRARY_TABLE.FromFile(
-        '/libs/sym-lib-table',
-        '(sym_lib_table (version 7) (lib (name "mine")(type "KiCad")(uri "/libs/mine.kicad_sym")(options "")(descr "")))',
-        LIBRARY_TABLE_SCOPE.PROJECT,
-        LIBRARY_TABLE_TYPE.SYMBOL,
-      ),
-    );
-  SymbolLibAdapter(null).LoadOne('mine');
-
-  frame = new SYMBOL_EDIT_FRAME({ libEdit: () => {} });
-  harness = schToolHarness(frame as unknown as SCH_EDIT_FRAME);
+  t = symbolEditHarness();
+  frame = t.frame;
+  harness = t.harness;
 });
 
-afterEach(() => {
-  unmount();
-  SetPgm(null);
-});
+afterEach(() => t.dispose());
 
-/** Open \\a aName of the library as LoadSymbolFromCurrentLib does: a copy of the buffered one. */
-function open(aName = 'U'): LIB_SYMBOL {
-  frame.SetCurLib('mine');
-  const symbol = LIB_SYMBOL.copyOf(frame.GetLibManager().GetBufferedSymbol(aName, 'mine')!);
-  frame.SetCurSymbol(symbol, true);
-  return symbol;
-}
+/** Open \a aName of the library as LoadSymbolFromCurrentLib does: a copy of the buffered one. */
+const open = (aName = 'U'): LIB_SYMBOL => t.open(aName);
 
 const mm = (x: number, y: number) => ({ x: x * 10000, y: y * 10000 });
 
@@ -103,7 +60,7 @@ describe('SYMBOL_EDIT_FRAME', () => {
       frame.GetCurSymbol()!.GetGraphicalPins(frame.GetUnit(), frame.GetBodyStyle());
 
     expect(pins().map((p) => p.GetNumber())).toEqual(['1']);
-    click(harness, mm(10, 0));
+    click(harness, mm(10.16, 0));
     const sel = frame.GetToolManager()!.GetTool(SCH_SELECTION_TOOL)!.GetSelection();
     expect(sel.Size()).toBe(1);
     expect(sel.Front()!.Type()).toBe(KICAD_T.SCH_PIN_T);
@@ -173,5 +130,143 @@ describe('SYMBOL_EDIT_FRAME', () => {
 
     expect(frame.GetCurSymbol()).toBeNull();
     expect(frame.GetCurLib()).toBe('');
+  });
+});
+
+describe('SYMBOL_EDITOR_MOVE_TOOL (symbol_editor_move_tool.cpp)', () => {
+  const pinOf = (aUnit: number) =>
+    frame
+      .GetCurSymbol()!
+      .GetPins()
+      .find((p) => p.GetUnit() === aUnit)!;
+  /** A position as plain numbers: the parser's y of 0 is -0 (a flipped axis). */
+  const at = (aUnit: number) => {
+    const p = pinOf(aUnit).GetPosition();
+    return { x: p.x + 0, y: p.y + 0 };
+  };
+
+  function grabPin(aBefore: () => void = () => {}) {
+    open();
+    aBefore();
+    const mgr = frame.GetToolManager()!;
+    const pin = pinOf(1);
+    const before = at(1);
+    click(harness, before);
+    harness.h.mouse = before;
+    mgr.RunAction(SCH_ACTIONS.move);
+    return { mgr, pin, before };
+  }
+
+  it('moves the selection by the cursor travel, on the grid, as one undo step into the buffer', () => {
+    const { pin, before } = grabPin();
+    const to = { x: before.x + 4 * G, y: before.y + 2 * G };
+
+    mouse(harness, TA_MOUSE_MOTION, to);
+    click(harness, to);
+
+    expect(at(1)).toEqual(to);
+    expect(frame.GetUndoCommandCount()).toBe(1);
+    expect(frame.GetLibManager().IsSymbolModified('U', 'mine')).toBe(true);
+    // The edit flags are cleared at the drop.
+    expect(pin.IsMoving()).toBe(false);
+  });
+
+  it('follows every motion from where the last one left it, and marks what it moves', () => {
+    const { before } = grabPin();
+    const half = { x: before.x + 2 * G, y: before.y };
+    const to = { x: before.x + 4 * G, y: before.y + 2 * G };
+
+    mouse(harness, TA_MOUSE_MOTION, half);
+    expect(pinOf(1).IsMoving()).toBe(true);
+    mouse(harness, TA_MOUSE_MOTION, to);
+    click(harness, to);
+
+    expect(at(1)).toEqual(to);
+  });
+
+  it('leaves a symbol it cannot edit where it is (IsSymbolEditable)', () => {
+    const { before } = grabPin(() => frame.SetSymbolOrigin(false, true));
+    const to = { x: before.x + 4 * G, y: before.y };
+
+    mouse(harness, TA_MOUSE_MOTION, to);
+    click(harness, to);
+
+    expect(at(1)).toEqual(before);
+    expect(frame.GetUndoCommandCount()).toBe(0);
+  });
+
+  it('does not carry a pin of another unit that only shares the place, not the name', () => {
+    const { before } = grabPin(() => pinOf(2).SetName('B'));
+    const to = { x: before.x + 2 * G, y: before.y };
+
+    mouse(harness, TA_MOUSE_MOTION, to);
+    click(harness, to);
+
+    expect(at(1)).toEqual(to);
+    expect(at(2)).toEqual(before);
+  });
+
+  it('carries the interchangeable unit pin with it (SynchronizePins)', () => {
+    const { before } = grabPin();
+    const to = { x: before.x + 2 * G, y: before.y };
+
+    mouse(harness, TA_MOUSE_MOTION, to);
+    click(harness, to);
+
+    expect(at(2)).toEqual(to);
+  });
+
+  it('a locked symbol moves only the pin picked', () => {
+    open();
+    frame.GetCurSymbol()!.LockUnits(true);
+    frame.SetCurSymbol(frame.GetCurSymbol(), false);
+    const mgr = frame.GetToolManager()!;
+    const before = at(1);
+    click(harness, before);
+    harness.h.mouse = before;
+    mgr.RunAction(SCH_ACTIONS.move);
+    mouse(harness, TA_MOUSE_MOTION, { x: before.x + 2 * G, y: before.y });
+    click(harness, { x: before.x + 2 * G, y: before.y });
+
+    expect(at(1)).toEqual({ x: before.x + 2 * G, y: before.y });
+    expect(at(2)).toEqual(before);
+  });
+
+  it('puts everything back on Escape, with nothing to undo', () => {
+    const { mgr, before } = grabPin();
+
+    mouse(harness, TA_MOUSE_MOTION, { x: before.x + 6 * G, y: before.y });
+    mgr.RunAction(ACTIONS.cancelInteractive);
+
+    // revertLibEdit: the copy taken at the start becomes the current symbol.
+    expect(at(1)).toEqual(before);
+    expect(at(2)).toEqual(before);
+    expect(frame.GetUndoCommandCount()).toBe(0);
+  });
+
+  it('Align to Grid moves an item that is off the grid only up or down', () => {
+    open();
+    const pin = pinOf(1);
+    pin.SetPosition({ x: 8 * G, y: 300 });
+    frame.GetToolManager()!.GetTool(SCH_SELECTION_TOOL)!.AddItemToSel(pin, true);
+
+    frame.GetToolManager()!.RunAction(SCH_ACTIONS.alignToGrid);
+
+    expect(at(1)).toEqual({ x: 8 * G, y: 0 });
+  });
+
+  it('Align to Grid puts an item on the grid and rounds a pin length to it', () => {
+    const symbol = open();
+    const pin = pinOf(1);
+    pin.SetPosition({ x: pin.GetPosition().x + 300, y: 0 });
+    pin.SetLength(5 * G + 2000);
+    frame.GetToolManager()!.GetTool(SCH_SELECTION_TOOL)!.AddItemToSel(pin, true);
+
+    frame.GetToolManager()!.RunAction(SCH_ACTIONS.alignToGrid);
+
+    expect(at(1)).toEqual({ x: 8 * G, y: 0 });
+    expect(pin.GetLength()).toBe(5 * G);
+    expect(frame.GetUndoCommandCount()).toBe(1);
+    expect(frame.GetCurSymbol() === symbol).toBe(true);
   });
 });

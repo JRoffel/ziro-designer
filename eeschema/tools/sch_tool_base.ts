@@ -31,6 +31,7 @@ import type { SCH_PIN } from '../sch_pin.js';
 import type { SCH_TEXT } from '../sch_text.js';
 import type { SCH_VIEW } from '../sch_view.js';
 import type { SYMBOL_EDIT_FRAME } from '../symbol_editor/symbol_edit_frame.js';
+import type { LIB_SYMBOL } from '../lib_symbol.js';
 import type { SCH_SELECTION_TOOL } from './sch_selection_tool.js';
 
 export abstract class SCH_TOOL_BASE<T extends SCH_BASE_FRAME> extends TOOL_INTERACTIVE {
@@ -286,8 +287,12 @@ export abstract class SCH_TOOL_BASE<T extends SCH_BASE_FRAME> extends TOOL_INTER
     if (selected && item.HasFlag(SELECTED_BY_DRAG)) item.ClearSelected();
 
     if (this.m_frame?.IsType(FRAME_T.FRAME_SCH_SYMBOL_EDITOR)) {
-      // SYMBOL_EDIT_FRAME::SaveCopyInUndoList( wxEmptyString, LIB_SYMBOL* ): the symbol
-      // editor's undo arrives with its tools.
+      const symbolEditFrame = this.m_frame as unknown as SYMBOL_EDIT_FRAME;
+      // dynamic_cast<LIB_SYMBOL*>( item ): only the whole symbol is an undo unit there.
+      symbolEditFrame.SaveCopyInUndoList(
+        '',
+        item.Type() === KICAD_T.LIB_SYMBOL_T ? (item as unknown as LIB_SYMBOL) : null,
+      );
     } else if (this.m_frame?.IsType(FRAME_T.FRAME_SCH)) {
       const schematicFrame = this.m_frame as unknown as SCH_EDIT_FRAME;
       schematicFrame.SaveCopyInUndoList(
