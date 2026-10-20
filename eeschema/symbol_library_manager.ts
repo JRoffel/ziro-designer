@@ -956,8 +956,9 @@ export class SYMBOL_LIBRARY_MANAGER {
       symbolBuf.GetScreen()!.SetContentModified();
     } else {
       // New symbol
+      // new LIB_SYMBOL( *aSymbol, nullptr ): the nullptr is the LEGACY_SYMBOL_LIB*, not the
+      // parent - a derived symbol stays derived.
       const symbolCopy = LIB_SYMBOL.copyOf(aSymbol);
-      symbolCopy.SetLibParent(null);
 
       symbolCopy.SetLibId(new LIB_ID(aLibrary, aSymbol.GetLibId().GetLibItemName()));
 

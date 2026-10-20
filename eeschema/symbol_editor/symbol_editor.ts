@@ -161,9 +161,22 @@ export function deleteSymbolPrompts(opts: {
 import { frameTitle, type FrameTitleParts } from '@ziroeda/common/use_document_title.js';
 import { unescapeString } from '@ziroeda/common/string_utils.js';
 import type { SYMBOL_EDIT_FRAME } from './symbol_edit_frame.js';
-import { DisplayErrorMessage, OKOrCancelDialog } from '@ziroeda/common/confirm.js';
+import {
+  ConfirmRevertDialog,
+  DisplayErrorMessage,
+  IsOK,
+  OKOrCancelDialog,
+  ShowKicadMessageDialog,
+} from '@ziroeda/common/confirm.js';
+import { GetClipboardUTF8, SetClipboardFromText } from '@ziroeda/common/clipboard.js';
+import { PARSE_ERROR } from '@ziroeda/common/dsnlexer.js';
+import { FORMAT_MODE, Prettify } from '@ziroeda/common/io/kicad/kicad_io_utils.js';
+import { STRING_FORMATTER } from '@ziroeda/common/richio.js';
+import { wxCENTER, wxICON_WARNING, wxOK, wxYES_NO } from '@ziroeda/wx/defs.js';
+import { SCH_IO_KICAD_SEXPR } from '../sch_io/kicad_sexpr/sch_io_kicad_sexpr.js';
+import type { NEW_SYMBOL_PROPERTIES } from './lib_symbol_library_manager.js';
 import { IO_ERROR } from '@ziroeda/common/exceptions.js';
-import type { LIB_ID } from '@ziroeda/common/lib_id.js';
+import { LIB_ID } from '@ziroeda/common/lib_id.js';
 import {
   LIBRARY_TABLE_SCOPE,
   LIBRARY_TABLE_TYPE,
@@ -178,7 +191,7 @@ import {
   kicadSymbolLibWildcard,
 } from '@ziroeda/common/wildcards_and_files_ext.js';
 import { wxFD_OVERWRITE_PROMPT, wxFD_SAVE } from '@ziroeda/wx/defs.js';
-import { wxID_OK } from '@ziroeda/wx/menu.js';
+import { wxID_CANCEL, wxID_NO, wxID_OK } from '@ziroeda/wx/menu.js';
 import { LIB_SYMBOL } from '../lib_symbol.js';
 import { SymbolLibAdapter } from '../project_sch.js';
 import { SCH_FILE_T, SCH_IO_MGR } from '../sch_io/sch_io_mgr.js';
@@ -829,4 +842,316 @@ export class SYMBOL_EDITOR_FILES_MIXIN {
     this.UpdateTitle();
     return retv;
   }
+
+  /**
+   * `CreateNewSymbol( aInheritFrom )`: DIALOG_LIB_NEW_SYMBOL (the window's), the symbol made in
+   * the target library - or one asked for - and loaded.
+   */
+  async CreateNewSymbol(this: SYMBOL_EDIT_FRAME, aInheritFrom = ''): Promise<void> {
+    this.GetToolManager()?.RunAction(ACTIONS.cancelInteractive);
+
+    const libMgr = this.GetLibManager();
+    let lib = this.getTargetLib();
+
+    if (!libMgr.LibraryExists(lib)) {
+      lib = await this.SelectLibrary('New Symbol', 'Create symbol in library:');
+
+      if (!libMgr.LibraryExists(lib)) return;
+    }
+
+    const validator = async (newName: string): Promise<boolean> => {
+      if (newName === '') {
+        await ShowKicadMessageDialog({
+          message: 'Symbol must have a name.',
+          caption: '',
+          style: wxOK,
+        });
+        return false;
+      }
+
+      if (lib !== '' && libMgr.SymbolNameInUse(newName, lib)) {
+        const msg = `Symbol '${unescapeString(newName)}' already exists in library '${lib}'.`;
+
+        return (
+          (await this.ShowKiDialog({
+            caption: 'Confirmation',
+            message: msg,
+            icon: 'warning',
+            labels: { ok: 'Overwrite' },
+          })) === 'ok'
+        );
+      }
+
+      return true;
+    };
+
+    const symbolNamesInLib: string[] = [];
+    libMgr.GetSymbolNames(lib, symbolNamesInLib);
+
+    // DIALOG_LIB_NEW_SYMBOL dlg( this, symbolNamesInLib, aInheritFrom, validator ): the window's,
+    // which fills props from its controls on OK.
+    const props: NEW_SYMBOL_PROPERTIES = {
+      name: '',
+      parentSymbolName: aInheritFrom,
+      reference: '',
+      unitCount: 1,
+      pinNameInside: true,
+      pinTextPosition: 0,
+      powerSymbol: false,
+      showPinNumber: true,
+      showPinName: true,
+      unitsInterchangeable: false,
+      includeInBom: true,
+      includeOnBoard: true,
+      alternateBodyStyle: false,
+      keepFootprint: true,
+      keepDatasheet: true,
+      transferUserFields: true,
+      keepContentUserFields: false,
+    };
+
+    if (
+      (await this.ShowModalDialog('DIALOG_LIB_NEW_SYMBOL', [], {
+        symbolNames: symbolNamesInLib,
+        inheritFrom: aInheritFrom,
+        validator,
+        props,
+      })) === wxID_CANCEL
+    )
+      return;
+
+    libMgr.CreateNewSymbol(lib, props);
+    this.SyncLibraries(false);
+    await this.LoadSymbol(props.name, lib, 1);
+  }
+
+  /**
+   * `DeleteSymbolFromLibrary()`: the tree's selection, or the target symbol, removed from its
+   * library buffer - a modified one, or a base with derived symbols, only when the user says so.
+   */
+  async DeleteSymbolFromLibrary(this: SYMBOL_EDIT_FRAME): Promise<void> {
+    const libMgr = this.GetLibManager();
+    const toDelete = this.GetSelectedLibIds();
+
+    if (toDelete.length === 0) toDelete.push(this.GetTargetLibId());
+
+    for (const libId of toDelete) {
+      if (
+        libMgr.IsSymbolModified(libId.GetLibItemName(), libId.GetLibNickname()) &&
+        !(await IsOK(
+          `The symbol '${libId.GetUniStringLibItemName()}' has been modified.\n` +
+            'Do you want to remove it from the library?',
+        ))
+      ) {
+        continue;
+      }
+
+      const derived: string[] = [];
+
+      if (
+        libMgr.GetDerivedSymbolNames(libId.GetLibItemName(), libId.GetLibNickname(), derived) > 0
+      ) {
+        let msg = 'Deleting a base symbol will delete all symbols derived from it.\n\n';
+
+        msg += `${libId.GetLibItemName()} (base)\n`;
+
+        for (const name of derived) msg += `${name}\n`;
+
+        const answer = await ShowKicadMessageDialog({
+          message: msg,
+          caption: 'Warning',
+          style: wxYES_NO | wxICON_WARNING | wxCENTER,
+          extended: ' ',
+          okLabel: 'Delete All Listed Symbols',
+          cancelLabel: 'Cancel',
+        });
+
+        if (answer === wxID_NO || answer === wxID_CANCEL) continue;
+      }
+
+      const current = this.GetCurSymbol();
+
+      if (current) {
+        for (const symbol of GetParentChain(current)) {
+          if (symbol.GetLibId().equals(libId)) {
+            this.emptyScreen();
+            break;
+          }
+        }
+      }
+
+      libMgr.RemoveSymbol(libId.GetLibItemName(), libId.GetLibNickname());
+    }
+
+    this.RefreshLibTree();
+  }
+
+  /** `CopySymbolToClipboard()`: the tree's symbols, flattened, as symbol text. */
+  CopySymbolToClipboard(this: SYMBOL_EDIT_FRAME): void {
+    const symbols: LIB_ID[] = [];
+
+    if (this.GetTreeLIBIDs(symbols) === 0) return;
+
+    const formatter = new STRING_FORMATTER();
+    const libMgr = this.GetLibManager();
+
+    for (const libId of symbols) {
+      const symbol = libMgr.GetBufferedSymbol(libId.GetLibItemName(), libId.GetLibNickname());
+
+      if (!symbol) continue;
+
+      const tmp = symbol.Flatten();
+      SCH_IO_KICAD_SEXPR.FormatLibSymbol(tmp, formatter);
+    }
+
+    const prettyData = Prettify(formatter.GetString(), FORMAT_MODE.COMPACT_TEXT_PROPERTIES);
+
+    SetClipboardFromText(prettyData);
+  }
+
+  /**
+   * `DuplicateSymbol( aFromClipboard )`: a copy of the target symbol (derived from the same
+   * parent), or the clipboard's symbols, added to its library under unique names and loaded.
+   */
+  async DuplicateSymbol(this: SYMBOL_EDIT_FRAME, aFromClipboard: boolean): Promise<void> {
+    const libId = this.GetTargetLibId();
+    const lib = libId.GetLibNickname();
+    const libMgr = this.GetLibManager();
+
+    if (!libMgr.LibraryExists(lib)) return;
+
+    let newSymbols: LIB_SYMBOL[] = [];
+
+    if (aFromClipboard) {
+      const clipboardData = GetClipboardUTF8();
+
+      try {
+        newSymbols = SCH_IO_KICAD_SEXPR.ParseLibSymbols(clipboardData, 'Clipboard');
+      } catch (e) {
+        // catch( IO_ERROR& ), which upstream's PARSE_ERROR derives from (ours does not yet).
+        if (!(e instanceof IO_ERROR) && !(e instanceof PARSE_ERROR)) throw e;
+
+        console.info(`Can not paste: ${e instanceof IO_ERROR ? e.Problem() : e.ParseProblem()}`);
+      }
+    } else {
+      const srcSymbol = libMgr.GetBufferedSymbol(libId.GetLibItemName(), lib);
+
+      if (srcSymbol) {
+        newSymbols.push(LIB_SYMBOL.copyOf(srcSymbol));
+
+        // Derive from same parent.
+        if (srcSymbol.IsDerived()) {
+          const srcParent = srcSymbol.GetLibParent();
+
+          if (srcParent) newSymbols[newSymbols.length - 1]!.SetLibParent(srcParent);
+        }
+      }
+    }
+
+    if (newSymbols.length === 0) return;
+
+    for (const symbol of newSymbols) {
+      this.ensureUniqueName(symbol, lib);
+      libMgr.UpdateSymbol(symbol, lib);
+
+      this.LoadOneLibrarySymbolAux(symbol, lib, this.GetUnit(), this.GetBodyStyle());
+    }
+
+    this.SyncLibraries(false);
+    this.FocusOnLibId(new LIB_ID(lib, newSymbols[0]!.GetName()));
+  }
+
+  /** `ensureUniqueName( aSymbol, aLibrary )`: `_1`, `_2`... appended until it is unique. */
+  ensureUniqueName(this: SYMBOL_EDIT_FRAME, aSymbol: LIB_SYMBOL | null, aLibrary: string): void {
+    if (aSymbol) {
+      let i = 1;
+      let newName = aSymbol.GetName();
+
+      // Append a number to the name until the name is unique in the library.
+      while (this.GetLibManager().SymbolNameInUse(newName, aLibrary))
+        newName = `${aSymbol.GetName()}_${i++}`;
+
+      aSymbol.SetName(newName);
+    }
+  }
+
+  /**
+   * `Revert( aConfirm )`: the target symbol, or the whole library when the library itself is the
+   * target, put back to its last saved state; the symbol shown reloaded if it was reverted.
+   */
+  async Revert(this: SYMBOL_EDIT_FRAME, aConfirm = true): Promise<void> {
+    let libId = this.GetTargetLibId();
+    const libName = libId.GetLibNickname();
+    const libMgr = this.GetLibManager();
+
+    // Empty if this is the library itself that is selected.
+    const symbolName = libId.GetLibItemName();
+
+    const msg = `Revert '${symbolName === '' ? libName : symbolName}' to last version saved?`;
+
+    if (aConfirm && !(await ConfirmRevertDialog(msg))) return;
+
+    let reload_currentSymbol = false;
+    let curr_symbolName = symbolName;
+
+    if (this.GetCurSymbol()) {
+      // the library itself is reverted: the current symbol will be reloaded only if it is
+      // owned by this library
+      if (symbolName === '') {
+        const curr_libId = this.GetCurSymbol()!.GetLibId();
+        reload_currentSymbol = libName === curr_libId.GetLibNickname();
+
+        if (reload_currentSymbol) curr_symbolName = curr_libId.GetUniStringLibItemName();
+      } else {
+        reload_currentSymbol = this.IsCurrentSymbol(libId);
+      }
+    }
+
+    const unit = this.m_unit;
+
+    if (reload_currentSymbol) this.emptyScreen();
+
+    if (symbolName === '') {
+      libMgr.RevertLibrary(libName);
+    } else {
+      libId = libMgr.RevertSymbol(libId.GetLibItemName(), libId.GetLibNickname());
+
+      this.FocusOnLibId(libId);
+      libMgr.ClearSymbolModified(libId.GetLibItemName(), libId.GetLibNickname());
+    }
+
+    if (reload_currentSymbol && libMgr.SymbolExists(curr_symbolName, libName))
+      await this.LoadSymbol(curr_symbolName, libName, unit);
+
+    // m_treePane->Refresh()
+    this.RefreshLibTree();
+  }
+
+  /** `RevertAll()`. */
+  async RevertAll(this: SYMBOL_EDIT_FRAME): Promise<void> {
+    await this.Revert(false);
+    this.GetLibManager().RevertAll();
+  }
+}
+
+/**
+ * `GetParentChain( aSymbol, aIncludeLeaf )` (symbol_editor.cpp:485): the symbol and its parents, the
+ * leaf first and the root last.
+ */
+export function GetParentChain(aSymbol: LIB_SYMBOL, aIncludeLeaf = true): LIB_SYMBOL[] {
+  const chain: LIB_SYMBOL[] = [];
+  let sym: LIB_SYMBOL | null = aSymbol;
+
+  if (aIncludeLeaf) chain.push(sym);
+
+  while (sym.IsDerived()) {
+    const parent: LIB_SYMBOL | null = sym.GetLibParent();
+
+    if (!parent) break;
+
+    chain.push(parent);
+    sym = parent;
+  }
+
+  return chain;
 }

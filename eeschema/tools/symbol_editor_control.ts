@@ -5,18 +5,20 @@
  * `SYMBOL_EDITOR_CONTROL` (eeschema/tools/symbol_editor_control.{h,cpp}): the symbol editor's
  * view toggles, unit stepping, flattening a derived symbol, and the library fields table.
  *
- * Still to come, with the library tree and the file commands they call (SYMBOL_EDIT_FRAME's
- * symbol_editor.cpp / symbedit.cpp): Init's tree context menu, AddLibrary, AddSymbol, EditSymbol,
- * EditLibrarySymbol, Save, Revert, the symbol cut / copy / paste / duplicate / rename / delete,
- * ExportSymbol, ExportView, ExportSymbolAsSVG, AddSymbolToSchematic, OpenWithTextEditor and
- * OpenDirectory. PreviousSymbol / NextSymbol are SYMBOL_VIEWER_FRAME's and come with its tools.
- * Their actions are not bound until they are.
+ * Still to come, with the library tree and what they call: Init's tree context menu, AddLibrary /
+ * DdAddLibrary, Import Symbol and Save Symbol As / Save Copy As (symbedit.cpp), RenameSymbol
+ * (LIBRARY_EDITOR_CONTROL::RenameLibrary), ExportSymbol, ExportView, ExportSymbolAsSVG,
+ * AddSymbolToSchematic, OpenWithTextEditor and OpenDirectory. PreviousSymbol / NextSymbol are
+ * SYMBOL_VIEWER_FRAME's and come with its tools. Their actions are not bound until they are.
  */
 import { FRAME_T } from '@ziroeda/common/frame_type.js';
 import type { COROUTINE_BODY } from '@ziroeda/common/tool/coroutine.js';
 import type { TOOL_EVENT } from '@ziroeda/common/tool/tool_event.js';
 import { SYNC_HANDLER } from '@ziroeda/common/tool/tool_interactive.js';
 import { VIEW_UPDATE_FLAGS } from '@ziroeda/common/view/view_item.js';
+import { DisplayErrorMessage } from '@ziroeda/common/confirm.js';
+import { unescapeString } from '@ziroeda/common/string_utils.js';
+import { wxBell } from '@ziroeda/wx/utils.js';
 import { wxICON_ERROR, wxOK } from '@ziroeda/wx/defs.js';
 import type { SCH_BASE_FRAME } from '../sch_base_frame.js';
 import {
@@ -129,6 +131,161 @@ export class SYMBOL_EDITOR_CONTROL extends SCH_TOOL_BASE<SCH_BASE_FRAME> {
     return 0;
   }
 
+  *EditSymbol(_aEvent: TOOL_EVENT): COROUTINE_BODY<number> {
+    if (!this.m_isSymbolEditor) return 0;
+
+    const editFrame = this.editFrame();
+    const unit = { value: 0 };
+    const partId = editFrame.GetTreeLIBID(unit);
+
+    yield* this.RunMainStackModal(() =>
+      editFrame.LoadSymbol(partId.GetLibItemName(), partId.GetLibNickname(), unit.value),
+    );
+    return 0;
+  }
+
+  *EditLibrarySymbol(_aEvent: TOOL_EVENT): COROUTINE_BODY<number> {
+    const editFrame = this.editFrame();
+    const symbol = editFrame.GetCurSymbol();
+
+    if (!symbol || !editFrame.IsSymbolFromSchematic()) {
+      wxBell();
+      return 0;
+    }
+
+    const libId = symbol.GetLibId();
+
+    const loaded = yield* this.RunMainStackModal(() =>
+      editFrame.LoadSymbol(libId, editFrame.GetUnit(), editFrame.GetBodyStyle()),
+    );
+
+    if (loaded === true) {
+      if (!editFrame.IsLibraryTreeShown()) editFrame.ToggleLibraryTree();
+    } else {
+      const libName = libId.GetLibNickname();
+      const symbolName = libId.GetLibItemName();
+
+      DisplayErrorMessage(
+        `Failed to load symbol ${unescapeString(symbolName)} from library ${unescapeString(libName)}.`,
+      );
+    }
+    return 0;
+  }
+
+  *AddSymbol(aEvent: TOOL_EVENT): COROUTINE_BODY<number> {
+    if (!this.m_isSymbolEditor) return 0;
+
+    const editFrame = this.editFrame();
+    const target = editFrame.GetTargetLibId();
+    const libName = target.GetLibNickname();
+
+    if (libName === '') {
+      this.m_frame!.ShowInfoBarError('No symbol library selected.');
+      return 0;
+    }
+
+    if (!editFrame.GetLibManager().LibraryExists(libName)) {
+      this.m_frame!.ShowInfoBarError(`Symbol library '${libName}' not found.`);
+      return 0;
+    }
+
+    if (editFrame.GetLibManager().IsLibraryReadOnly(libName)) {
+      this.m_frame!.ShowInfoBarError(`Symbol library '${libName}' is not writable.`);
+      return 0;
+    }
+
+    if (aEvent.IsAction(SCH_ACTIONS.newSymbol))
+      yield* this.RunMainStackModal(() => editFrame.CreateNewSymbol());
+    else if (aEvent.IsAction(SCH_ACTIONS.deriveFromExistingSymbol))
+      yield* this.RunMainStackModal(() => editFrame.CreateNewSymbol(target.GetLibItemName()));
+
+    return 0;
+  }
+
+  *Save(aEvt: TOOL_EVENT): COROUTINE_BODY<number> {
+    if (!this.m_isSymbolEditor) return 0;
+
+    const editFrame = this.editFrame();
+
+    if (aEvt.IsAction(ACTIONS.save)) yield* this.RunMainStackModal(() => editFrame.Save());
+    else if (aEvt.IsAction(SCH_ACTIONS.saveLibraryAs))
+      yield* this.RunMainStackModal(() => editFrame.SaveLibraryAs());
+    else if (aEvt.IsAction(ACTIONS.saveAll))
+      yield* this.RunMainStackModal(() => editFrame.SaveAll());
+
+    return 0;
+  }
+
+  *Revert(_aEvent: TOOL_EVENT): COROUTINE_BODY<number> {
+    if (this.m_frame!.IsType(FRAME_T.FRAME_SCH_SYMBOL_EDITOR))
+      yield* this.RunMainStackModal(() => this.editFrame().Revert());
+
+    return 0;
+  }
+
+  *CutCopyDelete(aEvt: TOOL_EVENT): COROUTINE_BODY<number> {
+    if (!this.m_isSymbolEditor) return 0;
+
+    const editFrame = this.editFrame();
+
+    if (aEvt.IsAction(SCH_ACTIONS.cutSymbol) || aEvt.IsAction(SCH_ACTIONS.copySymbol))
+      editFrame.CopySymbolToClipboard();
+
+    if (aEvt.IsAction(SCH_ACTIONS.cutSymbol) || aEvt.IsAction(SCH_ACTIONS.deleteSymbol)) {
+      let hasWritableLibs = false;
+      let msg = '';
+
+      for (const sel of editFrame.GetSelectedLibIds()) {
+        const libName = sel.GetLibNickname();
+
+        if (!editFrame.GetLibManager().LibraryExists(libName))
+          msg = `Symbol library '${libName}' not found.`;
+        else if (editFrame.GetLibManager().IsLibraryReadOnly(libName))
+          msg = `Symbol library '${libName}' is not writable.`;
+        else hasWritableLibs = true;
+      }
+
+      if (msg !== '') this.m_frame!.ShowInfoBarError(msg);
+
+      if (!hasWritableLibs) return 0;
+
+      yield* this.RunMainStackModal(() => editFrame.DeleteSymbolFromLibrary());
+    }
+
+    return 0;
+  }
+
+  *DuplicateSymbol(aEvent: TOOL_EVENT): COROUTINE_BODY<number> {
+    if (!this.m_isSymbolEditor) return 0;
+
+    const editFrame = this.editFrame();
+    const sel = editFrame.GetTargetLibId();
+    // DuplicateSymbol() is called to duplicate a symbol, or to paste a previously
+    // saved symbol in clipboard
+    const isPasteAction = aEvent.IsAction(SCH_ACTIONS.pasteSymbol);
+
+    if (!sel.IsValid() && !isPasteAction) {
+      // When duplicating a symbol, a source symbol must exists.
+      this.m_frame!.ShowInfoBarError('No symbol selected');
+      return 0;
+    }
+
+    const libName = sel.GetLibNickname();
+
+    if (!editFrame.GetLibManager().LibraryExists(libName)) {
+      this.m_frame!.ShowInfoBarError(`Symbol library '${libName}' not found.`);
+      return 0;
+    }
+
+    if (editFrame.GetLibManager().IsLibraryReadOnly(libName)) {
+      this.m_frame!.ShowInfoBarError(`Symbol library '${libName}' is not writable.`);
+      return 0;
+    }
+
+    yield* this.RunMainStackModal(() => editFrame.DuplicateSymbol(isPasteAction));
+    return 0;
+  }
+
   *FlattenSymbol(_aEvent: TOOL_EVENT): COROUTINE_BODY<number> {
     if (!this.m_isSymbolEditor) return 0;
 
@@ -206,6 +363,22 @@ export class SYMBOL_EDITOR_CONTROL extends SCH_TOOL_BASE<SCH_BASE_FRAME> {
   }
 
   protected override setTransitions(): void {
+    this.Go(this.AddSymbol, SCH_ACTIONS.newSymbol.MakeEvent());
+    this.Go(this.AddSymbol, SCH_ACTIONS.deriveFromExistingSymbol.MakeEvent());
+    this.Go(this.EditSymbol, SCH_ACTIONS.editSymbol.MakeEvent());
+    this.Go(this.EditLibrarySymbol, SCH_ACTIONS.editLibSymbolWithLibEdit.MakeEvent());
+
+    this.Go(this.Save, ACTIONS.save.MakeEvent());
+    this.Go(this.Save, SCH_ACTIONS.saveLibraryAs.MakeEvent());
+    this.Go(this.Save, ACTIONS.saveAll.MakeEvent());
+    this.Go(this.Revert, ACTIONS.revert.MakeEvent());
+
+    this.Go(this.DuplicateSymbol, SCH_ACTIONS.duplicateSymbol.MakeEvent());
+    this.Go(this.CutCopyDelete, SCH_ACTIONS.deleteSymbol.MakeEvent());
+    this.Go(this.CutCopyDelete, SCH_ACTIONS.cutSymbol.MakeEvent());
+    this.Go(this.CutCopyDelete, SCH_ACTIONS.copySymbol.MakeEvent());
+    this.Go(this.DuplicateSymbol, SCH_ACTIONS.pasteSymbol.MakeEvent());
+
     this.Go(this.FlattenSymbol, SCH_ACTIONS.flattenSymbol.MakeEvent());
 
     this.Go(SYNC_HANDLER(this.ShowElectricalTypes), SCH_ACTIONS.showElectricalTypes.MakeEvent());

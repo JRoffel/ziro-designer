@@ -2,7 +2,7 @@
 // Copyright (C) 2026 ZiroEDA and contributors.
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
 import { wxCANCEL, wxCENTER, wxICON_WARNING, wxOK, wxOK_DEFAULT } from '@ziroeda/wx/defs.js';
-import { wxID_CANCEL } from '@ziroeda/wx/menu.js';
+import { wxID_CANCEL, wxID_OK } from '@ziroeda/wx/menu.js';
 
 /**
  * The "Save Changes?" question, and what each answer means. Counterpart:
@@ -67,6 +67,23 @@ export const CONFIRM_REVERT_CANCEL_LABEL = 'Cancel';
  */
 export function confirmRevertMessage(itemName: string): string {
   return `Revert '${itemName}' to last version saved?`;
+}
+
+/**
+ * `ConfirmRevertDialog( aParent, aMessage )` (common/confirm.cpp:137): the question above, with its
+ * extended message and Revert / Cancel; true is Revert.
+ */
+export async function ConfirmRevertDialog(aMessage: string): Promise<boolean> {
+  return (
+    (await ShowKicadMessageDialog({
+      message: aMessage,
+      caption: '',
+      style: wxOK | wxCANCEL | wxOK_DEFAULT | wxICON_WARNING | wxCENTER,
+      extended: CONFIRM_REVERT_EXTENDED,
+      okLabel: CONFIRM_REVERT_OK_LABEL,
+      cancelLabel: CONFIRM_REVERT_CANCEL_LABEL,
+    })) === wxID_OK
+  );
 }
 
 /**

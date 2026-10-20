@@ -114,6 +114,8 @@ export interface SYMBOL_EDIT_FRAME_HOOKS {
   syncLibraries?(aShowProgress: boolean, aPreloadCancelled: boolean, aForceRefresh: string): void;
   /** `m_treePane->GetLibTree()->RefreshLibTree()`. */
   refreshLibTree?(): void;
+  /** `GetLibTree()->GetSelectedLibIds( aSelection )`: every symbol / library selected. */
+  getSelectedLibIds?(): LIB_ID[];
   /** `ReCreateMenuBar()` / `RecreateToolbars()`: the window's menu and toolbars rebuilt. */
   reCreateMenuBar?(): void;
   recreateToolbars?(): void;
@@ -134,8 +136,11 @@ export interface SYMBOL_EDIT_FRAME_HOOKS {
   showModal?(aDialog: string, aItems: readonly EDA_ITEM[], aArg?: unknown): Promise<number>;
   /** `KIDIALOG( frame, ... ).ShowModal()`. */
   askKiDialog?(aRequest: KiDialogRequest): Promise<KiDialogResult>;
-  /** `GetLibTree()->GetSelectedLibId( aUnit )`: the symbol the library tree has selected. */
-  getTreeLibId?(): LIB_ID | null;
+  /**
+   * `GetLibTree()->GetSelectedLibId( aUnit )`: the symbol the library tree has selected, and in
+   * \a aUnit the unit node's unit (0 for a symbol or library node).
+   */
+  getTreeLibId?(aUnit?: { value: number }): LIB_ID | null;
   /** `UpdateLibraryTree( aTreeItem, aSymbol )`: the tree node shows the symbol's new name/text. */
   updateLibraryTree?(aLibId: LIB_ID, aSymbol: LIB_SYMBOL): void;
   /** `ToggleProperties()`: the properties pane shown or hidden, its width remembered. */
@@ -217,8 +222,8 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
    * `GetTreeLIBID( aUnit )` (symbol_edit_frame.cpp:1328): the library tree's selection. The tree is
    * the window's; with none, an empty LIB_ID.
    */
-  GetTreeLIBID(): LIB_ID {
-    return this.hooks.getTreeLibId?.() ?? new LIB_ID();
+  GetTreeLIBID(aUnit?: { value: number }): LIB_ID {
+    return this.hooks.getTreeLibId?.(aUnit) ?? new LIB_ID();
   }
 
   /**
@@ -238,6 +243,39 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
   /** `ToggleProperties()` (:790): the window's AUI pane. */
   override ToggleProperties(): void {
     this.hooks.toggleProperties?.();
+  }
+
+  /** `GetTreeLIBIDs( aSelection )` (:1339): the tree's selection, how many. */
+  GetTreeLIBIDs(aSelection: LIB_ID[]): number {
+    aSelection.push(...(this.hooks.getSelectedLibIds?.() ?? []));
+    return aSelection.length;
+  }
+
+  /** `GetSelectedLibIds()` (:1373). */
+  GetSelectedLibIds(): LIB_ID[] {
+    const ids: LIB_ID[] = [];
+    this.GetTreeLIBIDs(ids);
+    return ids;
+  }
+
+  /** `GetTreeSelectionCount()` (:1334). */
+  GetTreeSelectionCount(): number {
+    return this.hooks.getSelectedLibIds?.().length ?? 0;
+  }
+
+  /**
+   * `IsCurrentSymbol( aLibId )` (:1536): whether \a aLibId is the symbol shown - an alias by its
+   * root.
+   */
+  IsCurrentSymbol(aLibId: LIB_ID): boolean {
+    // This will return the root symbol of any alias
+    const symbol = this.m_libMgr.GetBufferedSymbol(
+      aLibId.GetLibItemName(),
+      aLibId.GetLibNickname(),
+    );
+
+    // Now we can compare the libId of the current symbol and the root symbol
+    return !!symbol && !!this.m_symbol && symbol.GetLibId().equals(this.m_symbol.GetLibId());
   }
 
   /** `UpdateLibraryTree( aTreeItem, aSymbol )`: the window's tree. */
