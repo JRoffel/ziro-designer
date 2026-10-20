@@ -40,8 +40,7 @@
  *
  * Web delta, matching `dialog_gendrill.tsx`: "Output directory:" browses the
  * project's own folders, and every generated file goes through
- * `onOutputFile` into the file manager, falling back to a download when the
- * board is standalone.
+ * `onOutputFile`, which downloads it (a run of several files as one zip, designer output_downloads.ts).
  */
 import { useState, type JSX } from 'react';
 import type { BOARD } from '../board.js';

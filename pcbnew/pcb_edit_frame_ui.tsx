@@ -1566,8 +1566,8 @@ export function PcbEditor({
 
   /**
    * `DIALOG_BOARD_STATISTICS::saveReportClicked`: the report is a generated
-   * output, so it takes the same route as a plot - the file manager when the
-   * host offers one, a download when it does not.
+   * output, so it takes the same route as a plot - a download, through the
+   * host's onOutputFile when it has one.
    */
   const saveReportFile = useCallback(
     (text: string, name: string) => {
@@ -2570,8 +2570,8 @@ export function PcbEditor({
     null,
   );
   /**
-   * A generated text file into the project: the file manager when the host
-   * offers one, a download when it does not (as a plot goes).
+   * A generated text file, downloaded as a plot is: through the host's
+   * onOutputFile when it has one, directly when it does not.
    */
   const writeOutputText = (aName: string, aText: string): void => {
     if (onOutputFile) {
@@ -4692,7 +4692,7 @@ export function PcbEditor({
       new Promise<VRML_DIALOG_RESULT | null>((resolve) => setVrmlDlg({ path: aPath, resolve })),
     showExportOdbppDialog: (): Promise<ODBPP_DIALOG_RESULT | null> =>
       new Promise<ODBPP_DIALOG_RESULT | null>((resolve) => setOdbppDlg({ resolve })),
-    // A generated output takes the plot route: the file manager, or a download standalone.
+    // A generated output takes the plot route: a download.
     writeOutputFile: (aPath: string, aBytes: Uint8Array, aMime: string): void => {
       if (onOutputFile) {
         onOutputFile(aPath, aBytes, aMime);

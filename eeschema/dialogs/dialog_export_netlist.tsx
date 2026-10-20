@@ -52,9 +52,8 @@ interface Props {
   /** Folders that already exist in the project, for the output-path list. */
   projectFolders?: readonly string[];
   /**
-   * Write the netlist into the project's file manager, as plotting does. When
-   * absent the dialog streams a download instead, which is what it did before
-   * there was anywhere else to put the file.
+   * Hand the netlist to the App, which downloads it, as plotting does. When
+   * absent the dialog streams the download itself.
    */
   onOutputFile?: (path: string, bytes: Uint8Array, mime: string) => void;
   onClose: () => void;
@@ -191,8 +190,7 @@ export function DialogExportNetlist({
     }
     const mime = tab === 'kicadxml' ? 'application/xml' : 'text/plain';
     const filename = active.ext === '' ? baseName : `${baseName}.${active.ext}`;
-    // The netlist lands in the project's file manager, as a plot does. Without
-    // a sink there is nowhere else to put it, so it streams out instead.
+    // The netlist is downloaded through the App's sink, as a plot is; without one, directly.
     if (onOutputFile) {
       const path = outputDir ? `${outputDir}/${filename}` : filename;
       onOutputFile(path, new TextEncoder().encode(text), mime);

@@ -24,8 +24,7 @@
  *       m_stdButtons, relabelled "Export" / "Close"
  *
  * Web delta, as in dialog_gen_footprint_position.tsx: the output path is project-relative, and the
- * file goes through `onOutputFile` into the file manager, or downloads when the board is open
- * standalone. The browse button offers the project's folders. Compressed output is a zip holding
+ * file goes through `onOutputFile`, which downloads it (a run of several files as one zip, designer output_downloads.ts). The browse button offers the project's folders. Compressed output is a zip holding
  * `<name>.xml`, as wxZipOutputStream writes it upstream.
  */
 import { useMemo, useState, type JSX } from 'react';

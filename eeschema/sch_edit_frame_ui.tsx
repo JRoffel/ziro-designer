@@ -3497,7 +3497,6 @@ export function SchematicEditor({
       pdfPropertyPopups,
       pdfHierarchicalLinks,
       openAfter,
-      downloadCopy,
       report,
     }: PlotRequest) => {
       const plotTheme = themeId && BUILTIN_THEMES[themeId] ? BUILTIN_THEMES[themeId]!.theme : theme;
@@ -3571,9 +3570,8 @@ export function SchematicEditor({
         };
         return od;
       };
-      // Every plot lands in the project's file manager (the cloud "disk");
-      // "Download a copy to this computer" additionally streams it out, and
-      // "Open file after plot" navigates the pre-opened preview tab to it.
+      // Every plot is downloaded through the App's onOutputFile (a run of several as one zip),
+      // and "Open file after plot" navigates the pre-opened preview tab to it.
       const makeSink = (): PlotSink => {
         return (blob, filename) => {
           const path = outputDir ? `${outputDir}/${filename}` : filename;
@@ -3586,7 +3584,6 @@ export function SchematicEditor({
             downloadBlob(blob, filename);
             report(`Plotted to '${filename}'.`, RPT_SEVERITY_ACTION);
           }
-          if (downloadCopy && onOutputFile) downloadBlob(blob, filename);
           if (preview) {
             // Browsers render PDF/SVG/PNG inline but can't display PostScript or
             // DXF, those are text, so re-wrap them as text/plain to show the

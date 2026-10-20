@@ -34,9 +34,7 @@
  *
  * Web delta: no local filesystem, so "Output folder:" browses the *project*'s
  * own folders (same popup as `dialog_plot.tsx`'s), and every generated file —
- * drill, map, report — goes through `onOutputFile` into the project's file
- * manager, falling back to a browser download when the board is standalone
- * (`plot-print-cloud-output` memory).
+ * drill, map, report — goes through `onOutputFile`, which downloads it (a run of several files as one zip, designer output_downloads.ts).
  */
 import { useState, type JSX } from 'react';
 import type { BOARD } from '../board.js';

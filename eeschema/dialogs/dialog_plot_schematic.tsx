@@ -16,12 +16,11 @@
  * minimum line width is disabled for DXF; PDF and DXF options grey out unless
  * their format is picked and the PNG group only appears for PNG.
  *
- * Web deltas, the browser has no filesystem, so the output directory is a
- * folder inside the *project* (our cloud file manager) rather than a disk path,
- * and its browse button lists the project's folders. Everything plotted lands
- * there; "Download a copy to this computer" additionally streams the file
- * through the browser's download flow, and "Open file after plot" shows it in a
- * new tab (upstream opens the system PDF viewer). Controls a browser cannot
+ * Web deltas: the browser's downloads folder stands for the output folder on
+ * disk, so everything plotted is downloaded - one run of several files as one
+ * zip, the output directory kept as the folder inside it (designer
+ * output_downloads.ts) - and "Open file after plot" shows it in a new tab
+ * (upstream opens the system PDF viewer). Controls a browser cannot
  * honour are left out rather than shown dead: PNG anti-aliasing (canvas always
  * anti-aliases).
  */
@@ -58,8 +57,6 @@ export interface PlotRequest {
   pdfHierarchicalLinks: boolean;
   /** Open the plotted file in a new tab (upstream OpenPDF). */
   openAfter: boolean;
-  /** Also stream the file to the browser's download folder. */
-  downloadCopy: boolean;
   /** Output Messages sink (the dialog's WX_HTML_REPORT_PANEL reporter). */
   report: (message: string, severity: number) => void;
 }
@@ -124,7 +121,6 @@ export function DialogPlot({
   const [outputDir, setOutputDir] = useState('');
   const [browseOpen, setBrowseOpen] = useState(false);
   const [openAfter, setOpenAfter] = useState(false);
-  const [downloadCopy, setDownloadCopy] = useState(false);
 
   // Output Messages (WX_HTML_REPORT_PANEL).
   const [messages, setMessages] = useState<readonly ReportLine[]>([]);
@@ -162,7 +158,6 @@ export function DialogPlot({
       pdfPropertyPopups: format === 'pdf' && pdfPropertyPopups,
       pdfHierarchicalLinks: format === 'pdf' && pdfHierarchicalLinks,
       openAfter: openAfter && canOpenAfter && !allPages,
-      downloadCopy,
       report,
     });
   };
@@ -219,7 +214,7 @@ export function DialogPlot({
             style={{ flex: 1 }}
             value={outputDir}
             placeholder="Project folder"
-            title="Folder inside the project for the plotted files (relative to the project). Files appear in the file manager, where you can download them."
+            title="Folder for the plotted files. They are downloaded; a plot of several files comes as one zip with this folder inside it."
             onChange={(e) => setOutputDir(e.target.value)}
           />
           <div style={{ position: 'relative' }}>
@@ -459,17 +454,6 @@ export function DialogPlot({
                   onChange={(e) => setOpenAfter(e.target.checked)}
                 />{' '}
                 Open file after plot
-              </label>
-              <label
-                style={check()}
-                title="Plots always land in the project's file manager; check this to also download them to this computer."
-              >
-                <input
-                  type="checkbox"
-                  checked={downloadCopy}
-                  onChange={(e) => setDownloadCopy(e.target.checked)}
-                />{' '}
-                Download a copy to this computer
               </label>
             </fieldset>
           </div>

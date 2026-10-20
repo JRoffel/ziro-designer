@@ -17,8 +17,8 @@
  *
  * As upstream, the dialog only collects the settings; BOARD_EDITOR_CONTROL::GenerateODBPPFiles
  * checks the zones and calls GenerateODBPPFiles below. The output path is project-relative: an
- * archive is one file in the file manager (or a download when the board is open standalone), and
- * an uncompressed export is its files under that folder. A folder that only ever holds folders
+ * archive is one download, and an uncompressed export is its files under that folder in one zip
+ * (designer output_downloads.ts). A folder that only ever holds folders
  * (input, symbols, user, wheels) has no file to carry it there, so it lives only in the archives.
  */
 import { gzipSync, zipSync } from 'fflate';
@@ -176,7 +176,7 @@ export async function GenerateODBPPFiles(
 /**
  * `DIALOG_EXPORT_ODBPP`: the settings it collects and the checks onOKClick makes. The window is
  * DIALOG_EXPORT_ODBPP_BASE; Browse asks wxDirDialog for the folder and keeps the file name, as
- * the output lands in the project's file manager.
+ * the output is downloaded.
  */
 export function DialogExportOdbpp({ fileName, projectFolders = [], onClose }: Props): JSX.Element {
   // TransferDataToWindow(): <board>-odb.zip, then OnFmtChoiceOptionChanged.

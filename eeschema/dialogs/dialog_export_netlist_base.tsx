@@ -46,8 +46,8 @@ export interface EXPORT_NETLIST_PAGE {
 
 export interface DIALOG_EXPORT_NETLIST_BASE_PROPS {
   /**
-   * m_outputPath. Upstream shows it only for a job; here it is where the netlist lands in the
-   * project's file manager, the place a desktop build's save dialog would choose.
+   * m_outputPath. Upstream shows it only for a job; here it is the netlist's file name
+   * (and folder) as downloaded, what a desktop build's save dialog would choose.
    */
   m_outputPath: string;
   onOutputPath: (aText: string) => void;

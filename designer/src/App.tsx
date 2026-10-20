@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 ZiroEDA and contributors.
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
+import { OUTPUT_DOWNLOADER } from './output_downloads.js';
 import { FRAME_T } from '@ziroeda/common/frame_type.js';
 import { AiDock, aiEnabled, registerAiBridge } from '@ziroeda/ai';
 import { appBridge, designDocName } from '@ziroeda/ai/app_bridge.js';
@@ -1336,45 +1337,16 @@ export function App(): JSX.Element {
     [persistFilesNow],
   );
 
-  // Serializes the IndexedDB writes a plot run kicks off (see onOutputFile).
-  const outputWrites = useRef<Promise<void>>(Promise.resolve());
-  // A generated output file (plot / export) from an editor: drop it into the
-  // project, under the project's folder, so it appears in the home file
-  // manager (from which the user downloads it to local storage), and persist
-  // the raw bytes so it survives a reload. `relPath` is relative to the project
-  // folder and may name a sub-folder ("gerbers/board-F_Cu.gbr").
+  // A generated output file (plot / drill / report / export) from an editor goes to the user's
+  // computer as a download, the files of one run as one zip (output_downloads.ts). `relPath` may
+  // name a folder ("gerbers/board-F_Cu.gbr"), kept inside the zip.
+  const outputDownloader = useRef<OUTPUT_DOWNLOADER | null>(null);
   const onOutputFile = useCallback((relPath: string, bytes: Uint8Array, mime: string) => {
-    const baseName = relPath.replace(/\\/g, '/').replace(/^\/+/, '');
-    const cur = projectFilesRef.current;
-    if (!cur) {
-      // No project to file it under, fall back to a plain browser download.
-      const blob = new Blob([bytes.buffer as ArrayBuffer], {
-        type: mime || 'application/octet-stream',
-      });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = baseName.split('/').pop() || 'plot';
-      a.click();
-      URL.revokeObjectURL(a.href);
-      return;
-    }
-    const prefix = projectDirPrefix(cur);
-    const name = prefix && baseName.startsWith(prefix) ? baseName : prefix + baseName;
-    const file: PickedFile = { name, text: '', bytes };
-    setProjectFiles((prev) => [...(prev ?? []).filter((f) => f.name !== name), file]);
-    if (!storageAvailable()) return;
-    // A plot run writes a whole set of files back-to-back (one Gerber per
-    // layer). updateProjectFiles is a read-modify-write of the one project
-    // record, so overlapping calls would each start from a stale copy and the
-    // last write would drop the others, chain them instead.
-    outputWrites.current = outputWrites.current
-      .then(async () => {
-        const rec = (await listProjects()).find((p) => p.name === projectNameOf(cur));
-        if (rec) await updateProjectFiles(rec.id, [{ name, bytes }]);
-      })
-      .catch(() => {
-        /* storage disabled */
-      });
+    outputDownloader.current ??= new OUTPUT_DOWNLOADER(() => {
+      const cur = projectFilesRef.current;
+      return cur ? projectNameOf(cur) : 'outputs';
+    });
+    outputDownloader.current.Add(relPath, bytes, mime);
   }, []);
 
   // The active project's .kicad_pro (full name), validated against the open
