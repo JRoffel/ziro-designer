@@ -105,6 +105,9 @@ const SymbolEditor = lazy(() =>
     default: m.SymbolEditorMount,
   })),
 );
+const LibraryTableHost = lazy(() =>
+  import('./widgets/library_table_host.js').then((m) => ({ default: m.LibraryTableHost })),
+);
 const FootprintEditor = lazy(() =>
   import('./editors/footprint/footprint_edit_frame_app.js').then((m) => ({
     default: m.FootprintEditor,
@@ -553,6 +556,8 @@ export function App(): JSX.Element {
    * happens to miss.
    */
   const [demoProject, setDemoProject] = useState(false);
+  /** Manage Symbol / Footprint Libraries, raised through KIWAY::CreateKiWindow. */
+  const [libTableDialog, setLibTableDialog] = useState<'symbol' | 'footprint' | null>(null);
   /**
    * The demo's manifest, when one is open.
    *
@@ -1574,9 +1579,16 @@ export function App(): JSX.Element {
       },
       HasProjectManager: () => true,
       ShowProjectManager: goHome,
-      // The library tables and Configure Paths are raised by the editors that
-      // own them, not through a KIWAY here.
-      CreateKiWindow: () => false,
+      // `CreateKiWindow( DIALOG_SCH_LIBRARY_TABLE / DIALOG_PCB_LIBRARY_TABLE )`: the library
+      // tables, which COMMON_CONTROL::ShowLibraryTable raises from any frame. Configure Paths
+      // is not here (no disk to point a path at).
+      CreateKiWindow: (aClassId) => {
+        if (aClassId === FRAME_T.DIALOG_SCH_LIBRARY_TABLE) setLibTableDialog('symbol');
+        else if (aClassId === FRAME_T.DIALOG_PCB_LIBRARY_TABLE) setLibTableDialog('footprint');
+        else return false;
+
+        return true;
+      },
       KiFACE: (aFaceId) => (aFaceId === FACE_T.FACE_CVPCB ? cvpcbKiface() : null),
     });
   }, [goHome, mountFor]);
@@ -2053,6 +2065,16 @@ export function App(): JSX.Element {
             </Suspense>
           </Frozen>
         </div>
+      )}
+      {libTableDialog && projectFiles && (
+        <Suspense fallback={null}>
+          <LibraryTableHost
+            kind={libTableDialog}
+            projectFiles={projectFiles}
+            onWrite={writeProjectFiles}
+            onClose={() => setLibTableDialog(null)}
+          />
+        </Suspense>
       )}
       {calcMounted && (
         <div style={frameStyle(view === 'calculator')}>

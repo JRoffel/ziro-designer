@@ -19,7 +19,9 @@
  * is the hosted library set and read-only; "Add Existing" lists the `.pretty`
  * folders already in the project instead of opening a directory picker.
  */
-import type { JSX } from 'react';
+import { type JSX, useRef } from 'react';
+import { DisplayErrorMessage } from '@ziroeda/common/confirm.js';
+import { ChooseLocalFolder } from '@ziroeda/wx/dirdlg.js';
 import {
   LIBRARY_TABLE,
   LIBRARY_TABLE_SCOPE,
@@ -32,8 +34,10 @@ import {
   projectRoot,
 } from '@ziroeda/common/project_paths.js';
 import {
+  AddFootprintLibraryToProject,
   fpLibRowsOf,
   projectFpLibTablePath,
+  prettyDirOf,
   projectPrettyDirs,
   rowPrettyDir,
   type FpLibRow,
@@ -53,8 +57,11 @@ interface Props {
   globalLibraries: readonly string[];
   /** Where the hosted libraries are served from (their "Library Path"). */
   globalBase: string;
-  /** OK: the project table's new rows. */
-  onSave: (rows: FpLibRow[]) => void;
+  /**
+   * OK: the project table's new rows, and the library folders "Add Existing" took off the
+   * computer that a row still names - to be written into the project with the table.
+   */
+  onSave: (rows: FpLibRow[], files: { name: string; text: string }[]) => void;
   onClose: () => void;
 }
 
@@ -90,16 +97,56 @@ export function DialogFpLibTable({
   onSave,
   onClose,
 }: Props): JSX.Element {
+  /** The folders "Add Existing" took off the computer, held until OK. */
+  const staged = useRef<{ name: string; text: string }[]>([]);
+  /** The project's files as they will be on OK: the checks and the list see the held ones. */
+  const files = (): readonly { name: string; text: string }[] => [
+    ...projectFiles,
+    ...staged.current,
+  ];
+
   /** Whether the project holds a file under the row's `.pretty` folder. */
   const dirExists = (aRow: LIBRARY_TABLE_ROW): boolean => {
-    const dir = projectRelativePath(aRow.URI(), projectRoot(projectFiles, FP_LIB_TABLE_ANCHOR))
+    const dir = projectRelativePath(aRow.URI(), projectRoot(files(), FP_LIB_TABLE_ANCHOR))
       .replace(/\/+$/, '')
       .toLowerCase();
 
     return (
       dir !== '' &&
-      projectFiles.some((f) => f.name.replace(/\\/g, '/').toLowerCase().startsWith(`${dir}/`))
+      files().some((f) => f.name.replace(/\\/g, '/').toLowerCase().startsWith(`${dir}/`))
     );
+  };
+
+  /** `browseLibrariesHandler`: a `.pretty` folder on the computer, held for OK. */
+  const pick = async () => {
+    const folder = await ChooseLocalFolder();
+
+    if (!folder) return [];
+
+    const decoder = new TextDecoder();
+    const added = AddFootprintLibraryToProject(files(), {
+      name: folder.name,
+      files: folder.files.map((f) => ({ path: f.path, text: decoder.decode(f.bytes) })),
+    });
+
+    if (!added.ok) {
+      DisplayErrorMessage(added.error);
+      return [];
+    }
+
+    // The table is this dialog's to write; only the library's own files are held.
+    const libFiles = added.files.filter((f) => !FP_LIB_TABLE_ANCHOR.test(f.name));
+    const libDir = libFiles[0]!.name.split('/').slice(-2, -1)[0]!;
+    staged.current = [...staged.current, ...libFiles];
+
+    return [{ name: added.nickname, uri: `\${KIPRJMOD}/${libDir}`, label: libDir }];
+  };
+
+  /** The held folders some row of \a aRows still names: the ones OK writes. */
+  const kept = (aRows: readonly FpLibRow[]) => {
+    const dirs = new Set(aRows.map((r) => rowPrettyDir(r).toLowerCase()).filter(Boolean));
+
+    return staged.current.filter((f) => dirs.has(prettyDirOf(f.name).toLowerCase()));
   };
 
   return (
@@ -125,8 +172,7 @@ export function DialogFpLibTable({
           : libNotFound(`Footprint library '${row.URI()}' not found.`);
       }}
       nestedTableExists={(row) =>
-        isProjectRelative(row.URI()) &&
-        !!findProjectFile(projectFiles, row.URI(), FP_LIB_TABLE_ANCHOR)
+        isProjectRelative(row.URI()) && !!findProjectFile(files(), row.URI(), FP_LIB_TABLE_ANCHOR)
       }
       existing={(rows) => {
         // A folder whose name a row's `.pretty` already has is registered.
@@ -141,7 +187,7 @@ export function DialogFpLibTable({
             }).toLowerCase(),
           ),
         );
-        return projectPrettyDirs(projectFiles, [])
+        return projectPrettyDirs(files(), [])
           .filter((d) => !registered.has(d.dir.toLowerCase()))
           .map((d) => ({
             name: d.dir,
@@ -149,7 +195,11 @@ export function DialogFpLibTable({
             label: `${d.dir}.pretty`,
           }));
       }}
-      onSave={(table) => onSave(fpLibRowsOf(table))}
+      browse={{ label: 'KiCad (folder) from Computer...', pick }}
+      onSave={(table) => {
+        const rows = fpLibRowsOf(table);
+        onSave(rows, kept(rows));
+      }}
       onClose={onClose}
     />
   );

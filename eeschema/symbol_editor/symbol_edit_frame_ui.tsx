@@ -2143,6 +2143,10 @@ export function SymbolEditor({
         case 'newLibrary':
           setNewLibName('');
           break;
+        case 'showSymbolLibTable':
+          // `COMMON_CONTROL::ShowLibraryTable`: the program puts the dialog up.
+          kiway?.CreateKiWindow(FRAME_T.DIALOG_SCH_LIBRARY_TABLE);
+          break;
         case 'addLibrary':
           setSymOpenDlg('addLibrary');
           break;
@@ -2254,6 +2258,7 @@ export function SymbolEditor({
       showDatasheet,
       onToolSelect,
       openFindDialog,
+      kiway,
     ],
   );
 

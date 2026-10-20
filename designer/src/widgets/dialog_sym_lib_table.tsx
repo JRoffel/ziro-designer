@@ -21,7 +21,10 @@
  * is the hosted library set and read-only; "Add Existing" lists the
  * `.kicad_sym` files already in the project instead of opening a file picker.
  */
-import type { JSX } from 'react';
+import { type JSX, useRef } from 'react';
+import { DisplayErrorMessage } from '@ziroeda/common/confirm.js';
+import { kicadSymbolLibWildcard } from '@ziroeda/common/wildcards_and_files_ext.js';
+import { acceptAttribute, openFileDialog } from '../fs/open_file_dialog.js';
 import {
   LIBRARY_TABLE,
   LIBRARY_TABLE_SCOPE,
@@ -31,6 +34,7 @@ import {
 import { findProjectFile } from '@ziroeda/common/project_paths.js';
 import { fpLibRowsOf, type FpLibRow } from '@ziroeda/common/fp_lib_table.js';
 import {
+  AddSymbolLibraryToProject,
   projectSymLibTablePath,
   projectSymbolFiles,
   rowSymLibName,
@@ -50,8 +54,11 @@ interface Props {
   globalLibraries: readonly string[];
   /** Where the hosted libraries are served from (their "Library Path"). */
   globalBase: string;
-  /** OK: the project table's new rows. */
-  onSave: (rows: FpLibRow[]) => void;
+  /**
+   * OK: the project table's new rows, and the library files "Add Existing" took off the
+   * computer that a row still names - to be written into the project with the table.
+   */
+  onSave: (rows: FpLibRow[], files: { name: string; text: string }[]) => void;
   onClose: () => void;
 }
 
@@ -87,8 +94,72 @@ export function DialogSymLibTable({
   onSave,
   onClose,
 }: Props): JSX.Element {
+  /** The library files "Add Existing" took off the computer, held until OK. */
+  const staged = useRef<{ name: string; text: string }[]>([]);
+  /** The project's files as they will be on OK: the checks and the list see the held ones. */
+  const files = (): readonly { name: string; text: string }[] => [
+    ...projectFiles,
+    ...staged.current,
+  ];
   const rowFile = (aRow: LIBRARY_TABLE_ROW) =>
-    findProjectFile(projectFiles, aRow.URI(), SYM_LIB_TABLE_ANCHOR);
+    findProjectFile(files(), aRow.URI(), SYM_LIB_TABLE_ANCHOR);
+
+  /** The browser's picker over `.kicad_sym`, the hidden input where it has none. */
+  const chooseFiles = async (): Promise<File[]> => {
+    const filters = [kicadSymbolLibWildcard()];
+    let viaInput: Promise<File[]> | null = null;
+    const files = await openFileDialog(filters, {
+      multiple: true,
+      fallback: () => {
+        viaInput = new Promise((resolve) => {
+          const input = document.createElement('input');
+          input.type = 'file';
+          input.multiple = true;
+          input.accept = acceptAttribute(filters);
+          input.addEventListener('cancel', () => resolve([]));
+          input.addEventListener('change', () => resolve(Array.from(input.files ?? [])));
+          input.click();
+        });
+      },
+    });
+
+    return viaInput ? await viaInput : files;
+  };
+
+  /** `browseLibrariesHandler`: `.kicad_sym` files on the computer, held for OK. */
+  const pick = async () => {
+    const picked = await chooseFiles();
+    const rows: { name: string; uri: string; label: string }[] = [];
+
+    for (const file of picked) {
+      const added = AddSymbolLibraryToProject(
+        files(),
+        { name: file.name, text: await file.text() },
+        globalLibraries,
+      );
+
+      if (!added.ok) {
+        DisplayErrorMessage(added.error);
+        continue;
+      }
+
+      // The table is this dialog's to write; only the library file is held.
+      const libFiles = added.files.filter((f) => !SYM_LIB_TABLE_ANCHOR.test(f.name));
+      staged.current = [...staged.current, ...libFiles];
+      rows.push({ name: added.nickname, uri: `\${KIPRJMOD}/${file.name}`, label: file.name });
+    }
+
+    return rows;
+  };
+
+  /** The held files some row of \a aRows still names: the ones OK writes. */
+  const kept = (aRows: readonly FpLibRow[]) => {
+    const names = new Set(aRows.map((r) => rowSymLibName(r).toLowerCase()).filter(Boolean));
+
+    return staged.current.filter((f) =>
+      names.has((f.name.split('/').pop() ?? '').replace(/\.kicad_sym$/i, '').toLowerCase()),
+    );
+  };
 
   return (
     <LibTablePanel
@@ -124,7 +195,7 @@ export function DialogSymLibTable({
             }).toLowerCase(),
           ),
         );
-        return projectSymbolFiles(projectFiles, [])
+        return projectSymbolFiles(files(), [])
           .filter((d) => !registered.has(d.file.toLowerCase()))
           .map((d) => ({
             name: d.file,
@@ -132,7 +203,11 @@ export function DialogSymLibTable({
             label: `${d.file}.kicad_sym`,
           }));
       }}
-      onSave={(table) => onSave(fpLibRowsOf(table))}
+      browse={{ label: 'KiCad from Computer...', pick }}
+      onSave={(table) => {
+        const rows = fpLibRowsOf(table);
+        onSave(rows, kept(rows));
+      }}
       onClose={onClose}
     />
   );

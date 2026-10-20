@@ -2635,16 +2635,16 @@ export function SchematicEditor({
   // next to the `.kicad_pro` when the project has none) and keep it in memory,
   // so a library registered here resolves immediately.
   const saveProjectFpLibTable = useCallback(
-    (rows: FpLibRow[]) => {
+    (rows: FpLibRow[], libraryFiles: { name: string; text: string }[] = []) => {
       const name = projectFpLibTablePath(rawFiles);
       const text = serializeFpLibTable(rows);
-      setRawFiles((prev) => {
-        const has = prev.some((f) => f.name === name);
-        return has
-          ? prev.map((f) => (f.name === name ? { ...f, text } : f))
-          : [...prev, { name, text }];
-      });
-      onPersistFiles?.([{ name, text }]);
+      // The table, and the libraries "Add Existing" brought in off the computer.
+      const written = [{ name, text }, ...libraryFiles];
+      setRawFiles((prev) => [
+        ...prev.filter((f) => !written.some((w) => w.name === f.name)),
+        ...written,
+      ]);
+      onPersistFiles?.(written);
     },
     [rawFiles, onPersistFiles],
   );
@@ -2678,16 +2678,16 @@ export function SchematicEditor({
   // written here is what makes the library exist — SYMBOL_LIB_TABLE resolves a
   // LIB_ID's nickname through this table, so nothing else can register one.
   const saveProjectSymLibTable = useCallback(
-    (rows: FpLibRow[]) => {
+    (rows: FpLibRow[], libraryFiles: { name: string; text: string }[] = []) => {
       const name = projectSymLibTablePath(rawFiles);
       const text = serializeSymLibTable(rows);
-      setRawFiles((prev) => {
-        const has = prev.some((f) => f.name === name);
-        return has
-          ? prev.map((f) => (f.name === name ? { ...f, text } : f))
-          : [...prev, { name, text }];
-      });
-      onPersistFiles?.([{ name, text }]);
+      // The table, and the libraries "Add Existing" brought in off the computer.
+      const written = [{ name, text }, ...libraryFiles];
+      setRawFiles((prev) => [
+        ...prev.filter((f) => !written.some((w) => w.name === f.name)),
+        ...written,
+      ]);
+      onPersistFiles?.(written);
       // The table decides what ERC can resolve, so drop the cached library set.
     },
     [rawFiles, onPersistFiles],
@@ -6250,8 +6250,8 @@ export function SchematicEditor({
                 projectFiles={rawFiles}
                 globalLibraries={hostedSymbolLibs}
                 globalBase={symbolsBase()}
-                onSave={(rows) => {
-                  saveProjectSymLibTable(rows);
+                onSave={(rows, files) => {
+                  saveProjectSymLibTable(rows, files);
                   setSymLibTableOpen(false);
                 }}
                 onClose={() => setSymLibTableOpen(false)}

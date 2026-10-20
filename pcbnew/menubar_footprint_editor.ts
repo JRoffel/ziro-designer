@@ -421,7 +421,7 @@ export function footprintEditorMenus(
            Removed rather than greyed, like every other control this application
            cannot have. Greying says "not ready yet"; this one is not a promise
            the app can keep. */
-        stub('Manage Footprint Libraries...', 'showFootprintLibTable'),
+        act('Manage Footprint Libraries...', 'showFootprintLibTable'),
         act('Preferences...', 'openPreferences', { shortcut: 'Ctrl+,' }),
         SEP,
         setLanguageMenuItem({ current: h.language, onSelect: h.onSelectLanguage }),

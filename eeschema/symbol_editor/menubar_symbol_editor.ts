@@ -363,7 +363,7 @@ export function symbolEditorMenus(
            Removed rather than greyed, like every other control this application
            cannot have. Greying says "not ready yet"; this one is not a promise
            the app can keep. */
-        stub('Manage Symbol Libraries...', 'showSymbolLibTable'),
+        act('Manage Symbol Libraries...', 'showSymbolLibTable'),
         act('Preferences...', 'openPreferences', { shortcut: 'Ctrl+,' }),
         SEP,
         setLanguageMenuItem({ current: h.language, onSelect: h.onSelectLanguage }),

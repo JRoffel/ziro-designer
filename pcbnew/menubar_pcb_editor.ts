@@ -866,7 +866,7 @@ export function buildPcbMenus(
         {
           label: 'Manage Footprint Libraries...',
           icon: 'library_table',
-          disabled: true,
+          action: () => h.action('showFootprintLibTable'),
         },
         // `ACTIONS::showDesignBlockLibTable`, inside `m_EnablePcbDesignBlocks`. The
         // Design Blocks pane is built; PANEL_DESIGN_BLOCK_LIB_TABLE is not, so the

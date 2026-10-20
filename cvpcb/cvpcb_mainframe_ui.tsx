@@ -254,7 +254,7 @@ export interface CVPCB_APP extends CvpcbDisplayFootprintsApp, CvpcbEquFilesApp {
     projectFiles: readonly ProjectFile[];
     globalLibraries: readonly string[];
     globalBase: string;
-    onSave: (rows: FpLibRow[]) => void;
+    onSave: (rows: FpLibRow[], files: { name: string; text: string }[]) => void;
     onClose: () => void;
   }): ReactNode;
   /** `EDA_BASE_FRAME::ShowPreferences()`. */
@@ -346,7 +346,7 @@ interface Props {
   kiway?: KIWAY;
   /** Save the project's footprint library table (Manage Footprint Libraries).
    *  Absent when there is no project to write it into. */
-  onSaveLibTable?: (rows: FpLibRow[]) => void;
+  onSaveLibTable?: (rows: FpLibRow[], files: { name: string; text: string }[]) => void;
   /**
    * Manage Footprint Association Files' OK: write `cvpcb.equivalence_files`
    * into the project's `.kicad_pro` (upstream's `SaveProject()`), together with
@@ -1672,8 +1672,8 @@ export function DialogAssignFootprints({
             projectFiles: projectFootprints ?? [],
             globalLibraries: hostedIndex.map((l) => l.name),
             globalBase: app.footprintsBase(),
-            onSave: (next) => {
-              onSaveLibTable(next);
+            onSave: (next, files) => {
+              onSaveLibTable(next, files);
               setLibTableOpen(false);
             },
             onClose: () => setLibTableOpen(false),

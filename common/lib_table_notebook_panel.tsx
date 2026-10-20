@@ -178,7 +178,8 @@ export function LibTableNotebookView({
   const grid = page?.GetGrid() ?? null;
 
   return (
-    <>
+    // The wxAuiNotebook is one window: its tab row, then the page.
+    <div className="ze-libtable-notebook">
       <div className="ze-tabbar" role="tablist">
         {Array.from({ length: notebook.GetPageCount() }, (_, i) => (
           <button
@@ -221,6 +222,6 @@ export function LibTableNotebookView({
           />
         </div>
       )}
-    </>
+    </div>
   );
 }

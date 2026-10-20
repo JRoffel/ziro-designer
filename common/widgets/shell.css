@@ -11153,6 +11153,22 @@ fieldset.ze-sbox > legend {
   min-height: 600px; /* [data] the same line */
   gap: 8px; /* [px] the panel's own notebook-to-grid spacing, as before */
 }
+/* The installed panel takes the whole of it: [data] Add( m_contentPanel, 1, wxEXPAND, ... ), and a
+   wxPanel's sizer fills the panel. */
+.ze-libtables-content > * {
+  flex: 1 1 auto;
+}
+
+/* LIB_TABLE_NOTEBOOK (common/lib_table_notebook_panel.tsx), a wxAuiNotebook: one window, its tab
+   row at its natural height and the page taking the rest. */
+.ze-libtable-notebook {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.ze-libtable-notebook > .ze-tabbar {
+  flex: 0 0 auto;
+}
 
 /* DIALOG_PLUGIN_OPTIONS (common/dialogs/dialog_plugin_options.tsx), each
    border dialog_plugin_options_base.cpp's Add(). */

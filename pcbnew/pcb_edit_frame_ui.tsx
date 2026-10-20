@@ -6725,6 +6725,10 @@ export function PcbEditor({
       case 'openPreferences':
         setPrefsOpen(true);
         break;
+      case 'showFootprintLibTable':
+        // COMMON_CONTROL::ShowLibraryTable: the program puts the dialog up.
+        runAction(ACTIONS.showFootprintLibTable);
+        break;
 
       default:
         break; // other editing actions are staged

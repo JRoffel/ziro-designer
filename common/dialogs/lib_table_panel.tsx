@@ -25,7 +25,8 @@
  *    overrides (`SaveOverrides`); nothing here reads such overrides, so those
  *    two refuse too rather than change what nothing honours.
  *  - "Add Existing" is a list of the project's library files not yet in the
- *    table, where upstream's SPLIT_BUTTON opens a file dialog per format.
+ *    table, and the file dialog upstream's SPLIT_BUTTON opens, onto the
+ *    computer: what it picks is copied into the project on OK.
  *    A nickname already in the table is skipped (upstream asks "Skip" / "Add
  *    Anyway").
  *  - The Library Format choice offers "KiCad" only: the one format the
@@ -131,6 +132,11 @@ export interface LibTablePanelSpec {
   nestedTableExists: (aRow: LIBRARY_TABLE_ROW) => boolean;
   /** The project's library files no row of the project table registers: "Add Existing"'s list. */
   existing: (aRows: readonly LIBRARY_TABLE_ROW[]) => readonly ExistingLibrary[];
+  /**
+   * `browseLibrariesHandler`'s file dialog: libraries picked off the computer, which the dialog
+   * holds and writes into the project with the table on OK. Each comes back as a row to add.
+   */
+  browse?: { label: string; pick: () => Promise<readonly ExistingLibrary[]> };
   /** OK with a changed project table. */
   onSave: (aTable: LIBRARY_TABLE) => void;
   onClose: () => void;
@@ -410,10 +416,24 @@ export function LibTablePanel(spec: LibTablePanelSpec): JSX.Element {
       <spec.Base
         m_notebook={<LibTableNotebookView notebook={notebook} ariaLabel={spec.title} />}
         onAppend={() => LIB_TABLE_GRID_TRICKS.AppendRowHandler(cur_grid())}
-        browseMenu={unregistered.map((lib) => ({
-          label: lib.label,
-          action: () => addExisting(lib),
-        }))}
+        browseMenu={[
+          ...(spec.browse
+            ? [
+                {
+                  label: spec.browse.label,
+                  action: () => {
+                    void spec.browse!.pick().then((libs) => {
+                      for (const lib of libs) addExisting(lib);
+                    });
+                  },
+                },
+              ]
+            : []),
+          ...unregistered.map((lib) => ({
+            label: lib.label,
+            action: () => addExisting(lib),
+          })),
+        ]}
         onMoveUp={() => LIB_TABLE_GRID_TRICKS.MoveUpHandler(cur_grid())}
         onMoveDown={() => LIB_TABLE_GRID_TRICKS.MoveDownHandler(cur_grid())}
         onDelete={() => LIB_TABLE_GRID_TRICKS.DeleteRowHandler(cur_grid())}

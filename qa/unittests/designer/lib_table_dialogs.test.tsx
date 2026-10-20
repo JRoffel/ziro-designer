@@ -10,8 +10,17 @@
  * file, OK writes only a changed table, and a double-click in Options opens
  * DIALOG_PLUGIN_OPTIONS (LIB_TABLE_GRID_TRICKS::handleDoubleClick).
  */
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+
+// "Add Existing"'s file dialog onto the computer: the folder the test hands it.
+const pickedFolder = vi.hoisted(() => ({
+  value: null as null | { name: string; files: { path: string; bytes: Uint8Array }[] },
+}));
+vi.mock('@ziroeda/wx/dirdlg.js', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  ChooseLocalFolder: async () => pickedFolder.value,
+}));
 import { DialogFpLibTable } from '@ziroeda/pcbnew/dialogs/panel_fp_lib_table.js';
 import { DialogSymLibTable } from '@ziroeda/designer/src/widgets/dialog_sym_lib_table.js';
 
@@ -143,6 +152,72 @@ describe('Manage Footprint Libraries', () => {
     expect(screen.queryByText('footprints.pretty')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Remove library from table' }));
     fireEvent.click(screen.getByRole('button', { name: 'OK' }));
-    expect(onSave).toHaveBeenCalledWith([]);
+    // No rows, and no library brought in off the computer to write with them.
+    expect(onSave).toHaveBeenCalledWith([], []);
+  });
+
+  describe('"Add Existing" from the computer', () => {
+    const enc = new TextEncoder();
+    const open = (onSave: ReturnType<typeof vi.fn>) => {
+      pickedFolder.value = {
+        name: 'MyParts.pretty',
+        files: [
+          { path: 'R_0603.kicad_mod', bytes: enc.encode('(footprint "R_0603")') },
+          { path: 'notes.txt', bytes: enc.encode('x') },
+        ],
+      };
+      render(
+        <DialogFpLibTable
+          projectFiles={fpFiles}
+          globalLibraries={['Resistor_SMD']}
+          globalBase="https://fp"
+          onSave={onSave}
+          onClose={vi.fn()}
+        />,
+      );
+    };
+    const browse = async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Add Existing' }));
+      await act(async () => {
+        fireEvent.click(screen.getByText('KiCad (folder) from Computer...'));
+        await new Promise((r) => setTimeout(r, 0));
+      });
+    };
+
+    it('adds the folder as a project row, and OK writes its footprints with the table', async () => {
+      const onSave = vi.fn();
+      open(onSave);
+      await browse();
+
+      expect(cellText(1, 3)).toBe('MyParts');
+      expect(cellText(1, 4)).toBe('${KIPRJMOD}/MyParts.pretty');
+      fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+      expect(onSave).toHaveBeenCalledWith(
+        [
+          expect.objectContaining({ name: 'Footprints' }),
+          expect.objectContaining({ name: 'MyParts', uri: '${KIPRJMOD}/MyParts.pretty' }),
+        ],
+        [{ name: 'ecc/MyParts.pretty/R_0603.kicad_mod', text: '(footprint "R_0603")' }],
+      );
+    });
+
+    it('writes nothing of a folder whose row was removed again before OK', async () => {
+      const onSave = vi.fn();
+      open(onSave);
+      await browse();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Remove library from table' }));
+      // Another change, so OK does write the table: without the folder's files.
+      fireEvent.click(screen.getByRole('button', { name: 'Add Existing' }));
+      fireEvent.click(screen.getByText('spares.pretty'));
+      fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+      expect(onSave).toHaveBeenCalledWith(
+        [
+          expect.objectContaining({ name: 'Footprints' }),
+          expect.objectContaining({ name: 'spares' }),
+        ],
+        [],
+      );
+    });
   });
 });

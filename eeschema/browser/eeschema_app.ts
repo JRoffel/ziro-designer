@@ -115,7 +115,7 @@ export interface EESCHEMA_APP {
     projectFiles: readonly { name: string; text: string }[];
     globalLibraries: readonly string[];
     globalBase: string;
-    onSave: (rows: FpLibRow[]) => void;
+    onSave: (rows: FpLibRow[], files: { name: string; text: string }[]) => void;
     onClose: () => void;
   }) => ReactNode;
   /** `FRAME_FOOTPRINT_CHOOSER`, with the hosted footprint library reads baked in. */
@@ -200,7 +200,7 @@ export interface EESCHEMA_APP {
     files?: readonly string[];
     projectFootprints?: readonly { name: string; text: string }[];
     kiway?: KIWAY;
-    onSaveLibTable?: (rows: FpLibRow[]) => void;
+    onSaveLibTable?: (rows: FpLibRow[], files: { name: string; text: string }[]) => void;
     onSaveEquFiles?: (files: readonly string[], newFiles: readonly ProjectFile[]) => void;
     onClose: () => void;
   }) => ReactNode;
