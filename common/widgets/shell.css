@@ -8632,6 +8632,21 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
 .ze-dataview-list {
   height: 0;
 }
+/* A wxCheckListBox: its height is wx's best size (CheckListBoxBestHeight, at most ten rows), never
+   its rows' - the 22 layers of the Plot dialog made it taller than the window and pushed the
+   buttons out of it. The rows sit in a body with no height of its own (flex-basis 0), so they
+   still give the list its width, the sizer stretches it from the best height, and they scroll. */
+.ze-checklist {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+.ze-checklist-rows {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: auto;
+}
 /* A row of the list. */
 .ze-gridlist-row {
   /* [px] GtkCellRendererText's `ypad` of 2 above and below, and half of

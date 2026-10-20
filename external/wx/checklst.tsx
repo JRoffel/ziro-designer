@@ -28,6 +28,18 @@ export interface CheckListBoxProps {
   ariaLabel?: string;
 }
 
+/**
+ * `wxListBox::DoGetBestSize` (src/gtk/listbox.cpp) for a wxCheckListBox: the text height, raised to
+ * wx's "rough height of checkbox" of 25, plus 4 per row - for at least 3 rows and at most 10, so a
+ * long list does not make its window tall: a sizer stretches it from there and it scrolls.
+ * qa/probes/plot_layer_list_probe.cpp asks wxGTK for the 22 layers of DIALOG_PLOT: 290.
+ * [data] wx's own constants, not a theme metric.
+ */
+export function CheckListBoxBestHeight(aCount: number): number {
+  const rowHeight = 25 + 4;
+  return rowHeight * Math.min(Math.max(aCount, 3), 10);
+}
+
 export function CheckListBox({
   items,
   checked,
@@ -39,28 +51,35 @@ export function CheckListBox({
 }: CheckListBoxProps): JSX.Element {
   return (
     <div
-      className="ze-gridlist"
+      className="ze-gridlist ze-checklist"
       role="listbox"
       aria-label={ariaLabel}
+      style={{ minHeight: CheckListBoxBestHeight(items.length) }}
       onContextMenu={(e) => {
         if (!onContextMenu) return;
         e.preventDefault();
         onContextMenu(e);
       }}
     >
-      {items.map((label, i) => (
-        <div
-          // Rows are positions in the list; the owner reorders the labels, not the rows.
-          // biome-ignore lint/suspicious/noArrayIndexKey: a row IS its index here
-          key={i}
-          role="option"
-          aria-selected={i === selection}
-          className={`ze-gridlist-row${i === selection ? ' selected' : ''}`}
-          onClick={() => onSelect?.(i)}
-        >
-          <CheckBox label={label} checked={checked[i] ?? false} onChange={(on) => onCheck(i, on)} />
-        </div>
-      ))}
+      <div className="ze-checklist-rows">
+        {items.map((label, i) => (
+          <div
+            // Rows are positions in the list; the owner reorders the labels, not the rows.
+            // biome-ignore lint/suspicious/noArrayIndexKey: a row IS its index here
+            key={i}
+            role="option"
+            aria-selected={i === selection}
+            className={`ze-gridlist-row${i === selection ? ' selected' : ''}`}
+            onClick={() => onSelect?.(i)}
+          >
+            <CheckBox
+              label={label}
+              checked={checked[i] ?? false}
+              onChange={(on) => onCheck(i, on)}
+            />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
