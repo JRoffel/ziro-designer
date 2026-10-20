@@ -12,6 +12,8 @@ import { FRAME_T } from '@ziroeda/common/frame_type.js';
 import { GAL } from '@ziroeda/common/gal/graphics_abstraction_layer.js';
 import { GAL_DISPLAY_OPTIONS } from '@ziroeda/common/gal/gal_display_options.js';
 import { RECURSE_MODE } from '@ziroeda/common/eda_item.js';
+import { PAGE_INFO, PAGE_SIZE_TYPE } from '@ziroeda/common/page_info.js';
+import { TITLE_BLOCK } from '@ziroeda/common/title_block.js';
 import { IS_MOVING } from '@ziroeda/common/eda_item_flags.js';
 import { LAYER_GP_OVERLAY, LAYER_SELECT_OVERLAY, PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import { VIEW_GROUP } from '@ziroeda/common/view/view_group.js';
@@ -194,6 +196,22 @@ describe("the render worker's VIEW follows the window's", () => {
     settle();
 
     expect([...wPainter.GetSettings().GetHighlightNetCodes()]).toEqual([track.GetNetCode()]);
+  });
+
+  it('Page Settings: the page and the title block reach the worker’s board', () => {
+    const page = new PAGE_INFO(PAGE_SIZE_TYPE.A3);
+    const titles = new TITLE_BLOCK();
+
+    titles.SetTitle('Render worker');
+    h.board.SetPageSettings(page);
+    h.board.SetTitleBlock(titles);
+    mirror.Flush();
+
+    expect(copy.GetTitleBlock().GetTitle()).toBe('Render worker');
+    expect(copy.GetPageSettings().GetSizeMils()).toEqual(h.board.GetPageSettings().GetSizeMils());
+    expect(copy.GetPageSettings().GetSizeMils()).not.toEqual(
+      new PAGE_INFO(PAGE_SIZE_TYPE.A4).GetSizeMils(),
+    );
   });
 
   it('an overlay-only VIEW caches nothing, and a recache sends one call, not one per item', () => {

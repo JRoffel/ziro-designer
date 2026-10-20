@@ -81,6 +81,11 @@ export class TITLE_BLOCK {
     this.m_tbTexts = [];
   }
 
+  /** `operator=`: this object takes \a aOther's texts, and every reference to it sees them. */
+  assign(aOther: TITLE_BLOCK): void {
+    this.m_tbTexts = [...aOther.m_tbTexts];
+  }
+
   /** The copy the C++ value semantics give. */
   clone(): TITLE_BLOCK {
     const c = new TITLE_BLOCK();

@@ -31,7 +31,12 @@ import type { BOARD } from '../board.js';
 import type { BOARD_ITEM } from '../board_item.js';
 import type { PCB_RENDER_SETTINGS } from '../pcb_painter.js';
 import { PCB_SELECTION } from '../tools/pcb_selection.js';
-import { ApplyRenderSync, FormatRenderSyncItems } from './render_sync.js';
+import {
+  ApplyRenderSync,
+  ApplyRenderSyncSheet,
+  FormatRenderSyncItems,
+  FormatRenderSyncSheet,
+} from './render_sync.js';
 
 /** The item flags the painter reads (IsSelected, IsBrightened, IsEntered, IsMoving). */
 const STATUS_MASK = SELECTED | BRIGHTENED | ENTERED | IS_MOVING;
@@ -46,6 +51,8 @@ export type RENDER_VIEW_OP =
   | { op: 'call'; name: string; args: unknown[] }
   /** The board outline (the Board Area Shadow) changed: UpdateBoardOutline, as BOARD_COMMIT. */
   | { op: 'outline' }
+  /** The page and title block changed (Page Settings): FormatRenderSyncSheet's text. */
+  | { op: 'sheet'; text: string }
   /**
    * A selection group the worker draws: its layer, its items (none: the window draws it), and
    * whether it is a PCB_SELECTION, which draws a footprint's children with it.
@@ -123,6 +130,11 @@ export function applyRenderSettings(
   }
 }
 
+/** The drawing sheet's proxy item: the window's and the worker's are each their own. */
+function isDrawingSheet(aItem: VIEW_ITEM): boolean {
+  return aItem.GetClass() === 'DS_PROXY_VIEW_ITEM';
+}
+
 /** A DRC marker: drawn on the window's overlay, and not an item the board file holds. */
 function isOverlayItem(aItem: BOARD_ITEM): boolean {
   return aItem.Type() === KICAD_T.PCB_MARKER_T;
@@ -151,6 +163,8 @@ export class RENDER_VIEW_MIRROR implements VIEW_MIRROR {
   /** The selection groups the worker has heard of, and what it was last told each holds. */
   private m_groups = new Map<VIEW_GROUP, { id: number; items: VIEW_ITEM[] }>();
   private m_nextGroup = 1;
+  /** The page and title block the worker has, as FormatRenderSyncSheet writes them. */
+  private m_sheet: string;
 
   /**
    * \a aBoard's items are the worker's already (it parsed the same board); \a aSettings answers
@@ -164,6 +178,7 @@ export class RENDER_VIEW_MIRROR implements VIEW_MIRROR {
     this.m_board = aBoard;
     this.m_settings = aSettings;
     this.m_post = aPost;
+    this.m_sheet = FormatRenderSyncSheet(aBoard);
 
     for (const item of aBoard.GetItemSet()) {
       if (isOverlayItem(item)) continue;
@@ -184,6 +199,11 @@ export class RENDER_VIEW_MIRROR implements VIEW_MIRROR {
   }
 
   ItemAdded(aItem: VIEW_ITEM): void {
+    if (isDrawingSheet(aItem)) {
+      this.schedule();
+      return;
+    }
+
     if (aItem === this.m_board.BoardOutline()) {
       this.pushOp({ op: 'outline' });
       return;
@@ -220,6 +240,12 @@ export class RENDER_VIEW_MIRROR implements VIEW_MIRROR {
   }
 
   ItemInvalidated(aItem: VIEW_ITEM, aUpdateFlags: number): void {
+    // Page Settings: the page or title block may have changed (Flush compares them).
+    if (isDrawingSheet(aItem)) {
+      this.schedule();
+      return;
+    }
+
     // Not one of the board's items: the worker's board computes its own from its edges.
     if (aItem === this.m_board.BoardOutline() && aUpdateFlags !== VIEW_UPDATE_FLAGS.INITIAL_ADD) {
       this.pushOp({ op: 'outline' });
@@ -336,6 +362,14 @@ export class RENDER_VIEW_MIRROR implements VIEW_MIRROR {
     for (const group of this.m_groups.keys())
       this.sendGroup(group, this.drawableItems(group) ?? []);
 
+    // Ahead of anything drawn with them: text variables read the title block.
+    const sheet = FormatRenderSyncSheet(this.m_board);
+
+    if (sheet !== this.m_sheet) {
+      this.m_sheet = sheet;
+      this.m_ops.unshift({ op: 'sheet', text: sheet });
+    }
+
     this.m_scheduled = false;
 
     if (this.m_upsert.size === 0 && this.m_remove.size === 0 && this.m_ops.length === 0) return;
@@ -442,6 +476,7 @@ export function ApplyRenderViewBatch(
   aView: VIEW,
   aSettings: PCB_RENDER_SETTINGS,
   aBatch: RENDER_VIEW_BATCH,
+  aSheetChanged?: () => void,
 ): void {
   ApplyRenderSync(aBoard, aView, { upsert: aBatch.upsert, remove: aBatch.remove });
 
@@ -487,6 +522,10 @@ export function ApplyRenderViewBatch(
         break;
       case 'call':
         (aView as unknown as Record<string, (...a: unknown[]) => void>)[op.name]!(...op.args);
+        break;
+      case 'sheet':
+        ApplyRenderSyncSheet(aBoard, op.text);
+        aSheetChanged?.();
         break;
       case 'outline': {
         const outline = aBoard.BoardOutline();

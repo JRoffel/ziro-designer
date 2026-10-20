@@ -1618,8 +1618,9 @@ export class BOARD extends BOARD_ITEM_CONTAINER {
   GetTitleBlock(): TITLE_BLOCK {
     return this.m_titles;
   }
+  /** `m_titles = aTitleBlock`: in place, so the drawing sheet's reference sees the change. */
   SetTitleBlock(aTitleBlock: TITLE_BLOCK): void {
-    this.m_titles = aTitleBlock.clone();
+    this.m_titles.assign(aTitleBlock);
   }
 
   /**

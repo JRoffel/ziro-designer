@@ -181,7 +181,12 @@ if (g.WorkerGlobalScope !== undefined) {
     if (msg.t === 'view') applyView(msg.view);
     else if (msg.t === 'batch') {
       const painter = panel.GetView().GetPainter() as PCB_PAINTER;
-      ApplyRenderViewBatch(board, panel.GetView(), painter.GetSettings(), msg.batch);
+      ApplyRenderViewBatch(board, panel.GetView(), painter.GetSettings(), msg.batch, () => {
+        // The sheet reads the board's page and title block, which changed in place.
+        const sheet = panel!.GetDrawingSheet();
+
+        if (sheet) panel!.GetView().Update(sheet);
+      });
     }
 
     panel.Refresh();

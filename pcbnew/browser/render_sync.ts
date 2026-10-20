@@ -178,6 +178,29 @@ function connectedItems(aItem: BOARD_ITEM): BOARD_CONNECTED_ITEM[] {
 }
 
 /**
+ * The board's page and title block, which the drawing sheet and every text variable read: not
+ * items, so no commit carries them. The same transport, a header-only `kicad_pcb`.
+ */
+export function FormatRenderSyncSheet(aBoard: BOARD): string {
+  const formatter = new PRETTIFIED_STRING_FORMATTER();
+
+  formatter.Print(`(kicad_pcb (version ${SEXPR_BOARD_FILE_VERSION})`);
+  aBoard.GetPageSettings().Format(formatter);
+  aBoard.GetTitleBlock().Format(formatter);
+  formatter.Print(')');
+
+  return formatter.Finish();
+}
+
+/** Take FormatRenderSyncSheet's page and title block into \a aBoard, in place. */
+export function ApplyRenderSyncSheet(aBoard: BOARD, aText: string): void {
+  const scratch = new PCB_IO_KICAD_SEXPR_PARSER(aText, 'render sync').Parse() as BOARD;
+
+  aBoard.SetPageSettings(scratch.GetPageSettings());
+  aBoard.SetTitleBlock(scratch.GetTitleBlock());
+}
+
+/**
  * Install a RENDER_SYNC_MESSAGE on \a aBoard (the worker's copy) and its \a aView: each item
  * replaces the one with its uuid, or is added; each removed uuid leaves.
  */
