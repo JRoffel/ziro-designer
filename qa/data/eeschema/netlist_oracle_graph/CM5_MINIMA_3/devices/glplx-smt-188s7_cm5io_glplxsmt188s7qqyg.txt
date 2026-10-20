@@ -1,0 +1,40 @@
+PACKAGE 'glplxsmt188s7qqyg'
+CLASS IC
+PINCOUNT 16
+PINORDER MAIN ,
+	VCC__1,
+	TD1+__2,
+	TD1-__3,
+	TD2+__4,
+	TD2-__5,
+	TD3+__6,
+	TD3-__7,
+	TD4+__8,
+	TD4-__9,
+	GND__10,
+	K_GREEN__11,
+	A_GREEN__12,
+	K_YELLOW__13,
+	A_YELLOW__14,
+	MP1__15,
+	MP2__16
+FUNCTION MAIN MAIN ,
+	1,
+	2,
+	3,
+	4,
+	5,
+	6,
+	7,
+	8,
+	9,
+	10,
+	11,
+	12,
+	13,
+	14,
+	15,
+	16
+PACKAGEPROP VALUE 'GLPLX-SMT-188S7'
+PACKAGEPROP HEIGHT '11.6'
+END

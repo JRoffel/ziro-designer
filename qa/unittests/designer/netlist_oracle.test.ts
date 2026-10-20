@@ -98,7 +98,7 @@ const sortTstamps = (text: string): string =>
 describe('the KiCad netlist, against kicad-cli', () => {
   it('has every KiCad netlist design', () => {
     const names = ORACLES.flatMap((o) => readdirSync(o).filter((n) => !n.includes('.')));
-    expect(names).toHaveLength(45);
+    expect(names).toHaveLength(46);
   });
 
   // One folder per design; each passes whole or not at all.

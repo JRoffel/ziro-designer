@@ -1,0 +1,29 @@
+PACKAGE 'jst_sur_bm10b-surs-tf_1x10-1mp_p0_80mm_vertical'
+CLASS IC
+PINCOUNT 11
+PINORDER MAIN ,
+	Pin_1__1,
+	Pin_2__2,
+	Pin_3__3,
+	Pin_4__4,
+	Pin_5__5,
+	Pin_6__6,
+	Pin_7__7,
+	Pin_8__8,
+	Pin_9__9,
+	Pin_10__10,
+	MountPin__MP
+FUNCTION MAIN MAIN ,
+	1,
+	2,
+	3,
+	4,
+	5,
+	6,
+	7,
+	8,
+	9,
+	10,
+	MP
+PACKAGEPROP VALUE SPI
+END

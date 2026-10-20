@@ -1,0 +1,27 @@
+PACKAGE 'dfn2510a-10_l2_5-w1_0-p0_50-bl'
+CLASS IC
+PINCOUNT 10
+PINORDER MAIN ,
+	CH1__1,
+	CH2__2,
+	GND__3,
+	CH3__4,
+	CH4__5,
+	NC__6,
+	NC__7,
+	GND__8,
+	NC__9,
+	NC__10
+FUNCTION MAIN MAIN ,
+	1,
+	2,
+	3,
+	4,
+	5,
+	6,
+	7,
+	8,
+	9,
+	10
+PACKAGEPROP VALUE PUSB3F96X
+END

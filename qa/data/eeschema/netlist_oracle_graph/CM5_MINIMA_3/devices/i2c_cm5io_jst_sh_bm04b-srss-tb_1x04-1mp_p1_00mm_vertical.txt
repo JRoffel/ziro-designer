@@ -1,0 +1,17 @@
+PACKAGE 'jst_sh_bm04b-srss-tb_1x04-1mp_p1_00mm_vertical'
+CLASS IC
+PINCOUNT 5
+PINORDER MAIN ,
+	Pin_1__1,
+	Pin_2__2,
+	Pin_3__3,
+	Pin_4__4,
+	MountPin__MP
+FUNCTION MAIN MAIN ,
+	1,
+	2,
+	3,
+	4,
+	MP
+PACKAGEPROP VALUE I2C
+END

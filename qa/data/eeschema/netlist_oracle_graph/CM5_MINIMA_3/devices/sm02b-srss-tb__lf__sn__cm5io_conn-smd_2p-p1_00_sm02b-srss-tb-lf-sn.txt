@@ -1,0 +1,15 @@
+PACKAGE 'conn-smd_2p-p1_00_sm02b-srss-tb-lf-sn'
+CLASS IC
+PINCOUNT 4
+PINORDER MAIN ,
+	1__1,
+	2__2,
+	3__3,
+	4__4
+FUNCTION MAIN MAIN ,
+	1,
+	2,
+	3,
+	4
+PACKAGEPROP VALUE 'SM02B-SRSS-TB (LF)(SN)'
+END

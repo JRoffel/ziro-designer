@@ -1,0 +1,39 @@
+PACKAGE 'lga-16_3x3mm_p0_5mm_layoutborder3x5y'
+CLASS IC
+PINCOUNT 16
+PINORDER MAIN ,
+	VDD_IO__1,
+	NC__2,
+	NC__3,
+	SPC__4,
+	GND__5,
+	SDI__6,
+	SDO__7,
+	CS__8,
+	INT2__9,
+	RES__10,
+	INT1__11,
+	GND__12,
+	ADC3__13,
+	VDD__14,
+	ADC2__15,
+	ADC1__16
+FUNCTION MAIN MAIN ,
+	1,
+	2,
+	3,
+	4,
+	5,
+	6,
+	7,
+	8,
+	9,
+	10,
+	11,
+	12,
+	13,
+	14,
+	15,
+	16
+PACKAGEPROP VALUE LIS3DH
+END
