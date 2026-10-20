@@ -448,7 +448,9 @@ const BASELINE: Record<string, { colours: number; metrics: number }> = {
   // colours 16 -> 15, metrics 96 -> 81 (10-11): Export Netlist's and Library Links' inline styles,
   // gone with their _base pairs.
   // colours 15 -> 12, metrics 81 -> 41 (10-11): the Schematic Setup panels' inline styles.
-  'editors/schematic': { colours: 12, metrics: 41 },
+  // colours 12 -> 11, metrics 41 -> 37 (10-20): the schematic Plot dialog's project-folder
+  // popup went when plots started downloading.
+  'editors/schematic': { colours: 11, metrics: 37 },
   // 166 -> 163 metrics on `editors/schematic`, moved here whole: cvpcb's
   // three windows left `editors/schematic/dialogs/` for the root `cvpcb/`
   // package (cvpcb/STRUCTURE.md's stage two). No colours moved (the five
@@ -1480,7 +1482,8 @@ describe('the scan totals, so the numbers in the PR stay true', () => {
     // 257 -> 254 (10-12): the common/widgets row above.
     // 254 -> 252 (10-12): the editors/pcb row above. 252 -> 251 (10-15): common/dialogs.
     // 251 -> 248 (10-15): the common/widgets row above.
-    expect(SITES.filter((s) => s.kind === 'colours').length).toBe(248);
+    // 248 -> 247 (10-20): the editors/schematic row above.
+    expect(SITES.filter((s) => s.kind === 'colours').length).toBe(247);
     // 1657 -> 1649: the same sweep. A native colour input has no useful
     // default size, so eight of the sixteen sites gave theirs an inline
     // width and height; the shared swatch takes --swatch-*-w/h. Rescanned.
@@ -1724,7 +1727,8 @@ describe('the scan totals, so the numbers in the PR stay true', () => {
     // 730 -> 729 (10-12): the .ze-display-opts rules, gone with Display Options' pair.
     // 729 -> 727 (10-12): Physical Stackup's pair. 727 -> 721 (10-15): common/dialogs.
     // 721 -> 705 (10-15): the common/widgets row above.
-    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(705);
+    // 705 -> 701 (10-20): the editors/schematic row above.
+    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(701);
   });
 
   it('and the two agree with the per-area table, which is where they come from', () => {
