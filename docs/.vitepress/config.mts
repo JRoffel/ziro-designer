@@ -30,8 +30,9 @@ export default defineConfig({
 
     nav: [
       { text: 'Documentation', link: '/' },
+      { text: 'Changelog', link: '/changelog' },
       { text: 'ziroeda.com', link: 'https://www.ziroeda.com' },
-      { text: 'Launch App', link: 'https://www.ziroeda.com' },
+      { text: 'Launch App', link: 'https://designer.ziroeda.com' },
     ],
 
     // Content is authored from scratch. Add sections here as pages are created,

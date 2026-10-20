@@ -1,6 +1,6 @@
 {
   "name": "ziro-designer",
-  "version": "0.0.0",
+  "version": "0.9.0",
   "private": true,
   "description": "ZiroEDA, the browser-native, open-source electronics design suite.",
   "license": "GPL-3.0-or-later",

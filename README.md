@@ -3,7 +3,8 @@
 **KiCad-compatible electronics design in a browser tab. Nothing to install.**
 
 **[Open the editor →](https://designer.ziroeda.com)** ·
-**[Try a demo project, no sign-up →](https://designer.ziroeda.com/demo/ecc83)**
+**[Try a demo project, no sign-up →](https://designer.ziroeda.com/demo/ecc83)** ·
+**[What's new (changelog) →](./CHANGELOG.md)**
 
 ZiroEDA is an open-source, browser-native port of KiCad 10: the schematic
 editor, the PCB editor, and the tools around them, running in any modern
