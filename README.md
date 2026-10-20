@@ -4,7 +4,8 @@
 
 **[Open the editor →](https://designer.ziroeda.com)** ·
 **[Try a demo project, no sign-up →](https://designer.ziroeda.com/demo/ecc83)** ·
-**[What's new (changelog) →](./CHANGELOG.md)**
+**[What's new (changelog) →](./CHANGELOG.md)** ·
+**[Join the Discord →](https://www.ziroeda.com/discord)**
 
 <a href="https://www.ziroeda.com/designer#video"><img src="docs/public/screenshots/intro-video.jpg" alt="Watch the one-minute introduction to ZiroEDA Designer" width="100%"></a>
 
@@ -184,5 +185,5 @@ KiCad library exception. Full attribution: [NOTICE.md](./NOTICE.md).
 
 ## Contact
 
-Questions, bugs or collaboration: [open an issue](https://github.com/ZiroEDA/ziro-designer/issues)
-or write to **admin@ziroeda.com**.
+Questions, bugs or collaboration: [open an issue](https://github.com/ZiroEDA/ziro-designer/issues),
+chat with us on [Discord](https://www.ziroeda.com/discord), or write to **admin@ziroeda.com**.
