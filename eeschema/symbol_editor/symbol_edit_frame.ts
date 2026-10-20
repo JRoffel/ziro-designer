@@ -30,6 +30,7 @@ import { SCH_POINT_EDITOR } from '../tools/sch_point_editor.js';
 import { SCH_SELECTION_TOOL } from '../tools/sch_selection_tool.js';
 import { SYMBOL_EDITOR_EDIT_TOOL } from '../tools/symbol_editor_edit_tool.js';
 import { SYMBOL_EDITOR_PIN_TOOL } from '../tools/symbol_editor_pin_tool.js';
+import { SYMBOL_EDITOR_DRAWING_TOOLS } from '../tools/symbol_editor_drawing_tools.js';
 import type { EDA_ITEM } from '@ziroeda/common/eda_item.js';
 import type { KiDialogRequest } from '@ziroeda/common/kidialog.js';
 import type { KiDialogResult } from '@ziroeda/common/kidialog_do_not_show.js';
@@ -183,7 +184,7 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
     this.m_toolManager.RegisterTool(new PICKER_TOOL());
     this.m_toolManager.RegisterTool(new SCH_INSPECTION_TOOL());
     this.m_toolManager.RegisterTool(new SYMBOL_EDITOR_PIN_TOOL());
-    // SYMBOL_EDITOR_DRAWING_TOOLS: stage 3.
+    this.m_toolManager.RegisterTool(new SYMBOL_EDITOR_DRAWING_TOOLS());
     this.m_toolManager.RegisterTool(new SCH_POINT_EDITOR());
     this.m_toolManager.RegisterTool(new SCH_FIND_REPLACE_TOOL());
     this.m_toolManager.RegisterTool(new SYMBOL_EDITOR_MOVE_TOOL());
