@@ -3,11 +3,16 @@
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
 /**
  * `SYMBOL_EDITOR_EDIT_TOOL` (eeschema/tools/symbol_editor_edit_tool.{h,cpp}): the symbol editor's
- * rotate, mirror, swap, delete, undo and redo.
+ * rotate, mirror, swap, delete, undo and redo,
  *
- * Still to come with the dialogs and the clipboard: Properties, PinTable, ConvertStackedPins,
- * ExplodeStackedPin, UpdateSymbolFields, Cut, Copy, CopyAsText, Paste and Duplicate - their menu
- * entries are added with them, so no entry runs nothing.
+ * the item properties dialogs and the pin table.
+ *
+ * Every dialog is the window's, through the frame's ShowModalDialog; with no window each is
+ * cancelled.
+ *
+ * Still to come with the clipboard: ConvertStackedPins, ExplodeStackedPin, UpdateSymbolFields,
+ * Cut, Copy, CopyAsText, Paste and Duplicate - their menu entries are added with them, so no
+ * entry runs nothing.
  */
 import type { EDA_ITEM } from '@ziroeda/common/eda_item.js';
 import { RECURSE_MODE } from '@ziroeda/common/eda_item.js';
@@ -22,11 +27,18 @@ import {
   SELECTION_CONDITIONS,
 } from '@ziroeda/common/tool/selection_conditions.js';
 import type { TOOL_EVENT } from '@ziroeda/common/tool/tool_event.js';
+import type { COROUTINE_BODY } from '@ziroeda/common/tool/coroutine.js';
+import { LIB_ID } from '@ziroeda/common/lib_id.js';
+import { titleCaps } from '@ziroeda/common/string_utils.js';
+import type { MSG_PANEL_ITEM } from '@ziroeda/common/widgets/msgpanel.js';
+import { wxID_CANCEL, wxID_OK } from '@ziroeda/wx/menu.js';
 import { SYNC_HANDLER } from '@ziroeda/common/tool/tool_interactive.js';
 import { UNDO_REDO } from '@ziroeda/common/undo_redo_container.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import type { VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
+import { LIB_SYMBOL } from '../lib_symbol.js';
 import { SCH_COMMIT } from '../sch_commit.js';
+import type { SCH_SHAPE } from '../sch_shape.js';
 import type { SCH_FIELD } from '../sch_field.js';
 import type { SCH_ITEM } from '../sch_item.js';
 import type { SCH_PIN } from '../sch_pin.js';
@@ -34,7 +46,9 @@ import type { SYMBOL_EDIT_FRAME } from '../symbol_editor/symbol_edit_frame.js';
 import { SCH_ACTIONS } from './sch_actions.js';
 import { SCH_CONDITIONS, SCH_SELECTION_TOOL } from './sch_selection_tool.js';
 import { SCH_TOOL_BASE } from './sch_tool_base.js';
+import { SYMBOL_EDITOR_DRAWING_TOOLS } from './symbol_editor_drawing_tools.js';
 import { SYMBOL_EDITOR_MOVE_TOOL } from './symbol_editor_move_tool.js';
+import { SYMBOL_EDITOR_PIN_TOOL } from './symbol_editor_pin_tool.js';
 
 const veq = (a: VECTOR2I, b: VECTOR2I): boolean => a.x === b.x && a.y === b.y;
 
@@ -92,6 +106,7 @@ export class SYMBOL_EDITOR_EDIT_TOOL extends SCH_TOOL_BASE<SYMBOL_EDIT_FRAME> {
       moveMenu.AddItem(SCH_ACTIONS.mirrorH, And(canEdit, S_C.NotEmpty), 200);
 
       moveMenu.AddItem(SCH_ACTIONS.swap, swapSelectionCondition, 200);
+      moveMenu.AddItem(SCH_ACTIONS.properties, And(canEdit, S_C.Count(1)), 200);
 
       moveMenu.AddSeparator(300);
       moveMenu.AddItem(ACTIONS.doDelete, And(canEdit, S_C.NotEmpty), 200);
@@ -110,6 +125,7 @@ export class SYMBOL_EDITOR_EDIT_TOOL extends SCH_TOOL_BASE<SYMBOL_EDIT_FRAME> {
     selToolMenu.AddItem(SCH_ACTIONS.mirrorH, And(canEdit, S_C.NotEmpty), 200);
 
     selToolMenu.AddItem(SCH_ACTIONS.swap, swapSelectionCondition, 200);
+    selToolMenu.AddItem(SCH_ACTIONS.properties, And(canEdit, S_C.Count(1)), 200);
 
     selToolMenu.AddSeparator(300);
     selToolMenu.AddItem(ACTIONS.doDelete, And(canEdit, S_C.NotEmpty), 300);
@@ -351,6 +367,284 @@ export class SYMBOL_EDITOR_EDIT_TOOL extends SCH_TOOL_BASE<SYMBOL_EDIT_FRAME> {
     return 0;
   }
 
+  *Properties(aEvent: TOOL_EVENT): COROUTINE_BODY<number> {
+    const frame = this.m_frame!;
+    const selection = this.m_selectionTool!.RequestSelection();
+
+    if (selection.Empty() || aEvent.IsAction(SCH_ACTIONS.symbolProperties)) {
+      // If called from tree context menu, edit properties without loading into canvas
+      if (aEvent.IsAction(SCH_ACTIONS.symbolProperties)) {
+        const treeLibId = frame.GetTreeLIBID();
+
+        // Check if the selected symbol in tree is different from the currently loaded one
+        if (
+          treeLibId.IsValid() &&
+          (!frame.GetCurSymbol() || !frame.GetCurSymbol()!.GetLibId().equals(treeLibId))
+        ) {
+          // Edit properties directly from library buffer without loading to canvas
+          yield* this.editSymbolPropertiesFromLibrary(treeLibId);
+          return 0;
+        }
+      }
+
+      if (frame.GetCurSymbol()) yield* this.editSymbolProperties();
+    } else if (selection.Size() === 1) {
+      const item = selection.Front() as SCH_ITEM;
+
+      // Save copy for undo if not in edit (edit command already handle the save copy)
+      if (item.GetEditFlags() === 0) this.saveCopyInUndoList(item.GetParent()!, UNDO_REDO.LIBEDIT);
+
+      switch (item.Type()) {
+        case KICAD_T.SCH_PIN_T: {
+          const pin = item as SCH_PIN;
+
+          // Mouse, not cursor, as grid points may well not be under any text
+          const mousePos = this.m_toolMgr!.GetMousePosition();
+          const layout = pin.GetLayoutCache();
+
+          let mouseOverNumber = false;
+          const numberBox = layout.GetPinNumberBBox();
+
+          if (numberBox) mouseOverNumber = numberBox.Contains(mousePos);
+
+          const pinTool = this.m_toolMgr!.GetTool(SYMBOL_EDITOR_PIN_TOOL);
+
+          if (pinTool) yield* pinTool.EditPinProperties(pin, mouseOverNumber, this);
+
+          break;
+        }
+        case KICAD_T.SCH_SHAPE_T:
+          yield* this.editShapeProperties(item as SCH_SHAPE);
+          break;
+
+        case KICAD_T.SCH_TEXT_T:
+          yield* this.editTextProperties(item);
+          break;
+
+        case KICAD_T.SCH_TEXTBOX_T:
+          yield* this.editTextBoxProperties(item);
+          break;
+
+        case KICAD_T.SCH_FIELD_T:
+          yield* this.editFieldProperties(item as SCH_FIELD);
+          break;
+
+        default:
+          console.assert(false, `Unhandled item <${item.GetClass()}>`);
+          break;
+      }
+    }
+
+    if (selection.IsHover()) this.m_toolMgr!.RunAction(ACTIONS.selectionClear);
+
+    return 0;
+  }
+
+  private *editShapeProperties(aShape: SCH_SHAPE): COROUTINE_BODY<void> {
+    const frame = this.m_frame!;
+    // DIALOG_SHAPE_PROPERTIES dlg( m_frame, aShape ): the window's, which reports its two
+    // "apply to all" boxes back here.
+    const dlg = { applyToAllConversions: false, applyToAllUnits: false };
+
+    if (
+      (yield* this.RunMainStackModal(() =>
+        frame.ShowModalDialog('DIALOG_SHAPE_PROPERTIES', [aShape], dlg),
+      )) !== wxID_OK
+    )
+      return;
+
+    this.updateItem(aShape, true);
+    frame.GetCanvas()?.Refresh();
+    frame.OnModify();
+
+    const drawingTools = this.m_toolMgr!.GetTool(SYMBOL_EDITOR_DRAWING_TOOLS)!;
+    drawingTools.SetDrawSpecificBodyStyle(!dlg.applyToAllConversions);
+    drawingTools.SetDrawSpecificUnit(!dlg.applyToAllUnits);
+
+    const items: MSG_PANEL_ITEM[] = [];
+    aShape.GetMsgPanelInfo(frame.AsDrawFrameLike(), items);
+    frame.SetMsgPanel(items);
+  }
+
+  private *editTextProperties(aItem: SCH_ITEM): COROUTINE_BODY<void> {
+    if (aItem.Type() !== KICAD_T.SCH_TEXT_T) return;
+
+    const frame = this.m_frame!;
+
+    if (
+      (yield* this.RunMainStackModal(() =>
+        frame.ShowModalDialog('DIALOG_TEXT_PROPERTIES', [aItem]),
+      )) !== wxID_OK
+    )
+      return;
+
+    this.updateItem(aItem, true);
+    frame.GetCanvas()?.Refresh();
+    frame.OnModify();
+  }
+
+  private *editTextBoxProperties(aItem: SCH_ITEM): COROUTINE_BODY<void> {
+    if (aItem.Type() !== KICAD_T.SCH_TEXTBOX_T) return;
+
+    const frame = this.m_frame!;
+
+    if (
+      (yield* this.RunMainStackModal(() =>
+        frame.ShowModalDialog('DIALOG_TEXT_PROPERTIES', [aItem]),
+      )) !== wxID_OK
+    )
+      return;
+
+    this.updateItem(aItem, true);
+    frame.GetCanvas()?.Refresh();
+    frame.OnModify();
+  }
+
+  private *editFieldProperties(aField: SCH_FIELD | null): COROUTINE_BODY<void> {
+    if (aField === null) return;
+
+    const frame = this.m_frame!;
+    let caption: string;
+
+    if (aField.IsMandatory()) caption = `Edit ${titleCaps(aField.GetName())} Field`;
+    else caption = `Edit '${aField.GetName()}' Field`;
+
+    // DIALOG_FIELD_PROPERTIES dlg( m_frame, caption, aField ): the window's. The dialog may invoke
+    // a kiway player for footprint fields, so upstream uses a quasimodal dialog. On OK the window
+    // does what follows ShowQuasiModal upstream before the push: commit.Modify( aField ) and
+    // dlg.UpdateField( aField ), on the commit it is handed.
+    const commit = new SCH_COMMIT(this.m_toolMgr!);
+
+    if (
+      (yield* this.RunMainStackModal(() =>
+        frame.ShowModalDialog('DIALOG_FIELD_PROPERTIES', [aField], { caption, commit }),
+      )) !== wxID_OK
+    )
+      return;
+
+    commit.Push(caption);
+
+    frame.GetCanvas()?.Refresh();
+    frame.UpdateSymbolMsgPanelInfo();
+  }
+
+  private *editSymbolPropertiesFromLibrary(aLibId: LIB_ID): COROUTINE_BODY<void> {
+    const frame = this.m_frame!;
+    const libMgr = frame.GetLibManager();
+    const libName = aLibId.GetLibNickname();
+    const symbolName = aLibId.GetLibItemName();
+
+    // Get the symbol from the library buffer (without loading it into the editor)
+    const bufferedSymbol = libMgr.GetBufferedSymbol(symbolName, libName);
+
+    if (!bufferedSymbol) return;
+
+    // Create a copy to work with
+    const tempSymbol = LIB_SYMBOL.copyOf(bufferedSymbol);
+
+    this.m_toolMgr!.RunAction(ACTIONS.cancelInteractive);
+    this.m_toolMgr!.RunAction(ACTIONS.selectionClear);
+
+    // DIALOG_LIB_SYMBOL_PROPERTIES dlg( m_frame, &tempSymbol ): the window's (quasimodal).
+    if (
+      (yield* this.RunMainStackModal(() =>
+        frame.ShowModalDialog('DIALOG_LIB_SYMBOL_PROPERTIES', [tempSymbol]),
+      )) !== wxID_OK
+    )
+      return;
+
+    const newName = tempSymbol.GetName();
+
+    // Update the buffered symbol with the changes.  A rename has to be keyed on the old name so
+    // the existing buffer is renamed in place rather than a duplicate being created under the
+    // new name.
+    if (newName !== symbolName) libMgr.UpdateSymbolAfterRename(tempSymbol, symbolName, libName);
+    else libMgr.UpdateSymbol(tempSymbol, libName);
+
+    // Mark the library as modified
+    libMgr.SetSymbolModified(newName, libName);
+
+    // Update the tree view
+    const newLibId = new LIB_ID(libName, newName);
+    frame.UpdateLibraryTree(newLibId, tempSymbol);
+    frame.FocusOnLibId(newLibId);
+  }
+
+  private *editSymbolProperties(): COROUTINE_BODY<void> {
+    const frame = this.m_frame!;
+    const symbol = frame.GetCurSymbol()!;
+    const partLocked = symbol.UnitsLocked();
+
+    this.m_toolMgr!.RunAction(ACTIONS.cancelInteractive);
+    this.m_toolMgr!.RunAction(ACTIONS.selectionClear);
+
+    // DIALOG_LIB_SYMBOL_PROPERTIES dlg( m_frame, symbol ): the window's (quasimodal).
+    if (
+      (yield* this.RunMainStackModal(() =>
+        frame.ShowModalDialog('DIALOG_LIB_SYMBOL_PROPERTIES', [symbol]),
+      )) !== wxID_OK
+    )
+      return;
+
+    frame.RebuildSymbolUnitAndBodyStyleLists();
+    frame.OnModify();
+
+    // Update the library tree node so the description and other metadata reflect the changes
+    // immediately without requiring the editor to be reopened.
+    frame.UpdateLibraryTree(symbol.GetLibId(), symbol);
+
+    // if m_UnitSelectionLocked has changed, set some edit options or defaults
+    // to the best value
+    if (partLocked !== symbol.UnitsLocked()) {
+      const tools = this.m_toolMgr!.GetTool(SYMBOL_EDITOR_DRAWING_TOOLS)!;
+
+      // Enable synchronized pin edit mode for symbols with interchangeable units
+      frame.m_SyncPinEdit = !symbol.UnitsLocked();
+
+      // also set default edit options to the better value
+      // Usually if units are locked, graphic items are specific to each unit
+      // and if units are interchangeable, graphic items are common to units
+      tools.SetDrawSpecificUnit(symbol.UnitsLocked());
+    }
+  }
+
+  *PinTable(_aEvent: TOOL_EVENT): COROUTINE_BODY<number> {
+    const frame = this.m_frame!;
+    const commit = new SCH_COMMIT(frame);
+    const symbol = frame.GetCurSymbol();
+
+    if (!symbol) return 0;
+
+    commit.Modify(symbol, frame.GetScreen());
+
+    const selTool = this.m_toolMgr!.GetTool(SCH_SELECTION_TOOL);
+
+    if (!selTool) return -1; // wxCHECK
+
+    const selectedPins: SCH_PIN[] = [];
+
+    for (const item of selTool.GetSelection()) {
+      if (item.Type() === KICAD_T.SCH_PIN_T) selectedPins.push(item as SCH_PIN);
+    }
+
+    // And now clear the selection so if we change the pins we don't have dangling pointers
+    // in the selection.
+    this.m_toolMgr!.RunAction(ACTIONS.selectionClear);
+
+    // DIALOG_LIB_EDIT_PIN_TABLE dlg( m_frame, symbol, selectedPins ): the window's.
+    if (
+      (yield* this.RunMainStackModal(() =>
+        frame.ShowModalDialog('DIALOG_LIB_EDIT_PIN_TABLE', [symbol, ...selectedPins]),
+      )) === wxID_CANCEL
+    )
+      return -1;
+
+    commit.Push('Edit Pins');
+    frame.RebuildView();
+
+    return 0;
+  }
+
   Undo(_aEvent: TOOL_EVENT): number {
     const selTool = this.m_toolMgr!.GetTool(SCH_SELECTION_TOOL)!;
 
@@ -396,5 +690,9 @@ export class SYMBOL_EDITOR_EDIT_TOOL extends SCH_TOOL_BASE<SYMBOL_EDIT_FRAME> {
     this.Go(SYNC_HANDLER(this.Increment), ACTIONS.decrementPrimary.MakeEvent());
     this.Go(SYNC_HANDLER(this.Increment), ACTIONS.incrementSecondary.MakeEvent());
     this.Go(SYNC_HANDLER(this.Increment), ACTIONS.decrementSecondary.MakeEvent());
+
+    this.Go(this.Properties, SCH_ACTIONS.properties.MakeEvent());
+    this.Go(this.Properties, SCH_ACTIONS.symbolProperties.MakeEvent());
+    this.Go(this.PinTable, SCH_ACTIONS.pinTable.MakeEvent());
   }
 }

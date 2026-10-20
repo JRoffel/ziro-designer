@@ -38,8 +38,9 @@ import { wxID_CANCEL } from '@ziroeda/wx/menu.js';
 import { SYMBOL_EDITOR_MOVE_TOOL } from '../tools/symbol_editor_move_tool.js';
 import { LIB_SYMBOL_LIBRARY_MANAGER } from './lib_symbol_library_manager.js';
 import { SYMBOL_EDITOR_UNDO_REDO_MIXIN } from './symbol_editor_undo_redo.js';
+import { SYMBOL_EDITOR_MIXIN } from './symbol_editor.js';
 import { applyMixins } from '@ziroeda/core/mixins.js';
-import type { LIB_ID } from '@ziroeda/common/lib_id.js';
+import { LIB_ID } from '@ziroeda/common/lib_id.js';
 import type { SCH_SYMBOL } from '../sch_symbol.js';
 import {
   currentSymbolEditorSettings,
@@ -82,10 +83,14 @@ export interface SYMBOL_EDIT_FRAME_HOOKS {
   showModal?(aDialog: string, aItems: readonly EDA_ITEM[], aArg?: unknown): Promise<number>;
   /** `KIDIALOG( frame, ... ).ShowModal()`. */
   askKiDialog?(aRequest: KiDialogRequest): Promise<KiDialogResult>;
+  /** `GetLibTree()->GetSelectedLibId( aUnit )`: the symbol the library tree has selected. */
+  getTreeLibId?(): LIB_ID | null;
+  /** `UpdateLibraryTree( aTreeItem, aSymbol )`: the tree node shows the symbol's new name/text. */
+  updateLibraryTree?(aLibId: LIB_ID, aSymbol: LIB_SYMBOL): void;
 }
 
 // biome-ignore lint/suspicious/noUnsafeDeclarationMerging: TS multiple inheritance (see libs/core/mixins.ts)
-export interface SYMBOL_EDIT_FRAME extends SYMBOL_EDITOR_UNDO_REDO_MIXIN {}
+export interface SYMBOL_EDIT_FRAME extends SYMBOL_EDITOR_UNDO_REDO_MIXIN, SYMBOL_EDITOR_MIXIN {}
 
 // biome-ignore lint/suspicious/noUnsafeDeclarationMerging: TS multiple inheritance (see libs/core/mixins.ts)
 export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
@@ -147,6 +152,19 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
   /** `KIDIALOG( this, ... ).ShowModal()`; with no window, cancelled. */
   ShowKiDialog(aRequest: KiDialogRequest): Promise<KiDialogResult> {
     return this.hooks.askKiDialog?.(aRequest) ?? Promise.resolve('cancel');
+  }
+
+  /**
+   * `GetTreeLIBID( aUnit )` (symbol_edit_frame.cpp:1328): the library tree's selection. The tree is
+   * the window's; with none, an empty LIB_ID.
+   */
+  GetTreeLIBID(): LIB_ID {
+    return this.hooks.getTreeLibId?.() ?? new LIB_ID();
+  }
+
+  /** `UpdateLibraryTree( aTreeItem, aSymbol )`: the window's tree. */
+  UpdateLibraryTree(aLibId: LIB_ID, aSymbol: LIB_SYMBOL): void {
+    this.hooks.updateLibraryTree?.(aLibId, aSymbol);
   }
 
   /** `GetLibManager()`. */
@@ -474,4 +492,4 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
   }
 }
 
-applyMixins(SYMBOL_EDIT_FRAME, [SYMBOL_EDITOR_UNDO_REDO_MIXIN]);
+applyMixins(SYMBOL_EDIT_FRAME, [SYMBOL_EDITOR_UNDO_REDO_MIXIN, SYMBOL_EDITOR_MIXIN]);

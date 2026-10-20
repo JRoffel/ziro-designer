@@ -159,6 +159,8 @@ export function deleteSymbolPrompts(opts: {
 // ============================================================================
 
 import { frameTitle, type FrameTitleParts } from '@ziroeda/common/use_document_title.js';
+import { unescapeString } from '@ziroeda/common/string_utils.js';
+import type { SYMBOL_EDIT_FRAME } from './symbol_edit_frame.js';
 
 /** `_( "Symbol Editor" )`, the half after the dash. */
 export const SYM_FRAME_NAME = 'Symbol Editor';
@@ -246,4 +248,40 @@ export function symFrameTitle(spec: SymFrameTitleSpec, unescapeString: Unescape)
     modified: spec.modified,
     suffixes: spec.readOnlyLibrary ? [READ_ONLY_LIBRARY_SUFFIX] : [],
   });
+}
+
+// ============================================================================
+// SYMBOL_EDIT_FRAME's methods that live in symbol_editor.cpp, mixed into the frame by
+// symbol_edit_frame.ts (the pattern of symbol_editor_undo_redo.ts).
+// ============================================================================
+
+export class SYMBOL_EDITOR_MIXIN {
+  /** `UpdateSymbolMsgPanelInfo()` (symbol_editor.cpp): the symbol's name, parent, type and text. */
+  UpdateSymbolMsgPanelInfo(this: SYMBOL_EDIT_FRAME): void {
+    this.ClearMsgPanel();
+
+    const symbol = this.m_symbol;
+
+    if (!symbol) return;
+
+    let msg = symbol.GetName();
+
+    this.AppendMsgPanel('Name', unescapeString(msg), 8);
+
+    if (symbol.IsDerived()) {
+      const parent = symbol.GetLibParent();
+
+      msg = parent ? parent.GetName() : 'Undefined!';
+      this.AppendMsgPanel('Parent', unescapeString(msg), 8);
+    }
+
+    if (symbol.IsGlobalPower()) msg = 'Power Symbol';
+    else if (symbol.IsLocalPower()) msg = 'Power Symbol (Local)';
+    else msg = 'Symbol';
+
+    this.AppendMsgPanel('Type', msg, 8);
+    this.AppendMsgPanel('Description', symbol.GetDescription(), 8);
+    this.AppendMsgPanel('Keywords', symbol.GetKeyWords());
+    this.AppendMsgPanel('Datasheet', symbol.GetDatasheetField().GetText());
+  }
 }
