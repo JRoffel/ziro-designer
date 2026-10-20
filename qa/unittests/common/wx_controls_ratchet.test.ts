@@ -80,7 +80,9 @@ const BASELINE: Record<(typeof AREAS)[number], Record<Kind, number>> = {
   cvpcb: { button: 0, checkbox: 0, select: 0, frame: 1, radio: 0, entry: 1, sbox: 0 },
   designer: { button: 77, checkbox: 2, select: 0, frame: 0, radio: 5, entry: 25, sbox: 13 },
   // checkbox 15 -> 12 (10-15): the record Symbol Fields Table's grid checkboxes.
-  eeschema: { button: 9, checkbox: 12, select: 6, frame: 1, radio: 1, entry: 22, sbox: 11 },
+  // 10-20: checkbox 12 -> 11, the schematic Plot dialog's 'Download a copy' box went with the
+  // project route (plots download now).
+  eeschema: { button: 9, checkbox: 11, select: 6, frame: 1, radio: 1, entry: 22, sbox: 11 },
   // checkbox 3 -> 2 (10-12): Print on DIALOG_PRINT_GENERIC_BASE.
   gerbview: { button: 3, checkbox: 2, select: 0, frame: 0, radio: 0, entry: 2, sbox: 2 },
   pagelayout_editor: { button: 4, checkbox: 0, select: 0, frame: 0, radio: 0, entry: 3, sbox: 1 },
