@@ -18,7 +18,7 @@ import type { MessageDialogIcon } from './confirm_types.js';
 import type { KIWAY } from './kiway.js';
 import type { EdaIuScale, EdaUnits } from './eda_units.js';
 import { FRAME_T } from './frame_type.js';
-import { Pgm } from './pgm_base.js';
+import { Pgm, PgmOrNull } from './pgm_base.js';
 import type { PROJECT } from './project.js';
 import type { TOOL_MANAGER_FRAME_WITH_STATUS_BAR } from './tool/tool_manager.js';
 import { TOOLS_HOLDER } from './tool/tools_holder.js';
@@ -495,10 +495,18 @@ export abstract class EDA_BASE_FRAME
 
   /**
    * `wxEvtHandler::CallAfter( fn )`: run `fn` once the current event has
-   * been handled - a queued event, which a macrotask is.
+   * been handled - a queued event, which a macrotask is. An application that has exited
+   * dispatches nothing more: a call queued under a program object that is gone by then is
+   * dropped (one queued with none runs, as it always did).
    */
   CallAfter(aFn: () => void): void {
-    setTimeout(aFn, 0);
+    const pgm = PgmOrNull();
+
+    setTimeout(() => {
+      if (pgm !== null && PgmOrNull() !== pgm) return;
+
+      aFn();
+    }, 0);
   }
 
   private m_popupMenuPresenter: ((aMenu: ACTION_MENU, aOnClose: () => void) => void) | null = null;
