@@ -22,7 +22,7 @@
  * own `SetSelection` + click. A caller that wants the native keys can pass
  * `onKeyDown`.
  */
-import { useEffect, useRef, type JSX, type KeyboardEvent } from 'react';
+import { type JSX, type KeyboardEvent, type MouseEvent, useEffect, useRef, useState } from 'react';
 import { PINNING_SYMBOL } from '../lib_tree_model_adapter.js';
 import './wx_listbox.css';
 
@@ -80,6 +80,15 @@ export interface WxListBoxProps {
   /** `EVT_LISTBOX`: the user picked row `n`. Not fired for `SetSelection`. */
   onSelect?: (n: number) => void;
   /**
+   * `wxLB_MULTIPLE`: the selected rows, and a click's new selection - GTK's multiple-selection
+   * tree view: a plain click selects that row alone, Ctrl toggles it, Shift extends from the
+   * last row clicked. Given, it replaces `selection` / `onSelect`.
+   */
+  selections?: readonly number[];
+  onSelectRows?: (aRows: number[]) => void;
+  /** `wxEVT_RIGHT_DOWN` on the list. */
+  onContextMenu?: (e: MouseEvent<HTMLDivElement>) => void;
+  /**
    * `wxEVT_LEFT_DCLICK` connected on the LIST, not on a row
    * (`footprint_viewer_frame.cpp:170-172`) — a double click on the empty space
    * under the last row fires it too, and the handler never asks which row.
@@ -104,6 +113,9 @@ export function WxListBox({
   items,
   selection,
   onSelect,
+  selections,
+  onSelectRows,
+  onContextMenu,
   onDoubleClick,
   noBorder = false,
   onFocus,
@@ -113,6 +125,30 @@ export function WxListBox({
   className,
 }: WxListBoxProps): JSX.Element {
   const ref = useRef<HTMLDivElement>(null);
+  const [anchor, setAnchor] = useState(-1);
+  const isSelected = (i: number): boolean =>
+    selections ? selections.includes(i) : i === selection;
+  const pick = (i: number, e: MouseEvent): void => {
+    if (!selections) {
+      onSelect?.(i);
+      return;
+    }
+
+    let next: number[];
+
+    if (e.shiftKey && anchor >= 0) {
+      const [a, b] = anchor < i ? [anchor, i] : [i, anchor];
+      next = Array.from({ length: b - a + 1 }, (_, k) => a + k);
+    } else if (e.ctrlKey)
+      next = selections.includes(i)
+        ? selections.filter((r) => r !== i)
+        : [...selections, i].sort((a, b) => a - b);
+    else next = [i];
+
+    if (!e.shiftKey) setAnchor(i);
+
+    onSelectRows?.(next);
+  };
 
   // `EnsureVisible( index )`: bring the selected row into view, scrolling the
   // least distance — upstream calls it after every `SetSelection`. A rebuilt
@@ -144,6 +180,14 @@ export function WxListBox({
       onFocus={onFocus}
       onKeyDown={onKeyDown}
       onDoubleClick={onDoubleClick}
+      onContextMenu={
+        onContextMenu
+          ? (e) => {
+              e.preventDefault();
+              onContextMenu(e);
+            }
+          : undefined
+      }
     >
       {items.map((item, i) => (
         <div
@@ -152,9 +196,9 @@ export function WxListBox({
           // biome-ignore lint/suspicious/noArrayIndexKey: rows are positional, like wxListBox's
           key={i}
           role="option"
-          aria-selected={i === selection}
-          className={`ze-gridlist-row${i === selection ? ' selected' : ''}`}
-          onMouseDown={() => onSelect?.(i)}
+          aria-selected={isSelected(i)}
+          className={`ze-gridlist-row${isSelected(i) ? ' selected' : ''}`}
+          onMouseDown={(e) => pick(i, e)}
         >
           {item}
         </div>
