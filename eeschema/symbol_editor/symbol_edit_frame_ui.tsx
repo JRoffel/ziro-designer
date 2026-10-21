@@ -705,9 +705,9 @@ export function SymbolEditor({
 
   // Open the specific library the project manager launched us on, KiCad's
   // PROJECT_TREE_ITEM::Activate routing a `.kicad_sym` through editSymbols +
-  // MAIL_LIB_EDIT. A `.kicad_sym` is a whole library, so select it in the tree
-  // (like KiCad highlighting the library node) and load its first symbol so the
-  // canvas isn't blank. Runs after the bootstrap effect registered the library.
+  // MAIL_LIB_EDIT: the library becomes the current one and is selected,
+  // expanded and centred in the tree. No symbol is loaded; the canvas stays as
+  // it was, as upstream's does.
   const libEdit = (file: string): void => {
     // KiwayMailIn's MAIL_LIB_EDIT: the payload is a *URI*, resolved through the
     // library table, and the nickname comes from the row it matches. A file no
@@ -732,13 +732,12 @@ export function SymbolEditor({
       return;
     }
     const lib = row.name;
-    void (async () => {
-      const loaded = await manager.current.ensureLoaded(lib);
-      if (!loaded) return;
-      const first = manager.current.symbolNames(lib)[0];
-      setTreeSel({ lib, name: first ?? null });
-      if (first) void loadSymbol(lib, first);
-    })();
+    // SetCurLib( libNickname ); GetLibTree()->SelectLibId / ExpandLibId / CenterLibId( id )
+    setCurLib(lib);
+    setTreeSel({ lib, name: null });
+    setSelectLibId(lib);
+    setExpandLibId(lib);
+    void manager.current.ensureLoaded(lib);
   };
   const libEditRef = useRef(libEdit);
   libEditRef.current = libEdit;
@@ -2079,6 +2078,8 @@ export function SymbolEditor({
    * upstream is one call either way.
    */
   const [selectLibId, setSelectLibId] = useState('');
+  /** `LIB_TREE::ExpandLibId`, which MAIL_LIB_EDIT asks for on its library. */
+  const [expandLibId, setExpandLibId] = useState('');
   useEffect(() => {
     if (curLib && curName) setSelectLibId(`${curLib}:${curName}`);
   }, [curLib, curName]);
@@ -2661,6 +2662,7 @@ export function SymbolEditor({
                     recentSearchesKey="symbols"
                     regenerateNonce={treeNonce}
                     selectLibId={selectLibId}
+                    expandLibId={expandLibId}
                     onSelect={onTreeSelect}
                     onChoose={onTreeChoose}
                     onToggleLibrary={onTreeToggleLibrary}

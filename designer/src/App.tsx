@@ -639,17 +639,39 @@ export function App(): JSX.Element {
    * `PROJECT_TREE_ITEM::Activate` for a library file: open the editor, then
    * `ExpressMail( …, MAIL_LIB_EDIT / MAIL_FP_EDIT, fullFileName )`. KIWAY holds
    * the mail while an editor that was not running mounts.
+   *
+   * Sent from an effect, not from the click: in KiCad the project is loaded
+   * before the manager mails the editor, and the editor resolves the file
+   * through that project's library table. Here the click that opens the
+   * project only queues its files, so an editor already built (the idle
+   * warm-up builds them early) read the mail against the project it had
+   * before - none, for a demo opened since - and refused a library the table
+   * lists. The effect runs after the render that hands the editors the
+   * project.
    */
+  const [libEditMail, setLibEditMail] = useState<{
+    kind: 'symbols' | 'footprints';
+    file: string;
+  } | null>(null);
   const expressLibEdit = useCallback((aKind: 'symbols' | 'footprints', aFile: string) => {
+    setLibEditMail({ kind: aKind, file: aFile });
+  }, []);
+  useEffect(() => {
+    if (!libEditMail) return;
+    setLibEditMail(null);
     const kiway = kiwayRef.current;
     if (!kiway) return;
     const frame =
-      aKind === 'symbols' ? FRAME_T.FRAME_SCH_SYMBOL_EDITOR : FRAME_T.FRAME_FOOTPRINT_EDITOR;
+      libEditMail.kind === 'symbols'
+        ? FRAME_T.FRAME_SCH_SYMBOL_EDITOR
+        : FRAME_T.FRAME_FOOTPRINT_EDITOR;
     kiway.Player(frame);
-    kiway.ExpressMail(frame, aKind === 'symbols' ? MAIL_T.MAIL_LIB_EDIT : MAIL_T.MAIL_FP_EDIT, {
-      value: aFile,
-    });
-  }, []);
+    kiway.ExpressMail(
+      frame,
+      libEditMail.kind === 'symbols' ? MAIL_T.MAIL_LIB_EDIT : MAIL_T.MAIL_FP_EDIT,
+      { value: libEditMail.file },
+    );
+  }, [libEditMail]);
   // A .kicad_wks the project manager double-clicked into the Drawing Sheet
   // Editor: its name + content, re-sent with a fresh nonce so a resident editor
   // re-opens on the newly-picked file.

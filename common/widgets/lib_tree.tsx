@@ -199,6 +199,11 @@ export interface LibTreeProps {
    * not selected.
    */
   centerLibId?: string;
+  /**
+   * `ExpandLibId( aLibId )` (lib_tree.cpp:401): the node itself expanded, if there is one.
+   * SYMBOL_EDIT_FRAME's MAIL_LIB_EDIT issues it on the library it was sent.
+   */
+  expandLibId?: string;
 }
 
 interface Row {
@@ -304,6 +309,7 @@ export function LibTree({
   openLibs,
   selectLibId,
   centerLibId,
+  expandLibId,
 }: LibTreeProps): JSX.Element {
   const [search, setSearch] = useState(initialSearch);
   const [sortMode, setSortModeState] = useState<SortMode>(adapter.getSortMode());
@@ -472,6 +478,14 @@ export function LibTree({
     setPendingCenter(node);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectLibId, regenerateNonce]);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the id and a regenerate are the triggers; setOpen reads only stable state
+  useEffect(() => {
+    if (!expandLibId) return;
+    const node = findByLibId(expandLibId);
+    // expandIfValid
+    if (node) setOpen(node, true);
+  }, [expandLibId, regenerateNonce]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: the id and a regenerate are the triggers; the lookups are stable
   useEffect(() => {
