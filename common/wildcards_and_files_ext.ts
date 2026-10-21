@@ -152,7 +152,11 @@ export const gencadFileWildcard = (): ChooserFilter =>
   fileFilter('GenCAD 1.4 board files', ['cad']);
 
 /** `FILEEXT::CsvFileWildcard()`: "CSV Files" on `CsvFileExtension`, csv. */
-export const csvFileWildcard = (): ChooserFilter => fileFilter('CSV Files', ['csv']);
+export const csvFileWildcard = (): ChooserFilter => fileFilter('CSV Files', [CsvFileExtension]);
+
+/** `FILEEXT::CsvTsvFileWildcard()`: "CSV/TSV Files" on `CsvFileExtension` and `TsvFileExtension`. */
+export const csvTsvFileWildcard = (): ChooserFilter =>
+  fileFilter('CSV/TSV Files', [CsvFileExtension, TsvFileExtension]);
 
 /** `FILEEXT::JsonFileWildcard()`: "Json files" on `JsonFileExtension`, json. */
 export const jsonFileWildcard = (): ChooserFilter => fileFilter('Json files', ['json']);
@@ -287,6 +291,10 @@ export const KiCadPcbFileExtension = 'kicad_pcb';
 export const KiCadFootprintFileExtension = 'kicad_mod';
 /** `FILEEXT::JsonFileExtension`. [data] */
 export const JsonFileExtension = 'json';
+/** `FILEEXT::CsvFileExtension`. [data] */
+export const CsvFileExtension = 'csv';
+/** `FILEEXT::TsvFileExtension`. [data] */
+export const TsvFileExtension = 'tsv';
 
 /** `FILEEXT::KiCadDesignBlockLibPathWildcard` (:383-387). */
 export const kicadDesignBlockLibPathWildcard = (): ChooserFilter =>

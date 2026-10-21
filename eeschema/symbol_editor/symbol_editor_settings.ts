@@ -124,6 +124,11 @@ export interface SymbolEditorSettings {
     /** `repeat.pin_step`, 100 **mils**, forced to a multiple of `MIN_GRID` (25). */
     pin_step: number;
   };
+  /** `SYMBOL_EDITOR_SETTINGS::PIN_TABLE`, `pin_table.*` (`symbol_editor_settings.cpp:118-119`). */
+  pin_table: {
+    /** `pin_table.crossprobe_on_selection`, true: the Pin Table highlights its row's pin. */
+    crossprobe_on_selection: boolean;
+  };
   /** `APP_SETTINGS_BASE::m_Window`, the slice the Grids and Display Options pages share. */
   window: {
     grid: {
@@ -209,6 +214,9 @@ export const SYMBOL_EDITOR_DEFAULTS: SymbolEditorSettings = {
   repeat: {
     label_delta: 1,
     pin_step: 100,
+  },
+  pin_table: {
+    crossprobe_on_selection: true,
   },
   window: {
     grid: {

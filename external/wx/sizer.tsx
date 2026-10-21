@@ -106,6 +106,11 @@ export interface SizerItemProps {
    * that axis to the window's best size. Data from the `_base.cpp`, never chrome.
    */
   minSize?: readonly [number, number];
+  /**
+   * The window's `SetMaxSize( wxSize( w, h ) )`: the sizer never gives it more than this; -1
+   * leaves that axis unbounded.
+   */
+  maxSize?: readonly [number, number];
   /** Grid bag only: `wxGBPosition( row, col )`. */
   pos?: readonly [number, number];
   /** Grid bag only: `wxGBSpan( rows, cols )`. */
@@ -124,6 +129,7 @@ export function SizerItem({
   border = 0,
   shown = true,
   minSize,
+  maxSize,
   pos,
   span,
   children,
@@ -140,6 +146,8 @@ export function SizerItem({
 
   if (minSize && minSize[0] >= 0) style.minWidth = minSize[0];
   if (minSize && minSize[1] >= 0) style.minHeight = minSize[1];
+  if (maxSize && maxSize[0] >= 0) style.maxWidth = maxSize[0];
+  if (maxSize && maxSize[1] >= 0) style.maxHeight = maxSize[1];
 
   // A box item fills its main-axis slot; a grid item fills its cell only with wxEXPAND.
   let fill = true;

@@ -157,6 +157,13 @@ export interface SYMBOL_EDIT_FRAME_HOOKS {
   toggleProperties?(): void;
 }
 
+/** `UNITS_ALL` / `DEMORGAN_ALL` (symbol_edit_frame.h:45-46): the pin table's "every unit / style". */
+export const UNITS_ALL = 'ALL';
+export const DEMORGAN_ALL = 'ALL';
+/** `DEMORGAN_STD` / `DEMORGAN_ALT` (symbol_edit_frame.h:47-48). */
+export const DEMORGAN_STD = 'Standard';
+export const DEMORGAN_ALT = 'Alternate';
+
 // biome-ignore lint/suspicious/noUnsafeDeclarationMerging: TS multiple inheritance (see libs/core/mixins.ts)
 export interface SYMBOL_EDIT_FRAME
   extends SYMBOL_EDITOR_UNDO_REDO_MIXIN,
