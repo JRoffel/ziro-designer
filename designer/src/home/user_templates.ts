@@ -33,6 +33,7 @@ import type { PickedHomeFile } from './files.js';
 import { renameRel, type TemplateMeta } from './templates.js';
 import { idbHandle } from './idb_open.js';
 import { isSealed, openRecord, sealRecord } from './local_vault.js';
+import { projectFileText } from './files.js';
 
 const DB_NAME = 'ziroeda-templates';
 const STORE = 'templates';
@@ -261,8 +262,7 @@ export async function deleteUserTemplate(id: string): Promise<void> {
 export async function userTemplateFiles(id: string): Promise<PickedHomeFile[]> {
   const rec = await getUserTemplate(id);
   if (!rec) return [];
-  const dec = new TextDecoder();
-  return rec.files.map((f) => ({ name: f.name, text: dec.decode(f.bytes), bytes: f.bytes }));
+  return rec.files.map((f) => ({ name: f.name, text: projectFileText(f.bytes), bytes: f.bytes }));
 }
 
 const toDataUrl = (bytes: Uint8Array, mime: string): string => {

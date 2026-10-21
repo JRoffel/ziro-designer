@@ -184,8 +184,8 @@ import {
   type IngestFile,
   stripCommonFolder,
 } from './project_picker.js';
-
-const dec = new TextDecoder();
+import { projectFileText } from './files.js';
+import { isToolingPath } from './project_picker.js';
 const enc = new TextEncoder();
 
 /** One project that would not sync, as reported by `syncAllProjects`. */
@@ -1208,9 +1208,11 @@ export function HomePage({
       for (let i = 0; i < files.length; i++) {
         const f = files[i]!;
         const base = f.name.split('/').pop()!;
-        if (base.startsWith('.')) continue;
+        // Dot files, and everything in a dot folder (a zip import brings KiCad's `.history` with
+        // it): the folder walker skips the same (`isToolingDir`), and none of it is the design.
+        if (base.startsWith('.') || isToolingPath(f.name)) continue;
         const bytes = await f.bytesOf();
-        out.push({ name: f.name, text: dec.decode(bytes), bytes });
+        out.push({ name: f.name, text: projectFileText(bytes), bytes });
         setLoading({
           title: 'Load Files',
           label: { message: 'Reading files...', value: (i + 1) / files.length },
@@ -1428,11 +1430,11 @@ export function HomePage({
       const loaded = await loadProject(id);
       let opened: PickedHomeFile[] | null = null;
       if (loaded) {
-        opened = loaded.files.map((f) => ({
-          name: f.name,
-          text: dec.decode(f.bytes),
-          bytes: f.bytes,
-        }));
+        // A record imported before tooling folders were skipped still lists them; they stay in
+        // the record (the bytes are the user's) but are not opened.
+        opened = loaded.files
+          .filter((f) => !isToolingPath(f.name))
+          .map((f) => ({ name: f.name, text: projectFileText(f.bytes), bytes: f.bytes }));
         setPicked(opened);
       }
       await touchOpened(id); // resurface in Recent (ordered by last opened)

@@ -28,6 +28,7 @@ import type { DemoMeta } from './demos.js';
 import { mapLimit } from '../map_limit.js';
 import { isListedFile } from '../fs/allowlist.js';
 import { githubIdFor, type GithubSpec } from './github_id.js';
+import { projectFileText } from './files.js';
 
 export { githubIdFor, githubSpecFromId, githubSpecFromUrl, isGithubId } from './github_id.js';
 export type { GithubSpec } from './github_id.js';
@@ -219,7 +220,7 @@ export async function openGithubProject(
     onProgress?.(done, wanted.length, e.path);
     const file: PickedHomeFile = {
       name: `${base}/${e.path.slice(dir.length)}`,
-      text: dec.decode(bytes),
+      text: projectFileText(bytes),
       bytes,
     };
     return file;

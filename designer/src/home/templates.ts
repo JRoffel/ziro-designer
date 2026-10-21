@@ -12,6 +12,7 @@
  * which stay put so their references don't break.
  */
 import type { PickedHomeFile } from './files.js';
+import { projectFileText } from './files.js';
 
 export interface TemplateMeta {
   id: string;
@@ -39,8 +40,6 @@ export interface TemplateMeta {
   source?: 'bundled' | 'user';
   files: string[]; // project files, relative to the template folder
 }
-
-const dec = new TextDecoder();
 
 /** Load the bundled template manifest (empty on failure, feature just hides). */
 export async function loadTemplates(): Promise<TemplateMeta[]> {
@@ -103,7 +102,7 @@ export async function templateSourceFiles(t: TemplateMeta): Promise<PickedHomeFi
     const res = await fetch(`/templates/${encodeURIComponent(t.id)}/${encodeRel(rel)}`);
     if (!res.ok) continue;
     const bytes = new Uint8Array(await res.arrayBuffer());
-    out.push({ name: rel, text: dec.decode(bytes), bytes });
+    out.push({ name: rel, text: projectFileText(bytes), bytes });
   }
   return out;
 }
@@ -118,7 +117,7 @@ export async function createFromTemplate(
     if (!res.ok) continue;
     const bytes = new Uint8Array(await res.arrayBuffer());
     const renamed = renameRel(rel, t.base, projectName);
-    out.push({ name: `${projectName}/${renamed}`, text: dec.decode(bytes), bytes });
+    out.push({ name: `${projectName}/${renamed}`, text: projectFileText(bytes), bytes });
   }
   return out;
 }

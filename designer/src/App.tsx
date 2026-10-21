@@ -64,6 +64,8 @@ import { installCommonAppearance } from './ui/common_appearance.js';
 import { projectStoreFileSystem } from './fs/project_store_fs.js';
 import { warmLibraryIndexes } from './libraryHosts.js';
 import '@ziroeda/common/widgets/shell.css';
+import { isBinaryBytes } from './home/files.js';
+import { isToolingPath } from './home/project_picker.js';
 
 /**
  * The editor frames load on demand, one chunk each.
@@ -353,12 +355,20 @@ const CLOUD_PUSH_IDLE_MS = 4000;
 const LOCAL_WRITE_IDLE_MS = 250;
 
 // Non-text project files (plot / export outputs) that must stay raw bytes,
-// decoding them as UTF-8 would corrupt them.
+// decoding them as UTF-8 would corrupt them - by name, and by content for the
+// ones with no telling extension (`isBinaryBytes`: KiCad's `.history` objects).
 const BINARY_RE = /\.(png|jpe?g|gif|bmp|pdf|zip|step|stp|stl|wrl|glb)$/i;
 const pickedFromStored = (f: { name: string; bytes: Uint8Array }): PickedFile =>
-  BINARY_RE.test(f.name)
+  BINARY_RE.test(f.name) || isBinaryBytes(f.bytes)
     ? { name: f.name, text: '', bytes: f.bytes }
     : { name: f.name, text: dec.decode(f.bytes) };
+/**
+ * A stored project's files as the editors are handed them: everything but tooling folders
+ * (`.history`, `.git`), which a record imported before they were skipped still lists. They stay in
+ * the record; they are not the design, and opening them is what ran tabs out of memory.
+ */
+const openedFromStored = (files: readonly { name: string; bytes: Uint8Array }[]): PickedFile[] =>
+  files.filter((f) => !isToolingPath(f.name)).map(pickedFromStored);
 
 const projectNameOf = (files: PickedFile[]): string => {
   const pro = files.find((f) => /\.kicad_pro$/i.test(f.name));
@@ -841,7 +851,7 @@ export function App(): JSX.Element {
       const localId = await localIdForCloudUid(uid);
       const loaded = localId ? await loadProject(localId) : null;
       if (!loaded) return false;
-      openProjectFiles(loaded.files.map(pickedFromStored));
+      openProjectFiles(openedFromStored(loaded.files));
       setOpenUid(uid);
       return true;
     },
@@ -961,7 +971,7 @@ export function App(): JSX.Element {
         const list = await listProjects();
         const loaded = list[0] ? await loadProject(list[0].id) : null;
         if (!loaded) return;
-        openProjectFiles(loaded.files.map(pickedFromStored));
+        openProjectFiles(openedFromStored(loaded.files));
         setOpenUid((await cloudIdentityOf(list[0]!.id))?.uid ?? null);
         setStartFile(sess.startFile ?? null);
         mountFor(sess.view);
@@ -1273,7 +1283,7 @@ export function App(): JSX.Element {
       const files = await readSnapshot(point.id);
       if (!files || files.length === 0) return false;
       await updateProjectFiles(rec.id, files);
-      openProjectFiles(files.map(pickedFromStored));
+      openProjectFiles(openedFromStored(files));
       return true;
     } catch {
       return false;

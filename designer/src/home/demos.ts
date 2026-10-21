@@ -23,6 +23,7 @@ import type { PickedHomeFile } from './files.js';
 import { DEMOS_HOST } from '../libraryHosts.js';
 import { expandArchive } from './project_archiver.js';
 import { mapLimit } from '../map_limit.js';
+import { projectFileText } from './files.js';
 
 export interface DemoMeta {
   id: string;
@@ -59,8 +60,6 @@ export interface DemoMeta {
 }
 
 const DEMOS_BASE = DEMOS_HOST;
-
-const dec = new TextDecoder();
 
 /**
  * [decision 10-08] Demos kept on the CDN for internal benchmarking but never
@@ -174,7 +173,7 @@ async function fetchDemoBundle(
 
     return entries.map((e) => ({
       name: `${d.base}/${e.name}`,
-      text: dec.decode(e.data),
+      text: projectFileText(e.data),
       bytes: e.data,
     }));
   } catch {
@@ -205,7 +204,7 @@ async function fetchDemoFiles(
     onProgress?.(done, rels.length, rel);
     if (!res.ok) return null;
     const bytes = new Uint8Array(await res.arrayBuffer());
-    return { name: `${d.base}/${rel}`, text: dec.decode(bytes), bytes } as PickedHomeFile;
+    return { name: `${d.base}/${rel}`, text: projectFileText(bytes), bytes } as PickedHomeFile;
   });
   return fetched.filter((f): f is PickedHomeFile => f !== null);
 }
