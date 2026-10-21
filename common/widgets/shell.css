@@ -13774,10 +13774,17 @@ td.ze-grid-bool {
   min-height: calc(2 * 112px); /* [data] two panes of `SetMinimumPaneSize( 112 )`. */
 }
 /* wxDataViewCtrl (external/wx/dataview_ui.tsx): the window scrolls its rows; an icon-text cell
-   puts its icon before the text. */
+   puts its icon before the text.
+   Its width is its slot's, never its rows': wxGTK reports a data view's best size as 48 x 48
+   whatever it holds, so a dialog fitted with an empty list keeps that width when DRC fills it
+   with long violations, and a row too long for the column is clipped (the text renderer's
+   ellipsize mode is NONE) - measured, qa/probes/drc_dataview_probe.cpp. Without the containment
+   the longest violation widened DRC Control past its frame. A stated SetMinSize (ERC's 640) still
+   holds. */
 .ze-dataview-window {
   overflow: auto;
   min-height: 0;
+  contain: inline-size;
 }
 .ze-dataview {
   outline: none;
@@ -13915,4 +13922,10 @@ td.ze-grid-bool {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* DIALOG_IMPORT_SYMBOL_SELECT's IMPORT_SYMBOL_LIST_STORE::GetAttrByRow: a derived symbol's name
+   in italics, as the symbol library tree draws one. */
+.ze-dataview-italic {
+  font-style: italic;
 }
