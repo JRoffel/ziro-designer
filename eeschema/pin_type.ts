@@ -132,6 +132,48 @@ export function PinOrientationName(aOrientation: PIN_ORIENTATION): string {
   return PIN_ORIENTATION_NAMES[aOrientation] ?? '?';
 }
 
+/** `g_pinOrientations`' bitmaps (pin_type.cpp:112-115). [data] */
+const PIN_ORIENTATION_BITMAPS: Readonly<Partial<Record<PIN_ORIENTATION, string>>> = {
+  [PIN_ORIENTATION.PIN_RIGHT]: 'pinorient_right',
+  [PIN_ORIENTATION.PIN_LEFT]: 'pinorient_left',
+  [PIN_ORIENTATION.PIN_UP]: 'pinorient_up',
+  [PIN_ORIENTATION.PIN_DOWN]: 'pinorient_down',
+};
+
+/** The PIN_ORIENTATION values in enum order, as magic_enum lists them. */
+const PIN_ORIENTATION_VALUES: readonly PIN_ORIENTATION[] = [
+  PIN_ORIENTATION.PIN_RIGHT,
+  PIN_ORIENTATION.PIN_LEFT,
+  PIN_ORIENTATION.PIN_UP,
+  PIN_ORIENTATION.PIN_DOWN,
+  PIN_ORIENTATION.INHERIT,
+];
+
+/** `PinOrientationCode( index )` (pin_type.cpp:63): the orientation at \a index in enum order. */
+export function PinOrientationCode(aIndex: number): PIN_ORIENTATION {
+  console.assert(aIndex >= 0 && aIndex < PIN_ORIENTATION_VALUES.length);
+  return PIN_ORIENTATION_VALUES[aIndex]!;
+}
+
+/** `PinOrientationIndex( code )` (pin_type.cpp:70): its index in enum order, or wxNOT_FOUND. */
+export function PinOrientationIndex(aCode: PIN_ORIENTATION): number {
+  return PIN_ORIENTATION_VALUES.indexOf(aCode);
+}
+
+/** `PinOrientationNames()` (pin_type.cpp:189): every orientation but INHERIT, in enum order. */
+export function PinOrientationNames(): readonly string[] {
+  return PIN_ORIENTATION_VALUES.filter((o) => o !== PIN_ORIENTATION.INHERIT).map((o) =>
+    PinOrientationName(o),
+  );
+}
+
+/** `PinOrientationIcons()` (pin_type.cpp:198): their bitmaps, in the same order. */
+export function PinOrientationIcons(): readonly string[] {
+  return PIN_ORIENTATION_VALUES.filter((o) => o !== PIN_ORIENTATION.INHERIT).map(
+    (o) => PIN_ORIENTATION_BITMAPS[o]!,
+  );
+}
+
 /** `g_pinElectricalTypes`' bitmaps (pin_type.cpp:85-96), by type token. [data] */
 const PIN_TYPE_BITMAPS: Readonly<Record<ElectricalPinType, string>> = {
   input: 'pintype_input',

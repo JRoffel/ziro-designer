@@ -26,6 +26,10 @@ export interface WxCollapsiblePaneProps {
   onChange: (aCollapsed: boolean) => void;
   /** `GetPane()`'s contents. */
   children?: ReactNode;
+  /** `Disable()`: the header cannot be toggled. */
+  disabled?: boolean;
+  /** `SetToolTip()`. */
+  title?: string;
 }
 
 export function WxCollapsiblePane({
@@ -33,13 +37,16 @@ export function WxCollapsiblePane({
   collapsed,
   onChange,
   children,
+  disabled = false,
+  title,
 }: WxCollapsiblePaneProps): JSX.Element {
   return (
-    <div className="ze-collapsepane">
+    <div className="ze-collapsepane" title={title}>
       <button
         type="button"
         className="ze-collapse-toggle"
         aria-expanded={!collapsed}
+        disabled={disabled}
         onClick={() => onChange(!collapsed)}
       >
         <span className={`ze-collapse-arrow${collapsed ? '' : ' open'}`} />

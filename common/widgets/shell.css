@@ -4340,6 +4340,10 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
   cursor: default;
   padding: 2px 0;
 }
+/* Disable(): GTK's label:disabled ink. */
+.ze-collapse-toggle:disabled {
+  color: var(--ctl-fg-disabled);
+}
 .ze-collapse-arrow {
   width: 8px;
   height: 8px;

@@ -359,7 +359,8 @@ export interface wxGridCellDrawn {
  * icon-text popup); the view draws the shared Combo with them.
  */
 export interface wxGridCellChoiceView {
-  GetComboOptions(): readonly { value: string; label: string; swatch?: string }[];
+  /** The options, each with a colour swatch or a bitmap (an image URL) before its label. */
+  GetComboOptions(): readonly { value: string; label: string; swatch?: string; bitmap?: string }[];
 }
 
 /** `wxGridCellStringRenderer`. */

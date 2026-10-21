@@ -352,13 +352,12 @@ export function WxGridView({
         <Combo
           autoFocus
           value={aEditor.m_value}
-          options={choiceView
-            .GetComboOptions()
-            .map((o) =>
-              o.swatch === undefined
-                ? { value: o.value, label: o.label }
-                : { value: o.value, label: o.label, swatch: o.swatch },
-            )}
+          options={choiceView.GetComboOptions().map((o) => ({
+            value: o.value,
+            label: o.label,
+            ...(o.swatch === undefined ? {} : { swatch: o.swatch }),
+            ...(o.bitmap === undefined ? {} : { bitmap: o.bitmap }),
+          }))}
           onChange={(v) => {
             aEditor.m_value = v;
             grid.DisableCellEditControl();
