@@ -13889,3 +13889,26 @@ td.ze-grid-bool {
   align-self: center; /* [data] wxALIGN_CENTRE_HORIZONTAL */
   margin: 5px; /* [data] Add( resetButton, 0, wxALL | wxALIGN_CENTRE_HORIZONTAL, 5 ) */
 }
+
+/* SYMBOL_PREVIEW_WIDGET (eeschema/widgets/symbol_preview_widget.cpp): m_preview fills the panel
+   (proportion 1, wxEXPAND); with a status panel, its text is centred between two stretch spacers.
+   Its colours are the canvas's, set inline from the colour theme. */
+.ze-symbol-preview {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.ze-symbol-preview > canvas {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.ze-symbol-preview-status {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
