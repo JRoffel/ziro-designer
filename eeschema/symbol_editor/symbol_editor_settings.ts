@@ -124,6 +124,17 @@ export interface SymbolEditorSettings {
     /** `repeat.pin_step`, 100 **mils**, forced to a multiple of `MIN_GRID` (25). */
     pin_step: number;
   };
+  /**
+   * `SYMBOL_EDITOR_SETTINGS::PANEL_LIB_FIELDS_TABLE`, `lib_field_editor.*`
+   * (`symbol_editor_settings.cpp:109-116`): the library Symbol Fields Table's widths and sidebar.
+   */
+  lib_field_editor: {
+    field_widths: Record<string, number>;
+    /** `lib_field_editor.sash_pos`, 400. */
+    sash_pos: number;
+    /** `lib_field_editor.sidebar_collapsed`, false. */
+    sidebar_collapsed: boolean;
+  };
   /** `SYMBOL_EDITOR_SETTINGS::PIN_TABLE`, `pin_table.*` (`symbol_editor_settings.cpp:118-119`). */
   pin_table: {
     /** `pin_table.crossprobe_on_selection`, true: the Pin Table highlights its row's pin. */
@@ -214,6 +225,11 @@ export const SYMBOL_EDITOR_DEFAULTS: SymbolEditorSettings = {
   repeat: {
     label_delta: 1,
     pin_step: 100,
+  },
+  lib_field_editor: {
+    field_widths: {},
+    sash_pos: 400,
+    sidebar_collapsed: false,
   },
   pin_table: {
     crossprobe_on_selection: true,

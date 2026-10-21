@@ -296,6 +296,11 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
     return !!symbol && !!this.m_symbol && symbol.GetLibId().equals(this.m_symbol.GetLibId());
   }
 
+  /** `RefreshLibraryTree()` (:1484): `GetLibTree()->RefreshLibTree()`, the window's tree. */
+  RefreshLibraryTree(): void {
+    this.hooks.refreshLibTree?.();
+  }
+
   /** `UpdateLibraryTree( aTreeItem, aSymbol )`: the window's tree. */
   UpdateLibraryTree(aLibId: LIB_ID, aSymbol: LIB_SYMBOL): void {
     this.hooks.updateLibraryTree?.(aLibId, aSymbol);
