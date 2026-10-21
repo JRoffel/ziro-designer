@@ -1733,6 +1733,19 @@ export class LIB_SYMBOL extends SYMBOL {
     return this.GetGraphicalPins(aUnit, aBodyStyle).filter((pin) => aNumber === pin.GetNumber());
   }
 
+  /** `HasPinNumber( aNumber )`: a pin numbered \a aNumber, or a stacked pin that expands to it. */
+  HasPinNumber(aNumber: string): boolean {
+    if (this.GetPin(aNumber)) return true;
+
+    for (const pin of this.GetGraphicalPins(0, 0)) {
+      for (const logicalNumber of pin.GetStackedPinNumbers()) {
+        if (aNumber === logicalNumber) return true;
+      }
+    }
+
+    return false;
+  }
+
   /**
    * Return true if this symbol's pins do not match another symbol's pins. This is used to
    * detect whether the project cache is out of sync with the system libs.

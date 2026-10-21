@@ -91,9 +91,9 @@ export interface WxListBoxProps {
   /**
    * `wxEVT_LEFT_DCLICK` connected on the LIST, not on a row
    * (`footprint_viewer_frame.cpp:170-172`) — a double click on the empty space
-   * under the last row fires it too, and the handler never asks which row.
+   * under the last row fires it too; \a aRow is HitTest()'s answer for those that ask.
    */
-  onDoubleClick?: () => void;
+  onDoubleClick?: (aRow: number) => void;
   /** `wxNO_BORDER`: the scrolled window's frame is not drawn. */
   noBorder?: boolean;
   /** The list took the focus (`HasFocus()` is what `OnCharHook` asks). */
@@ -179,7 +179,15 @@ export function WxListBox({
       tabIndex={0}
       onFocus={onFocus}
       onKeyDown={onKeyDown}
-      onDoubleClick={onDoubleClick}
+      onDoubleClick={
+        onDoubleClick
+          ? (e) => {
+              // `HitTest( pos )`: the row under the pointer, or wxNOT_FOUND below the last one.
+              const row = (e.target as HTMLElement).closest('[role=option]');
+              onDoubleClick(row ? [...e.currentTarget.children].indexOf(row) : wxNOT_FOUND);
+            }
+          : undefined
+      }
       onContextMenu={
         onContextMenu
           ? (e) => {
