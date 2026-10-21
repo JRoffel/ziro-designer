@@ -8,14 +8,19 @@
  * Duplicate and Paste - and the infobar errors that refuse a missing or read-only library.
  */
 import { GetClipboardUTF8, SaveClipboard } from '@ziroeda/common/clipboard.js';
-import { SetMessageDialogPresenter } from '@ziroeda/common/confirm.js';
+import { SetErrorPresenter, SetMessageDialogPresenter } from '@ziroeda/common/confirm.js';
+import { FRAME_T } from '@ziroeda/common/frame_type.js';
+import { KIWAY } from '@ziroeda/common/kiway.js';
 import { LIB_ID } from '@ziroeda/common/lib_id.js';
 import { SetRenameDialogPresenter } from '@ziroeda/common/tool/library_editor_control.js';
 import { ACTIONS } from '@ziroeda/common/tool/actions.js';
 import type { TOOL_ACTION } from '@ziroeda/common/tool/tool_action.js';
 import { TA_NONE, TC_MESSAGE, TOOL_EVENT } from '@ziroeda/common/tool/tool_event.js';
 import type { NEW_SYMBOL_PROPERTIES } from '@ziroeda/eeschema/symbol_editor/lib_symbol_library_manager.js';
-import { SCH_ACTIONS } from '@ziroeda/eeschema/tools/sch_actions.js';
+import { SCH_SCREEN } from '@ziroeda/eeschema/sch_screen.js';
+import { SCH_SHEET_PATH } from '@ziroeda/eeschema/sch_sheet_path.js';
+import type { SCH_SYMBOL } from '@ziroeda/eeschema/sch_symbol.js';
+import { type PLACE_SYMBOL_PARAMS, SCH_ACTIONS } from '@ziroeda/eeschema/tools/sch_actions.js';
 import { wxID_CANCEL, wxID_OK } from '@ziroeda/wx/menu.js';
 import { afterEach, describe, expect, it } from 'vitest';
 import { type SYMBOL_EDIT_HARNESS, symbolEditHarness } from './support/symbol_edit_harness.js';
@@ -373,5 +378,95 @@ describe('SYMBOL_EDITOR_CONTROL::RenameSymbol', () => {
     expect(names()).toEqual(['U']);
     expect(t.frame.GetCurSymbol()!.GetName()).toBe('U');
     expect(t.frame.GetCurSymbol()!.GetValueField().GetText()).toBe('10k');
+  });
+});
+
+describe('SYMBOL_EDITOR_CONTROL::AddSymbolToSchematic', () => {
+  /** The schematic editor as AddSymbolToSchematic reaches it: a sheet, its config, its tools. */
+  function schematicEditor(aAutoplace: boolean) {
+    const posted: PLACE_SYMBOL_PARAMS[] = [];
+    let raised = 0;
+    const sheet = new SCH_SHEET_PATH();
+    const screen = new SCH_SCREEN();
+    const frame = {
+      GetCurrentSheet: () => sheet,
+      GetScreen: () => screen,
+      eeconfig: () => ({ autoplace_fields: { enable: aAutoplace } }),
+      Raise: () => {
+        raised++;
+      },
+      GetToolManager: () => ({
+        PostAction: (aAction: unknown, aParam: PLACE_SYMBOL_PARAMS) => {
+          expect(aAction).toBe(SCH_ACTIONS.placeSymbol);
+          posted.push(aParam);
+        },
+      }),
+      ProcessEvent: () => true,
+    };
+    return { frame, screen, posted, raised: () => raised };
+  }
+
+  function kiway() {
+    const k = new KIWAY({
+      OnKiCadExit: () => {},
+      Player: () => true,
+      HasProjectManager: () => true,
+      ShowProjectManager: () => {},
+      CreateKiWindow: () => false,
+    });
+    t.frame.SetKiway(k);
+    return k;
+  }
+
+  it('hands the schematic editor a new symbol of the unit shown, to place and annotate', async () => {
+    setUp();
+    await t.frame.LoadSymbol(new LIB_ID('mine', 'U'), 2, 1);
+    const sch = schematicEditor(true);
+    kiway().SetPlayerFrame(
+      FRAME_T.FRAME_SCH,
+      sch.frame as unknown as Parameters<KIWAY['SetPlayerFrame']>[1],
+    );
+
+    await run(SCH_ACTIONS.addSymbolToSchematic);
+
+    expect(sch.raised()).toBe(1);
+    expect(sch.posted).toHaveLength(1);
+    expect(sch.posted[0]!.m_Reannotate).toBe(true);
+    const symbol = sch.posted[0]!.m_Symbol as SCH_SYMBOL;
+    expect(symbol.GetLibId().Format()).toBe('mine:U');
+    expect(symbol.GetUnit()).toBe(2);
+    expect(symbol.GetParent() === sch.screen).toBe(true);
+    expect(symbol.GetFieldsAutoplaced()).not.toBe(0);
+  });
+
+  it('autoplaces the fields only when the schematic editor is set to', async () => {
+    setUp();
+    await t.frame.LoadSymbol(new LIB_ID('mine', 'U'), 1, 1);
+    const sch = schematicEditor(false);
+    kiway().SetPlayerFrame(
+      FRAME_T.FRAME_SCH,
+      sch.frame as unknown as Parameters<KIWAY['SetPlayerFrame']>[1],
+    );
+
+    await run(SCH_ACTIONS.addSymbolToSchematic);
+
+    expect((sch.posted[0]!.m_Symbol as SCH_SYMBOL).GetFieldsAutoplaced()).toBe(0);
+  });
+
+  it('says so when no schematic is open, and does nothing with no symbol', async () => {
+    setUp();
+    const errors: string[] = [];
+    SetErrorPresenter((aText) => {
+      errors.push(aText);
+    });
+    kiway();
+
+    await run(SCH_ACTIONS.addSymbolToSchematic);
+    expect(errors).toEqual([]);
+
+    await t.frame.LoadSymbol(new LIB_ID('mine', 'U'), 1, 1);
+    await run(SCH_ACTIONS.addSymbolToSchematic);
+    expect(errors).toEqual(['No schematic currently open.']);
+    SetErrorPresenter((aText) => console.error(aText));
   });
 });

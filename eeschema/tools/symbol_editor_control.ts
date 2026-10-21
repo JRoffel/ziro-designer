@@ -6,7 +6,8 @@
  * view toggles, unit stepping, flattening a derived symbol, and the library fields table.
  *
  * Still to come, with the library tree and what they call: Init's tree context menu, DdAddLibrary
- * (a file dropped from the desktop), ExportView, ExportSymbolAsSVG,
+ * (a file dropped from the desktop), ExportView, ExportSymbolAsSVG, AddSymbolToSchematic's symbol
+ * viewer branch (SYMBOL_VIEWER_FRAME is not a live frame yet),
  * AddSymbolToSchematic, OpenWithTextEditor and OpenDirectory. PreviousSymbol / NextSymbol are
  * SYMBOL_VIEWER_FRAME's and come with its tools. Their actions are not bound until they are.
  */
@@ -28,7 +29,10 @@ import {
   updateSymbolEditorSettings,
 } from '../symbol_editor/symbol_editor_settings.js';
 import type { SYMBOL_EDIT_FRAME } from '../symbol_editor/symbol_edit_frame.js';
-import { SCH_ACTIONS } from './sch_actions.js';
+import { type PLACE_SYMBOL_PARAMS, SCH_ACTIONS } from './sch_actions.js';
+import type { SCH_EDIT_FRAME } from '../sch_edit_frame.js';
+import { SCH_SYMBOL } from '../sch_symbol.js';
+import { AUTOPLACE_ALGO } from '../sch_item.js';
 import { SCH_TOOL_BASE } from './sch_tool_base.js';
 import { ACTIONS } from '@ziroeda/common/tool/actions.js';
 
@@ -398,6 +402,55 @@ export class SYMBOL_EDITOR_CONTROL extends SCH_TOOL_BASE<SCH_BASE_FRAME> {
     return 0;
   }
 
+  AddSymbolToSchematic(_aEvent: TOOL_EVENT): number {
+    let libSymbol: LIB_SYMBOL | null = null;
+    let libId = new LIB_ID();
+    let unit = 0;
+    let bodyStyle = 0;
+
+    if (this.m_isSymbolEditor) {
+      const editFrame = this.editFrame();
+
+      libSymbol = editFrame.GetCurSymbol();
+      unit = editFrame.GetUnit();
+      bodyStyle = editFrame.GetBodyStyle();
+
+      if (libSymbol) libId = libSymbol.GetLibId();
+    }
+    // else: SYMBOL_VIEWER_FRAME's GetSelectedSymbol / GetUnit / GetBodyStyle, with the viewer.
+
+    if (libSymbol) {
+      const schframe = this.m_frame!.Kiway()?.GetPlayerFrame(
+        FRAME_T.FRAME_SCH,
+      ) as SCH_EDIT_FRAME | null;
+
+      if (!schframe) {
+        // happens when the schematic editor is not active (or closed)
+        DisplayErrorMessage('No schematic currently open.');
+        return 0;
+      }
+
+      // `Kiway().GetBlockingDialog()`: a page has no window-modal dialog over the other frame.
+
+      const symbol = new SCH_SYMBOL(libSymbol, libId, schframe.GetCurrentSheet(), unit, bodyStyle);
+
+      symbol.SetParent(schframe.GetScreen());
+
+      if (schframe.eeconfig()?.autoplace_fields.enable) {
+        // Not placed yet, so pass a nullptr screen reference
+        symbol.AutoplaceFields(null, AUTOPLACE_ALGO.AUTOPLACE_AUTO);
+      }
+
+      schframe.Raise();
+      schframe.GetToolManager()!.PostAction<PLACE_SYMBOL_PARAMS>(SCH_ACTIONS.placeSymbol, {
+        m_Symbol: symbol,
+        m_Reannotate: true,
+      });
+    }
+
+    return 0;
+  }
+
   *ExportSymbol(_aEvent: TOOL_EVENT): COROUTINE_BODY<number> {
     if (this.m_frame!.IsType(FRAME_T.FRAME_SCH_SYMBOL_EDITOR))
       yield* this.RunMainStackModal(() => this.editFrame().ExportSymbol());
@@ -504,6 +557,7 @@ export class SYMBOL_EDITOR_CONTROL extends SCH_TOOL_BASE<SCH_BASE_FRAME> {
     this.Go(this.CutCopyDelete, SCH_ACTIONS.copySymbol.MakeEvent());
     this.Go(this.DuplicateSymbol, SCH_ACTIONS.pasteSymbol.MakeEvent());
     this.Go(this.ExportSymbol, SCH_ACTIONS.exportSymbol.MakeEvent());
+    this.Go(SYNC_HANDLER(this.AddSymbolToSchematic), SCH_ACTIONS.addSymbolToSchematic.MakeEvent());
 
     this.Go(this.FlattenSymbol, SCH_ACTIONS.flattenSymbol.MakeEvent());
 
