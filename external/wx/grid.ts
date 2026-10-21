@@ -355,6 +355,15 @@ export interface wxGridCellDrawn {
 }
 
 /**
+ * A renderer whose `Draw` paints the cell's background itself, over what the attr's background
+ * colour says (STRIPED_STRING_RENDERER's stripes). Null leaves the attr's colour - a selected cell,
+ * which such a renderer fills with the selection colour.
+ */
+export interface wxGridCellBackgroundDrawn {
+  DrawBackground(aSelected: boolean): string | null;
+}
+
+/**
  * An editor whose control is a combo over fixed options (a layer box, an
  * icon-text popup); the view draws the shared Combo with them.
  */

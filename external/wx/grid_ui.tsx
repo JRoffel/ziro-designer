@@ -45,6 +45,7 @@ import {
   wxGridCellBoolRenderer,
   wxGridCellChoiceEditor,
   type wxGridCellChoiceView,
+  type wxGridCellBackgroundDrawn,
   type wxGridCellDrawn,
   type wxGridCellEditor,
   wxGridEvent,
@@ -587,7 +588,12 @@ export function WxGridView({
               const hAlign = attr.GetHAlign();
               const center =
                 hAlign !== null ? (hAlign & wxALIGN_CENTER_HORIZONTAL) !== 0 : columns[c]?.center;
-              const background = attr.GetBackgroundColour();
+              const cellSelected =
+                rowSelected(r) ||
+                (mode === wxGridSelectionModes.wxGridSelectCells && grid.IsInSelection(r, c));
+              const painter = grid.GetCellRenderer(r, c) as Partial<wxGridCellBackgroundDrawn>;
+              const background =
+                painter.DrawBackground?.(cellSelected) ?? attr.GetBackgroundColour();
               const classes = [
                 center ? 'c' : '',
                 c === flexCol ? 'ze-grid-flexcol' : '',

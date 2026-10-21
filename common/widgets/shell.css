@@ -26,6 +26,9 @@
   --chrome-bg: #2c2c2c; /* [px] menu bar and status bar; a TOOLBAR is
                            --content-bg, which is wxSYS_COLOUR_3DFACE #373737 */
   --chrome-bg2: #272727; /* [px] wxSYS_COLOUR_WINDOW / _LISTBOX / _APPWORKSPACE */
+  /* [px] wxSYS_COLOUR_WINDOWFRAME, qa/probes/syscolour_probe. The same value as 3DFACE under
+     this theme, but its own system colour: a modified Symbol Fields Table row. */
+  --sys-windowframe: #373737;
   --chrome-border: #1e1e1e;
   /* [px] wxSYS_COLOUR_BTNTEXT / _MENUTEXT / _CAPTIONTEXT, all #f7f7f7. NOT
      white: wx has a separate _WINDOWTEXT / _LISTBOXTEXT at #ffffff, and this
