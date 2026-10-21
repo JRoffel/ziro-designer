@@ -175,6 +175,9 @@ describe('DialogImportSymbolSelect', () => {
     render(<DialogImportSymbolSelect frame={t.frame} arg={arg} onClose={onClose} />);
 
     expect(screen.getByText('Import Symbols from src.kicad_sym')).toBeTruthy();
+    // A derived symbol's name in italics, a root's not.
+    expect(screen.getByText('D').closest('.ze-dataview-italic')).toBeTruthy();
+    expect(screen.getByText('A').closest('.ze-dataview-italic')).toBeNull();
     const importButton = () =>
       screen.getAllByRole('button', { name: 'Import' })[0] as HTMLButtonElement;
     expect(importButton().disabled).toBe(true);

@@ -602,11 +602,9 @@ export function DialogImportSymbolSelect({
 
               const icon = r.icon ? <img src={bitmapUrl(r.icon)} alt="" /> : null;
 
-              return (
-                <span className={r.derived ? 'ze-dataview-italic' : undefined}>
-                  <DataViewIconText icon={icon} text={r.name} />
-                </span>
-              );
+              // IMPORT_SYMBOL_LIST_STORE::GetAttrByRow: a derived symbol's name in italics.
+
+              return <DataViewIconText icon={icon} text={r.name} italic={r.derived} />;
             }}
           />
         }

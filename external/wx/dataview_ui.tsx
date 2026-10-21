@@ -49,13 +49,24 @@ export function DataViewListCtrl({
   );
 }
 
-/** `wxDataViewIconText` under wxDataViewIconTextRenderer: the icon, then the text. */
-export function DataViewIconText({ icon, text }: { icon: ReactNode; text: string }): JSX.Element {
+/**
+ * `wxDataViewIconText` under wxDataViewIconTextRenderer: the icon, then the text. \a italic is the
+ * row's `wxDataViewItemAttr::SetItalic( true )`, which a model's GetAttr gives.
+ */
+export function DataViewIconText({
+  icon,
+  text,
+  italic = false,
+}: {
+  icon: ReactNode;
+  text: string;
+  italic?: boolean;
+}): JSX.Element {
   return (
-    <>
+    <span className={italic ? 'ze-dataview-italic' : undefined}>
       <span className="ze-dataview-icon">{icon}</span>
       {text}
-    </>
+    </span>
   );
 }
 
