@@ -1486,6 +1486,8 @@ export function FootprintEditFrame({
       {saveAs && (
         <EdaListDialog
           title="Save Footprint As"
+          // SAVE_AS_DIALOG leaves EDA_LIST_DIALOG's filter box shown.
+          showFilter
           listLabel="Save in library:"
           okLabel="Save"
           headers={['Nickname', 'Description']}

@@ -2,27 +2,26 @@
 // Copyright (C) 2026 ZiroEDA and contributors.
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
 /**
- * `EDA_LIST_DIALOG` (`common/dialogs/eda_list_dialog.cpp` +
- * `eda_list_dialog_base.cpp`) — KiCad's "pick one row from a report list"
- * dialog: a label, a `wxListCtrl` in `wxLC_REPORT` with column headers and
- * rules, an optional filter box under it, then Cancel / OK. Double-clicking a
- * row is `onListItemActivated`, which accepts and closes.
+ * `EDA_LIST_DIALOG` (common/dialogs/eda_list_dialog.{h,cpp}) over EDA_LIST_DIALOG_BASE: KiCad's
+ * "pick one row from a report list" dialog - a label, a wxListCtrl in wxLC_REPORT (sorted with
+ * StrNumCmp when asked), a filter box matching `*text*` against the first column, the extras
+ * sizer's checkboxes (AddExtraCheckbox), Cancel / OK. Double-clicking a row is OK.
  *
- * One component, because wx has one dialog. Board Setup raises it twice — from
- * `PANEL_SETUP_LAYERS::addUserDefinedLayer` ("Add User-defined Layer", one
- * "Layers" column, filter hidden) and from PANEL_SETUP_BOARD_STACKUP's
- * add/remove dielectric pickers — and both had grown their own copy built
- * around a native `<select size=8>`. A native list box is drawn by the
- * operating system and takes Chrome's own selection blue, exactly like the
- * native `<select>` popup `ui/Combo.tsx` exists to replace; and two hand-built
- * copies are how two dialogs of the same wx class come to look different.
- *
- * Not `SingleChoiceDialog`: that one is `wxGetSingleChoice`, a different wx
- * dialog with no headers, no filter and no report columns.
+ * One component for the wx class and the ways callers extend it: Board Setup's layer and
+ * dielectric pickers, the footprint and symbol SAVE_AS dialogs (a name row prepended), and
+ * SCH_BASE_FRAME::SelectLibrary (a "New Library..." button prepended to the buttons).
  */
-import { Button, TextCtrl } from '@ziroeda/wx/controls.js';
-import { useEffect, useRef, useState, type JSX } from 'react';
-import { DialogShim } from '../dialog_shim.js';
+import { strNumCmp } from '../string_utils.js';
+import { CheckBox, ListCtrl } from '@ziroeda/wx/controls.js';
+import { wxBOTTOM, wxTOP } from '@ziroeda/wx/defs.js';
+import { SizerItem } from '@ziroeda/wx/sizer.js';
+import { wxMatches } from '@ziroeda/wx/utils.js';
+import { type JSX, useEffect, useRef, useState } from 'react';
+import { EDA_LIST_DIALOG_BASE } from './eda_list_dialog_base.js';
+
+/** `DEFAULT_SINGLE_COL_WIDTH` / `DEFAULT_COL_WIDTHS` (eda_list_dialog.cpp:37-38). [data] */
+const DEFAULT_SINGLE_COL_WIDTH = 260;
+const DEFAULT_COL_WIDTHS = [200, 300] as const;
 
 export interface EdaListRow {
   /** Handed back to `onResult`; `GetTextSelection()` is the first column. */
@@ -31,15 +30,87 @@ export interface EdaListRow {
   cells: readonly string[];
 }
 
+/** The list and filter logic, apart from the window. */
+export class EDA_LIST_DIALOG {
+  private readonly m_itemsList: readonly EdaListRow[];
+  private readonly m_sortList: boolean;
+  /** The filter box's text. */
+  m_filter = '';
+
+  constructor(aItemList: readonly EdaListRow[], aSortList: boolean) {
+    this.m_itemsList = aItemList;
+    this.m_sortList = aSortList;
+  }
+
+  /**
+   * The rows the list holds: `textChangeInFilterBox` keeps those whose first column matches
+   * `*filter*` (case-folded), and `sortList` orders them by StrNumCmp, ignoring case.
+   */
+  Rows(): EdaListRow[] {
+    const filter = `*${this.m_filter.toLowerCase()}*`;
+    const rows = this.m_itemsList.filter((row) =>
+      wxMatches((row.cells[0] ?? '').toLowerCase(), filter),
+    );
+
+    if (this.m_sortList) rows.sort((a, b) => strNumCmp(a.cells[0] ?? '', b.cells[0] ?? '', true));
+
+    return rows;
+  }
+
+  /**
+   * `m_listBox->FindItem( -1, aPreselectText )` (initDialog): the row whose first column is the
+   * text, case ignored; a pinned row's starred text is not found by its bare name. Measured,
+   * qa/probes/listctrl_finditem_probe.cpp.
+   */
+  FindItem(aText: string): string | null {
+    const upper = aText.toUpperCase();
+
+    return this.m_itemsList.find((r) => (r.cells[0] ?? '').toUpperCase() === upper)?.value ?? null;
+  }
+
+  /** `SetMinClientSize` on the list, by its column count (initDialog). */
+  static ListMinSize(aColumnCount: number): [number, number] {
+    if (aColumnCount === 1) return [DEFAULT_SINGLE_COL_WIDTH, 200];
+    if (aColumnCount === 2) return [DEFAULT_COL_WIDTHS[0] * 3, 200];
+
+    return [-1, -1];
+  }
+
+  /** `onSize`: one column fills the list; two split it 42 : 58. */
+  static ColumnWidths(aColumnCount: number, aClientWidth: number): number[] {
+    if (aColumnCount === 1) return [aClientWidth];
+
+    if (aColumnCount === 2) {
+      const first = Math.round(aClientWidth * 0.42);
+      return [first, aClientWidth - first];
+    }
+
+    return Array.from({ length: aColumnCount }, (_, i) => DEFAULT_COL_WIDTHS[i] ?? 100);
+  }
+}
+
+/** What the dialog answers besides the row: the extras' values and the button that ended it. */
+export interface EdaListExtras {
+  /** `GetExtraCheckboxValues()`, in the order they were added. */
+  checkboxes: boolean[];
+  /** The id an extra button ended the modal with, if it was one. */
+  button?: number;
+}
+
 export function EdaListDialog({
   title,
   headers,
   rows,
   listLabel = 'Items:',
   showFilter = false,
+  sortList = false,
   initialValue,
+  preselectText,
   okLabel = 'OK',
   nameRow,
+  extraCheckboxes,
+  extraButton,
+  transferDataFromWindow,
   onResult,
 }: {
   /** The window title. */
@@ -49,109 +120,154 @@ export function EdaListDialog({
   rows: readonly EdaListRow[];
   /** `SetListLabel()`; the base's own default is "Items:". */
   listLabel?: string;
-  /** The inverse of `HideFilter()`, which both Board Setup call sites use. */
+  /** The inverse of `HideFilter()`. */
   showFilter?: boolean;
+  /** The constructor's `aSortList`. */
+  sortList?: boolean;
+  /** The value of the row selected at the start. */
   initialValue?: string;
+  /** `aPreselectText`: the first-column text of the row selected at the start (FindItem). */
+  preselectText?: string;
   /** `SetOKLabel()`; OK by default. */
   okLabel?: string;
   /**
-   * The name row `SAVE_AS_DIALOG` (footprint_libraries_utils.cpp:995-1055)
-   * prepends: a label and a text control whose `wxTextValidator` excludes
-   * `excludeChars`. Its trimmed text is `onResult`'s second argument.
+   * The name row a SAVE_AS dialog prepends: a label and a text control whose wxTextValidator
+   * excludes `excludeChars`. Its trimmed text is `onResult`'s second argument.
    */
   nameRow?: { label: string; value: string; excludeChars: string };
+  /** `AddExtraCheckbox( aLabel, &value )`, each with its starting value. */
+  extraCheckboxes?: readonly { label: string; value: boolean }[];
+  /** A button prepended to m_ButtonsSizer that ends the modal with \a id. */
+  extraButton?: { id: number; label: string };
+  /**
+   * A subclass's `TransferDataFromWindow()`: false keeps the dialog open (SAVE_SYMBOL_AS_DIALOG's
+   * validator asks its questions here).
+   */
+  transferDataFromWindow?: (
+    aValue: string | null,
+    aName: string | undefined,
+    aExtras: EdaListExtras,
+  ) => boolean | Promise<boolean>;
   /** `null` on Cancel — `GetTextSelection()` empty. */
-  onResult: (value: string | null, name?: string) => void;
+  onResult: (value: string | null, name?: string, extras?: EdaListExtras) => void;
 }): JSX.Element {
+  const [dlg] = useState(() => new EDA_LIST_DIALOG(rows, sortList));
   const [filter, setFilter] = useState('');
   const [name, setName] = useState(nameRow?.value ?? '');
-  const [sel, setSel] = useState<string>(() => initialValue ?? rows[0]?.value ?? '');
+  // A preselect that names no row selects nothing (`FindItem` answers wxNOT_FOUND): it is in no
+  // row the list shows.
+  const [sel, setSel] = useState<string | null>(
+    () => initialValue ?? (preselectText ? dlg.FindItem(preselectText) : null),
+  );
+  const [checks, setChecks] = useState(() => (extraCheckboxes ?? []).map((c) => c.value));
+  const [clientWidth, setClientWidth] = useState<number>(
+    () => EDA_LIST_DIALOG.ListMinSize(headers.length)[0],
+  );
   const listRef = useRef<HTMLDivElement>(null);
+  const nameRef = useRef<HTMLInputElement>(null);
 
-  const shown = filter
-    ? rows.filter((r) => r.cells.some((c) => c.toLowerCase().includes(filter.toLowerCase())))
-    : rows;
+  dlg.m_filter = filter;
+  const shown = dlg.Rows();
+  const selRow = shown.findIndex((r) => r.value === sel);
 
-  // The selected row must stay in view when the arrows move it, which is what a
-  // wxListCtrl does for free.
+  // `onSize`: the columns follow the list's client width.
   useEffect(() => {
-    listRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
+    const el = listRef.current;
+
+    if (!el || typeof ResizeObserver === 'undefined') return;
+
+    const ro = new ResizeObserver(() => setClientWidth(el.clientWidth));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // The selected row stays in view (initDialog's EnsureVisible).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the selection is the trigger; the element is read through the ref
+  useEffect(() => {
+    listRef.current
+      ?.querySelector('[aria-selected="true"]')
+      ?.scrollIntoView?.({ block: 'nearest' });
   }, [sel]);
 
-  const move = (delta: number): void => {
-    const i = shown.findIndex((r) => r.value === sel);
-    const next = shown[Math.min(shown.length - 1, Math.max(0, (i === -1 ? 0 : i) + delta))];
-    if (next) setSel(next.value);
+  const extras = (aButton?: number): EdaListExtras =>
+    aButton === undefined ? { checkboxes: checks } : { checkboxes: checks, button: aButton };
+
+  const accept = async (aValue: string | null): Promise<void> => {
+    const typed = nameRow ? name.trim() : undefined;
+
+    if (transferDataFromWindow && !(await transferDataFromWindow(aValue, typed, extras()))) return;
+
+    onResult(aValue, typed, extras());
   };
 
-  const accept = (): void =>
-    onResult(shown.some((r) => r.value === sel) ? sel : null, nameRow ? name.trim() : undefined);
-
   return (
-    <DialogShim title={title} onClose={() => onResult(null)} className="ze-list-dialog">
-      <div className="ze-modal-body ze-list-dialog-body">
-        {nameRow && (
-          <label className="ze-list-dialog-name">
-            <span>{nameRow.label}</span>
-            <TextCtrl
-              value={name}
-              onChange={(aValue) =>
-                setName([...aValue].filter((c) => !nameRow.excludeChars.includes(c)).join(''))
-              }
-              className="ze-search"
-              autoFocus
-            />
-          </label>
-        )}
-        <div className="ze-list-dialog-label">{listLabel}</div>
-        {/* `wxLC_REPORT|wxLC_HRULES|wxLC_VRULES|wxBORDER_SIMPLE` — the same
-          report list `.ze-grid` already draws for every other WX_GRID in
-          the app, so the rules and the header come from there. */}
-        <div className="ze-grid-pane ze-list-dialog-list" ref={listRef}>
-          <table className="ze-grid">
-            <thead>
-              <tr>
-                {headers.map((h) => (
-                  <th key={h}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {shown.map((r) => (
-                <tr
-                  key={r.value}
-                  aria-selected={r.value === sel}
-                  className={r.value === sel ? 'selected' : undefined}
-                  onMouseDown={() => setSel(r.value)}
-                  onDoubleClick={() => onResult(r.value, nameRow ? name.trim() : undefined)}
-                >
-                  {r.cells.map((c, i) => (
-                    <td key={headers[i] ?? i}>{c}</td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {showFilter && (
-          <input
-            className="ze-search"
-            value={filter}
-            placeholder="Filter"
-            onChange={(e) => setFilter(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'ArrowDown') move(1);
-              else if (e.key === 'ArrowUp') move(-1);
-              else return;
-              e.preventDefault();
+    <EDA_LIST_DIALOG_BASE
+      title={title}
+      {...(nameRow
+        ? {
+            nameRow: {
+              label: nameRow.label,
+              value: name,
+              inputRef: nameRef,
+              onChange: (aValue: string) =>
+                setName([...aValue].filter((c) => !nameRow.excludeChars.includes(c)).join('')),
+            },
+            initialFocus: nameRef,
+          }
+        : {})}
+      m_listLabel={listLabel}
+      listMinSize={EDA_LIST_DIALOG.ListMinSize(headers.length)}
+      m_listBox={
+        <div ref={listRef} className="ze-dataview-window">
+          <ListCtrl
+            headers={headers}
+            rows={shown.map((r) => r.cells)}
+            columnWidths={EDA_LIST_DIALOG.ColumnWidths(headers.length, clientWidth)}
+            selection={selRow}
+            onSelect={(i) => setSel(shown[i]!.value)}
+            onActivate={(i) => {
+              // onListItemActivated: wxID_OK, on the row double-clicked.
+              setSel(shown[i]!.value);
+              void accept(shown[i]!.value);
             }}
+            ariaLabel={listLabel}
           />
-        )}
-      </div>
-      <div className="ze-modal-footer">
-        <Button label="Cancel" onClick={() => onResult(null)} />
-        <Button label={okLabel} isDefault disabled={shown.length === 0} onClick={accept} />
-      </div>
-    </DialogShim>
+        </div>
+      }
+      m_filterBox={
+        showFilter
+          ? {
+              value: filter,
+              onChange: (t) => {
+                // textChangeInFilterBox rebuilds the list: the selection goes with it.
+                setFilter(t);
+                setSel(null);
+              },
+            }
+          : null
+      }
+      m_ExtrasSizer={(extraCheckboxes ?? []).map((c, i) => (
+        // AddExtraCheckbox: wxBOTTOM, and wxTOP from the second on.
+        <SizerItem key={c.label} flag={i > 0 ? wxBOTTOM | wxTOP : wxBOTTOM} border={5}>
+          <CheckBox
+            label={c.label}
+            checked={checks[i] ?? false}
+            onChange={(on) => setChecks(checks.map((v, k) => (k === i ? on : v)))}
+          />
+        </SizerItem>
+      ))}
+      {...(extraButton
+        ? {
+            extraButton: {
+              label: extraButton.label,
+              onClick: () =>
+                onResult(null, nameRow ? name.trim() : undefined, extras(extraButton.id)),
+            },
+          }
+        : {})}
+      okLabel={okLabel}
+      onOK={() => void accept(selRow >= 0 ? sel : null)}
+      onCancel={() => onResult(null)}
+    />
   );
 }

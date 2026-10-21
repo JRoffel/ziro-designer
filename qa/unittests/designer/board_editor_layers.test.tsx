@@ -378,9 +378,11 @@ describe('Add User Defined Layer...', () => {
     // `addUserDefinedLayer():1160-1181` skips a layer already in m_enabledLayers.
     render(<Harness initial={demo()} />);
     fireEvent.click(screen.getByText('Add User Defined Layer...'));
-    const offered = [...document.querySelectorAll('.ze-list-dialog .ze-grid tbody tr')].map(
-      (tr) => tr.textContent,
-    );
+    const offered = [
+      ...screen
+        .getByRole('list', { name: 'Select layer to add:' })
+        .querySelectorAll('[role=listitem]'),
+    ].map((tr) => tr.textContent);
     expect(offered).not.toContain('User.1');
     expect(offered.slice(0, 3)).toEqual(['User.2', 'User.3', 'User.4']);
     expect(offered).toHaveLength(44); // 45 minus the User.1 already on the board
@@ -389,7 +391,7 @@ describe('Add User Defined Layer...', () => {
   it('appends the picked layer as an Auxiliary row at the end of the list', () => {
     render(<Harness initial={demo()} />);
     fireEvent.click(screen.getByText('Add User Defined Layer...'));
-    fireEvent.mouseDown(screen.getByText('User.3'));
+    fireEvent.click(screen.getByText('User.3'));
     fireEvent.click(screen.getByRole('button', { name: 'OK' }));
 
     // `append_user_layer()` adds at the end of m_LayersSizer, after Drawings.

@@ -13290,45 +13290,6 @@ td.ze-grid-bool {
    spacing, their label columns and their controls come from `.ze-pref-*` and
    are not restated here. */
 
-/* ---- EDA_LIST_DIALOG (common/dialogs/eda_list_dialog_base.cpp) -------------
-
-   No font size and no colour: the label, the list and the filter are a
-   wxStaticText, a wxListCtrl and a wxTextCtrl, and the dialog calls SetFont on
-   none of them. The list's rules, header and selection fill come from
-   `.ze-grid`, which is the same wxListCtrl-in-report look. */
-.ze-modal.ze-list-dialog {
-  /* [data] `bSizerMain->Add( bMargins, 1, wxEXPAND|wxRIGHT|wxLEFT, 5 )` — the
-     dialog is as wide as its content, floored by the list's own minimum. */
-  min-width: 300px;
-}
-.ze-list-dialog-body {
-  display: flex;
-  flex-direction: column;
-  /* [data] the `wxRIGHT|wxLEFT, 5` on bMargins meeting each child's own 5. */
-  padding: 0 10px;
-}
-/* [data] `bMargins->Add( m_listLabel, 0, wxALL, 5 )`. */
-.ze-list-dialog-label {
-  padding: 5px; /* [data] `wxALL, 5`. */
-}
-.ze-list-dialog-list {
-  /* [data] `m_listBox->SetMinSize( wxSize( 280, 150 ) )`. */
-  min-width: 280px;
-  min-height: 150px; /* [data] the same `SetMinSize( wxSize( 280, 150 ) )`. */
-  /* [data] `Add( m_listBox, 3, wxBOTTOM|wxRIGHT|wxLEFT|wxEXPAND, 5 )` —
-     proportion 3, so the list takes the dialog's spare height. */
-  flex: 3 1 auto;
-  margin: 0 5px 5px; /* [data] that Add()'s `wxBOTTOM|wxRIGHT|wxLEFT, 5`. */
-}
-.ze-list-dialog-list .ze-grid {
-  width: 100%;
-}
-.ze-list-dialog-body > .ze-search {
-  /* [data] `Add( m_filterBox, 0, wxEXPAND|wxBOTTOM|wxRIGHT|wxLEFT, 5 )`. */
-  margin: 0 5px 5px;
-  width: auto;
-}
-
 /* PANEL_SETUP_TUNING_PATTERNS (`panel_setup_tuning_patterns_base.cpp`), three
    times over — one group per meander kind, all from the same wxFormBuilder
    block, so one set of rules. */

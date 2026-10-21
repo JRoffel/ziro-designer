@@ -64,6 +64,7 @@ import { SymbolLibAdapter } from './project_sch.js';
 import { SYMBOL_LIBRARY_MANAGER } from './symbol_library_manager.js';
 import type { COLOR_SETTINGS } from '@ziroeda/common/settings/color_settings.js';
 import { strNumCmp, unescapeString } from '@ziroeda/common/string_utils.js';
+import { PINNING_SYMBOL } from '@ziroeda/common/lib_tree_model_adapter.js';
 import { SCH_SEARCH_DATA } from '@ziroeda/common/eda_search_data.js';
 import { FIELD_T } from '@ziroeda/common/template_fieldnames.js';
 import { ACTIONS } from '@ziroeda/common/tool/actions.js';
@@ -88,8 +89,8 @@ import {
   type SymbolEditorSettings,
 } from './symbol_editor/symbol_editor_settings.js';
 
-/** `LIB_TREE_MODEL_ADAPTER::GetPinningSymbol()`: the star a pinned library is listed with. */
-export const PINNING_SYMBOL = '☆ ';
+/** `LIB_TREE_MODEL_ADAPTER::GetPinningSymbol()`, the one common/ holds. */
+export { PINNING_SYMBOL } from '@ziroeda/common/lib_tree_model_adapter.js';
 
 /**
  * The symbol library layer `SchGetLibSymbol` asks (`SYMBOL_LIBRARY_ADAPTER::

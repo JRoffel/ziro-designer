@@ -446,6 +446,8 @@ export function PanelPcbLayers({ value, onChange }: Props): JSX.Element {
       {addOpen && (
         <EdaListDialog
           title="Add User-defined Layer"
+          // EDA_LIST_DIALOG( …, headers, list ): aSortList's default, true.
+          sortList
           listLabel="Select layer to add:"
           headers={['Layers']}
           rows={availableUserLayers.map((id) => ({ value: id, cells: [id] }))}
