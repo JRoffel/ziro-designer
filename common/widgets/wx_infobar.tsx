@@ -4,6 +4,7 @@
 import { type JSX, useState } from 'react';
 // The desktop theme's own files, vendored — see the note below on why these
 // are not KiCad bitmaps.
+import informationIcon from '@ziroeda/bitmaps_png/sources/theme/dialog-information.png';
 import warningIcon from '@ziroeda/bitmaps_png/sources/theme/dialog-warning.png';
 import closeIcon from '@ziroeda/bitmaps_png/sources/theme/window-close.png';
 
@@ -56,12 +57,15 @@ import closeIcon from '@ziroeda/bitmaps_png/sources/theme/window-close.png';
  */
 export function Infobar({
   message,
+  icon = 'warning',
   actionLabel,
   onAction,
   closable = false,
   className,
 }: {
   message: string;
+  /** `ShowMessage( aMessage, aFlags )`'s wxICON_WARNING / wxICON_INFORMATION: Yaru's 16x16 status icon. */
+  icon?: 'warning' | 'information';
   actionLabel?: string;
   onAction?: () => void;
   closable?: boolean;
@@ -74,7 +78,12 @@ export function Infobar({
 
   return (
     <div className={`ze-infobar${className ? ` ${className}` : ''}`} role="status">
-      <img className="ze-infobar-icon" src={warningIcon} alt="" aria-hidden="true" />
+      <img
+        className="ze-infobar-icon"
+        src={icon === 'information' ? informationIcon : warningIcon}
+        alt=""
+        aria-hidden="true"
+      />
       {/* `margin-right: auto` lives on this, so everything after it is pushed
           to the right edge the way the sizer's spacer pushes the buttons. */}
       <span className="msg">{message}</span>

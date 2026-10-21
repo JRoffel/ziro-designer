@@ -84,3 +84,19 @@ if (typeof window !== 'undefined') {
   window.addEventListener('pointermove', track, { capture: true, passive: true });
   window.addEventListener('pointerdown', track, { capture: true, passive: true });
 }
+
+/**
+ * `wxString::Matches( aMask )` (wx/string.h): the whole string against a wildcard mask, `*` any
+ * run of characters and `?` any one, case-sensitive.
+ */
+export function wxMatches(aString: string, aMask: string): boolean {
+  let pattern = '^';
+
+  for (const c of aMask) {
+    if (c === '*') pattern += '[\\s\\S]*';
+    else if (c === '?') pattern += '[\\s\\S]';
+    else pattern += c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  return new RegExp(`${pattern}$`, 'u').test(aString);
+}
