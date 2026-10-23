@@ -100,9 +100,15 @@ describe('every app defaults to ALWAYS, so the sweep changed no default', () => 
 
 // ------------------------------------------------------------- one canvas each
 
-/** Where each editor snaps, and which settings object is the right one there. */
+/**
+ * The windows whose snapping used to be their own. Every one snaps through
+ * GAL::GetGridSnapping now - the symbol editor since 10-23, on the option
+ * SYMBOL_EDIT_FRAME::LoadSettings reads from its own slice
+ * (eeschema/symbol_edit_frame_load_settings.test.ts) - so these must hold no
+ * copy of the rule and name no other app's snap setting.
+ */
 const CANVAS: Record<string, string> = {
-  symbol_editor: '../../eeschema/symbol_editor/grid.ts',
+  symbol_editor: '../../eeschema/symbol_editor/symbol_edit_frame_ui.tsx',
 };
 
 /** The settings-object expression each canvas must reach for. */
@@ -113,12 +119,6 @@ const OWN_SNAP: Record<string, string> = {
 };
 
 describe('each canvas asks GetGridSnapping, with its own settings', () => {
-  it.each(Object.keys(CANVAS))('%s calls the shared predicate', (app) => {
-    const src = read(CANVAS[app] as string);
-    expect(src, `${app} does not call gridSnappingEnabled`).toContain('gridSnappingEnabled(');
-    expect(src).toContain(OWN_SNAP[app] as string);
-  });
-
   it.each(Object.keys(CANVAS))('%s reaches for no other app’s snap setting', (app) => {
     // The bug this is here for: the Symbol Editor read
     // `settings.eeschema.window.cursor` and `.grid.style` for a year, so the

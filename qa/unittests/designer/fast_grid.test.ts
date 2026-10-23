@@ -120,17 +120,17 @@ describe('every app’s stored defaults land where the page says', () => {
 /** Every frame `COMMON_TOOLS` gives these three actions, and where it binds them. */
 const FRAME: Record<string, string> = {
   eeschema: '../../eeschema/sch_edit_frame_ui.tsx',
-  symbol_editor: '../../eeschema/symbol_editor/symbol_edit_frame_ui.tsx',
   // pl_editor binds them as upstream does, COMMON_TOOLS on PL_EDITOR_FRAME,
   // pinned in unittests/pagelayout_editor/pl_editor_chrome.test.ts.
   // gerbview binds them as upstream does, COMMON_TOOLS on GERBVIEW_FRAME,
   // pinned in unittests/gerbview/gerbview_frame.test.ts.
+  // The symbol editor too, COMMON_TOOLS on SYMBOL_EDIT_FRAME, pinned in
+  // unittests/eeschema/symbol_edit_frame_grid_live.test.ts.
 };
 
 /** Which settings object each frame must write, and no other. */
 const OWN_WRITE: Record<string, string> = {
   eeschema: 'settings.updateEeschema',
-  symbol_editor: 'settings.updateSymbolEditor',
   pl_editor: 'settings.plEditor.window.grid',
 };
 

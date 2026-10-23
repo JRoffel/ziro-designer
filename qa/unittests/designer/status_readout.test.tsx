@@ -173,7 +173,8 @@ describe('the draw frames', () => {
 
   const ON_THE_HOOK = [
     '../../pcbnew/pcb_edit_frame_ui.tsx',
-    '../../eeschema/symbol_editor/symbol_edit_frame_ui.tsx',
+    // The Symbol Editor left the hook when its window moved onto SYMBOL_EDIT_FRAME (10-23):
+    // SCH_BASE_FRAME::UpdateStatusBar writes the cursor through the frame's status sink.
     // The Footprint Editor left the hook when its window moved onto
     // FOOTPRINT_EDIT_FRAME: PCB_BASE_FRAME::UpdateStatusBar writes the cursor
     // through the frame's status sink, as upstream.
@@ -195,8 +196,11 @@ describe('the draw frames', () => {
     );
   });
 
-  it('the Footprint Editor shows what its frame writes', () => {
-    const src = read('../../pcbnew/footprint_edit_frame_ui.tsx');
+  it.each([
+    '../../pcbnew/footprint_edit_frame_ui.tsx',
+    '../../eeschema/symbol_editor/symbol_edit_frame_ui.tsx',
+  ])('%s shows what its frame writes', (rel) => {
+    const src = read(rel);
     expect(src).toContain('frame.SetStatusTextSink(');
     expect(src).not.toContain('useStatusReadout');
   });

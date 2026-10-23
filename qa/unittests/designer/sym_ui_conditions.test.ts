@@ -34,9 +34,8 @@
  * of those sets.
  */
 import { describe, expect, it } from 'vitest';
-import { parse } from '@ziroeda/sexpr';
-import { readSymbolLib } from '@ziroeda/eeschema';
-import type { LibSymbol } from '@ziroeda/eeschema/types.js';
+import type { LIB_SYMBOL } from '@ziroeda/eeschema/lib_symbol.js';
+import { SCH_IO_KICAD_SEXPR } from '@ziroeda/eeschema/sch_io/kicad_sexpr/sch_io_kicad_sexpr.js';
 import {
   SYMBOL_ACTION_ENABLE,
   symbolActionEnabled,
@@ -421,7 +420,7 @@ const LIB = `(kicad_symbol_lib (version 20241209) (generator "qa")
     (symbol "U_Locked_2_1" (rectangle (start -1 2.54) (end 1 -2.54)
       (stroke (width 0.254) (type default)) (fill (type none))))
   )
-  (symbol "DM" (pin_numbers (hide yes)) (pin_names (offset 0))
+  (symbol "DM" (pin_numbers (hide yes)) (pin_names (offset 0)) (body_styles demorgan)
     (property "Reference" "U" (at 0 0 0) (effects (font (size 1.27 1.27))))
     (symbol "DM_1_1" (rectangle (start -1 2.54) (end 1 -2.54)
       (stroke (width 0.254) (type default)) (fill (type none))))
@@ -429,8 +428,15 @@ const LIB = `(kicad_symbol_lib (version 20241209) (generator "qa")
       (stroke (width 0.254) (type default)) (fill (type none))))
   )
 )`;
-const SYMS = new Map(readSymbolLib(parse(LIB)).map((s) => [s.libId, s]));
-const sym = (name: string): LibSymbol => {
+/** The library's symbols as the clipboard reads them: bare `(symbol …)` entries. */
+const ENTRIES = LIB.slice(LIB.indexOf('\n') + 1, LIB.lastIndexOf(')'));
+const SYMS = new Map(
+  SCH_IO_KICAD_SEXPR.ParseLibSymbols(ENTRIES, 'qa').map((s) => [s.GetName(), s]),
+);
+// `SCH_IO_KICAD_SEXPR_LIB_CACHE::updateParentSymbolLinks`: each derived symbol to its parent.
+for (const s of SYMS.values())
+  if (s.GetParentName() !== '') s.SetLibParent(SYMS.get(s.GetParentName())!);
+const sym = (name: string): LIB_SYMBOL => {
   const s = SYMS.get(name);
   if (!s) throw new Error(`no symbol ${name}`);
   return s;
@@ -518,12 +524,11 @@ describe('"no symbol" is null OR undefined', () => {
    * `haveSymbolCond` (:460-464) is `m_symbol != nullptr`, and C++ has one way
    * to say "no symbol". TypeScript has two, and every rule in the table is an
    * AND of `haveSymbol`: an `undefined` read as "a symbol is loaded" would
-   * flip the WHOLE toolbar live on a cold frame, and `sym.extends` on the next
+   * flip the WHOLE toolbar live on a cold frame, and `sym.IsRoot()` on the next
    * line would throw.
    *
-   * The declared type is `LibSymbol | null` and `SymbolEditor.tsx` passes
-   * `workSymbol ?? null` off a `useState<LibSymbol | null>`, so no typed caller
-   * can do it today. The cast is the point: this pins the behaviour for a
+   * The declared type is `LIB_SYMBOL | null` and the window passes the frame's
+   * `GetCurSymbol()`, so no typed caller can do it today. The cast is the point: this pins the behaviour for a
    * caller the type does not reach — a test, a JS consumer, a future field
    * that becomes optional — which is the only way a `!== null` here can be
    * told apart from a `!= null`.

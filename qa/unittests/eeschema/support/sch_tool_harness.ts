@@ -97,6 +97,9 @@ export function schToolHarness(aFrame: SCH_EDIT_FRAME = schFrame()): SCH_HARNESS
     },
     ForceRefresh: () => {},
     Refresh: () => {},
+    StartDrawing: () => {},
+    StopDrawing: () => {},
+    Destroy: () => {},
     SetStatusPopup: () => {},
     GetClientSize: () => ({ x: 1000, y: 1000 }),
     // EDA_DRAW_PANEL_GAL's: SCH_DRAW_PANEL does not override it.

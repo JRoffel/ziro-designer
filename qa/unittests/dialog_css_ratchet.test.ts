@@ -53,7 +53,10 @@ const BASELINE: Record<string, number> = {
   // 21 -> 22 (10-12): not new CSS. .ze-selfilter was shared with pcbnew's selection filter; with
   // that on its _base pair, eeschema's panel is its only user.
   // 22 -> 14 (10-15): the record Symbol Fields Table's grid, gone with the live dialog on WX_GRID.
-  eeschema: 14,
+  // 14 -> 17 (10-23), a reclassification and not new CSS: .ze-props-grid, .ze-label-dialog and
+  // .ze-label-dialog-body were shared with the record Symbol Editor's dialogs and window; with
+  // those deleted, each has one dialog user left.
+  eeschema: 17,
   // 31 -> 27 (10-12): Print on DIALOG_PRINT_GENERIC_BASE.
   // 27 -> 28 (10-12): not new CSS. ze-pref-help was also named in Mask & Paste; with that page on
   // its _base pair, the Excellon panel is its only user.

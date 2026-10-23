@@ -37,7 +37,6 @@ import {
   applyToggle,
   DEFAULT_TOGGLES,
   RADIO_GROUPS,
-  syncPinEditOnLoad,
 } from '@ziroeda/eeschema/symbol_editor/toggles.js';
 import {
   renderSymbolScene,
@@ -166,7 +165,6 @@ describe("SYMBOL_EDIT_FRAME's opening toggle state", () => {
    */
   it('does not light Synchronized Pins mode on a cold frame', () => {
     expect(DEFAULT_TOGGLES.has('toggleSyncedPinsMode')).toBe(false);
-    expect(syncPinEditOnLoad(null)).toBe(false);
   });
 
   /** Exactly one member of each radio group is on at boot. */

@@ -485,7 +485,10 @@ const BASELINE: Record<string, { colours: number; metrics: number }> = {
   // four went out with the JSX when `SYMBOL_TREE_PANE`'s one `LIB_TREE` took
   // over. None was re-sourced from a token; there is simply no local row to
   // size any more, which is what the shared-widget rule is for.
-  'editors/symbol': { colours: 2, metrics: 15 },
+  // colours 2 -> 0, metrics 15 -> 0 (10-23): the record window and its SymbolCanvas are deleted;
+  // the live SYMBOL_EDIT_FRAME window states no colour or chrome metric of its own - the canvas is
+  // SCH_DRAW_PANEL and the panes are the shared widgets.
+  'editors/symbol': { colours: 0, metrics: 0 },
   // metrics 7 -> 8 on 09-21: not a new literal. `project_tree_pane.tsx`'s
   // `height: 18` was always there, hidden from this scanner because the file's
   // `import.meta.glob('../assets/manager/*.svg')` read as an unterminated
@@ -1483,7 +1486,8 @@ describe('the scan totals, so the numbers in the PR stay true', () => {
     // 254 -> 252 (10-12): the editors/pcb row above. 252 -> 251 (10-15): common/dialogs.
     // 251 -> 248 (10-15): the common/widgets row above.
     // 248 -> 247 (10-20): the editors/schematic row above.
-    expect(SITES.filter((s) => s.kind === 'colours').length).toBe(247);
+    // 247 -> 245 (10-23): the editors/symbol row above.
+    expect(SITES.filter((s) => s.kind === 'colours').length).toBe(245);
     // 1657 -> 1649: the same sweep. A native colour input has no useful
     // default size, so eight of the sixteen sites gave theirs an inline
     // width and height; the shared swatch takes --swatch-*-w/h. Rescanned.
@@ -1728,7 +1732,8 @@ describe('the scan totals, so the numbers in the PR stay true', () => {
     // 729 -> 727 (10-12): Physical Stackup's pair. 727 -> 721 (10-15): common/dialogs.
     // 721 -> 705 (10-15): the common/widgets row above.
     // 705 -> 701 (10-20): the editors/schematic row above.
-    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(701);
+    // 701 -> 686 (10-23): the editors/symbol row above.
+    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(686);
   });
 
   it('and the two agree with the per-area table, which is where they come from', () => {

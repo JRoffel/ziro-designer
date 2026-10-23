@@ -341,7 +341,8 @@ const BASELINE: Record<string, number> = {
   // 2 until the Symbol Editor parity pass deleted the invented
   // "Double-click a symbol..." hint that an empty SYMBOL_EDIT_FRAME does not
   // have; it carried an inline `fontSize: 14` and a `color: '#888'`.
-  'editors/symbol': 1,
+  // 1 -> 0 (10-23): the record window went, and the live one states no size.
+  'editors/symbol': 0,
   // 5 -> 1 on 09-26: the old About stub's 16/12/12/12, gone with it. The
   // real dialog's one size is DIALOG_ABOUT_BASE's own `wxFont( 14, ... )`.
   home: 1,
@@ -756,7 +757,8 @@ describe('hardcoded font sizes do not grow', () => {
     // 54 -> 40: the Schematic Setup panels.
     // 40 -> 34 (10-12): the editors/pcb row above.
     // 34 -> 33 (10-20): the editors/schematic row above (the Plot dialog's folder popup).
-    expect(sites.length).toBe(33);
+    // 33 -> 32 (10-23): the editors/symbol row above.
+    expect(sites.length).toBe(32);
   });
 });
 

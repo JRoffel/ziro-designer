@@ -205,13 +205,19 @@ export function usePlEditorColors(): DsRenderColors {
  * first branch unconditionally and the choice could not exist.
  */
 export function useSymbolEditorTheme(): Theme {
-  useSettingsVersion();
-  const cfg = settings.symbolEditor;
-  return resolveThemeById(
-    cfg.use_eeschema_color_settings
-      ? settings.eeschema.appearance.color_theme
-      : cfg.appearance.color_theme,
-  );
+  // One object per settings version, as useSchematicTheme: the Symbol Editor runs
+  // CommonSettingsChanged - RebuildView, so ResetTools - whenever its theme changes, and a fresh
+  // object on each render dropped the armed tool on the click that armed it.
+  const version = useSettingsVersion();
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `version` is the trigger - the theme is read from the store it counts
+  return useMemo(() => {
+    const cfg = settings.symbolEditor;
+    return resolveThemeById(
+      cfg.use_eeschema_color_settings
+        ? settings.eeschema.appearance.color_theme
+        : cfg.appearance.color_theme,
+    );
+  }, [version]);
 }
 
 export function useSchematicTheme(): Theme {

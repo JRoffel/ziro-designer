@@ -83,7 +83,9 @@ const BASELINE: Record<(typeof AREAS)[number], Record<Kind, number>> = {
   // checkbox 15 -> 12 (10-15): the record Symbol Fields Table's grid checkboxes.
   // 10-20: checkbox 12 -> 11, the schematic Plot dialog's 'Download a copy' box went with the
   // project route (plots download now); button 9 -> 8, its output-folder browse went too.
-  eeschema: { button: 8, checkbox: 11, select: 6, frame: 1, radio: 1, entry: 22, sbox: 11 },
+  // checkbox 11 -> 9, select 6 -> 2, entry 22 -> 7, sbox 11 -> 9 (10-23): the record Symbol
+  // Editor's hand-built dialogs (symbol_editor_dialogs.tsx), deleted for the live window's _base pairs.
+  eeschema: { button: 8, checkbox: 9, select: 2, frame: 1, radio: 1, entry: 7, sbox: 9 },
   // checkbox 3 -> 2 (10-12): Print on DIALOG_PRINT_GENERIC_BASE.
   gerbview: { button: 3, checkbox: 2, select: 0, frame: 0, radio: 0, entry: 2, sbox: 2 },
   pagelayout_editor: { button: 4, checkbox: 0, select: 0, frame: 0, radio: 0, entry: 3, sbox: 1 },

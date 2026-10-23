@@ -2,53 +2,82 @@
 // Copyright (C) 2026 ZiroEDA and contributors.
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
 /**
- * `GRAPHICS_IMPORTER_LIB_SYMBOL` — importing graphics into a library symbol.
- *
- * The shared mapping is already covered by the schematic sink's tests; both now
- * extend `SCH_IMPORT_MAPPING`, which is where upstream duplicates the same three
- * methods between its two files. What is tested here is only what upstream does
- * *differently* in this sink, because that is what a copy-paste port would get
- * wrong.
+ * `GRAPHICS_IMPORTER_LIB_SYMBOL` (graphics_importer_lib_symbol.cpp): imported graphics as
+ * SCH_SHAPE / SCH_TEXT items on LAYER_DEVICE, parented to the symbol, in the importer's unit;
+ * coordinates scaled, offset and taken to IU with no flip; zero-length lines skipped; a polygon
+ * closed and checked; a flat spline demoted to a line; ellipses (not in 10.0.6) reported.
  */
-import { describe, it, expect } from 'vitest';
-import { GRAPHICS_IMPORTER_LIB_SYMBOL } from '@ziroeda/eeschema/import_gfx/graphics_importer_lib_symbol.js';
-import { GRAPHICS_IMPORTER_SCH } from '@ziroeda/eeschema/import_gfx/graphics_importer_sch.js';
-import { IMPORTED_STROKE } from '@ziroeda/common/import_gfx/graphics_importer.js';
-import { LINE_STYLE } from '@ziroeda/common/stroke_params.js';
-import { COLOR4D_BLACK } from '@ziroeda/common/gal/color4d.js';
+import { FILL_T, SHAPE_T } from '@ziroeda/common/eda_shape.js';
 import { mmToIU } from '@ziroeda/common/eda_units.js';
+import { COLOR4D_BLACK } from '@ziroeda/common/gal/color4d.js';
+import { IMPORTED_STROKE } from '@ziroeda/common/import_gfx/graphics_importer.js';
+import { SCH_LAYER_ID } from '@ziroeda/common/layer_id.js';
+import { LINE_STYLE } from '@ziroeda/common/stroke_params.js';
+import { KICAD_T } from '@ziroeda/core/typeinfo.js';
+import { GRAPHICS_IMPORTER_LIB_SYMBOL } from '@ziroeda/eeschema/import_gfx/graphics_importer_lib_symbol.js';
+import { LIB_SYMBOL } from '@ziroeda/eeschema/lib_symbol.js';
+import type { SCH_SHAPE } from '@ziroeda/eeschema/sch_shape.js';
+import type { SCH_TEXT } from '@ziroeda/eeschema/sch_text.js';
+import { EDA_ANGLE } from '@ziroeda/kimath/src/geometry/eda_angle.js';
+import { describe, expect, it } from 'vitest';
 
 const plain = () => new IMPORTED_STROKE(0.2, LINE_STYLE.SOLID);
+const symbol = new LIB_SYMBOL('S');
 
-function importer(): GRAPHICS_IMPORTER_LIB_SYMBOL {
-  const imp = new GRAPHICS_IMPORTER_LIB_SYMBOL();
+function importer(aUnit = 2): GRAPHICS_IMPORTER_LIB_SYMBOL {
+  const imp = new GRAPHICS_IMPORTER_LIB_SYMBOL(symbol, aUnit);
   imp.SetScale({ x: 1, y: 1 });
   imp.SetImportOffsetMM({ x: 0, y: 0 });
   imp.SetLineWidthMM(0.2);
   return imp;
 }
 
-describe('the coordinates are the schematic sink’s, not flipped', () => {
-  it('maps a point identically to the sheet importer', () => {
-    // The premise this port nearly shipped with: that a library symbol needs a
-    // +Y-up inversion. Upstream's MapCoordinate here is character-for-character
-    // the sheet one, and KiCad's default TRANSFORM is {1,0,0,1} as ours is.
-    const lib = importer();
-    const sch = new GRAPHICS_IMPORTER_SCH();
-    sch.SetScale({ x: 1, y: 1 });
-    sch.SetImportOffsetMM({ x: 0, y: 0 });
-    sch.SetLineWidthMM(0.2);
+const shapes = (imp: GRAPHICS_IMPORTER_LIB_SYMBOL) => imp.GetItems() as SCH_SHAPE[];
 
-    lib.AddLine({ x: 0, y: 0 }, { x: 10, y: 7 }, plain());
-    sch.AddLine({ x: 0, y: 0 }, { x: 10, y: 7 }, plain());
+describe('every item is the symbol’s', () => {
+  it('on LAYER_DEVICE, parented to the symbol, in the importer’s unit', () => {
+    const imp = importer(3);
+    imp.AddLine({ x: 0, y: 0 }, { x: 10, y: 7 }, plain());
+    imp.AddText({ x: 1, y: 2 }, 'hi', 2, 1, 0.3, 90, -1, -1, COLOR4D_BLACK);
+    for (const item of imp.GetItems()) {
+      expect(item.GetLayer()).toBe(SCH_LAYER_ID.LAYER_DEVICE);
+      expect(item.GetParent() === symbol).toBe(true);
+      expect(item.GetUnit()).toBe(3);
+    }
+  });
+});
 
-    const g = lib.GetItems()[0]!;
-    const s = sch.GetItems()[0]!;
-    if (g.kind !== 'polyline' || s.type !== 'graphic' || s.graphic.kind !== 'polyline')
-      throw new Error('expected polylines');
-    expect(g.points).toEqual(s.graphic.points);
-    // and Y is positive-down, not mirrored
-    expect(g.points[1]!.y).toBe(mmToIU(7));
+describe('coordinates', () => {
+  it('scale, then the offset in millimetres, then IU; Y is down, not flipped', () => {
+    const imp = importer();
+    imp.SetScale({ x: 2, y: 2 });
+    imp.SetImportOffsetMM({ x: 1, y: -1 });
+    imp.AddLine({ x: 0, y: 0 }, { x: 10, y: 7 }, plain());
+    const line = shapes(imp)[0]!;
+    expect(line.GetShape()).toBe(SHAPE_T.POLY);
+    expect(line.GetPolyPoints()).toEqual([
+      { x: mmToIU(1), y: mmToIU(-1) },
+      { x: mmToIU(21), y: mmToIU(13) },
+    ]);
+  });
+
+  it('a zero-length line is skipped', () => {
+    const imp = importer();
+    imp.AddLine({ x: 5, y: 5 }, { x: 5, y: 5 }, plain());
+    expect(imp.GetItems()).toHaveLength(0);
+  });
+
+  it('a width of -1 stays "no stroke"; none takes the default, scaled by the mean factor', () => {
+    const imp = importer();
+    imp.SetScale({ x: 1, y: 3 });
+    imp.AddLine({ x: 0, y: 0 }, { x: 1, y: 0 }, new IMPORTED_STROKE(-1));
+    imp.AddLine({ x: 0, y: 0 }, { x: 1, y: 0 }, new IMPORTED_STROKE(0));
+    imp.AddLine({ x: 0, y: 0 }, { x: 1, y: 0 }, new IMPORTED_STROKE(0.5));
+    expect(shapes(imp).map((s) => s.GetStroke().GetWidth())).toEqual([
+      -1,
+      Math.trunc(0.2 * mmToIU(1) * 2),
+      Math.trunc(0.5 * mmToIU(1) * 2),
+    ]);
   });
 });
 
@@ -59,89 +88,80 @@ describe('a polygon is checked before it is kept', () => {
     { x: 10, y: 10 },
   ];
 
-  it('keeps a real outline, closed by repeating the first vertex', () => {
+  it('closed by repeating the first vertex, filled with the outline colour or its own', () => {
     const imp = importer();
-    imp.AddPolygon(tri, plain(), false, COLOR4D_BLACK);
-    const g = imp.GetItems()[0]!;
-    if (g.kind !== 'polyline') throw new Error('expected a polyline');
-    expect(g.points).toHaveLength(4);
-    expect(g.points[3]).toEqual(g.points[0]);
+    imp.AddPolygon(tri, plain(), true);
+    imp.AddPolygon(tri, plain(), true, COLOR4D_BLACK);
+    imp.AddPolygon(tri, plain(), false);
+    const [outline, coloured, open] = shapes(imp);
+    expect(outline!.GetPolyPoints()).toHaveLength(4);
+    expect(outline!.GetPolyPoints()[3]).toEqual(outline!.GetPolyPoints()[0]);
+    expect(outline!.GetFillMode()).toBe(FILL_T.FILLED_SHAPE);
+    expect(coloured!.GetFillMode()).toBe(FILL_T.FILLED_WITH_COLOR);
+    expect(open!.GetFillMode()).toBe(FILL_T.NO_FILL);
   });
 
-  it('and drops one of two points or fewer (IsPolyShapeValid)', () => {
-    // The schematic sink has no such check — this is one of the three places
-    // the two sinks genuinely differ.
+  it('dropped at two points or fewer once closed (IsPolyShapeValid), so one vertex goes', () => {
+    // Two vertices close to three points, which upstream keeps; one closes to two.
     const imp = importer();
-    imp.AddPolygon(
-      [
-        { x: 0, y: 0 },
-        { x: 10, y: 0 },
-      ],
-      plain(),
-      false,
-      COLOR4D_BLACK,
-    );
+    imp.AddPolygon(tri.slice(0, 1), plain(), false);
+    imp.AddPolygon([], plain(), false);
     expect(imp.GetItems()).toHaveLength(0);
+    imp.AddPolygon(tri.slice(0, 2), plain(), false);
+    expect(shapes(imp)[0]!.GetPolyPoints()).toHaveLength(3);
   });
 });
 
-describe('a spline decides it is a line by a different test', () => {
-  it('demotes a flat cubic to a line', () => {
-    //     spline->RebuildBezierToSegmentsPointsList( mmToIU( ARC_LOW_DEF_MM ) );
-    //     if( spline->GetBezierPoints().size() <= 2 ) AddLine(…)
+describe('curves', () => {
+  it('a circle: centre and a point on the rim', () => {
+    const imp = importer();
+    imp.AddCircle({ x: 1, y: 1 }, 3, plain(), true, COLOR4D_BLACK);
+    const c = shapes(imp)[0]!;
+    expect(c.GetShape()).toBe(SHAPE_T.CIRCLE);
+    expect(c.GetStart()).toEqual({ x: mmToIU(1), y: mmToIU(1) });
+    expect(c.GetEnd()).toEqual({ x: mmToIU(4), y: mmToIU(1) });
+    expect(c.IsSolidFill()).toBe(true);
+  });
+
+  it('an arc through its start, mid and end', () => {
+    const imp = importer();
+    imp.AddArc({ x: 0, y: 0 }, { x: 5, y: 0 }, new EDA_ANGLE(90), plain());
+    const a = shapes(imp)[0]!;
+    expect(a.GetShape()).toBe(SHAPE_T.ARC);
+    expect(a.GetStart()).toEqual({ x: mmToIU(5), y: 0 });
+    // RotatePoint( end, center, -aAngle ): 90 degrees is a quarter turn to -Y here.
+    expect(a.GetEnd().x).toBeCloseTo(0, -1);
+    expect(Math.abs(a.GetEnd().y)).toBe(mmToIU(5));
+  });
+
+  it('a flat spline is a line; a real one a bezier', () => {
     const imp = importer();
     imp.AddSpline({ x: 0, y: 0 }, { x: 3, y: 0 }, { x: 6, y: 0 }, { x: 9, y: 0 }, plain());
-    expect(imp.GetItems()[0]!.kind).toBe('polyline');
-  });
-
-  it('and keeps a real curve as a four-point bezier', () => {
-    const imp = importer();
     imp.AddSpline({ x: 0, y: 0 }, { x: 3, y: 8 }, { x: 6, y: -8 }, { x: 9, y: 0 }, plain());
-    const g = imp.GetItems()[0]!;
-    expect(g.kind).toBe('bezier');
-    expect(g.kind === 'bezier' && g.points).toHaveLength(4);
+    expect(shapes(imp).map((s) => s.GetShape())).toEqual([SHAPE_T.POLY, SHAPE_T.BEZIER]);
+  });
+
+  it('an ellipse is reported, not imported (10.0.6 has none)', () => {
+    const imp = importer();
+    imp.AddEllipse();
+    imp.AddEllipseArc();
+    expect(imp.GetItems()).toHaveLength(0);
+    expect(imp.GetMessages()).toContain('Ellipses are not supported');
   });
 });
 
-describe('text becomes a symbol draw item', () => {
-  it('not a label: a LIB_SYMBOL holds its text as a graphic', () => {
+describe('text', () => {
+  it('an SCH_TEXT with the pen, the glyph box, the angle and the justification', () => {
     const imp = importer();
-    imp.AddText({ x: 1, y: 2 }, 'hi', 2, 1, 0.3, 90, -1, -1, COLOR4D_BLACK);
-    const g = imp.GetItems()[0]!;
-    expect(g.kind).toBe('text');
-    if (g.kind !== 'text') throw new Error('expected text');
-    expect(g.text).toBe('hi');
-    expect(g.angle).toBe(90);
-    expect(g.at).toEqual({ x: mmToIU(1), y: mmToIU(2) });
-  });
-
-  it('carrying the pen, the glyph box and the justification', () => {
-    const imp = importer();
-    imp.AddText({ x: 0, y: 0 }, 'hi', 2, 1, 0.3, 0, 1, 1, COLOR4D_BLACK);
-    const g = imp.GetItems()[0]!;
-    if (g.kind !== 'text') throw new Error('expected text');
-    expect(g.effects?.fontSize).toEqual([mmToIU(2), mmToIU(1)]);
-    expect(g.effects?.thickness).toBe(Math.trunc(0.3 * mmToIU(1)));
-    expect(g.effects?.justify).toEqual(['right', 'bottom']);
-  });
-});
-
-describe('everything lands as a shape a symbol unit can hold', () => {
-  it('circle, arc, ellipse and elliptical arc all produce graphics', () => {
-    // The base declares AddEllipse/AddEllipseArc abstract as of the DXF ellipse
-    // work, so a sink that skipped them would not compile — this pins that they
-    // produce the right kinds rather than merely existing.
-    const imp = importer();
-    imp.AddCircle({ x: 0, y: 0 }, 5, plain(), false, COLOR4D_BLACK);
-    imp.AddEllipse(
-      { x: 0, y: 0 },
-      5,
-      3,
-      { AsDegrees: () => 0 } as never,
-      plain(),
-      false,
-      COLOR4D_BLACK,
-    );
-    expect(imp.GetItems().map((g) => g.kind)).toEqual(['circle', 'ellipse']);
+    imp.AddText({ x: 1, y: 2 }, 'hi', 2, 1, 0.3, 90, 1, 1, COLOR4D_BLACK);
+    const t = imp.GetItems()[0] as SCH_TEXT;
+    expect(t.Type()).toBe(KICAD_T.SCH_TEXT_T);
+    expect(t.GetText()).toBe('hi');
+    expect(t.GetPosition()).toEqual({ x: mmToIU(1), y: mmToIU(2) });
+    expect(t.GetTextAngle().AsDegrees()).toBe(90);
+    expect(t.GetTextHeight()).toBe(mmToIU(2));
+    expect(t.GetTextWidth()).toBe(mmToIU(1));
+    expect(t.GetTextThickness()).toBe(Math.trunc(0.3 * mmToIU(1)));
+    expect([t.GetHorizJustify(), t.GetVertJustify()]).toEqual([1, 1]);
   });
 });

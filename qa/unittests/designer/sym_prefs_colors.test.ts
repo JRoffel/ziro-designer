@@ -63,7 +63,10 @@ describe('the reader is GetColorSettings, not a second theme id', () => {
 
   it('and the frame calls it instead of the schematic’s', () => {
     const frame = read('../../eeschema/symbol_editor/symbol_edit_frame_ui.tsx');
-    expect(frame).toContain('const theme = useSymbolEditorTheme();');
+    expect(frame).toContain('const theme = app.useSymbolEditorTheme();');
+    // ...and a change of it is `CommonSettingsChanged`, whose SCH_BASE_FRAME half reloads the
+    // painter's colours (eeschema/symbol_edit_frame_load_settings.test.ts drives it).
+    expect(frame).toContain('frame.CommonSettingsChanged();');
     // The bug this replaces: `useSchematicTheme()` is the first branch taken
     // unconditionally, so both controls on the page would be dead. Checked on
     // the CALL and the IMPORT rather than on the name, which the comment

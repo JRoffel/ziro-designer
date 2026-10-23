@@ -28,11 +28,28 @@
  *    `SetRowHeight( FromDIP( 6 ) + GetTextExtent( "pdI" ).y )` — and reads the
  *    mapped window back out of the display server.
  */
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { PGM_BASE, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { SymbolEditorMount as SymbolEditor } from '@ziroeda/designer/src/editors/symbol/symbol_edit_frame_app.js';
+
+// No WebGL here: the canvas is the tool harness's stand-in, which is what the frame's tools need
+// (SYMBOL_EDIT_FRAME::setupTools runs on it), and the font atlas is not fetched.
+vi.mock('@ziroeda/common/gal/gal_window.js', async (orig) => ({
+  ...(await orig<typeof import('@ziroeda/common/gal/gal_window.js')>()),
+  loadBitmapFontImage: () => Promise.resolve({} as ImageBitmap),
+}));
+vi.mock('@ziroeda/eeschema/browser/sch_canvas.js', async () => {
+  const { schToolHarness } = await import('../eeschema/support/sch_tool_harness.js');
+  return {
+    createSchDrawPanel: (aFrame: NonNullable<Parameters<typeof schToolHarness>[0]>) => {
+      schToolHarness(aFrame);
+      return aFrame.GetCanvas();
+    },
+  };
+});
 import { LibTree } from '@ziroeda/common/widgets/lib_tree.js';
 import {
   LibTreeModelAdapter,
@@ -41,7 +58,18 @@ import {
 } from '@ziroeda/common/lib_tree_model_adapter.js';
 import { makeItemNode } from '@ziroeda/common/lib_tree_model.js';
 
-afterEach(cleanup);
+beforeEach(() => {
+  SetPgm(new PGM_BASE(null, new SETTINGS_MANAGER()));
+  // The frame asks for the hosted library index on mount; a 404 is "no libraries".
+  vi.stubGlobal('fetch', () =>
+    Promise.resolve(new Response('', { status: 404, statusText: 'Not Found' })),
+  );
+});
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+  SetPgm(null);
+});
 
 const SHELL = readFileSync(resolve(process.cwd(), '../common/widgets/shell.css'), 'utf8');
 
@@ -109,8 +137,14 @@ const rows = (root: HTMLElement): HTMLElement[] =>
 
 /** Mount the Symbol Editor on that project and wait for the tree to have rows. */
 async function openEditor(): Promise<HTMLElement> {
-  const { container } = render(<SymbolEditor onExitToHome={() => {}} initialProject={PROJECT} />);
+  const { container } = render(
+    <SymbolEditor onExitToHome={() => {}} projectName="p" initialProject={PROJECT} />,
+  );
   await waitFor(() => expect(rows(container).length).toBeGreaterThan(0));
+  // The canvas, and the hosted index's answer, arrive after the first rows: let them land.
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 0));
+  });
   return container;
 }
 

@@ -56,9 +56,14 @@ describe('the document editors use the chooser, not the OS picker', () => {
     ],
   ];
 
-  /** Every `<OpenFileDialog …/>` and `<SaveAsDialog …/>` element in a file. */
+  /**
+   * Every `<OpenFileDialog …/>`, `<SaveAsDialog …/>` and `<WxFileDialog …/>` element in a file -
+   * the last is wx's own wxFileDialog, which the app's chooser answers.
+   */
   const chooserElements = (file: string): string[] =>
-    [...src(file).matchAll(/<(?:OpenFileDialog|SaveAsDialog)\b[\s\S]*?\/>/g)].map((m) => m[0]);
+    [...src(file).matchAll(/<(?:OpenFileDialog|SaveAsDialog|WxFileDialog)\b[\s\S]*?\/>/g)].map(
+      (m) => m[0],
+    );
 
   it('asks for the shared folder its document kind belongs in', () => {
     // Read the ELEMENT, not the file. `toContain('kind="symbols"')` over the

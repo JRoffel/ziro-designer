@@ -18,7 +18,7 @@ import {
   Suspense,
   type CSSProperties,
 } from 'react';
-import type { LibSymbol } from '@ziroeda/eeschema';
+import type { SYMBOL_EDITOR_REQUEST } from '@ziroeda/eeschema/symbol_editor/symbol_edit_frame_ui.js';
 import { HomePage } from './home/HomePage.js';
 import type { PickedFile } from '@ziroeda/eeschema/sch_edit_frame_ui.js';
 import { EMPTY_PCB } from './home/new_project.js';
@@ -635,7 +635,6 @@ export function App(): JSX.Element {
    */
   const fpvOpenerRef = useRef<typeof view>('home');
   // "Add symbol to schematic": the symbol editor hands eeschema a symbol to place.
-  const [placeRequest, setPlaceRequest] = useState<{ lib: LibSymbol; nonce: number } | null>(null);
   // The file the project manager double-clicked into the footprint / symbol
   // editor (KiCad's MAIL_FP_EDIT / MAIL_LIB_EDIT). Re-sent with a fresh nonce
   // each activation so a resident editor re-opens on the newly-picked file.
@@ -1624,45 +1623,17 @@ export function App(): JSX.Element {
     setSchMounted(true);
     setView('schematic');
   }, []);
-  // Edit with Symbol Editor, both legs. The schematic hands a library-shaped
-  // symbol over and remembers which placement it came from; the symbol editor
-  // hands the edit back and eeschema applies it.
-  const [symFromSchematic, setSymFromSchematic] = useState<{
-    symbol: LibSymbol;
-    unit: number;
-    bodyStyle: number;
-    nonce: number;
-  } | null>(null);
-  const [editedSymbol, setEditedSymbol] = useState<{
-    symbol: LibSymbol;
-    targetId: string;
-    nonce: number;
-  } | null>(null);
-  const editTargetId = useRef<string | null>(null);
-
-  const editSymbolInEditor = useCallback(
-    (req: { symbol: LibSymbol; unit: number; bodyStyle: number; targetId: string }) => {
-      editTargetId.current = req.targetId;
-      setSymMounted(true);
-      setView('symbols');
-      setSymFromSchematic((prev) => ({
-        symbol: req.symbol,
-        unit: req.unit,
-        bodyStyle: req.bodyStyle,
-        nonce: (prev?.nonce ?? 0) + 1,
-      }));
-    },
-    [],
+  // Edit with Symbol Editor / Edit Library Symbol: the schematic hands the live placement (or
+  // its library part) over, and the symbol editor opens it. The edit goes back through
+  // `Kiway().Player( FRAME_SCH )->SaveSymbolToSchematic`, frame to frame.
+  const [symbolEditorRequest, setSymbolEditorRequest] = useState<SYMBOL_EDITOR_REQUEST | null>(
+    null,
   );
 
-  const saveSymbolToSchematic = useCallback((sym: LibSymbol) => {
-    const targetId = editTargetId.current;
-    if (!targetId) return;
-    setEditedSymbol((prev) => ({ symbol: sym, targetId, nonce: (prev?.nonce ?? 0) + 1 }));
-    // Upstream returns to the schematic on save, which is also the only way to
-    // see whether the edit did what you wanted.
-    setSchMounted(true);
-    setView('schematic');
+  const editSymbolInEditor = useCallback((req: Omit<SYMBOL_EDITOR_REQUEST, 'nonce'>) => {
+    setSymMounted(true);
+    setView('symbols');
+    setSymbolEditorRequest((prev) => ({ ...req, nonce: (prev?.nonce ?? 0) + 1 }));
   }, []);
 
   const showSymbolEditor = useCallback(() => {
@@ -1753,14 +1724,6 @@ export function App(): JSX.Element {
       ),
     [],
   );
-
-  // The symbol editor's SCH_ACTIONS::addSymbolToSchematic: switch to eeschema
-  // with the symbol attached to the cursor for placement.
-  const addSymbolToSchematic = useCallback((lib: LibSymbol) => {
-    setSchMounted(true);
-    setView('schematic');
-    setPlaceRequest((prev) => ({ lib, nonce: (prev?.nonce ?? 0) + 1 }));
-  }, []);
 
   if (restoring) {
     return (
@@ -1937,7 +1900,6 @@ export function App(): JSX.Element {
                 onExitToHome={goHome}
                 onShowPcb={() => void showPcbFromSchematic()}
                 onEditSymbolInEditor={editSymbolInEditor}
-                editedSymbol={editedSymbol}
                 // Tools > Update Schematic from PCB with no board editor running: what an
                 // off-screen PCB_EDIT_FRAME answers to MAIL_PCB_GET_NETLIST, read here so the
                 // schematic editor never has to know the board model.
@@ -1967,7 +1929,6 @@ export function App(): JSX.Element {
                 initialProject={projectFiles}
                 initialFile={startFile}
                 rootPro={activeBase || undefined}
-                placeRequest={placeRequest}
                 onProjectChange={onProjectChange}
                 // Whether edits actually reach storage. `onProjectChange` is always
                 // passed but no-ops without an open project or without IndexedDB,
@@ -2038,10 +1999,8 @@ export function App(): JSX.Element {
                 onExitToHome={goHome}
                 projectName={projectName}
                 initialProject={projectFiles}
-                onAddSymbolToSchematic={addSymbolToSchematic}
                 kiway={kiway}
-                schematicSymbol={symFromSchematic}
-                onSaveToSchematic={saveSymbolToSchematic}
+                request={symbolEditorRequest}
                 onWriteProjectFiles={projectFiles ? writeProjectFiles : undefined}
                 /* `SYMBOL_EDIT_FRAME::ShowInfoBarMessages` puts up "Library is
                  read-only.  Changes cannot be saved to this library." with a

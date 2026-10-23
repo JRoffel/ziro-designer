@@ -68,7 +68,7 @@
  * Replace All buttons appear only in Find and Replace mode
  * (wxFR_REPLACEDIALOG). Enter = Find, F3 / Shift+F3 = OnCharHook, Esc = close.
  */
-import { useEffect, useRef, type JSX } from 'react';
+import { useEffect, useRef, useState, type JSX } from 'react';
 import { KeyNameFromKeyCode } from '@ziroeda/common/hotkeys_basic.js';
 import { DIALOG_SCH_FIND_BASE } from './dialog_sch_find_base.js';
 import type { MatchMode, SchSearchData } from '../tools/sch_find_replace_tool.js';
@@ -474,4 +474,80 @@ export class DIALOG_SCH_FIND {
   GetReplaceEntries(): string[] {
     return this.m_replaceStrings.slice();
   }
+}
+
+/**
+ * The modeless DIALOG_SCH_FIND as a window shows it, one for both frames since the dialog is
+ * SCH_BASE_FRAME's: the factory ShowFindReplaceDialog builds it through, installed on \a frame,
+ * and the dialog while it is shown. SCH_FIND_REPLACE_TOOL does the finding.
+ */
+export function SchFindDialogHost({
+  frame,
+  frameType,
+}: {
+  frame: SCH_BASE_FRAME;
+  frameType: SchFindFrame;
+}): JSX.Element | null {
+  const [findDialog, setFindDialog] = useState<DIALOG_SCH_FIND | null>(null);
+  const [, setFindTick] = useState(0);
+
+  useEffect(() => {
+    frame.SetFindReplaceDialogFactory((aData, aReplace) => {
+      class WINDOW_DIALOG_SCH_FIND extends DIALOG_SCH_FIND {
+        override Show(aShow: boolean): void {
+          super.Show(aShow);
+          setFindDialog(this);
+          setFindTick((n) => n + 1);
+        }
+
+        override Destroy(): void {
+          super.Destroy();
+          setFindDialog((d) => (d === this ? null : d));
+        }
+      }
+      return new WINDOW_DIALOG_SCH_FIND(frame, aData, aReplace);
+    });
+    return () => frame.SetFindReplaceDialogFactory(null);
+  }, [frame]);
+
+  if (!findDialog?.IsShown()) return null;
+
+  return (
+    <DialogSchFind
+      // The dialog branches on the frame type itself, so this is the whole of the difference.
+      frame={frameType}
+      data={findDialog.GetControlValues()}
+      onChange={(next) => {
+        const cur = findDialog.GetControlValues();
+        if (next.findString !== cur.findString) findDialog.OnSearchForText(next.findString);
+        else if (next.replaceString !== cur.replaceString)
+          findDialog.OnReplaceWithText(next.replaceString);
+        else
+          findDialog.OnOptions({
+            matchCase: next.matchCase,
+            wholeWord: next.matchMode === 'wholeword',
+            regexMatch: next.matchMode === 'regex',
+            searchHiddenFields: next.searchAllFields,
+            replaceReferences: next.replaceReferences,
+            searchPins: next.searchAllPins,
+            selectedOnly: next.searchSelectedOnly,
+            currentSheetOnly: next.searchCurrentSheetOnly,
+            searchNetNames: next.searchNetNames,
+          });
+        // wxEVT_IDLE follows the event.
+        findDialog.OnIdle();
+        setFindTick((n) => n + 1);
+      }}
+      onFindNext={() => findDialog.OnFind()}
+      onFindPrevious={() => findDialog.OnFindKey(true)}
+      onClose={() => findDialog.OnCancel()}
+      findStrings={findDialog.GetFindComboStrings()}
+      replaceStrings={findDialog.GetReplaceEntries()}
+      canReplace={findDialog.CanReplace()}
+      replace={findDialog.IsReplaceDialog()}
+      onReplace={() => findDialog.OnReplace(false)}
+      onReplaceAll={() => findDialog.OnReplace(true)}
+      onShowSearchPanel={() => findDialog.onShowSearchPanel()}
+    />
+  );
 }

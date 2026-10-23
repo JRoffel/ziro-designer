@@ -29,10 +29,28 @@
  * tree follow the canvas.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, waitFor } from '@testing-library/react';
-import { parse } from '@ziroeda/sexpr';
-import { readSymbolLib } from '@ziroeda/eeschema';
+import { act, fireEvent, render, waitFor } from '@testing-library/react';
+import { PGM_BASE, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
 import { SymbolEditorMount as SymbolEditor } from '@ziroeda/designer/src/editors/symbol/symbol_edit_frame_app.js';
+import { FRAME_T } from '@ziroeda/common/frame_type.js';
+import { KIWAY } from '@ziroeda/common/kiway.js';
+import type { SYMBOL_EDIT_FRAME } from '@ziroeda/eeschema/symbol_editor/symbol_edit_frame.js';
+
+// No WebGL here: the canvas is the tool harness's stand-in, which is what the frame's tools need
+// (SYMBOL_EDIT_FRAME::setupTools runs on it), and the font atlas is not fetched.
+vi.mock('@ziroeda/common/gal/gal_window.js', async (orig) => ({
+  ...(await orig<typeof import('@ziroeda/common/gal/gal_window.js')>()),
+  loadBitmapFontImage: () => Promise.resolve({} as ImageBitmap),
+}));
+vi.mock('@ziroeda/eeschema/browser/sch_canvas.js', async () => {
+  const { schToolHarness } = await import('../eeschema/support/sch_tool_harness.js');
+  return {
+    createSchDrawPanel: (aFrame: NonNullable<Parameters<typeof schToolHarness>[0]>) => {
+      schToolHarness(aFrame);
+      return aFrame.GetCanvas();
+    },
+  };
+});
 
 const LIB = `(kicad_symbol_lib (version 20241209) (generator "qa")
   (symbol "R" (pin_numbers (hide yes)) (pin_names (offset 0))
@@ -67,6 +85,23 @@ const PROJECT = [
   { name: 'Device.kicad_sym', text: LIB },
 ];
 
+/** A second library beside `Device`, so neither opens by itself. */
+const TWO_LIBS = [
+  {
+    name: 'sym-lib-table',
+    text: `(sym_lib_table (version 7)
+  (lib (name "Device")(type "KiCad")(uri "\${KIPRJMOD}/Device.kicad_sym")(options "")(descr ""))
+  (lib (name "Extra")(type "KiCad")(uri "\${KIPRJMOD}/Extra.kicad_sym")(options "")(descr ""))
+)`,
+  },
+  { name: 'Device.kicad_sym', text: LIB },
+  {
+    name: 'Extra.kicad_sym',
+    text: `(kicad_symbol_lib (version 20241209) (generator "qa")
+  (symbol "X" (property "Reference" "X" (at 0 0 0) (effects (font (size 1.27 1.27))))))`,
+  },
+];
+
 const rows = (root: HTMLElement): HTMLElement[] =>
   Array.from(root.querySelectorAll('.ze-libtree-row')) as HTMLElement[];
 const itemText = (row: HTMLElement): string =>
@@ -88,20 +123,29 @@ const rotateLive = (root: HTMLElement): boolean =>
 let fetched: string[] = [];
 
 beforeEach(() => {
+  SetPgm(new PGM_BASE(null, new SETTINGS_MANAGER()));
   fetched = [];
   vi.stubGlobal('fetch', (url: string) => {
     fetched.push(String(url));
     return Promise.resolve(new Response('', { status: 404, statusText: 'Not Found' }));
   });
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  SetPgm(null);
+});
 
 /** Mount on the project and wait for the tree to have rows. */
 const open = async (): Promise<{ container: HTMLElement; unmount: () => void }> => {
   const { container, unmount } = render(
-    <SymbolEditor onExitToHome={() => {}} initialProject={PROJECT} />,
+    <SymbolEditor onExitToHome={() => {}} projectName="p" initialProject={PROJECT} />,
   );
   await waitFor(() => expect(rows(container).length).toBeGreaterThan(0));
+  // Upstream's frame has its canvas and tools from the constructor; ours builds them once the
+  // font atlas resolves, so let that settle before a row is clicked.
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 0));
+  });
   return { container, unmount };
 };
 
@@ -227,12 +271,12 @@ describe('what the private tree did, and still happens', () => {
    * `SelectLibId` that selected without expanding passed all of them.
    */
   it("expands the loaded symbol's library when it is not the only one", async () => {
-    const sym = readSymbolLib(parse(LIB)).find((s) => s.libId === 'R')!;
     const { container, unmount } = render(
       <SymbolEditor
         onExitToHome={() => {}}
-        initialProject={PROJECT}
-        schematicSymbol={{ symbol: sym, unit: 1, bodyStyle: 1, nonce: 1 }}
+        projectName="p"
+        initialProject={TWO_LIBS}
+        request={{ library: { libId: 'Device:R', unit: 1, bodyStyle: 1 }, nonce: 1 }}
       />,
     );
     await waitFor(() => expect(rotateLive(container)).toBe(true));
@@ -241,11 +285,18 @@ describe('what the private tree did, and still happens', () => {
       .filter((r) => r.classList.contains('lib'))
       .map(itemText);
     const active = rows(container).find((r) => r.classList.contains('active'));
+    const extraOpen = rowNamed(container, 'Extra')!
+      .querySelector('.twisty')!
+      .classList.contains('open');
     unmount();
-    // Both libraries are present, and the borrowed symbol's row is visible and
-    // selected — which it can only be if `Schematic` was expanded.
-    expect(libs.sort()).toEqual(['Device', 'Schematic *']);
-    expect(active && itemText(active)).toBe('R *');
+    // Both libraries are present, and the loaded symbol's row is visible and
+    // selected - which it can only be if `Device` was expanded for it - while
+    // `Extra`, which nothing asked for, stays shut.
+    expect({ libs: libs.sort(), active: active && itemText(active), extraOpen }).toEqual({
+      libs: ['Device', 'Extra'],
+      active: 'R',
+      extraOpen: false,
+    });
   });
 
   /**
@@ -293,27 +344,32 @@ describe('the row faces reach the DOM', () => {
    * name and the italic itself, so an adapter with the right rules would have
    * changed nothing on screen.
    *
-   * The state is reached through `schematicSymbol`, the frame's `MAIL_LIB_EDIT`
-   * equivalent: the borrowed symbol goes into a transient library that has no
-   * file behind it, so both it and its library are modified from the moment
-   * they appear, and the symbol is the one on the canvas. That is three of the
-   * four faces at once — `Schematic *` bold, `R *` bold, and `R` MARKED as the
-   * canvas item.
+   * `R` is loaded and then edited: `SYMBOL_EDIT_FRAME::OnModify` stores it in
+   * the library buffer and refreshes the tree (:1112-1124), so `Device *` and
+   * `R *` turn bold with the asterisk, and `R` is MARKED as the canvas item.
    *
    * Marked, not struck through. `LIB_TREE_RENDERER::SetAttr` reads the
    * strikethrough attribute as a flag - upstream's own words, "uses
    * strikethrough as a proxy for is-canvas-item" - and then clears it,
    * `realAttr.SetStrikethrough( false )` (common/lib_tree_model_adapter.cpp:95),
    * so no line is ever drawn. `Render` (:100-116) draws a six-point outline
-   * round the cell instead. This asserted the line, which is why the porting
-   * bug survived a green suite.
+   * round the cell instead.
    */
   it('shows the asterisk, the bold and the canvas-item outline the adapter answers', async () => {
-    const sym = readSymbolLib(parse(LIB)).find((s) => s.libId === 'R')!;
+    const kiway = new KIWAY({
+      OnKiCadExit: () => {},
+      Player: () => true,
+      HasProjectManager: () => true,
+      ShowProjectManager: () => {},
+      CreateKiWindow: () => false,
+    });
     const { container, unmount } = render(
       <SymbolEditor
         onExitToHome={() => {}}
-        schematicSymbol={{ symbol: sym, unit: 1, bodyStyle: 1, nonce: 1 }}
+        projectName="p"
+        initialProject={PROJECT}
+        kiway={kiway}
+        request={{ library: { libId: 'Device:R', unit: 1, bodyStyle: 1 }, nonce: 1 }}
       />,
     );
     await waitFor(() => expect(rotateLive(container)).toBe(true));
@@ -327,10 +383,15 @@ describe('the row faces reach the DOM', () => {
         marked: !!row.querySelector('.ze-libtree-canvasitem'),
       };
     };
-    const lib = cell('Schematic');
+    const before = cell('R');
+    const frame = kiway.GetPlayerFrame(FRAME_T.FRAME_SCH_SYMBOL_EDITOR) as SYMBOL_EDIT_FRAME;
+    act(() => frame.OnModify());
+    const lib = cell('Device');
     const item = cell('R');
     unmount();
     expect({
+      before: before.text,
+      beforeBold: before.style.includes('font-weight: 700'),
       libText: lib.text,
       libBold: lib.style.includes('font-weight: 700'),
       // The LIBRARY row is marked only while COLLAPSED, and a lone library
@@ -342,7 +403,9 @@ describe('the row faces reach the DOM', () => {
       // The line upstream never draws, on either row.
       anyLineThrough: lib.style.includes('line-through') || item.style.includes('line-through'),
     }).toEqual({
-      libText: 'Schematic *',
+      before: 'R',
+      beforeBold: false,
+      libText: 'Device *',
       libBold: true,
       libMarked: false,
       itemText: 'R *',

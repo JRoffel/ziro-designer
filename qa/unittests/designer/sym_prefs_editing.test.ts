@@ -5,24 +5,21 @@
  * Preferences > Symbol Editor > Editing Options —
  * `PANEL_SYM_EDITING_OPTIONS` (`eeschema/dialogs/panel_sym_editing_options.cpp`).
  *
- * Eight controls, five of them live. The five are the `defaults.*` fields, and
- * what makes them live is `editors/symbol/defaults.ts`: the conversion upstream
- * performs at the point each item is constructed, pulled out so that
- * "Preferences says 60 mils, the new pin is 60 mils" can be asserted without a
- * canvas. The other three are drawn disabled and this pins the reason: their
- * readers are `SYMBOL_EDITOR_PIN_TOOL::RepeatPin` and `SCH_POINT_EDITOR`,
- * neither of which this port wires into the symbol editor.
+ * Eight controls, all live. Their readers are upstream's: the tools, off
+ * `libeditconfig()` - SYMBOL_EDITOR_PIN_TOOL for the pin defaults and RepeatPin,
+ * SYMBOL_EDITOR_DRAWING_TOOLS for the text size and line width, SCH_POINT_EDITOR
+ * for dragging pins with an edge. Each is driven on the live frame, off its
+ * default, in `eeschema/symbol_editor_settings_readers_live.test.ts`; this file
+ * pins the file's defaults and the page.
  */
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
-import { schIUScale } from '@ziroeda/common';
 import {
   SYMBOL_EDITOR_DEFAULTS,
   type SymbolEditorSettings,
 } from '@ziroeda/eeschema/symbol_editor/symbol_editor_settings.js';
-import { symbolItemDefaults } from '@ziroeda/eeschema/symbol_editor/defaults.js';
 
 const SRC = fileURLToPath(new URL('../../../designer/src', import.meta.url));
 const read = (rel: string): string => readFileSync(join(SRC, rel), 'utf8');
@@ -51,90 +48,6 @@ describe('symbol_editor.json’s defaults.* block', () => {
     // symbol_editor.json says `"label_delta": 1, "pin_step": 100`.
     expect(SYMBOL_EDITOR_DEFAULTS.repeat).toEqual({ label_delta: 1, pin_step: 100 });
     expect(SYMBOL_EDITOR_DEFAULTS.drag_pins_along_with_edges).toBe(true);
-  });
-});
-
-describe('symbolItemDefaults: mils out of the file, IU into the item', () => {
-  it('converts through schIUScale, as every call site upstream does', () => {
-    const d = symbolItemDefaults(cfg());
-    expect(d.pinLengthIU).toBe(schIUScale.milsToIU(100));
-    expect(d.pinNameSizeIU).toBe(schIUScale.milsToIU(50));
-    expect(d.pinNumberSizeIU).toBe(schIUScale.milsToIU(50));
-    expect(d.textSizeIU).toBe(schIUScale.milsToIU(50));
-  });
-
-  it('lands on exactly the constants it replaced', () => {
-    // The old literals were `2.54 * MM` and `1.27 * MM` with `MM = 10000`, i.e.
-    // 25400 and 12700 IU. A default profile must be unchanged by the move, or
-    // this is a behaviour change dressed as a refactor.
-    const d = symbolItemDefaults(cfg());
-    expect(d.pinLengthIU).toBe(25400);
-    expect(d.pinNameSizeIU).toBe(12700);
-    expect(d.pinNumberSizeIU).toBe(12700);
-    expect(d.textSizeIU).toBe(12700);
-  });
-
-  it('follows the setting rather than the constant', () => {
-    const c = cfg();
-    c.defaults.pin_length = 60;
-    c.defaults.text_size = 70;
-    c.defaults.pin_name_size = 30;
-    c.defaults.pin_num_size = 40;
-    const d = symbolItemDefaults(c);
-    expect(d.pinLengthIU).toBe(schIUScale.milsToIU(60));
-    expect(d.textSizeIU).toBe(schIUScale.milsToIU(70));
-    expect(d.pinNameSizeIU).toBe(schIUScale.milsToIU(30));
-    expect(d.pinNumberSizeIU).toBe(schIUScale.milsToIU(40));
-  });
-
-  it('keeps line_width 0 as 0, because 0 means "inherit"', () => {
-    // The page's own note under the field: "Set to 0 to allow symbols to
-    // inherit line width properties from schematic". Defaulting it away to a
-    // pen width would silently stop that inheritance.
-    expect(symbolItemDefaults(cfg()).lineWidthIU).toBe(0);
-    const c = cfg();
-    c.defaults.line_width = 12;
-    expect(symbolItemDefaults(c).lineWidthIU).toBe(schIUScale.milsToIU(12));
-  });
-});
-
-// -------------------------------------------------------------- the three readers
-
-describe('the frame reads the five live fields', () => {
-  const FRAME = '../../eeschema/symbol_editor/symbol_edit_frame_ui.tsx';
-
-  it('seeds the last-pin defaults from the file, not from a literal', () => {
-    // `GetLastPinLength()` and its two siblings, whose `-1` sentinels are
-    // filled in from `cfg->m_Defaults` on first use
-    // (`symbol_editor_pin_tool.cpp:50-79`).
-    const src = read(FRAME);
-    expect(src).toContain('lastPinDefaults(settings.symbolEditor)');
-    expect(src).toContain('d.pinLengthIU');
-    expect(src).toContain('d.pinNameSizeIU');
-    expect(src).toContain('d.pinNumberSizeIU');
-    // The literals it replaced must be gone, or the page moves one copy and
-    // the frame keeps using the other.
-    expect(src).not.toContain('2.54 * MM, // DEFAULT_PIN_LENGTH');
-    expect(src).not.toContain('DEFAULT_LAST_PIN');
-  });
-
-  it('opens the text dialog at the default text size', () => {
-    // `text->SetTextSize( … cfg->m_Defaults.text_size … )` BEFORE
-    // `DIALOG_TEXT_PROPERTIES dlg( m_frame, text )`
-    // (`symbol_editor_drawing_tools.cpp:238-246`).
-    expect(read(FRAME)).toContain('defaultFontSize={symbolItemDefaults(symCfg).textSizeIU}');
-    const dlg = read('../../eeschema/symbol_editor/symbol_editor_dialogs.tsx');
-    expect(dlg).toContain('initial?.fontSize ?? defaultFontSize ?? 1.27 * MM');
-  });
-
-  it('gives a new shape the default line width, and only when it is set', () => {
-    // `int lineWidth = schIUScale.MilsToIU( cfg->m_Defaults.line_width )`
-    // (`symbol_editor_drawing_tools.cpp:480`). Zero stays an ABSENT stroke:
-    // that is what "inherit" already means to the writer, so a default profile
-    // keeps writing the bytes it did.
-    const src = read(FRAME);
-    expect(src).toContain('symbolItemDefaults(symCfg).lineWidthIU');
-    expect(src).toContain("lineWidthIU > 0 && g.kind !== 'text'");
   });
 });
 
@@ -176,29 +89,6 @@ describe('every control on the page reads', () => {
     // testing less, which is the failure mode of a per-label loop.
     const src = read(PAGE);
     expect((src.match(/label="/g) ?? []).length).toBeGreaterThanOrEqual(8);
-  });
-
-  it('the Repeated Items pair really is read now', () => {
-    // Both are `SYMBOL_EDITOR_PIN_TOOL::RepeatPin`'s
-    // (`symbol_editor_pin_tool.cpp:427-445`), reached by Insert.
-    expect(read('../../eeschema/symbol_editor/edits.ts')).toContain('pinStepMils');
-    expect(read('../../eeschema/symbol_editor/symbol_edit_frame_ui.tsx')).toContain(
-      'cfg.repeat.pin_step',
-    );
-    expect(read('../../eeschema/symbol_editor/symbol_edit_frame_ui.tsx')).toContain(
-      'cfg.repeat.label_delta',
-    );
-  });
-
-  it('the last one is read by the canvas, through the shared point editor', () => {
-    // `drag_pins_along_with_edges` is `SCH_POINT_EDITOR::dragPinsOnEdge`'s
-    // (`sch_point_editor.cpp:652-653`), and that tool is ONE class registered
-    // by both frames — so the symbol canvas reads the setting and the geometry
-    // comes from the shared module rather than a symbol-side copy.
-    expect(read('editors/symbol/SymbolCanvas.tsx')).toContain('symCfg.drag_pins_along_with_edges');
-    expect(read('../../eeschema/symbol_editor/edits.ts')).toContain(
-      "from '../tools/point_editor.js'",
-    );
   });
 });
 

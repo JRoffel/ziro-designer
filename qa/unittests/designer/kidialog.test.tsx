@@ -250,12 +250,12 @@ describe('the one call site this port has', () => {
   /**
    * `SYMBOL_EDITOR_PIN_TOOL::PlacePin`
    * (`eeschema/tools/symbol_editor_pin_tool.cpp:225-241`) — the pin-position
-   * clash under Synchronized Pins Mode. A source check, because the frame is
-   * one large component and what is being pinned is which arguments the call
-   * carries, not what the editor renders.
+   * clash under Synchronized Pins Mode, raised by the live tool as upstream's
+   * is. A source check of which arguments the call carries; the tool driving
+   * it is symbol_editor_pin_tool_live.test.ts.
    */
   const FRAME = readFileSync(
-    resolve(process.cwd(), '../eeschema/symbol_editor/symbol_edit_frame_ui.tsx'),
+    resolve(process.cwd(), '../eeschema/tools/symbol_editor_pin_tool.ts'),
     'utf8',
   )
     .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
@@ -263,7 +263,7 @@ describe('the one call site this port has', () => {
     .replace(/^\s*\/\/.*$/gm, '');
 
   const call = (): string => {
-    const at = FRAME.indexOf('askKiDialog({');
+    const at = FRAME.indexOf('ShowKiDialog({');
     expect(at, 'the pin clash does not raise a KIDIALOG').toBeGreaterThan(-1);
     return FRAME.slice(at, FRAME.indexOf('});', at));
   };
@@ -289,5 +289,14 @@ describe('the one call site this port has', () => {
 
   it('keeps upstream’s extended message, which names the setting to turn off', () => {
     expect(call()).toMatch(/Disable the 'Synchronized Pins Mode' option to avoid this message\./);
+  });
+
+  it('is answered by the window’s KIDIALOG', () => {
+    const win = readFileSync(
+      resolve(process.cwd(), '../eeschema/symbol_editor/symbol_edit_frame_ui.tsx'),
+      'utf8',
+    );
+    expect(win).toContain('useKiDialog()');
+    expect(win).toMatch(/askKiDialog: \(aRequest\) => askKiDialogRef\.current\(aRequest\)/);
   });
 });

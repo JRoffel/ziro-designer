@@ -48,13 +48,12 @@ const GRID_OWNERS: [canvas: string, file: string][] = [
 
 /** Where each canvas' crosshair (GAL::blitCursor) is drawn. */
 const CROSSHAIR_OWNERS: [canvas: string, file: string][] = [
-  ['symbol editor', 'editors/symbol/SymbolCanvas.tsx'],
   ['pcb', '../../pcbnew/pcb_edit_frame_ui.tsx'],
 ];
 
 /** Everything that draws a grid or a crosshair, for the no-local-copy sweep. */
 const ALL = [...new Set([...GRID_OWNERS, ...CROSSHAIR_OWNERS].map(([, f]) => f))].concat([
-  'editors/symbol/SymbolCanvas.tsx',
+  '../../eeschema/symbol_editor/symbol_edit_frame_ui.tsx',
 ]);
 
 describe('shared grid + crosshair', () => {
@@ -68,6 +67,15 @@ describe('shared grid + crosshair', () => {
     const src = read(rel);
     expect(src).toMatch(/from '@ziroeda\/common\/draw_panel_gal_grid_cursor\.js'/);
     expect(src).toMatch(/\bdrawCrosshair\(/);
+  });
+
+  it("the symbol editor draws no grid or crosshair of its own: SCH_DRAW_PANEL's GAL does", () => {
+    // SYMBOL_EDIT_FRAME's canvas is the schematic's SCH_DRAW_PANEL (10-23), so the grid is
+    // `GAL::DrawGrid` and the cursor `GAL::blitCursor`, gated by COMMON_TOOLS::ToggleGrid's
+    // SetGridVisibility as in every GAL frame.
+    const src = read('../../eeschema/symbol_editor/symbol_edit_frame_ui.tsx');
+    expect(src).toMatch(/createSchDrawPanel\(/);
+    expect(src).not.toMatch(/\bdrawGrid\(|\bdrawCrosshair\(/);
   });
 
   it('the board editor draws no grid of its own: the GAL draws it', () => {
@@ -124,11 +132,6 @@ describe('shared grid + crosshair', () => {
     // the PCB_DRAW_PANEL_GAL's GAL now, as every pcbnew frame does.)
     const sym = read('../../eeschema/symbol_editor/symbol_renderer.ts');
     expect(sym).toMatch(/\bdrawGrid\(/);
-    // ...and the symbol editor actually hands the toggle down, rather than the
-    // renderer deciding for itself.
-    expect(read('../../eeschema/symbol_editor/symbol_edit_frame_ui.tsx')).toMatch(
-      /showGrid: toggles\.has\('toggleGrid'\)/,
-    );
     // The footprint editor's grid has TWO gates, as pcbnew's does, because it
     // now docks the same APPEARANCE_CONTROLS: ACTIONS::toggleGrid's
     // SetGridVisibility, and the Objects tab's LAYER_GRID row, which

@@ -13,6 +13,8 @@ import {
   LIBRARY_TABLE_TYPE,
 } from '@ziroeda/common/libraries/library_table.js';
 import { LIB_ID } from '@ziroeda/common/lib_id.js';
+import { FRAME_T } from '@ziroeda/common/frame_type.js';
+import { KIWAY } from '@ziroeda/common/kiway.js';
 import { Pgm } from '@ziroeda/common/pgm_base.js';
 import { SymbolLibAdapter } from '@ziroeda/eeschema/project_sch.js';
 import { SYMBOL_EDITOR_DRAWING_TOOLS } from '@ziroeda/eeschema/tools/symbol_editor_drawing_tools.js';
@@ -29,7 +31,9 @@ let focused: string[] = [];
 let refreshed = 0;
 let unsavedAsked: string[] = [];
 let unsavedAnswer: UnsavedChangesResult = 'cancel';
-let savedToSchematic: boolean | null = null;
+/** The schematic frame's SaveSymbolToSchematic calls, and whether one is open (KIWAY). */
+let savedToSchematic: string[] = [];
+let schematicOpen = (_aOpen: boolean): void => {};
 /** What the Save As file dialog answers, and the option its radio buttons leave set. */
 let saveAsPath: string | null = null;
 let saveAsOption = SYMBOL_SAVEAS_TYPE.NORMAL_SAVE_AS;
@@ -43,7 +47,7 @@ function setUp(aLib?: string) {
   refreshed = 0;
   unsavedAsked = [];
   unsavedAnswer = 'cancel';
-  savedToSchematic = null;
+  savedToSchematic = [];
   saveAsPath = null;
   saveAsOption = SYMBOL_SAVEAS_TYPE.NORMAL_SAVE_AS;
   SetErrorPresenter((aText, aExtra) => errors.push(aExtra ? `${aText} | ${aExtra}` : aText));
@@ -56,7 +60,6 @@ function setUp(aLib?: string) {
       unsavedAsked.push(aMessage);
       return unsavedAnswer;
     },
-    saveSymbolToSchematic: () => savedToSchematic ?? false,
     fileDialog: async (_title, _dir, _file, _wild, _style, aHook) => {
       (aHook as SYMBOL_LIBRARY_SAVE_AS_FILEDLG_HOOK | undefined)?.TransferDataFromCustomControls(
         saveAsOption,
@@ -64,6 +67,22 @@ function setUp(aLib?: string) {
       return saveAsPath;
     },
   });
+  const kiway = new KIWAY({
+    OnKiCadExit: () => {},
+    Player: () => true,
+    HasProjectManager: () => true,
+    ShowProjectManager: () => {},
+    CreateKiWindow: () => false,
+  });
+  const schframe = {
+    SaveSymbolToSchematic: (aSymbol: { GetName(): string }, aUuid: string) =>
+      savedToSchematic.push(`${aSymbol.GetName()}@${aUuid}`),
+  };
+  t.frame.SetKiway(kiway);
+  schematicOpen = (aOpen) => {
+    if (aOpen) kiway.SetPlayerFrame(FRAME_T.FRAME_SCH, schframe as never);
+    else kiway.PlayerDidClose(FRAME_T.FRAME_SCH, schframe as never);
+  };
 }
 
 afterEach(() => {
@@ -250,12 +269,15 @@ describe('a symbol from the schematic', () => {
     t.frame.SetSymbolOrigin(true, false);
     t.frame.GetScreen()!.SetContentModified(true);
 
-    savedToSchematic = false;
+    schematicOpen(false);
     expect(await t.frame.saveCurrentSymbol()).toBe(false);
     expect(errors).toEqual(['No schematic currently open.']);
 
-    savedToSchematic = true;
+    // Kiway().Player( FRAME_SCH )->SaveSymbolToSchematic( *m_symbol, m_schematicSymbolUUID ).
+    t.frame.m_schematicSymbolUUID = '0000-uuid';
+    schematicOpen(true);
     expect(await t.frame.saveCurrentSymbol()).toBe(true);
+    expect(savedToSchematic).toEqual(['U@0000-uuid']);
     expect(t.frame.GetScreen()!.IsContentModified()).toBe(false);
   });
 
@@ -265,7 +287,7 @@ describe('a symbol from the schematic', () => {
     t.frame.SetSymbolOrigin(true, false);
     t.frame.GetScreen()!.SetContentModified(true);
     unsavedAnswer = 'save';
-    savedToSchematic = true;
+    schematicOpen(true);
 
     expect(await t.frame.LoadSymbol(new LIB_ID('mine', 'U'), 2, 1)).toBe(true);
 

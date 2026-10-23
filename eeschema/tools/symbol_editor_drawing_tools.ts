@@ -4,9 +4,7 @@
 /**
  * `SYMBOL_EDITOR_DRAWING_TOOLS` (eeschema/tools/symbol_editor_drawing_tools.{h,cpp}): the tool
  * responsible for drawing / placing items in the symbol editor - body outlines, text boxes, pins,
- * text, the anchor - and Repeat Last Item.
- *
- * Still to come: ImportGraphics (DIALOG_IMPORT_GFX_SCH); its action is not bound until it is.
+ * text, the anchor - Repeat Last Item, and Import Graphics.
  */
 import { type KIID, niluuid } from '@ziroeda/common/kiid.js';
 import { type EDA_ITEM } from '@ziroeda/common/eda_item.js';
@@ -29,6 +27,9 @@ import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { ANGLE_HORIZONTAL, type EDA_ANGLE } from '@ziroeda/kimath/src/geometry/eda_angle.js';
 import type { VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
 import { wxID_OK } from '@ziroeda/wx/menu.js';
+import { wxCENTER, wxOK } from '@ziroeda/wx/defs.js';
+import { GRID_HELPER_GRIDS } from '@ziroeda/common/tool/grid_helper.js';
+import { SCH_SELECTION } from './sch_selection.js';
 import type { LIB_SYMBOL } from '../lib_symbol.js';
 import { SCH_COMMIT } from '../sch_commit.js';
 import { SCH_ITEM } from '../sch_item.js';
@@ -42,6 +43,15 @@ import { EE_GRID_HELPER } from './ee_grid_helper.js';
 import { SCH_ACTIONS } from './sch_actions.js';
 import { SCH_TOOL_BASE } from './sch_tool_base.js';
 import { SYMBOL_EDITOR_PIN_TOOL } from './symbol_editor_pin_tool.js';
+
+/**
+ * What DIALOG_IMPORT_GFX_SCH hands back on OK: `GetImportedItems()` and
+ * `IsPlacementInteractive()`.
+ */
+export interface IMPORT_GFX_RESULT {
+  items: SCH_ITEM[];
+  interactive: boolean;
+}
 
 export class SYMBOL_EDITOR_DRAWING_TOOLS extends SCH_TOOL_BASE<SYMBOL_EDIT_FRAME> {
   private m_lastTextBold = false;
@@ -622,6 +632,157 @@ export class SYMBOL_EDITOR_DRAWING_TOOLS extends SCH_TOOL_BASE<SYMBOL_EDIT_FRAME
     }
   }
 
+  /**
+   * `ImportGraphics( aEvent )` (symbol_editor_drawing_tools.cpp): DIALOG_IMPORT_GFX_SCH's items
+   * added to the symbol at once, or carried on the cursor and dropped with a click.
+   */
+  *ImportGraphics(aEvent: TOOL_EVENT): COROUTINE_BODY<number> {
+    const frame = this.m_frame!;
+    const symbol = frame.GetCurSymbol();
+
+    if (!symbol) return 0;
+
+    // DIALOG_IMPORT_GFX_SCH dlg( m_frame ): the window's; it fills the result on OK.
+    const dlg: IMPORT_GFX_RESULT = { items: [], interactive: true };
+    const dlgResult = yield* this.RunMainStackModal(() =>
+      frame.ShowModalDialog('DIALOG_IMPORT_GFX_SCH', [], dlg),
+    );
+
+    const list = dlg.items;
+
+    if (dlgResult !== wxID_OK) return 0;
+
+    // Ensure the list is not empty:
+    if (list.length === 0) {
+      yield* this.RunMainStackModal(() =>
+        frame.ShowModalDialog('wxMessageBox', [], {
+          message: 'No graphic items found in file.',
+          caption: 'Message',
+          style: wxOK | wxCENTER,
+        }),
+      );
+      return 0;
+    }
+
+    this.m_toolMgr!.RunAction(ACTIONS.cancelInteractive);
+
+    const controls = this.controls();
+    const newItems: SCH_ITEM[] = []; // all new items, including group
+    const selectedItems: SCH_ITEM[] = []; // the group, or newItems if no group
+    const preview = new SCH_SELECTION();
+    const commit = new SCH_COMMIT(this.m_toolMgr!);
+
+    for (const item of list) {
+      newItems.push(item);
+      selectedItems.push(item);
+      preview.Add(item);
+    }
+
+    if (!dlg.interactive) {
+      commit.Modify(symbol, frame.GetScreen());
+
+      // Place the imported drawings
+      for (const item of newItems) {
+        symbol.AddDrawItem(item);
+        item.ClearEditFlags();
+      }
+
+      commit.Push('Import Graphic');
+      frame.RebuildView();
+
+      return 0;
+    }
+
+    this.m_view!.Add(preview);
+
+    // Clear the current selection then select the drawings so that edit tools work on them
+    this.m_toolMgr!.RunAction(ACTIONS.selectionClear);
+
+    const selItems: EDA_ITEM[] = [...selectedItems];
+    this.m_toolMgr!.RunAction(ACTIONS.selectItems, selItems);
+
+    frame.PushTool(aEvent);
+
+    const setCursor = (): void => {
+      frame.GetCanvas()!.SetCurrentCursor(KICURSOR.MOVING);
+    };
+
+    this.Activate();
+    // Must be done after Activate() so that it gets set into the correct context
+    controls.ShowCursor(true);
+    controls.ForceCursorPosition(false);
+    // Set initial cursor
+    setCursor();
+
+    const grid = new EE_GRID_HELPER(this.m_toolMgr!);
+
+    // Now move the new items to the current cursor position:
+    let cursorPos = controls.GetCursorPosition(!aEvent.DisableGridSnapping());
+    let delta = cursorPos;
+    const currentOffset = { x: 0, y: 0 };
+
+    for (const item of selectedItems) item.Move(delta);
+
+    currentOffset.x += delta.x;
+    currentOffset.y += delta.y;
+
+    this.m_view!.Update(preview);
+
+    // Main loop: keep receiving events
+    for (let evt = yield* this.Wait(); evt; evt = yield* this.Wait()) {
+      setCursor();
+
+      grid.SetSnap(!evt.Modifier(MD_SHIFT));
+      grid.SetUseGrid(this.getView()!.GetGAL()!.GetGridSnapping() && !evt.DisableGridSnapping());
+
+      cursorPos = grid.Align(controls.GetMousePosition(), GRID_HELPER_GRIDS.GRID_GRAPHICS);
+      controls.ForceCursorPosition(true, cursorPos);
+
+      if (evt.IsCancelInteractive() || evt.IsActivate()) {
+        this.m_toolMgr!.RunAction(ACTIONS.selectionClear);
+
+        // `delete item`: the items were never added to anything.
+        break;
+      } else if (evt.IsMotion()) {
+        delta = { x: cursorPos.x - currentOffset.x, y: cursorPos.y - currentOffset.y };
+
+        for (const item of selectedItems) item.Move(delta);
+
+        currentOffset.x += delta.x;
+        currentOffset.y += delta.y;
+
+        this.m_view!.Update(preview);
+      } else if (evt.IsClick(BUT_RIGHT)) {
+        this.m_menu.ShowContextMenu(this.m_selectionTool!.GetSelection());
+      } else if (evt.IsClick(BUT_LEFT) || evt.IsDblClick(BUT_LEFT)) {
+        commit.Modify(symbol, frame.GetScreen());
+
+        // Place the imported drawings
+        for (const item of newItems) {
+          symbol.AddDrawItem(item);
+          item.ClearEditFlags();
+        }
+
+        commit.Push('Import Graphic');
+        break; // This is a one-shot command, not a tool
+      } else {
+        evt.SetPassEvent();
+      }
+    }
+
+    preview.Clear();
+    this.m_view!.Remove(preview);
+
+    frame.RebuildView();
+
+    frame.GetCanvas()!.SetCurrentCursor(KICURSOR.ARROW);
+    controls.ForceCursorPosition(false);
+
+    frame.PopTool(aEvent);
+
+    return 0;
+  }
+
   *RepeatDrawItem(_aEvent: TOOL_EVENT): COROUTINE_BODY<number> {
     const pinTool = this.m_toolMgr!.GetTool(SYMBOL_EDITOR_PIN_TOOL)!;
     const symbol: LIB_SYMBOL | null = this.m_frame!.GetCurSymbol();
@@ -665,7 +826,7 @@ export class SYMBOL_EDITOR_DRAWING_TOOLS extends SCH_TOOL_BASE<SYMBOL_EDIT_FRAME
     this.Go(this.DrawShape, SCH_ACTIONS.drawSymbolPolygon.MakeEvent());
     this.Go(this.DrawSymbolTextBox, SCH_ACTIONS.drawSymbolTextBox.MakeEvent());
     this.Go(this.PlaceAnchor, SCH_ACTIONS.placeSymbolAnchor.MakeEvent());
-    // ImportGraphics (SCH_ACTIONS.importGraphics): with DIALOG_IMPORT_GFX_SCH.
+    this.Go(this.ImportGraphics, SCH_ACTIONS.importGraphics.MakeEvent());
     this.Go(this.RepeatDrawItem, SCH_ACTIONS.repeatDrawItem.MakeEvent());
   }
 }

@@ -20,6 +20,10 @@ import { TOOL_MANAGER } from '@ziroeda/common/tool/tool_manager.js';
 import { ZOOM_TOOL } from '@ziroeda/common/tool/zoom_tool.js';
 import { RSTRING_T } from '@ziroeda/common/project.js';
 import { VIEW_UPDATE_FLAGS } from '@ziroeda/common/view/view_item.js';
+import {
+  ENVVARS_CHANGED,
+  type TOOLS_HOLDER_INPUT_SETTINGS,
+} from '@ziroeda/common/tool/tools_holder.js';
 import type { BASE_SCREEN } from '@ziroeda/common/base_screen.js';
 import type { wxEvent } from '@ziroeda/wx/wx_event.js';
 import { SymbolLibAdapter } from '../project_sch.js';
@@ -74,6 +78,7 @@ import { SCH_FIELD } from '../sch_field.js';
 import { SYMBOL_ORIENTATION_T } from '../symbol.js';
 import {
   currentSymbolEditorSettings,
+  storeSymbolEditorKifaceSettings,
   symbolEditorKifaceSettings,
   type SymbolEditorSettings,
 } from './symbol_editor_settings.js';
@@ -83,6 +88,7 @@ import { UNDO_REDO_LIST } from '@ziroeda/common/eda_base_frame.js';
 import { FRAME_T } from '@ziroeda/common/frame_type.js';
 import type { KIWAY_MAIL_EVENT } from '@ziroeda/common/kiway_mail.js';
 import { MAIL_T } from '@ziroeda/common/mail_type.js';
+import type { TOOL_EVENT } from '@ziroeda/common/tool/tool_event.js';
 import { SCH_BASE_FRAME } from '../sch_base_frame.js';
 
 export interface SYMBOL_EDIT_FRAME_HOOKS {
@@ -97,11 +103,8 @@ export interface SYMBOL_EDIT_FRAME_HOOKS {
    * hidden directly, not as a user toggle (LoadSymbolFromSchematic's auto-hide).
    */
   showLibraryTreePane?(aShow: boolean): void;
-  /**
-   * `Kiway().Player( FRAME_SCH, false )->SaveSymbolToSchematic( *m_symbol, uuid )`: the edited
-   * symbol back into the open schematic. False when no schematic editor is open.
-   */
-  saveSymbolToSchematic?(aSymbol: LIB_SYMBOL, aSchematicSymbolUUID: KIID): boolean;
+  /** The tool stack moved: the window's toolbar re-reads `IsCurrentTool` (upstream's update-UI). */
+  toolStackChanged?(): void;
   /**
    * `UnsavedChangesDialog( this, aMessage, aApplyToAll )`: Save / Discard / Cancel. With
    * \a aApplyToAll the dialog shows its "apply to all" box and reports it there.
@@ -178,6 +181,70 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
   /** `Kiface().KifaceSettings()`: SYMBOL_EDITOR_SETTINGS. */
   override config(): APP_SETTINGS_BASE | null {
     return symbolEditorKifaceSettings();
+  }
+
+  /**
+   * `LoadSettings( aCfg )` (:327): the canvas and units, then libeditconfig()'s display options into
+   * the render settings.
+   */
+  override LoadSettings(aCfg: APP_SETTINGS_BASE): void {
+    super.LoadSettings(aCfg);
+
+    const settings = this.libeditconfig();
+    const renderSettings = this.GetRenderSettings();
+
+    // wxCHECK_RET( m_settings, ... )
+    if (!settings || !renderSettings) return;
+
+    renderSettings.m_ShowPinsElectricalType = settings.show_pin_electrical_type;
+    renderSettings.m_ShowHiddenPins = settings.show_hidden_lib_pins;
+    renderSettings.m_ShowHiddenFields = settings.show_hidden_lib_fields;
+    renderSettings.m_ShowPinAltIcons = settings.show_pin_alt_icons;
+    renderSettings.SetDefaultFont('');
+  }
+
+  /**
+   * `CommonSettingsChanged( aFlags )` (:1558): SCH_BASE_FRAME's - the colour theme into the
+   * painter - then the symbol editor's display options and window settings, the symbol's caches,
+   * and the canvas redrawn. The toolbars are the window's, rebuilt by its next render.
+   */
+  override CommonSettingsChanged(aFlags = 0, aInput?: TOOLS_HOLDER_INPUT_SETTINGS): void {
+    super.CommonSettingsChanged(aFlags, aInput);
+
+    const cfg = this.libeditconfig();
+    const renderSettings = this.GetRenderSettings();
+
+    if (cfg && renderSettings) {
+      renderSettings.m_ShowPinsElectricalType = cfg.show_pin_electrical_type;
+      renderSettings.m_ShowHiddenPins = cfg.show_hidden_lib_pins;
+      renderSettings.m_ShowHiddenFields = cfg.show_hidden_lib_fields;
+      renderSettings.m_ShowPinAltIcons = cfg.show_pin_alt_icons;
+
+      this.GetGalDisplayOptions().ReadWindowSettings(symbolEditorKifaceSettings().m_Window);
+    }
+
+    this.m_symbol?.ClearCaches();
+
+    const canvas = this.GetCanvas();
+
+    if (canvas) {
+      canvas.ForceRefresh();
+      canvas.GetView().UpdateAllItems(VIEW_UPDATE_FLAGS.ALL);
+      canvas.Refresh();
+    }
+
+    this.RecreateToolbars();
+
+    if (aFlags & ENVVARS_CHANGED) this.SyncLibraries(true);
+  }
+
+  /**
+   * The frame's idle pass after a canvas event or a command, and what a tool changed in config()
+   * (COMMON_TOOLS' current grid, say) saved, as the settings manager does.
+   */
+  override OnIdle(): void {
+    super.OnIdle();
+    storeSymbolEditorKifaceSettings(symbolEditorKifaceSettings());
   }
 
   private readonly hooks: SYMBOL_EDIT_FRAME_HOOKS;
@@ -322,6 +389,23 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
     return this.hooks.unsavedChangesDialog?.(aMessage, aApplyToAll) ?? Promise.resolve('cancel');
   }
 
+  /** EDA_DRAW_FRAME's `wxFileDialog`: the same picker as {@link FileDialog}. */
+  override ShowFileDialog(
+    aTitle: string,
+    aDefaultDir: string,
+    aDefaultFile: string,
+    aWildcard: string | readonly ChooserFilter[],
+    aStyle: number,
+  ): Promise<string | null> {
+    return this.FileDialog(
+      aTitle,
+      aDefaultDir,
+      aDefaultFile,
+      typeof aWildcard === 'string' ? [] : aWildcard,
+      aStyle,
+    );
+  }
+
   /** `wxFileDialog( ... ).ShowModal()` then `GetPath()`: the window's; null is Cancel. */
   FileDialog(
     aTitle: string,
@@ -348,7 +432,15 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
    * schematic editor is open to take it.
    */
   SaveSymbolToSchematic(aSymbol: LIB_SYMBOL, aSchematicSymbolUUID: KIID): boolean {
-    return this.hooks.saveSymbolToSchematic?.(aSymbol, aSchematicSymbolUUID) ?? false;
+    const schframe = this.Kiway()?.GetPlayerFrame(FRAME_T.FRAME_SCH) as {
+      SaveSymbolToSchematic(aSymbol: LIB_SYMBOL, aUuid: KIID): void;
+    } | null;
+
+    // happens when the schematic editor has been closed
+    if (!schframe) return false;
+
+    schframe.SaveSymbolToSchematic(aSymbol, aSchematicSymbolUUID);
+    return true;
   }
 
   /**
@@ -804,6 +896,18 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
     this.GetCanvas()?.Refresh();
   }
 
+  /** `TOOLS_HOLDER::PushTool`, and the window's toolbar told (KiCad's toolbar asks on update-UI). */
+  override PushTool(aEvent: TOOL_EVENT): void {
+    super.PushTool(aEvent);
+    this.hooks.toolStackChanged?.();
+  }
+
+  /** `TOOLS_HOLDER::PopTool`, and the window's toolbar told. */
+  override PopTool(aEvent: TOOL_EVENT): void {
+    super.PopTool(aEvent);
+    this.hooks.toolStackChanged?.();
+  }
+
   /** `OnModify()` (:1112): the screen is modified and the buffer takes the symbol. */
   override OnModify(): void {
     super.OnModify();
@@ -811,6 +915,15 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
     this.GetScreen()?.SetContentModified();
 
     if (!this.IsSymbolFromSchematic()) this.storeCurrentSymbol();
+
+    if (this.m_isClosing) return;
+
+    // GetLibTree()->RefreshLibTree()
+    this.RefreshLibTree();
+
+    // `if( !GetTitle().StartsWith( "*" ) )`: the title is the window's, and writing it again is the
+    // same title.
+    this.UpdateTitle();
   }
 
   /** `storeCurrentSymbol()` (:1529): the edited symbol into the library buffer. */

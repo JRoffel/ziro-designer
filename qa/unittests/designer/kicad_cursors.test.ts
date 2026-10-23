@@ -198,7 +198,8 @@ describe('one CURSOR_STORE, like KiCad', () => {
    */
   const DECIDERS = [
     'designer/src/editors/schematic/cursors.ts',
-    'eeschema/symbol_editor/cursors.ts',
+    // eeschema/symbol_editor/cursors.ts went on 10-23: the symbol editor's canvas is
+    // SCH_DRAW_PANEL, and its tools set KICURSORs themselves, as the schematic's do.
     'pcbnew/browser/cursors.ts',
     'common/tool/tool_cursors.ts',
   ];

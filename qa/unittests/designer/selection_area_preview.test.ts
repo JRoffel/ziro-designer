@@ -239,10 +239,15 @@ describe('the lasso mode follows its winding', () => {
 });
 
 describe('there is one copy of the table', () => {
-  // The schematic's and the footprint frames' own canvases are gone (SCH_DRAW_PANEL / EDA_DRAW_PANEL_GAL).
-  const CANVASES = ['editors/symbol/SymbolCanvas.tsx'];
+  // Every editor's canvas is a GAL panel now - the schematic's and the symbol editor's
+  // SCH_DRAW_PANEL, the footprint frames' EDA_DRAW_PANEL_GAL - so the band is the selection tool's
+  // KIGFX::PREVIEW::SELECTION_AREA in the view, and no window paints one.
+  const WINDOWS = [
+    '../../eeschema/symbol_editor/symbol_edit_frame_ui.tsx',
+    '../../eeschema/sch_edit_frame_ui.tsx',
+  ];
 
-  it('no canvas writes a selection colour of its own', () => {
+  it('no window writes a selection colour or paints a band of its own', () => {
     // Every literal that was in one of the four copies. Matching the VALUES
     // rather than the constant names is what makes this survive a rename.
     const literals = [
@@ -256,20 +261,10 @@ describe('there is one copy of the table', () => {
       'rgba(120,170,255',
       'rgba(120,255,150',
     ];
-    for (const rel of CANVASES) {
+    for (const rel of WINDOWS) {
       const src = read(rel);
       for (const lit of literals) expect(src, `${rel} still writes ${lit}`).not.toContain(lit);
-    }
-  });
-
-  it('every canvas draws the band through the shared item', () => {
-    for (const rel of CANVASES) {
-      const src = read(rel);
-      expect(src, rel).toMatch(/drawSelectionArea\(|drawSelectionLasso\(/);
-      // A canvas that still sets these around a band is painting one by hand.
-      expect(src, `${rel} still hand-rolls the band`).not.toMatch(
-        /(?:ctx|octx)\.lineWidth = (?:dpr|Math\.max\(1, dpr\)|1 \/ vp\.scale);\s*\n\s*const x = Math\.min/,
-      );
+      expect(src, rel).not.toMatch(/drawSelectionArea\(|drawSelectionLasso\(/);
     }
   });
 });

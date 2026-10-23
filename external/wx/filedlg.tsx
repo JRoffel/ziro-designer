@@ -15,6 +15,7 @@
  * element.
  */
 import type { JSX } from 'react';
+import { MEMORY_FILESYSTEM, wxFileExists, wxMountFileSystem } from './filefn.js';
 
 /** One wildcard of the type combo: `KiCad project files (*.kicad_pro)`. */
 export interface ChooserFilter {
@@ -69,4 +70,24 @@ export function WxFileDialog(props: WxFileDialogProps): JSX.Element {
   if (!s_fileDialog) throw new Error('wxFileDialog used before the app installed one');
   const Impl = s_fileDialog;
   return <Impl {...props} />;
+}
+
+/** Where a file the picker hands back is readable when no mount holds its path. */
+const PICKED_FILES_DIR = '/.picked-files';
+let s_pickedFiles: MEMORY_FILESYSTEM | null = null;
+
+/**
+ * `wxFileDialog::GetPath()` for a file the picker returned: its own path when a mounted file
+ * system already has it (a project file), else its bytes written to the picked-files folder, so
+ * KiCad's file reads open it.
+ */
+export function wxFileDialogGetPath(aFile: OpenedFile): string {
+  if (wxFileExists(aFile.path)) return aFile.path;
+  if (!s_pickedFiles) {
+    s_pickedFiles = new MEMORY_FILESYSTEM();
+    wxMountFileSystem(PICKED_FILES_DIR, s_pickedFiles);
+  }
+  const name = aFile.path.replace(/^.*\//, '');
+  s_pickedFiles.Write(name, aFile.bytes);
+  return `${PICKED_FILES_DIR}/${name}`;
 }

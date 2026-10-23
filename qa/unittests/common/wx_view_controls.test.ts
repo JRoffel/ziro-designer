@@ -33,6 +33,7 @@ import { COMMON_DEFAULTS } from '@ziroeda/common/settings/common_settings.js';
 import {
   type wxEvent,
   type wxEventType,
+  wxEVT_LEAVE_WINDOW,
   wxEVT_LEFT_UP,
   wxEVT_MIDDLE_DOWN,
   wxEVT_MIDDLE_UP,
@@ -434,6 +435,18 @@ describe('WX_VIEW_CONTROLS cursor', () => {
 
     options.m_gridSnapping = GRID_SNAPPING.NEVER;
     expect(vc.GetCursorPosition()).toEqual(raw);
+  });
+
+  /**
+   * `onLeave` is `onMotion( aEvent )` and nothing else (wx_view_controls.cpp:625-630): the cursor
+   * follows the pointer out to where it left and is not reset, so the crosshair stays drawn at
+   * the edge and the status bar keeps its coordinates.
+   */
+  it('leaving the panel is one more motion: the cursor follows, nothing is cleared', () => {
+    const { view, panel, vc } = setup();
+    panel.ProcessEvent(mouse(wxEVT_MOTION, 430, 340));
+    panel.ProcessEvent(mouse(wxEVT_LEAVE_WINDOW, 799, 340));
+    expect(vc.GetCursorPosition(false)).toEqual(view.ToWorld({ x: 799, y: 340 }));
   });
 
   it('ForceCursorPosition wins over the mouse until released', () => {

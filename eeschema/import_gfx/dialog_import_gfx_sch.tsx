@@ -43,6 +43,7 @@ import {
   DXF_IMPORT_UNITS,
 } from '@ziroeda/common/import_gfx/dxf_import_plugin.js';
 import type { LibGraphic, SchLabel } from '../index.js';
+import type { SCH_ITEM } from '../sch_item.js';
 import { DialogShim } from '@ziroeda/common/dialog_shim.js';
 
 interface Props {
@@ -53,15 +54,19 @@ interface Props {
    * model — a `(text …)` is a `SchLabel` and lives in `doc.labels`, as
    * `GRAPHICS_IMPORTER_SCH` reports it.
    */
-  onOk: (graphics: LibGraphic[], labels: SchLabel[], interactive: boolean) => void;
+  onOk: (
+    graphics: LibGraphic[],
+    labels: SchLabel[],
+    interactive: boolean,
+    /** The symbol editor's live items, from {@link Props.libImporter}. */
+    items: SCH_ITEM[],
+  ) => void;
   onCancel: () => void;
   /**
-   * Which sink the file is read through: `GRAPHICS_IMPORTER_SCH` for a sheet
-   * (the default), `GRAPHICS_IMPORTER_LIB_SYMBOL` for the Symbol Editor's arm
-   * of the same action — whose free text is a `LibGraphic` of kind `text`,
-   * so it arrives in `graphics` and `labels` stays empty.
+   * The constructor's importer choice: a fresh `GRAPHICS_IMPORTER_LIB_SYMBOL( symbol, unit )` in
+   * the symbol editor, whose items come back live; none for a sheet (GRAPHICS_IMPORTER_SCH).
    */
-  sink?: 'sch' | 'lib_symbol';
+  libImporter?: () => GRAPHICS_IMPORTER_LIB_SYMBOL;
 }
 
 /**
@@ -101,6 +106,8 @@ export interface Imported {
   heightMM: number;
   /** `ReportMsg`, from both the plugin and the importer. */
   notes: string[];
+  /** `GetImportedItems()` of a symbol editor import. */
+  items: SCH_ITEM[];
   error?: string;
 }
 
@@ -121,15 +128,14 @@ export function runImport(
   name: string,
   text: string,
   p: Params,
-  sink: 'sch' | 'lib_symbol' = 'sch',
+  aLibImporter?: GRAPHICS_IMPORTER_LIB_SYMBOL,
 ): Imported {
-  const empty = { graphics: [], labels: [], widthMM: 0, heightMM: 0, notes: [] };
+  const empty = { graphics: [], labels: [], widthMM: 0, heightMM: 0, notes: [], items: [] };
 
   const plugin = getPluginByExt(fileExtension(name));
   if (!plugin) return { ...empty, error: 'Unsupported file format.' };
 
-  const importer =
-    sink === 'sch' ? new GRAPHICS_IMPORTER_SCH() : new GRAPHICS_IMPORTER_LIB_SYMBOL();
+  const importer = aLibImporter ?? new GRAPHICS_IMPORTER_SCH();
 
   if (plugin instanceof DXF_IMPORT_PLUGIN) {
     plugin.SetUnit(p.dxfUnits);
@@ -153,21 +159,21 @@ export function runImport(
     .map((l) => l.trim())
     .filter((l) => l !== '');
 
-  const items: readonly (SchImportedItem | LibGraphic)[] = importer.GetItems();
-  const isSchItem = (i: SchImportedItem | LibGraphic): i is SchImportedItem => 'type' in i;
+  const schItems: readonly SchImportedItem[] = aLibImporter
+    ? []
+    : (importer as GRAPHICS_IMPORTER_SCH).GetItems();
 
   return {
-    graphics: items.flatMap((i) =>
-      isSchItem(i) ? (i.type === 'graphic' ? [i.graphic] : []) : [i],
-    ),
-    labels: items.flatMap((i) => (isSchItem(i) && i.type === 'text' ? [i.text] : [])),
+    graphics: schItems.flatMap((i) => (i.type === 'graphic' ? [i.graphic] : [])),
+    labels: schItems.flatMap((i) => (i.type === 'text' ? [i.text] : [])),
+    items: aLibImporter ? aLibImporter.GetItems() : [],
     widthMM: plugin.GetImageWidth(),
     heightMM: plugin.GetImageHeight(),
     notes: [...new Set(notes)],
   };
 }
 
-export function DialogImportGfx({ onOk, onCancel, sink = 'sch' }: Props): JSX.Element {
+export function DialogImportGfx({ onOk, onCancel, libImporter }: Props): JSX.Element {
   const [file, setFile] = useState<{ name: string; text: string } | null>(null);
   const [interactive, setInteractive] = useState(true);
   const [params, setParams] = useState<Params>(DEFAULT_PARAMS);
@@ -184,9 +190,9 @@ export function DialogImportGfx({ onOk, onCancel, sink = 'sch' }: Props): JSX.El
       file.name,
       file.text,
       interactive ? { ...params, originMM: { x: 0, y: 0 } } : params,
-      sink,
+      libImporter?.(),
     );
-  }, [file, params, interactive, sink]);
+  }, [file, params, interactive, libImporter]);
 
   const choose = async (chosen: File | undefined): Promise<void> => {
     if (!chosen) return;
@@ -226,7 +232,9 @@ export function DialogImportGfx({ onOk, onCancel, sink = 'sch' }: Props): JSX.El
     </label>
   );
 
-  const count = imported ? imported.graphics.length + imported.labels.length : 0;
+  const count = imported
+    ? imported.graphics.length + imported.labels.length + imported.items.length
+    : 0;
   const empty = imported !== null && !imported.error && count === 0;
 
   /** The drawing's extent in millimetres, from the internal units it landed in. */
@@ -318,7 +326,9 @@ export function DialogImportGfx({ onOk, onCancel, sink = 'sch' }: Props): JSX.El
           label="OK"
           isDefault
           disabled={!imported || empty || !!imported.error}
-          onClick={() => imported && onOk(imported.graphics, imported.labels, interactive)}
+          onClick={() =>
+            imported && onOk(imported.graphics, imported.labels, interactive, imported.items)
+          }
         />
       </div>
     </DialogShim>

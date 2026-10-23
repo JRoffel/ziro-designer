@@ -28,7 +28,6 @@ import { describe, expect, it } from 'vitest';
 import { sharedToolCursorName, toolCursorCss } from '@ziroeda/common/tool/tool_cursors.js';
 import { kiCursor } from '@ziroeda/common/gal/kicursors.js';
 import { boardToolCursor } from '@ziroeda/pcbnew/browser/cursors.js';
-import { symbolToolCursor } from '@ziroeda/eeschema/symbol_editor/cursors.js';
 import { toolCursorName } from '@ziroeda/designer/src/editors/schematic/cursors.js';
 
 describe('the delete tool wears the eraser everywhere', () => {
@@ -140,9 +139,10 @@ describe('every editor answers through the shared table', () => {
   // — the shape eeschema already had — and this calls them.
   const ERASER = toolCursorCss('deleteTool', 'never');
 
+  // The symbol editor left these two on 10-23: its canvas is SCH_DRAW_PANEL, and the eraser is
+  // SCH_TOOL_BASE::InteractiveDelete's own SetCurrentCursor( KICURSOR::REMOVE ), the schematic's.
   it.each([
     ['the board editor', boardToolCursor],
-    ['the symbol editor', symbolToolCursor],
   ])('%s shows the eraser for its delete tool', (_name, cursorFor) => {
     expect(cursorFor('deleteTool')).toBe(ERASER);
     // …and not merely "something that is not the fallback": the crosshair is
@@ -152,7 +152,6 @@ describe('every editor answers through the shared table', () => {
 
   it.each([
     ['the board editor', boardToolCursor, 'default'],
-    ['the symbol editor', symbolToolCursor, 'crosshair'],
   ])('%s keeps its own fallback for its own tools', (_name, cursorFor, fallback) => {
     expect(cursorFor('someToolOnlyThisEditorHas')).toBe(fallback);
   });

@@ -437,10 +437,27 @@ export interface APP_SETTINGS_BASE_JSON {
       snap: number;
       show: boolean;
       overrides_enabled: boolean;
+      /**
+       * `override_<kind>` and `override_<kind>_idx`, as the stores spell them: the grid by its
+       * size rather than its row, which is one of `sizes`. A kind an editor does not offer is
+       * absent.
+       */
+      overrides?: Partial<Record<GRID_OVERRIDE_KIND, { enabled: boolean; size: string }>>;
     };
     cursor: { crosshair: 'small' | 'full' | '45'; always_show_cursor: boolean };
   };
 }
+
+/** The override rows of GRID_SETTINGS (`include/settings/grid_settings.h`). */
+type GRID_OVERRIDE_KIND = 'connected' | 'wires' | 'vias' | 'text' | 'graphics';
+
+const GRID_OVERRIDE_KINDS: readonly GRID_OVERRIDE_KIND[] = [
+  'connected',
+  'wires',
+  'vias',
+  'text',
+  'graphics',
+];
 
 /** `grid.style`'s stored integers (`common/settings/app_settings.cpp`): 0 dots, 1 lines, 2 crosses. */
 const GRID_STYLE_NAMES: readonly APP_SETTINGS_BASE_JSON['window']['grid']['style'][] = [
@@ -483,4 +500,95 @@ export function loadAppSettingsBase(s: APP_SETTINGS_BASE, json: APP_SETTINGS_BAS
 
   s.m_Window.cursor.cross_hair_mode = CROSS_HAIR_MODE_OF[json.window.cursor.crosshair];
   s.m_Window.cursor.always_show_cursor = json.window.cursor.always_show_cursor;
+}
+
+/**
+ * `JSON_SETTINGS::Store` for the same PARAMs: what a frame or a tool changed in the object - the
+ * units, the current and fast grids, the grid's display, the cursor - back into the slice.
+ * Whether anything moved.
+ */
+export function storeAppSettingsBase(s: APP_SETTINGS_BASE, json: APP_SETTINGS_BASE_JSON): boolean {
+  let changed = false;
+  const set = <T extends object, K extends keyof T>(aObj: T, aKey: K, aValue: T[K]): void => {
+    if (aObj[aKey] !== aValue) {
+      aObj[aKey] = aValue;
+      changed = true;
+    }
+  };
+
+  set(json.system, 'units', EdaUnitsFromInt(s.m_System.units));
+  set(json.system, 'last_metric_units', EdaUnitsFromInt(s.m_System.last_metric_units));
+  set(json.system, 'last_imperial_units', EdaUnitsFromInt(s.m_System.last_imperial_units));
+
+  const g = s.m_Window.grid;
+  const jg = json.window.grid;
+  set(jg, 'last_size_idx', g.last_size_idx);
+  set(jg, 'fast_grid_1', g.fast_grid_1);
+  set(jg, 'fast_grid_2', g.fast_grid_2);
+  set(jg, 'style', GRID_STYLE_NAMES[g.style] ?? jg.style);
+  set(jg, 'line_width', g.line_width);
+  set(jg, 'min_spacing', g.min_spacing);
+  set(jg, 'snap', g.snap as typeof jg.snap);
+  set(jg, 'show', g.show);
+  set(jg, 'overrides_enabled', g.overrides_enabled);
+
+  const crosshair = (Object.keys(CROSS_HAIR_MODE_OF) as (keyof typeof CROSS_HAIR_MODE_OF)[]).find(
+    (k) => CROSS_HAIR_MODE_OF[k] === s.m_Window.cursor.cross_hair_mode,
+  );
+
+  if (crosshair) set(json.window.cursor, 'crosshair', crosshair);
+
+  set(json.window.cursor, 'always_show_cursor', s.m_Window.cursor.always_show_cursor);
+
+  return changed;
+}
+
+/**
+ * `window.grid.override_<kind>` / `override_<kind>_idx` from a slice's `overrides` rows: the
+ * enable as it is, the size as its row in `sizes`. Kept apart from loadAppSettingsBase while
+ * EESCHEMA_DEFAULTS holds the wrong defaults for its rows (all off, text at 25 mil, against
+ * app_settings.cpp:381-394's connected, wires and text on): the schematic's settings object
+ * keeps the C++ defaults until that is fixed.
+ */
+export function loadGridOverrides(s: APP_SETTINGS_BASE, json: APP_SETTINGS_BASE_JSON): void {
+  const g = s.m_Window.grid;
+  const jg = json.window.grid;
+
+  for (const kind of GRID_OVERRIDE_KINDS) {
+    const ov = jg.overrides?.[kind];
+
+    if (!ov) continue;
+
+    g[`override_${kind}`] = ov.enabled;
+    const idx = jg.sizes.findIndex((aEntry) => aEntry.x === ov.size);
+
+    if (idx >= 0) g[`override_${kind}_idx`] = idx;
+  }
+}
+
+/** The store half of {@link loadGridOverrides}. Whether anything moved. */
+export function storeGridOverrides(s: APP_SETTINGS_BASE, json: APP_SETTINGS_BASE_JSON): boolean {
+  const g = s.m_Window.grid;
+  const jg = json.window.grid;
+  let changed = false;
+
+  for (const kind of GRID_OVERRIDE_KINDS) {
+    const ov = jg.overrides?.[kind];
+
+    if (!ov) continue;
+
+    if (ov.enabled !== g[`override_${kind}`]) {
+      ov.enabled = g[`override_${kind}`];
+      changed = true;
+    }
+
+    const size = jg.sizes[g[`override_${kind}_idx`]]?.x;
+
+    if (size !== undefined && ov.size !== size) {
+      ov.size = size;
+      changed = true;
+    }
+  }
+
+  return changed;
 }

@@ -11,10 +11,8 @@
  * every audit this editor has had, because no test could name the value.
  */
 
-import type { LibSymbol } from '../types.js';
 import { defaultUnitsToggle } from '@ziroeda/common/settings/app_settings_units.js';
 import { SYMBOL_EDITOR_DEFAULTS, type SymbolEditorSettings } from './symbol_editor_settings.js';
-import { unitCount, unitsLocked } from './edits.js';
 import {
   switchUnits,
   toggleIdUnits,
@@ -51,37 +49,6 @@ export const RADIO_GROUPS: readonly (readonly string[])[] = [
  * perspective at all, so the two panes stay session state here.)
  */
 export const SESSION_TOGGLES: ReadonlySet<string> = new Set(['showLibraryTree', 'showProperties']);
-
-/**
- * `m_SyncPinEdit` after `SYMBOL_EDIT_FRAME::SetCurSymbol`
- * (`symbol_edit_frame.cpp:968`):
- *
- *     // Ensure synchronized pin edit can be enabled only symbols with
- *     // interchangeable units
- *     m_SyncPinEdit = aSymbol && aSymbol->IsRoot() && aSymbol->IsMultiUnit()
- *                     && !aSymbol->UnitsLocked();
- *
- * It is NOT a sticky user preference: upstream recomputes it from the symbol
- * on every load, and the constructor sets it to `false` (`:128`), so a cold
- * frame shows the Synchronized Pins button unlit. `toggleSyncedPinsMode` used
- * to sit in {@link DEFAULT_TOGGLES}, which painted that button checked — and
- * checked *while disabled*, since `multiUnitModeCond` (:609-613) is false with
- * no symbol. KiCad's own cold frame paints it flat and grey.
- *
- * `IsRoot()` is `!extends`; `IsMultiUnit()` is `GetUnitCount() > 1`.
- */
-export function syncPinEditOnLoad(symbol: LibSymbol | null): boolean {
-  if (!symbol) return false;
-  return symbol.extends === undefined && unitCount(symbol) > 1 && !unitsLocked(symbol);
-}
-
-/** {@link syncPinEditOnLoad} applied to a toggle set, for `SetCurSymbol`. */
-export function withSyncPinEdit(prev: ReadonlySet<string>, symbol: LibSymbol | null): Set<string> {
-  const next = new Set(prev);
-  if (syncPinEditOnLoad(symbol)) next.add('toggleSyncedPinsMode');
-  else next.delete('toggleSyncedPinsMode');
-  return next;
-}
 
 /**
  * Activating `id`, given what is currently on.

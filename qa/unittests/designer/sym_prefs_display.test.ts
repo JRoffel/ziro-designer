@@ -33,7 +33,6 @@ import {
   SYMBOL_SETTING_TOGGLES,
   symbolTogglesFromSettings,
 } from '@ziroeda/eeschema/symbol_editor/toggles.js';
-import { symbolSnappingEnabled } from '@ziroeda/eeschema/symbol_editor/grid.js';
 
 const SRC = fileURLToPath(new URL('../../../designer/src', import.meta.url));
 const read = (rel: string): string => readFileSync(join(SRC, rel), 'utf8');
@@ -132,37 +131,23 @@ describe('the fourth checkbox is live, and reaches the canvas by its own route',
     expect(renderer).toContain('drawAltPinModesIcon');
     expect(renderer).toContain('altIconBox');
     expect(renderer).toMatch(/if \(sym\.showPinAltIcons\)/);
-    // And the editor feeds it from symbol_editor.json, not eeschema's.
-    const editor = read('../../eeschema/symbol_editor/symbol_edit_frame_ui.tsx');
-    expect(editor).toContain('showPinAltIcons: symCfg.show_pin_alt_icons');
+    // The editor's canvas is SCH_PAINTER now, fed from symbol_editor.json by
+    // SYMBOL_EDIT_FRAME::LoadSettings (:336) - pinned both ways in
+    // symbol_edit_frame_load_settings.test.ts - and the painter gates on it.
+    expect(read('../../eeschema/sch_painter.ts')).toContain('m_schSettings.m_ShowPinAltIcons');
   });
 });
 
 // ------------------------------------------------------------ the GAL controls
 
 describe('the embedded PANEL_GAL_OPTIONS is live', () => {
-  it('Snap to grid is GAL::GetGridSnapping, all three options', () => {
-    // `m_options.m_gridSnapping == ALWAYS || ( m_gridVisibility &&
-    //  m_options.m_gridSnapping == WITH_GRID )`
-    // (`include/gal/graphics_abstraction_layer.h:815-819`).
-    const c = cfg();
-    c.window.grid.snap = 0; // ALWAYS
-    c.window.grid.show = false;
-    expect(symbolSnappingEnabled(c)).toBe(true);
-    c.window.grid.snap = 1; // WITH_GRID — and that is Show Grid, not the list
-    expect(symbolSnappingEnabled(c)).toBe(false);
-    c.window.grid.show = true;
-    expect(symbolSnappingEnabled(c)).toBe(true);
-    c.window.grid.snap = 2; // NEVER
-    expect(symbolSnappingEnabled(c)).toBe(false);
-    c.window.grid.show = false;
-    expect(symbolSnappingEnabled(c)).toBe(false);
-  });
-
-  it('the canvas asks it before snapping', () => {
-    const canvas = read('editors/symbol/SymbolCanvas.tsx');
-    expect(canvas).toContain('symbolSnappingEnabled(symCfg)');
-  });
+  // Snap to grid is GAL::GetGridSnapping - `m_options.m_gridSnapping == ALWAYS ||
+  // ( m_gridVisibility && m_options.m_gridSnapping == WITH_GRID )`
+  // (`include/gal/graphics_abstraction_layer.h:815-819`) - on the option
+  // SYMBOL_EDIT_FRAME::LoadSettings reads from this slice.
+  // The canvas asks it before snapping: WX_VIEW_CONTROLS::GetCursorPosition goes through
+  // GAL::GetGridSnapping, whose option SYMBOL_EDIT_FRAME::LoadSettings reads from this window
+  // slice (symbol_edit_frame_load_settings.test.ts; wx_view_controls.test.ts for the snap).
 
   it('the crosshair mode decides which toolbar radio is lit', () => {
     // `CURSOR_SETTINGS::cross_hair_mode`, which is the Cursor group's own
@@ -228,13 +213,10 @@ describe('mergeSymbolToggles: OK in Preferences moves the buttons', () => {
 
   it('the frame draws the merged set, not the raw React state', () => {
     const src = read('../../eeschema/symbol_editor/symbol_edit_frame_ui.tsx');
-    expect(src).toContain('mergeSymbolToggles(sessionToggles, symCfg)');
-    // The state itself must not be read directly anywhere but the merge, or
-    // that call site is the one that goes stale.
-    // Three: the useState declaration, the merge's argument, and the memo's
-    // dependency. Any fourth is a call site reading the state directly, and
-    // that is the one that goes stale.
-    const uses = [...src.matchAll(/\bsessionToggles\b/g)].length;
-    expect(uses).toBe(3);
+    expect(src).toContain('mergeSymbolToggles(session, symCfg)');
+    // The session set may be read directly for the panes, which are session
+    // state; a settings-backed id read off it is the call site that goes stale.
+    for (const id of SYMBOL_SETTING_TOGGLES)
+      expect(src, `reads ${id} off the stale set`).not.toContain(`session.has('${id}')`);
   });
 });

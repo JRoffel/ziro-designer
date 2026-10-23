@@ -344,8 +344,47 @@ export class DIALOG_FIELD_PROPERTIES {
     aField.SetTextColor(this.m_color);
   }
 
+  /**
+   * `UpdateField( SCH_FIELD* aField )` (dialog_field_properties.cpp:590), the symbol editor's:
+   * the text, its look, the name and autoplace flags, the justification and the position, with
+   * no commit and no other unit to keep in step. Or `UpdateField( SCH_COMMIT*, SCH_FIELD*,
+   * SCH_SHEET_PATH* )`, below.
+   */
+  UpdateField(aField: SCH_FIELD): void;
+  UpdateField(aCommit: SCH_COMMIT, aField: SCH_FIELD, aSheetPath: SCH_SHEET_PATH): void;
+  UpdateField(
+    aCommitOrField: SCH_COMMIT | SCH_FIELD,
+    aField?: SCH_FIELD,
+    aSheetPath?: SCH_SHEET_PATH,
+  ): void {
+    if (aField === undefined) {
+      const field = aCommitOrField as SCH_FIELD;
+      const schematic = field.Schematic();
+
+      if (schematic)
+        field.SetText(this.m_text, schematic.CurrentSheet(), schematic.GetCurrentVariant());
+      else field.SetText(this.m_text);
+
+      this.updateText(field);
+
+      field.SetNameShown(this.m_isNameVisible);
+      field.SetCanAutoplace(this.m_allowAutoplace);
+
+      field.SetHorizJustify(EDA_TEXT.MapHorizJustify(this.m_horizontalJustification));
+      field.SetVertJustify(EDA_TEXT.MapVertJustify(this.m_verticalJustification));
+      field.SetTextPos(this.m_position);
+      return;
+    }
+
+    this.updateFieldInSchematic(aCommitOrField as SCH_COMMIT, aField, aSheetPath!);
+  }
+
   /** `UpdateField( SCH_COMMIT*, SCH_FIELD*, SCH_SHEET_PATH* )`. */
-  UpdateField(aCommit: SCH_COMMIT, aField: SCH_FIELD, aSheetPath: SCH_SHEET_PATH): void {
+  private updateFieldInSchematic(
+    aCommit: SCH_COMMIT,
+    aField: SCH_FIELD,
+    aSheetPath: SCH_SHEET_PATH,
+  ): void {
     const editFrame = this.m_parent instanceof SCH_EDIT_FRAME ? this.m_parent : null;
     const parent = aField.GetParent() as SCH_ITEM | null;
     let fieldTextSet = false;

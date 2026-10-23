@@ -44,7 +44,7 @@ import {
 } from './dialogs/dialog_junction_props.js';
 import type { SCH_JUNCTION } from './sch_junction.js';
 import { color4dToItemColor, itemColorToColor4d } from './dialogs/item_color.js';
-import { type ChooserFilter, type OpenedFile, WxFileDialog } from '@ziroeda/wx/filedlg.js';
+import { type ChooserFilter, WxFileDialog, wxFileDialogGetPath } from '@ziroeda/wx/filedlg.js';
 import { WxTextEntryDialog } from '@ziroeda/wx/textdlg.js';
 import { WX_TEXT_ENTRY_DIALOG } from '@ziroeda/common/dialogs/dialog_text_entry.js';
 import { wxFD_FILE_MUST_EXIST, wxFD_OPEN, wxFD_SAVE } from '@ziroeda/wx/defs.js';
@@ -143,9 +143,6 @@ import {
   type LibPin,
   electricalPinTypeGetText,
   pinShapeGetText,
-  symbolEditorRequest,
-  type SymbolEditorTarget,
-  saveSymbolToSchematic,
   buildNetNavigator,
   buildNetNavigatorHierarchy,
   netNavigatorOrder,
@@ -263,7 +260,7 @@ import {
   parentPath,
   type SheetRef,
 } from './tools/sch_navigate_tool.js';
-import { DIALOG_SCH_FIND, DialogSchFind } from './dialogs/dialog_sch_find.js';
+import { SchFindDialogHost } from './dialogs/dialog_sch_find.js';
 import { DIALOG_INCREMENT_ANNOTATIONS_BASE } from './dialogs/dialog_increment_annotations_base.js';
 import {
   DialogGlobalEditTextAndGraphics,
@@ -450,7 +447,7 @@ import { type SCH_SCREEN, SCH_SCREENS } from './sch_screen.js';
 import type { ACTION_MENU } from '@ziroeda/common/tool/action_menu.js';
 import { actionMenuItems } from '@ziroeda/common/tool/action_menu_popup.js';
 import { wxMenuEvent, wxMenuEventType } from '@ziroeda/wx/menu.js';
-import { MEMORY_FILESYSTEM, wxFileExists, wxMountFileSystem } from '@ziroeda/wx/filefn.js';
+import { MEMORY_FILESYSTEM, wxMountFileSystem } from '@ziroeda/wx/filefn.js';
 import { schToolbarAction } from './toolbars_sch_editor.js';
 import { symbolLibraryUri } from './cross-probing.js';
 
@@ -489,26 +486,6 @@ function chooserToPicked(aResult: SymbolChooserResult): PICKED_SYMBOL {
     PlaceAllUnits: aResult.placeAllUnits,
     Fields: fields,
   };
-}
-
-/** Where a file the picker hands back is readable when no mount holds its path. */
-const PICKED_FILES_DIR = '/.picked-files';
-let s_pickedFiles: MEMORY_FILESYSTEM | null = null;
-
-/**
- * `wxFileDialog::GetPath()` for a file the project picker returned: its own path when a mounted
- * file system already has it (a project file), else its bytes written to the picked-files folder,
- * so KiCad's file reads open it.
- */
-function pickedFilePath(aFile: OpenedFile): string {
-  if (wxFileExists(aFile.path)) return aFile.path;
-  if (!s_pickedFiles) {
-    s_pickedFiles = new MEMORY_FILESYSTEM();
-    wxMountFileSystem(PICKED_FILES_DIR, s_pickedFiles);
-  }
-  const name = aFile.path.replace(/^.*\//, '');
-  s_pickedFiles.Write(name, aFile.bytes);
-  return `${PICKED_FILES_DIR}/${name}`;
 }
 
 const EMPTY_SCH =
@@ -688,7 +665,6 @@ export function SchematicEditor({
   onShowPcb,
   hasBoard,
   onEditSymbolInEditor,
-  editedSymbol,
   readOnlyNotice,
   readOnly,
   readBoardNetlist,
@@ -698,7 +674,6 @@ export function SchematicEditor({
   onShowCalculator,
   initialProject,
   initialFile,
-  placeRequest,
   onProjectChange,
   onPersistFiles,
   onSaveFiles,
@@ -729,14 +704,11 @@ export function SchematicEditor({
   /** SCH_EDIT_TOOL's Edit with Symbol Editor (Ctrl+E): hand the placement's
    *  symbol to the symbol editor and switch to it. */
   onEditSymbolInEditor?: (req: {
-    symbol: LibSymbol;
-    unit: number;
-    bodyStyle: number;
-    targetId: string;
+    /** `LoadSymbolFromSchematic( symbol )`: the live placement. */
+    fromSchematic?: SCH_SYMBOL;
+    /** `LoadSymbol( symbol->GetLibId(), symbol->GetUnit(), symbol->GetBodyStyle() )`. */
+    library?: { libId: string; unit: number; bodyStyle: number };
   }) => void;
-  /** The edited symbol coming back (SaveSymbolToSchematic). Re-sent with a
-   *  fresh nonce so a second save of the same symbol still applies. */
-  editedSymbol?: { symbol: LibSymbol; targetId: string; nonce: number } | null;
   /** Tools > Update Schematic from PCB with no board editor running: the project's board read
    *  and formatted as MAIL_PCB_GET_NETLIST's payload (`formatPcbNetlist`), what an off-screen
    *  PCB_EDIT_FRAME answers upstream; null when there is no board or it cannot be read.
@@ -766,9 +738,6 @@ export function SchematicEditor({
   onShowCalculator?: () => void;
   initialProject?: PickedFile[] | null;
   initialFile?: string | null;
-  /** A symbol handed over by the Symbol Editor's "Add symbol to schematic": attach it to the cursor. */
-  placeRequest?: { lib: LibSymbol; nonce: number } | null;
-  /** Autosave hook: called (debounced) with the serialized sheets after edits. */
   /**
    * Hand edited sheets to the app, which writes them locally and decides
    * whether the account hears about them.
@@ -2444,30 +2413,6 @@ export function SchematicEditor({
     [liveDocs, flatSheets],
   );
 
-  // DIALOG_SCH_FIND, modeless: SCH_BASE_FRAME::ShowFindReplaceDialog builds it through the
-  // factory installed here; SCH_FIND_REPLACE_TOOL does the finding and reports on the info bar.
-  const [findDialog, setFindDialog] = useState<DIALOG_SCH_FIND | null>(null);
-  const [, setFindTick] = useState(0);
-  useEffect(() => {
-    const frame = schFrameRef.current!;
-    frame.SetFindReplaceDialogFactory((aData, aReplace) => {
-      class WINDOW_DIALOG_SCH_FIND extends DIALOG_SCH_FIND {
-        override Show(aShow: boolean): void {
-          super.Show(aShow);
-          setFindDialog(this);
-          setFindTick((n) => n + 1);
-        }
-
-        override Destroy(): void {
-          super.Destroy();
-          setFindDialog((d) => (d === this ? null : d));
-        }
-      }
-      return new WINDOW_DIALOG_SCH_FIND(frame, aData, aReplace);
-    });
-    return () => frame.SetFindReplaceDialogFactory(null);
-  }, []);
-
   // Annotate Schematic (SCH_EDIT_FRAME::AnnotateSymbols) dialog.
   const [annotateOpen, setAnnotateOpen] = useState(false);
   // SCH_ACTIONS::incrementAnnotations, a small dialog of its own.
@@ -3025,44 +2970,38 @@ export function SchematicEditor({
    * editor — the symbol was never seeded.
    */
   const openSymbolEditorOn = useCallback(
-    (id: string, target: SymbolEditorTarget): void => {
+    (id: string, target: 'schematic' | 'library'): void => {
       const d = docRef.current;
       if (!d || !onEditSymbolInEditor) return;
-      const req = symbolEditorRequest(d.symbols, libById, id, target);
-      if (!req) {
-        // `"Symbols with broken library symbol links cannot be edited."`
-        // (sch_editor_control.cpp:2870) — the same guard, on the same footing.
-        // The editor is NOT opened: an empty SYMBOL_EDIT_FRAME is not what
-        // upstream does with a symbol it refuses.
-        setInfoBar('That symbol is not in any loaded library.');
+      // The placement on the live model, by its uuid: what SCH_EDITOR_CONTROL hands over.
+      const placed = d.symbols.find((sy, i) => refId('symbol', sy.uuid, i) === id);
+      const live =
+        placed?.uuid && syncLiveRef.current()
+          ? schFrameRef.current!.Schematic().Hierarchy().ResolveItem(placed.uuid, null, true)
+          : null;
+      const symbol = live?.Type() === KICAD_T.SCH_SYMBOL_T ? (live as SCH_SYMBOL) : null;
+      if (!symbol || symbol.IsMissingLibSymbol()) {
+        // "Symbols with broken library symbol links cannot be edited." (sch_editor_control.cpp)
+        setInfoBar('Symbols with broken library symbol links cannot be edited.');
         return;
       }
-      onEditSymbolInEditor(req);
+      if (target === 'schematic') onEditSymbolInEditor({ fromSchematic: symbol });
+      else
+        onEditSymbolInEditor({
+          library: {
+            libId: symbol.GetLibId().Format(),
+            unit: symbol.GetUnit(),
+            bodyStyle: symbol.GetBodyStyle(),
+          },
+        });
     },
-    [libById, onEditSymbolInEditor],
+    [onEditSymbolInEditor],
   );
 
   const editSymbolInEditor = useCallback(
     (id: string): void => openSymbolEditorOn(id, 'schematic'),
     [openSymbolEditorOn],
   );
-
-  // The edited symbol coming back from the editor. A nonce rather than the
-  // symbol's identity, so saving the same symbol twice applies twice.
-  const editedNonce = useRef<number | null>(null);
-  useEffect(() => {
-    const req = editedSymbol;
-    if (!req || editedNonce.current === req.nonce) return;
-    editedNonce.current = req.nonce;
-    const d = docRef.current;
-    if (!d) return;
-    const cmd = saveSymbolToSchematic(d, req.targetId, req.symbol);
-    if (!cmd) {
-      setInfoBar('That symbol is no longer on the schematic.');
-      return;
-    }
-    runCommand(cmd);
-  }, [editedSymbol, runCommand]);
 
   /**
    * Tools > Rescue Symbols — `SCH_EDITOR_CONTROL::RescueSymbols`.
@@ -3993,16 +3932,6 @@ export function SchematicEditor({
     });
     return () => registerAutosaveFlush(null);
   }, [registerAutosaveFlush, onProjectChange, serializeSheets]);
-
-  // "Add symbol to schematic" from the Symbol Editor: attach the symbol to the
-  // cursor exactly as the Place Symbol tool does after its chooser.
-  useEffect(() => {
-    if (!placeRequest) return;
-    placeFlags.current = { keepSymbol: true, placeAllUnits: false, unitCount: 1 };
-    setPlaceLib(placeRequest.lib);
-    setActiveTool('placeSymbol');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [placeRequest?.nonce]);
 
   // Switch the visible sheet (KiCad's Enter Sheet / hierarchy navigation): stash
   // the edited current sheet back into the project, swap in the target document
@@ -6344,47 +6273,8 @@ export function SchematicEditor({
                 }}
               />
             )}
-            {findDialog?.IsShown() && (
-              <DialogSchFind
-                // `SCH_BASE_FRAME::ShowFindReplaceDialog` builds the same
-                // DIALOG_SCH_FIND in both frames; the dialog branches on the
-                // frame type itself, so this is the whole of the difference.
-                frame="FRAME_SCH"
-                data={findDialog.GetControlValues()}
-                onChange={(next) => {
-                  const cur = findDialog.GetControlValues();
-                  if (next.findString !== cur.findString)
-                    findDialog.OnSearchForText(next.findString);
-                  else if (next.replaceString !== cur.replaceString)
-                    findDialog.OnReplaceWithText(next.replaceString);
-                  else
-                    findDialog.OnOptions({
-                      matchCase: next.matchCase,
-                      wholeWord: next.matchMode === 'wholeword',
-                      regexMatch: next.matchMode === 'regex',
-                      searchHiddenFields: next.searchAllFields,
-                      replaceReferences: next.replaceReferences,
-                      searchPins: next.searchAllPins,
-                      selectedOnly: next.searchSelectedOnly,
-                      currentSheetOnly: next.searchCurrentSheetOnly,
-                      searchNetNames: next.searchNetNames,
-                    });
-                  // wxEVT_IDLE follows the event.
-                  findDialog.OnIdle();
-                  setFindTick((n) => n + 1);
-                }}
-                onFindNext={() => findDialog.OnFind()}
-                onFindPrevious={() => findDialog.OnFindKey(true)}
-                onClose={() => findDialog.OnCancel()}
-                findStrings={findDialog.GetFindComboStrings()}
-                replaceStrings={findDialog.GetReplaceEntries()}
-                canReplace={findDialog.CanReplace()}
-                replace={findDialog.IsReplaceDialog()}
-                onReplace={() => findDialog.OnReplace(false)}
-                onReplaceAll={() => findDialog.OnReplace(true)}
-                onShowSearchPanel={() => findDialog.onShowSearchPanel()}
-              />
-            )}
+            {/* DIALOG_SCH_FIND, modeless: SCH_BASE_FRAME::ShowFindReplaceDialog builds it. */}
+            <SchFindDialogHost frame={schFrameRef.current!} frameType="FRAME_SCH" />
             {annotateOpen && (
               <DialogAnnotate
                 settings={app.settings}
@@ -6800,7 +6690,7 @@ export function SchematicEditor({
           projectDir={project.current.root ? `/${project.current.root.replace(/\/.*$/, '')}` : null}
           onDone={(file) => {
             setFileDialogRequest(null);
-            fileDialogRequest.resolve(file ? pickedFilePath(file) : null);
+            fileDialogRequest.resolve(file ? wxFileDialogGetPath(file) : null);
           }}
         />
       )}

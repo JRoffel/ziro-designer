@@ -7,7 +7,13 @@
  * `designer/src/prefs/settings.ts`, which still owns the store.
  */
 import type { EdaUnits } from '@ziroeda/common/eda_units.js';
-import { APP_SETTINGS_BASE, loadAppSettingsBase } from '@ziroeda/common/settings/app_settings.js';
+import {
+  APP_SETTINGS_BASE,
+  loadAppSettingsBase,
+  loadGridOverrides,
+  storeAppSettingsBase,
+  storeGridOverrides,
+} from '@ziroeda/common/settings/app_settings.js';
 import { PgmOrNull } from '@ziroeda/common/pgm_base.js';
 import { defaultUnits } from '@ziroeda/common/settings/app_settings_units.js';
 import {
@@ -325,9 +331,14 @@ export class SYMBOL_EDITOR_SETTINGS extends APP_SETTINGS_BASE {
 /** The one SYMBOL_EDITOR_SETTINGS when no program object exists (the tests, a headless frame). */
 let unregistered: SYMBOL_EDITOR_SETTINGS | null = null;
 
+/** The slice each SYMBOL_EDITOR_SETTINGS object was last loaded from or stored into. */
+const loadedFrom = new WeakMap<SYMBOL_EDITOR_SETTINGS, SymbolEditorSettings>();
+
 /**
  * `GetAppSettings<SYMBOL_EDITOR_SETTINGS>( "symbol_editor" )`: one object for the life of the
- * program, reloaded in place from the live slice on every ask so a changed preference is seen.
+ * program, reloaded in place when the live slice changes (`JSON_SETTINGS::Load`) so a changed
+ * preference is seen - and only then, or what a tool wrote into the object (COMMON_TOOLS' grid)
+ * would be thrown away by the next ask.
  */
 export function symbolEditorKifaceSettings(): SYMBOL_EDITOR_SETTINGS {
   const mgr = PgmOrNull()?.GetSettingsManager() ?? null;
@@ -343,6 +354,37 @@ export function symbolEditorKifaceSettings(): SYMBOL_EDITOR_SETTINGS {
     }
   }
 
-  loadAppSettingsBase(s, currentSymbolEditorSettings());
+  const slice = currentSymbolEditorSettings();
+
+  if (loadedFrom.get(s) !== slice) {
+    loadAppSettingsBase(s, slice);
+    loadGridOverrides(s, slice);
+    loadedFrom.set(s, slice);
+  }
+
   return s;
+}
+
+/** Whether the settings object already holds the live slice - nothing to load. */
+export function symbolEditorKifaceSettingsAreCurrent(): boolean {
+  const mgr = PgmOrNull()?.GetSettingsManager() ?? null;
+  const s = mgr ? mgr.GetAppSettings<SYMBOL_EDITOR_SETTINGS>('symbol_editor') : unregistered;
+
+  return s instanceof SYMBOL_EDITOR_SETTINGS && loadedFrom.get(s) === currentSymbolEditorSettings();
+}
+
+/**
+ * `JSON_SETTINGS::Store` of \a aSettings: what the frame and its tools changed in the object, into
+ * `symbol_editor.json` - written only when something moved.
+ */
+export function storeSymbolEditorKifaceSettings(aSettings: SYMBOL_EDITOR_SETTINGS): void {
+  const store = (aJson: SymbolEditorSettings): boolean =>
+    // Both halves, whatever the first one answers.
+    [storeAppSettingsBase(aSettings, aJson), storeGridOverrides(aSettings, aJson)].includes(true);
+
+  if (!store(structuredClone(currentSymbolEditorSettings()))) return;
+
+  updateSymbolEditorSettings((json) => void store(json));
+  // The slice now holds the object's values: no reload is owed.
+  loadedFrom.set(aSettings, currentSymbolEditorSettings());
 }

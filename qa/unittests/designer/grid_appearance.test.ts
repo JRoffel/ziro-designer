@@ -58,7 +58,12 @@ const read = (rel: string): string => readFileSync(join(SRC, rel), 'utf8');
  */
 const OWNERS: [editor: string, file: string, cfg: string][] = [
   ['schematic', '../../eeschema/sch_edit_frame_ui.tsx', 'es'],
-  ['symbol editor', '../../eeschema/symbol_editor/symbol_edit_frame_ui.tsx', 'symCfg'],
+];
+
+/** The windows that must not reach for another app's grid. */
+const OWN_SETTINGS: [editor: string, file: string][] = [
+  ['schematic', '../../eeschema/sch_edit_frame_ui.tsx'],
+  ['symbol editor', '../../eeschema/symbol_editor/symbol_edit_frame_ui.tsx'],
 ];
 
 /** The other three apps' settings hooks, for the wrong-object check. */
@@ -81,7 +86,7 @@ describe('Grid Display reaches the canvas', () => {
     }
   });
 
-  it.each(OWNERS)('%s asks no other app for its grid', (name, rel) => {
+  it.each(OWN_SETTINGS)('%s asks no other app for its grid', (name, rel) => {
     const src = read(rel);
     for (const [other, hook] of Object.entries(HOOKS)) {
       if (other === name) continue;
@@ -92,8 +97,9 @@ describe('Grid Display reaches the canvas', () => {
   });
 });
 
-// pl_editor and GerbView draw their grids through OPENGL_GAL::DrawGrid now,
-// from GAL_DISPLAY_OPTIONS the frame reads out of its own window settings.
+// pl_editor, GerbView and the symbol editor draw their grids through
+// OPENGL_GAL::DrawGrid now, from GAL_DISPLAY_OPTIONS the frame reads out of its
+// own window settings (the symbol editor's: symbol_edit_frame_load_settings.test.ts).
 
 describe('the defaults the omission was hiding behind', () => {
   it('is the same triple in every app, which is why nothing looked wrong', () => {

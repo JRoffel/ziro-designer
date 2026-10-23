@@ -502,8 +502,13 @@ export abstract class EDA_DRAW_FRAME extends KIWAY_PLAYER {
     return this.Kiway()?.GetPlayerFrame(aFrameType) ?? null;
   }
 
-  /** `wxWindow::Raise()`: bring the frame to the front. */
-  Raise(): void {}
+  /**
+   * `wxWindow::Raise()`: bring the frame to the front - here, the program's `Kiway().Player()`
+   * for this frame type, which shows it.
+   */
+  Raise(): void {
+    this.Kiway()?.Player(this.GetFrameType());
+  }
 
   /**
    * Use to start up the GAL drawing canvas.

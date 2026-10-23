@@ -54,8 +54,7 @@
  * gate is here or nowhere.
  */
 
-import type { LibSymbol } from '../types.js';
-import { hasAlternateBodyStyle, unitCount, unitsLocked } from './edits.js';
+import type { LIB_SYMBOL } from '../lib_symbol.js';
 import type { ToolEntry } from '@ziroeda/common/tool/action_toolbar_types.js';
 
 /** The two halves of a `LIB_ID`, as `GetLibNickname()` / `GetLibItemName()`. */
@@ -71,7 +70,7 @@ export interface LibIdParts {
  */
 export interface SymbolFrameState {
   /** `m_symbol` — the symbol on the canvas, or null for a cold frame. */
-  symbol: LibSymbol | null;
+  symbol: LIB_SYMBOL | null;
   /**
    * `IsSymbolFromLegacyLibrary()` (:892-905): the symbol's library row is a
    * `SCH_IO_MGR::SCH_LEGACY` one.
@@ -150,8 +149,8 @@ export interface SymbolConditions {
 }
 
 /** `LIB_SYMBOL::GetDatasheetField().GetText()`. */
-function datasheetText(sym: LibSymbol): string {
-  return sym.properties.find((f) => f.key === 'Datasheet')?.value ?? '';
+function datasheetText(sym: LIB_SYMBOL): string {
+  return sym.GetDatasheetField().GetText();
 }
 
 /**
@@ -194,15 +193,15 @@ export function symbolConditions(state: SymbolFrameState): SymbolConditions {
   // Not defensive padding. Every rule below is an AND of `haveSymbol`, so an
   // `undefined` slipping through a `!== null` would flip the whole table live
   // on a cold frame — the exact bug this module exists to stop — and the very
-  // next line would then throw on `sym.extends`. The type says `LibSymbol |
-  // null` and `SymbolEditor.tsx` passes `workSymbol ?? null` off a
-  // `useState<LibSymbol | null>`, so the two agree today; this is what keeps
-  // them agreeing when they stop, including for a caller that is not typed.
+  // next line would then throw on `sym.IsRoot()`. The window passes the frame's
+  // `GetCurSymbol()`, which is `LIB_SYMBOL | null`; this keeps a caller that is
+  // not typed agreeing with it.
   const haveSymbol = sym != null;
   // `IsSymbolEditable()` (:2231-2234).
   const editable = haveSymbol && (!state.fromLegacyLibrary || state.fromSchematic);
   // `IsSymbolAlias()` (:2225-2228) — `m_symbol && !m_symbol->IsRoot()`.
-  const isAlias = haveSymbol && sym.extends !== undefined;
+  // `IsSymbolAlias()`: `m_symbol && !m_symbol->IsRoot()`.
+  const isAlias = haveSymbol && !sym.IsRoot();
   const target = targetLibId(state);
 
   return {
@@ -225,8 +224,8 @@ export function symbolConditions(state: SymbolFrameState): SymbolConditions {
     redoAvailable: state.redoCount > 0,
     idle: state.idle,
     noActiveTool: state.activeTool === 'select',
-    multiUnitMode: haveSymbol && unitCount(sym) > 1 && !unitsLocked(sym),
-    multiBodyStyle: haveSymbol && hasAlternateBodyStyle(sym),
+    multiUnitMode: haveSymbol && sym.IsMultiUnit() && !sym.UnitsLocked(),
+    multiBodyStyle: haveSymbol && sym.IsMultiBodyStyle(),
     haveDatasheet: haveSymbol && datasheetText(sym) !== '',
   };
 }

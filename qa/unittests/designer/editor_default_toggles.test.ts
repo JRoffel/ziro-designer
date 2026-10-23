@@ -323,22 +323,33 @@ describe('pcbnew/pcb_edit_frame_ui.tsx seeds its toolbar from the settings file'
 describe('editors/symbol/SymbolEditor.tsx seeds its toolbar from the settings file', () => {
   const SYM = '../../eeschema/symbol_editor/symbol_edit_frame_ui.tsx';
 
-  it('seeds from symbolTogglesFromSettings, not from a constant set', () => {
+  it('draws the file’s toggles over the session set, not a constant set', () => {
+    // The live window folds the stored settings in on every render
+    // (`mergeSymbolToggles`), which is a seed that cannot go stale.
     const s = src(SYM);
-    expect(s).toContain('symbolTogglesFromSettings(settings.symbolEditor)');
+    expect(s).toContain('mergeSymbolToggles(session, symCfg)');
     // The bug this replaces: a `new Set(DEFAULT_TOGGLES)` seed cannot show a
     // stored Show Grid or Grid Overrides at all.
     expect(s).not.toContain('useState<Set<string>>(new Set(DEFAULT_TOGGLES))');
     expect(s).not.toMatch(/const DEFAULT_TOGGLES\s*(:|=)/);
   });
 
-  it('writes the two settings toggles back, and only those two', () => {
+  it('writes back only stored settings, and none COMMON_TOOLS already writes', () => {
     const s = src(SYM);
     expect(s).toMatch(/import \{[^}]*\bpersistSymbolToggle\b[^}]*\} from '\.\/toggles\.js'/);
-    // Guarded by SYMBOL_SETTING_TOGGLES: `updateSymbolEditor` persists and
-    // wakes the account sync, so calling it for a pane toggle would push
-    // `symbol_editor.json` on every click of the left toolbar.
-    expect(s).toContain('SYMBOL_SETTING_TOGGLES.has(id)');
+    // Guarded: `updateSymbolEditor` persists and wakes the account sync, so
+    // calling it for a pane toggle would push `symbol_editor.json` on every
+    // click of the left toolbar.
+    expect(s).toContain('WINDOW_PERSISTED_TOGGLES.has(id)');
+    const set = s.slice(s.indexOf('const WINDOW_PERSISTED_TOGGLES'));
+    const ids = [...set.slice(0, set.indexOf(']);')).matchAll(/'(\w+)'/g)].map((m) => m[1]!);
+    expect(ids.length).toBeGreaterThan(0);
+    for (const id of ids) expect(SYMBOL_SETTING_TOGGLES.has(id), id).toBe(true);
+    // The grid pair is COMMON_TOOLS' (SetGridVisibility / SetGridOverrides into
+    // the settings object, stored by the frame's idle pass): writing it here
+    // too flipped it straight back.
+    expect(ids).not.toContain('toggleGrid');
+    expect(ids).not.toContain('toggleGridOverrides');
   });
 
   it('folds exactly the toolbar ids whose lit state IS a stored setting', () => {

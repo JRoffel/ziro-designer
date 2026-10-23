@@ -26,7 +26,7 @@ const SRC = fileURLToPath(new URL('../../../designer/src', import.meta.url));
 
 /** Every file in the app that owns a canvas and handles a wheel event. */
 const CANVASES = [
-  'editors/symbol/SymbolCanvas.tsx',
+  // (The symbol editor left this list on 10-23: its canvas is the schematic's SCH_DRAW_PANEL.)
   // (The board editor's frame is not here: its canvas is PCB_DRAW_PANEL_GAL,
   // whose own WX_VIEW_CONTROLS takes the wheel and the drag gestures, as
   // upstream - see the last test. The footprint frames are PCB_DRAW_PANEL_GALs
@@ -182,28 +182,12 @@ describe('shared view controls', () => {
     (c) => c !== '../../common/widgets/preview_view_controls.ts',
   );
 
-  it('every editing canvas holds its own m_panTimer', () => {
-    // One, and the preview panes are the second CANVAS. If that count moves,
-    // read the block comment above before changing the number. GerbView left
-    // this list when it moved onto EDA_DRAW_PANEL_GAL, pl_editor after it, the
-    // board editor after that (#636 stage 3), the footprint frames, and the schematic when its
-    // old canvas went (KiCad's SCH_DRAW_PANEL took over): their autopan is WX_VIEW_CONTROLS' own,
-    // not a canvas's copy.
-    expect(AUTOPAN_CANVASES).toHaveLength(1);
-  });
-
-  it.each(AUTOPAN_CANVASES)('%s runs handleAutoPanning on motion', (rel) => {
-    const src = read(rel);
-    expect(src, `${rel} builds no autopanner`).toContain('makeAutoPan(');
-    expect(src, `${rel} never calls motion`).toContain('autoPanRef.current.motion(');
-  });
-
-  it.each(AUTOPAN_CANVASES)('%s gates autopan on a tool having something in flight', (rel) => {
-    // `m_autoPanEnabled` is the tools' half of the condition. A canvas that
-    // passed `enabled: () => true` would autopan on an idle hover, which
-    // KiCad never does.
-    const src = read(rel);
-    expect(src, `${rel} autopans on any hover`).not.toMatch(/enabled:\s*\(\)\s*=>\s*true/);
+  it('no editing canvas holds an m_panTimer of its own', () => {
+    // GerbView left this list when it moved onto EDA_DRAW_PANEL_GAL, pl_editor after it, the
+    // board editor after that (#636 stage 3), the footprint frames, the schematic when its old
+    // canvas went (KiCad's SCH_DRAW_PANEL took over), and the symbol editor last (10-23): their
+    // autopan is WX_VIEW_CONTROLS' own, not a canvas's copy.
+    expect(AUTOPAN_CANVASES).toEqual([]);
   });
 
   it('the drag-zoom step is the shared exp(), not a literal', () => {
@@ -244,8 +228,11 @@ describe('shared view controls', () => {
     }
   });
 
-  it('the board editor has no wheel or pan gesture of its own: WX_VIEW_CONTROLS has them', () => {
-    const src = read('../../pcbnew/pcb_edit_frame_ui.tsx');
+  it.each([
+    '../../pcbnew/pcb_edit_frame_ui.tsx',
+    '../../eeschema/symbol_editor/symbol_edit_frame_ui.tsx',
+  ])('%s has no wheel or pan gesture of its own: WX_VIEW_CONTROLS has them', (rel) => {
+    const src = read(rel);
     expect(src).not.toMatch(/addEventListener\('wheel'/);
     expect(src).not.toContain('wheelAction(');
     expect(src).not.toContain('makeAutoPan(');

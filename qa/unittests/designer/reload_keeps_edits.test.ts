@@ -297,11 +297,14 @@ describe('the manager raises an open project; it does not re-open it', () => {
     // a warm frame survives the session's first real open. The key is the
     // rows and file names, not the text an autosave rewrites.
     {
-      const { code, deps } = effectAround(SYM, 'manager.current.dropProjectLibraries()');
-      expect(deps, 'symbol').toBe('[projectLibsKey]');
-      expect(code, 'symbol').toMatch(
-        /setCurLib\(\(lib\) => \(lib && !manager\.current\.libraryExists\(lib\) \? null : lib\)\)/,
-      );
+      const { code, deps } = effectAround(SYM, 'frame.SyncLibraries(false);');
+      expect(deps, 'symbol').toBe('[projectKey, projectName, frame]');
+      expect(code, 'symbol').toContain('adapter.LoadOne(row.Nickname())');
+      // The key is the names and the table, not a file's text: an autosave that
+      // rewrites a schematic must not re-read every library.
+      const key = SYM.slice(SYM.indexOf('const projectKey'), SYM.indexOf('}, [initialProject]);'));
+      expect(key).toContain('projectSymLibTablePath(files)');
+      expect(key).not.toMatch(/\.text\.length/);
     }
     {
       // The footprint frame's libraries: the store and the frame are one per
@@ -311,10 +314,6 @@ describe('the manager raises an open project; it does not re-open it', () => {
       expect(deps, 'footprint').toBe('[projectLibsKey, store, frame]');
       expect(code, 'footprint').toMatch(/frame\.SyncLibraryTree\(true\)/);
     }
-    expect(SYM).toMatch(
-      /const projectLibsKey = useMemo\([\s\S]*?\$\{row\.name\}\\t\$\{file\.name\}/,
-    );
-    expect(SYM).not.toMatch(/projectLibsKey[\s\S]{0,400}file\.text/);
     expect(APP).not.toMatch(/<SymbolEditor\s+key=/);
     expect(APP).not.toMatch(/<FootprintEditor\s+key=/);
   });

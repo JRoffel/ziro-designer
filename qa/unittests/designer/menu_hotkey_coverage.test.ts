@@ -138,13 +138,11 @@ const MODIFIER_EXCEPTIONS: Readonly<Record<string, readonly string[]>> = {
     // holding one textarea, and the board's real DialogTextProperties opens for
     // both paths now. A shared dialog's keys are the shared dialog's business.)
   ],
-  '../../eeschema/symbol_editor/symbol_edit_frame_ui.tsx': [
-    'const plain = !e.ctrlKey && !e.metaKey && !e.altKey;',
-    // The library tree's Ctrl+D. `SCH_ACTIONS::duplicateSymbol`
-    // (sch_actions.cpp:208-212) declares no hotkey and has no row in this
-    // frame, so it is a context action with nowhere else to live.
-    "if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {",
-  ],
+  // The Symbol Editor left this table on 10-23: the live window's one key
+  // listener is the shared menu-accelerator dispatch, which tests no modifier
+  // itself. Its canvas keys are TOOL_DISPATCHER's, through ACTION_MANAGER's
+  // hotkeys, and the tree's invented Ctrl+D went with the record window -
+  // `SCH_ACTIONS::duplicateSymbol` (sch_actions.cpp:208-212) declares none.
   /**
    * The schematic keeps the most of any frame, and it is the one frame where
    * that is *not* a smell: it owns `editors/schematic/hotkeys.ts`, a registry
@@ -461,19 +459,10 @@ const CANVAS_KEYS: Readonly<
       ['P place pin', /k === 'p'/],
       ['T place text', /k === 't'/],
     ],
-    kept: [
-      // SCH_ACTIONS::rotateCCW / rotateCW and mirrorH / mirrorV - R, Shift+R,
-      // X, Y. Bare Y is mirrorV and Ctrl+Y is Redo; `plain` is what keeps them
-      // apart now that the second lives on its row.
-      ['R rotate', /k === 'r'/],
-      ['X mirror', /k === 'x'/],
-      ['Y mirror', /k === 'y'/],
-      // SCH_ACTIONS::properties (E) on one selected item.
-      ['E properties', /k === 'e' && selection\.size === 1/],
-      ['Esc cancel', /e\.key === 'Escape'/],
-      // The library tree's Ctrl+D (duplicate), which has no row.
-      ['tree Ctrl+D', /onDuplicate\(treeSel\.lib, treeSel\.name\)/],
-    ],
+    // R, Shift+R, X, Y, E and Esc are SCH_ACTIONS' own hotkeys now, dispatched by the
+    // canvas's TOOL_DISPATCHER as upstream's are; the tree's Ctrl+D went with the
+    // record window. The window keeps no canvas key of its own.
+    kept: [],
   },
   '../../eeschema/sch_edit_frame_ui.tsx': {
     // Matched on each arm's own comment where it had one: the comment names the

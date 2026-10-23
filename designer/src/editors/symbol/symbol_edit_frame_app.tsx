@@ -23,7 +23,8 @@ import { PreferencesDialog } from '../../dialogs/PreferencesDialog.js';
 import { OpenFileDialog } from '../../fs/OpenFileDialog.js';
 import { HomeLink } from '../../ui/HomeLink.js';
 import { LibraryLoadingPanel } from '../../widgets/library_loading_panel.js';
-import { SymbolCanvas } from './SymbolCanvas.js';
+import { FootprintChooserFrame } from '../pcb/dialogs/footprint_chooser_frame.js';
+import { loadFootprintIndex } from '../../widgets/footprint_list.js';
 import { SymbolEditor } from '@ziroeda/eeschema/symbol_editor/symbol_edit_frame_ui.js';
 
 /** One object per mount; every member is stable across renders. */
@@ -41,7 +42,9 @@ export function useSymbolEditFrameApp(): SYMBOL_EDIT_FRAME_APP {
 
       useToolbarEntries,
 
-      SymbolCanvas,
+      FootprintChooserFrame: (props) => (
+        <FootprintChooserFrame {...props} loadFootprintIndex={loadFootprintIndex} />
+      ),
       PreferencesDialog: (props) => <PreferencesDialog {...props} />,
       HomeLink: (props) => <HomeLink {...props} />,
       OpenFileDialog: (props) => <OpenFileDialog {...props} />,

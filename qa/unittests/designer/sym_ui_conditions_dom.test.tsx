@@ -25,11 +25,30 @@
  * `m_symbol` loaded without a library server behind it.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, waitFor } from '@testing-library/react';
-import { parse } from '@ziroeda/sexpr';
-import { readSymbolLib } from '@ziroeda/eeschema';
-import type { LibSymbol } from '@ziroeda/eeschema/types.js';
+import { act, fireEvent, render, waitFor } from '@testing-library/react';
+import { PGM_BASE, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
 import { SymbolEditorMount as SymbolEditor } from '@ziroeda/designer/src/editors/symbol/symbol_edit_frame_app.js';
+import { settings as appSettings } from '@ziroeda/designer/src/prefs/settings.js';
+import { FRAME_T } from '@ziroeda/common/frame_type.js';
+import { KIWAY } from '@ziroeda/common/kiway.js';
+import { ACTIONS } from '@ziroeda/common/tool/actions.js';
+import type { SYMBOL_EDIT_FRAME } from '@ziroeda/eeschema/symbol_editor/symbol_edit_frame.js';
+
+// No WebGL here: the canvas is the tool harness's stand-in, which is what the frame's tools need
+// (SYMBOL_EDIT_FRAME::setupTools runs on it), and the font atlas is not fetched.
+vi.mock('@ziroeda/common/gal/gal_window.js', async (orig) => ({
+  ...(await orig<typeof import('@ziroeda/common/gal/gal_window.js')>()),
+  loadBitmapFontImage: () => Promise.resolve({} as ImageBitmap),
+}));
+vi.mock('@ziroeda/eeschema/browser/sch_canvas.js', async () => {
+  const { schToolHarness } = await import('../eeschema/support/sch_tool_harness.js');
+  return {
+    createSchDrawPanel: (aFrame: NonNullable<Parameters<typeof schToolHarness>[0]>) => {
+      schToolHarness(aFrame);
+      return aFrame.GetCanvas();
+    },
+  };
+});
 
 /**
  * `R` is a root symbol with an EMPTY Datasheet field; `R_Small` extends it and
@@ -73,12 +92,6 @@ const LIB = `(kicad_symbol_lib (version 20241209) (generator "qa")
       (stroke (width 0.254) (type default)) (fill (type none))))
   )
 )`;
-const SYMS = new Map(readSymbolLib(parse(LIB)).map((s) => [s.libId, s]));
-const sym = (name: string): LibSymbol => {
-  const s = SYMS.get(name);
-  if (!s) throw new Error(`no symbol ${name}`);
-  return s;
-};
 
 /**
  * Every toolbar button's tooltip mapped to whether it renders disabled.
@@ -105,6 +118,7 @@ const buttons = (root: HTMLElement): Record<string, boolean> => {
 };
 
 beforeEach(() => {
+  SetPgm(new PGM_BASE(null, new SETTINGS_MANAGER()));
   // The frame asks the dev server for the installed symbol libraries on mount.
   // There is no server here; without this the suite prints an ECONNREFUSED
   // stack per test. The reply is a 404, which is the "no libraries" path.
@@ -112,7 +126,10 @@ beforeEach(() => {
     Promise.resolve(new Response('', { status: 404, statusText: 'Not Found' })),
   );
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  SetPgm(null);
+});
 
 describe('a cold SYMBOL_EDIT_FRAME', () => {
   it('greys what upstream greys with no symbol loaded', async () => {
@@ -187,7 +204,9 @@ const openOn = async (
   const { container, unmount } = render(
     <SymbolEditor
       onExitToHome={() => {}}
-      schematicSymbol={{ symbol: sym(name), unit: 1, bodyStyle: 1, nonce: 1 }}
+      projectName="p"
+      initialProject={PROJECT}
+      request={{ library: { libId: `Device:${name}`, unit: 1, bodyStyle: 1 }, nonce: 1 }}
     />,
   );
   // The load is async (the manager resolves the library first), so the first
@@ -342,7 +361,7 @@ const openProject = async (): Promise<{
   unmount: () => void;
 }> => {
   const { container, unmount } = render(
-    <SymbolEditor onExitToHome={() => {}} initialProject={PROJECT} />,
+    <SymbolEditor onExitToHome={() => {}} projectName="p" initialProject={PROJECT} />,
   );
   const rows = (): HTMLElement[] =>
     Array.from(container.querySelectorAll('.ze-libtree-row')) as HTMLElement[];
@@ -557,7 +576,9 @@ describe('the whole top bar, against a captured KiCad', () => {
     const { container, unmount } = render(
       <SymbolEditor
         onExitToHome={() => {}}
-        schematicSymbol={{ symbol: sym('R'), unit: 1, bodyStyle: 1, nonce: 1 }}
+        projectName="p"
+        initialProject={PROJECT}
+        request={{ library: { libId: 'Device:R', unit: 1, bodyStyle: 1 }, nonce: 1 }}
       />,
     );
     await waitFor(() => expect(topBar(container)['Rotate clockwise']).toBe(false));
@@ -646,7 +667,9 @@ describe('m_SyncPinEdit', () => {
     const { container, unmount } = render(
       <SymbolEditor
         onExitToHome={() => {}}
-        schematicSymbol={{ symbol: sym('U_dual'), unit: 1, bodyStyle: 1, nonce: 1 }}
+        projectName="p"
+        initialProject={PROJECT}
+        request={{ library: { libId: 'Device:U_dual', unit: 1, bodyStyle: 1 }, nonce: 1 }}
       />,
     );
     await waitFor(() => expect(topBar(container)[SYNC]).toBe(false));
@@ -672,7 +695,9 @@ describe('m_SyncPinEdit', () => {
     const { container, unmount } = render(
       <SymbolEditor
         onExitToHome={() => {}}
-        schematicSymbol={{ symbol: sym('R'), unit: 1, bodyStyle: 1, nonce: 1 }}
+        projectName="p"
+        initialProject={PROJECT}
+        request={{ library: { libId: 'Device:R', unit: 1, bodyStyle: 1 }, nonce: 1 }}
       />,
     );
     await waitFor(() => expect(topBar(container)['Rotate clockwise']).toBe(false));
@@ -682,23 +707,26 @@ describe('m_SyncPinEdit', () => {
   });
 
   /**
-   * `IsRoot()`. `U_derived` extends `U_dual`, so it is multi-unit AND unlocked
-   * and only the first conjunct of :968 rules it out. Note the asymmetry with
-   * the ENABLE beside it: `multiUnitModeCond` (:609-613) has no `IsRoot()`
-   * test, so upstream leaves this button LIVE on a derived multi-unit symbol
-   * while `SetCurSymbol` leaves the mode itself off.
+   * `U_derived` extends `U_dual`, but `IsMultiUnit()` reads the symbol's own
+   * `m_unitCount > 1` (lib_symbol.h:828), not `GetUnitCount()`, and a derived
+   * symbol's count is the parser's 1 (sch_io_kicad_sexpr_parser.cpp:331) -
+   * nothing on the `extends` path raises it. So `multiUnitModeCond` (:609-613)
+   * is false and the button is dead, and :968 leaves the mode off. The record
+   * model resolved the count through the parent and left the button live.
    */
-  it('stays off for a DERIVED multi-unit symbol, which is still enabled', async () => {
+  it('stays off, and dead, for a DERIVED symbol of a multi-unit parent', async () => {
     const { container, unmount } = render(
       <SymbolEditor
         onExitToHome={() => {}}
-        schematicSymbol={{ symbol: sym('U_derived'), unit: 1, bodyStyle: 1, nonce: 1 }}
+        projectName="p"
+        initialProject={PROJECT}
+        request={{ library: { libId: 'Device:U_derived', unit: 1, bodyStyle: 1 }, nonce: 1 }}
       />,
     );
     await waitFor(() => expect(topBar(container)['Rotate clockwise']).toBe(false));
     const state = { pressed: pressed(container, SYNC), disabled: topBar(container)[SYNC] };
     unmount();
-    expect(state).toEqual({ pressed: 'false', disabled: false });
+    expect(state).toEqual({ pressed: 'false', disabled: true });
   });
 
   /**
@@ -714,17 +742,23 @@ describe('m_SyncPinEdit', () => {
     const { container, rerender, unmount } = render(
       <SymbolEditor
         onExitToHome={() => {}}
-        schematicSymbol={{ symbol: sym('U_dual'), unit: 1, bodyStyle: 1, nonce: 1 }}
+        projectName="p"
+        initialProject={PROJECT}
+        request={{ library: { libId: 'Device:U_dual', unit: 1, bodyStyle: 1 }, nonce: 1 }}
       />,
     );
     await waitFor(() => expect(pressed(container, SYNC)).toBe('true'));
     rerender(
       <SymbolEditor
         onExitToHome={() => {}}
-        schematicSymbol={{ symbol: sym('R'), unit: 1, bodyStyle: 1, nonce: 2 }}
+        projectName="p"
+        initialProject={PROJECT}
+        request={{ library: { libId: 'Device:R', unit: 1, bodyStyle: 1 }, nonce: 2 }}
       />,
     );
-    await waitFor(() => expect(topBar(container)['Edit pins in a table']).toBe(false));
+    // R is loaded once the button dies (single-unit); U_dual left the tables live too, so
+    // waiting on those would read the first symbol.
+    await waitFor(() => expect(topBar(container)[SYNC]).toBe(true));
     const state = { pressed: pressed(container, SYNC), disabled: topBar(container)[SYNC] };
     unmount();
     expect(state).toEqual({ pressed: 'false', disabled: true });
@@ -734,7 +768,9 @@ describe('m_SyncPinEdit', () => {
     const { container, unmount } = render(
       <SymbolEditor
         onExitToHome={() => {}}
-        schematicSymbol={{ symbol: sym('U_locked'), unit: 1, bodyStyle: 1, nonce: 1 }}
+        projectName="p"
+        initialProject={PROJECT}
+        request={{ library: { libId: 'Device:U_locked', unit: 1, bodyStyle: 1 }, nonce: 1 }}
       />,
     );
     await waitFor(() => expect(topBar(container)['Rotate clockwise']).toBe(false));
@@ -743,6 +779,15 @@ describe('m_SyncPinEdit', () => {
     expect(state).toEqual({ pressed: 'false', disabled: true });
   });
 });
+
+/**
+ * Upstream's frame has its canvas and tools from the constructor; ours builds them once the font
+ * atlas resolves, so a test that clicks a tool first lets that settle.
+ */
+const toolsReady = (): Promise<void> =>
+  act(async () => {
+    await new Promise((r) => setTimeout(r, 0));
+  });
 
 describe('the Zoom to Selection Area button', () => {
   /**
@@ -754,8 +799,9 @@ describe('the Zoom to Selection Area button', () => {
    * rather than being a live button wired to nothing, which is the failure the
    * static `disabled: true` was hiding.
    */
-  it('arms the tool rather than zooming, and says so in field 6', () => {
+  it('arms the tool rather than zooming, and says so in field 6', async () => {
     const { container, getByTestId, unmount } = render(<SymbolEditor onExitToHome={() => {}} />);
+    await toolsReady();
     const before = getByTestId('sym-tool-msg').textContent;
     const bar = container.querySelector('.ze-toolbar.horizontal');
     const btn = Array.from(bar?.querySelectorAll('button') ?? []).find(
@@ -799,8 +845,9 @@ describe('status-bar field 6, the Current Tool pane', () => {
    * All three states in one test, because "blank at the start" alone would
    * pass against a field that is blank forever.
    */
-  it('is blank until a tool is armed, then names it, then names Select', () => {
+  it('is blank until a tool is armed, then names it, then names Select', async () => {
     const { container, getByTestId, unmount } = render(<SymbolEditor onExitToHome={() => {}} />);
+    await toolsReady();
     const field = (): string => getByTestId('sym-tool-msg').textContent ?? '';
     const press = (title: string): void => {
       const bar = container.querySelector('.ze-toolbar.horizontal');
@@ -823,5 +870,79 @@ describe('status-bar field 6, the Current Tool pane', () => {
       armed: 'Zoom to Selection Area',
       back: 'Select item(s)',
     });
+  });
+});
+
+describe('Show Grid on the left toolbar', () => {
+  /**
+   * `ACTIONS::toggleGrid` is COMMON_TOOLS::ToggleGrid -> SetGridVisibility, which writes
+   * `m_Window.grid.show` into the frame's settings object; the frame's idle pass stores it in
+   * `symbol_editor.json`. Once: the window also persisting it flipped it straight back.
+   */
+  it('flips window.grid.show in the file, once per click', async () => {
+    const { container, unmount } = render(<SymbolEditor onExitToHome={() => {}} />);
+    await toolsReady();
+    const before = appSettings.symbolEditor.window.grid.show;
+    const btn = Array.from(container.querySelectorAll('button')).find(
+      (b) => b.getAttribute('title')?.split('\t')[0]?.split('\n')[0] === 'Show Grid',
+    );
+    if (!btn) throw new Error('no Show Grid button');
+    fireEvent.click(btn);
+    const once = appSettings.symbolEditor.window.grid.show;
+    fireEvent.click(btn);
+    const twice = appSettings.symbolEditor.window.grid.show;
+    unmount();
+    expect({ once, twice }).toEqual({ once: !before, twice: before });
+  });
+});
+
+describe('Find on the top toolbar', () => {
+  /**
+   * `ACTIONS::find` is SCH_FIND_REPLACE_TOOL::FindAndReplace, which asks
+   * SCH_BASE_FRAME::ShowFindReplaceDialog for the modeless DIALOG_SCH_FIND - one dialog for both
+   * frames, mounted by the window that owns the frame.
+   */
+  it('opens the shared Find dialog', async () => {
+    const { container, unmount } = render(<SymbolEditor onExitToHome={() => {}} />);
+    await toolsReady();
+    const btn = Array.from(container.querySelectorAll('.ze-toolbar.horizontal button')).find(
+      (b) => b.getAttribute('title')?.split('\t')[0]?.split('\n')[0] === 'Find',
+    );
+    if (!btn) throw new Error('no Find button');
+    const before = document.body.textContent?.includes('Search for:') ?? false;
+    fireEvent.click(btn);
+    const after = document.body.textContent?.includes('Search for:') ?? false;
+    unmount();
+    expect({ before, after }).toEqual({ before: false, after: true });
+  });
+});
+
+describe('a tool armed from the canvas', () => {
+  /**
+   * A hotkey reaches the tool through the canvas's TOOL_DISPATCHER, not through the window, so
+   * nothing re-renders the toolbar but the frame telling it: TOOLS_HOLDER::PushTool, and upstream's
+   * update-UI reading CurrentTool( zoomTool ).
+   */
+  it('lights its button without a toolbar click', async () => {
+    const kiway = new KIWAY({
+      OnKiCadExit: () => {},
+      Player: () => true,
+      HasProjectManager: () => true,
+      ShowProjectManager: () => {},
+      CreateKiWindow: () => false,
+    });
+    const { container, unmount } = render(<SymbolEditor onExitToHome={() => {}} kiway={kiway} />);
+    await toolsReady();
+    const frame = kiway.GetPlayerFrame(FRAME_T.FRAME_SCH_SYMBOL_EDITOR) as SYMBOL_EDIT_FRAME;
+    const btn = Array.from(container.querySelectorAll('.ze-toolbar.horizontal button')).find(
+      (b) => b.getAttribute('title')?.split('\t')[0]?.split('\n')[0] === 'Zoom to Selection Area',
+    )!;
+    const before = btn.getAttribute('aria-pressed');
+    act(() => {
+      frame.GetToolManager()!.RunAction(ACTIONS.zoomTool);
+    });
+    const after = btn.getAttribute('aria-pressed');
+    unmount();
+    expect({ before, after }).toEqual({ before: 'false', after: 'true' });
   });
 });

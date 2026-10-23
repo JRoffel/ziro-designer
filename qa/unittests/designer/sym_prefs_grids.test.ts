@@ -33,7 +33,6 @@ import {
   SYMBOL_EDITOR_DEFAULTS,
   type SymbolEditorSettings,
 } from '@ziroeda/eeschema/symbol_editor/symbol_editor_settings.js';
-import { symbolGridForTool, symbolGridIU } from '@ziroeda/eeschema/symbol_editor/grid.js';
 import { DEFAULT_GRID_INDEX, GRID_SIZE_LIST } from '@ziroeda/common/settings/grid_settings_ui.js';
 import { OVERRIDE_ROWS } from '@ziroeda/common/dialogs/panel_grid_settings.js';
 
@@ -50,11 +49,11 @@ describe('symbol_editor.json', () => {
     // alongside `eeschema` in the branch that sets `defaultGridIdx = 1`, and
     // the installed build's file agrees: `"last_size": 1`.
     expect(SYMBOL_EDITOR_DEFAULTS.window.grid.last_size_idx).toBe(1);
-    expect(symbolGridIU()).toBe(gridSizeToIU('50 mil'));
+    const def = SYMBOL_EDITOR_DEFAULTS.window.grid;
+    expect(gridSizeToIU(def.sizes[def.last_size_idx]!.x)).toBe(gridSizeToIU('50 mil'));
     // 50 mil in eeschema IU (100 nm), which is what `symbolRenderer.ts`'
-    // `GRID = 1.27 * MM` was. The move from constant to setting must not have
-    // changed what a fresh profile snaps to.
-    expect(symbolGridIU()).toBe(12700);
+    // `GRID = 1.27 * MM` was: a fresh profile snaps where it always did.
+    expect(gridSizeToIU('50 mil')).toBe(12700);
   });
 
   it('carries DefaultGridSizeList()’s symbol_editor row, asked not restated', () => {
@@ -86,126 +85,23 @@ describe('symbol_editor.json', () => {
   it('is its own file, not a slice of eeschema’s', () => {
     // The mistake this replaces: the canvas read `settings.eeschema.window.*`,
     // which made every control on the Symbol Editor's Display Options page a
-    // second set of switches over the SCHEMATIC's file.
-    const canvas = read('editors/symbol/SymbolCanvas.tsx');
-    expect(canvas).not.toContain('settings.eeschema');
-    expect(canvas).toContain('settings.symbolEditor.window.cursor');
+    // second set of switches over the SCHEMATIC's file. The live frame's
+    // config() is SYMBOL_EDITOR_SETTINGS, loaded from symbol_editor.json
+    // (eeschema/symbol_edit_frame_grid_live.test.ts drives it).
     const frame = read('../../eeschema/symbol_editor/symbol_edit_frame_ui.tsx');
     expect(frame).not.toContain('settings.eeschema');
+    expect(read('../../eeschema/symbol_editor/symbol_edit_frame.ts')).toContain(
+      'return symbolEditorKifaceSettings();',
+    );
   });
 });
 
 // ------------------------------------------------------------------- the reader
-
-describe('symbolGridIU: which grid the frame is on', () => {
-  it('follows the current-grid selection', () => {
-    const c = cfg();
-    c.window.grid.last_size_idx = 0;
-    expect(symbolGridIU(c)).toBe(gridSizeToIU('100 mil'));
-    c.window.grid.last_size_idx = 3;
-    expect(symbolGridIU(c)).toBe(gridSizeToIU('10 mil'));
-  });
-
-  it('follows a grid the user edited, not just the stock list', () => {
-    const c = cfg();
-    c.window.grid.sizes[1] = { name: 'mine', x: '0.4 mm', y: '0.4 mm' };
-    expect(symbolGridIU(c)).toBe(gridSizeToIU('0.4 mm'));
-  });
-
-  it('clamps an index that outlived its row, as safeGrid does', () => {
-    // `PANEL_GRID_SETTINGS::safeGrid` (`panel_grid_settings.cpp:232-243`).
-    // Remove the last grid with the selection on it and the index points past
-    // the end; a frame that read `undefined` would snap to nothing at all.
-    const c = cfg();
-    c.window.grid.last_size_idx = 99;
-    expect(symbolGridIU(c)).toBe(gridSizeToIU('10 mil'));
-    c.window.grid.last_size_idx = -1;
-    expect(symbolGridIU(c)).toBe(gridSizeToIU('100 mil'));
-  });
-});
-
-describe('symbolGridForTool: EE_GRID_HELPER::GetItemGrid, by tool', () => {
-  /** A config whose four overrides are distinguishable from each other. */
-  const marked = (): SymbolEditorSettings => {
-    const c = cfg();
-    c.window.grid.last_size_idx = 0; // 100 mil, so `base` is none of the below
-    c.window.grid.overrides = {
-      connected: { enabled: true, size: '50 mil' },
-      wires: { enabled: true, size: '20 mil' },
-      text: { enabled: true, size: '10 mil' },
-      graphics: { enabled: true, size: '25 mil' },
-    };
-    return c;
-  };
-
-  it('puts pins on Connected items', () => {
-    // `SCH_PIN_T -> GRID_CONNECTABLE` (`ee_grid_helper.cpp:375-388`).
-    expect(symbolGridForTool(marked(), 'placePin')).toBe(gridSizeToIU('50 mil'));
-  });
-
-  it('puts text on Text', () => {
-    // `SCH_TEXT_T`, `SCH_FIELD_T -> GRID_TEXT` (`:389-392`).
-    expect(symbolGridForTool(marked(), 'placeText')).toBe(gridSizeToIU('10 mil'));
-  });
-
-  it('puts every drawing tool on Graphics', () => {
-    // `SCH_SHAPE_T`, `SCH_TEXTBOX_T -> GRID_GRAPHICS` (`:393-398`).
-    for (const tool of [
-      'drawRectangle',
-      'drawCircle',
-      'drawArc',
-      'drawSymbolLines',
-      'drawPolygon',
-      'drawSymbolTextBox',
-      'bezier',
-    ])
-      expect(symbolGridForTool(marked(), tool), tool).toBe(gridSizeToIU('25 mil'));
-  });
-
-  it('leaves everything else on the current grid', () => {
-    for (const tool of ['select', 'placeAnchor', 'deleteTool', 'zoomTool', undefined])
-      expect(symbolGridForTool(marked(), tool), String(tool)).toBe(gridSizeToIU('100 mil'));
-  });
-
-  it('never reaches the Wires override, because no LIB_SYMBOL item is on it', () => {
-    // `GRID_WIRES` is reachable only from a connectable `SCH_LINE_T`, a
-    // junction or a bus entry (`ee_grid_helper.cpp:399-411`) — none of which a
-    // symbol contains. The row is still DRAWN, because
-    // `PANEL_GRID_SETTINGS` keeps it for all four schematic frames; that is
-    // upstream's behaviour and the page must not invent a reason to hide it.
-    const wires = gridSizeToIU('20 mil');
-    const tools = [
-      'placePin',
-      'placeText',
-      'drawRectangle',
-      'select',
-      'placeAnchor',
-      'deleteTool',
-      undefined,
-    ];
-    for (const tool of tools) expect(symbolGridForTool(marked(), tool)).not.toBe(wires);
-    expect(OVERRIDE_ROWS.FRAME_SCH_SYMBOL_EDITOR.map(([k]) => k)).toContain('wires');
-  });
-
-  it('ignores every override while toggleGridOverrides is off', () => {
-    // `GRID_HELPER::GetGrid` returns the current grid when overrides are
-    // disabled, whatever the per-item settings say.
-    const c = marked();
-    c.window.grid.overrides_enabled = false;
-    for (const tool of ['placePin', 'placeText', 'drawRectangle'])
-      expect(symbolGridForTool(c, tool), tool).toBe(gridSizeToIU('100 mil'));
-  });
-
-  it('falls back to the current grid for a row that is unticked', () => {
-    const c = marked();
-    c.window.grid.overrides.text.enabled = false;
-    expect(symbolGridForTool(c, 'placeText')).toBe(gridSizeToIU('100 mil'));
-    // and the ticked ones still apply
-    expect(symbolGridForTool(c, 'placePin')).toBe(gridSizeToIU('50 mil'));
-  });
-});
-
-// ------------------------------------------------------- the page, and its wiring
+//
+// Which grid the frame is on, and which an item snaps to, are COMMON_TOOLS' and
+// EE_GRID_HELPER::GetItemGrid's - the machinery every GAL frame shares, pinned in
+// common/common_tools.test.ts and eeschema/ee_grid_helper.test.ts - fed from this
+// file by the frame's settings object (eeschema/symbol_edit_frame_grid_live.test.ts).
 
 describe('the page is the shared panel, constructed for this frame', () => {
   const PAGE = 'editors/symbol/prefs/PanelSymbolEditorGrids.tsx';
@@ -228,27 +124,5 @@ describe('the page is the shared panel, constructed for this frame', () => {
     const src = read(PAGE);
     expect(src).toContain('symbolEditor.window.grid');
     expect(src).not.toContain('ctx.eeschema');
-  });
-
-  it('the frame draws the grid the setting names, not the module constant', () => {
-    // The whole point. `sizeIU: GRID` in the renderer is what made the page
-    // decorative; it is now `opts.gridSizeIU ?? GRID`, and the frame supplies
-    // it. Checked as source text because there is no canvas here to render on.
-    const renderer = read('../../eeschema/symbol_editor/symbol_renderer.ts');
-    expect(renderer).toContain('sizeIU: opts.gridSizeIU ?? GRID');
-    const frame = read('../../eeschema/symbol_editor/symbol_edit_frame_ui.tsx');
-    expect(frame).toContain('gridSizeIU: symbolGridIU(symCfg)');
-    // and the status bar's grid pane, which is EDA_DRAW_FRAME::DisplayGridMsg
-    expect(frame).toContain('gridMsg(fmt(symbolGridIU(symCfg)))');
-    expect(frame).not.toContain('gridMsg(fmt(GRID))');
-  });
-
-  it('the canvas snaps on it too', () => {
-    const canvas = read('editors/symbol/SymbolCanvas.tsx');
-    expect(canvas).toContain('symbolGridForTool(symCfg, activeTool)');
-    // The old module-level import is gone: a canvas that still took `snap`
-    // from `edits.js` would snap on the current grid whatever the overrides
-    // said, which is exactly half a wiring.
-    expect(canvas).not.toMatch(/^\s*snap,$/m);
   });
 });
