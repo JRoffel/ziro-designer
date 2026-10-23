@@ -397,7 +397,6 @@ describe('SCH_EDITOR_CONTROL', () => {
     h.frame.SetKiway(kiway);
     const symEditor = new SYMBOL_EDIT_FRAME({
       libEdit: () => {},
-      loadSymbolFromSchematic: (aSymbol) => calls.push(['fromSchematic', aSymbol]),
       isLibraryTreeShown: () => false,
       toggleLibraryTree: () => calls.push(['toggleTree']),
     });
@@ -407,6 +406,9 @@ describe('SCH_EDITOR_CONTROL', () => {
       calls.push(['library', aLibId.Format(), aUnit, aBodyStyle]);
       return Promise.resolve(true);
     }) as typeof symEditor.LoadSymbol;
+    symEditor.LoadSymbolFromSchematic = (aSymbol: SCH_SYMBOL) => {
+      calls.push(['fromSchematic', aSymbol]);
+    };
     kiway.SetPlayerFrame(FRAME_T.FRAME_SCH_SYMBOL_EDITOR, symEditor);
     const symbol = [...h.frame.GetScreen()!.Items().OfType(KICAD_T.SCH_SYMBOL_T)][0] as SCH_SYMBOL;
     h.sel.AddItemToSel(symbol, true);

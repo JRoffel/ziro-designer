@@ -70,6 +70,8 @@ import { SYMBOL_EDITOR_IMPORT_EXPORT_MIXIN } from './symbol_editor_import_export
 import { applyMixins } from '@ziroeda/core/mixins.js';
 import { LIB_ID } from '@ziroeda/common/lib_id.js';
 import type { SCH_SYMBOL } from '../sch_symbol.js';
+import { SCH_FIELD } from '../sch_field.js';
+import { SYMBOL_ORIENTATION_T } from '../symbol.js';
 import {
   currentSymbolEditorSettings,
   symbolEditorKifaceSettings,
@@ -91,10 +93,10 @@ export interface SYMBOL_EDIT_FRAME_HOOKS {
    */
   libEdit(aUri: string): void;
   /**
-   * `LoadSymbolFromSchematic( aSymbol )` (symbol_edit_frame.cpp): open a schematic symbol's
-   * library symbol for editing in place. The window's symbol editor does it.
+   * `m_auimgr.GetPane( m_treePane ).Show( aShow ); m_auimgr.Update()`: the tree pane shown or
+   * hidden directly, not as a user toggle (LoadSymbolFromSchematic's auto-hide).
    */
-  loadSymbolFromSchematic?(aSymbol: SCH_SYMBOL): void;
+  showLibraryTreePane?(aShow: boolean): void;
   /**
    * `Kiway().Player( FRAME_SCH, false )->SaveSymbolToSchematic( *m_symbol, uuid )`: the edited
    * symbol back into the open schematic. False when no schematic editor is open.
@@ -919,9 +921,132 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
     return currentSymbolEditorSettings().show_hidden_lib_pins;
   }
 
-  /** `LoadSymbolFromSchematic( aSymbol )`: the window's editor opens it. */
+  /** `m_libTreeAutoHiddenForSchematicEdit`: the tree was hidden for a schematic edit. */
+  m_libTreeAutoHiddenForSchematicEdit = false;
+
+  /** `m_reference`: the reference of a symbol from the schematic. */
+  m_reference = '';
+
+  /** `libTreeAutoHiddenForSchematicEdit( aWasFromSchematic, aRestorePending, aTreeShownNow )`. */
+  static libTreeAutoHiddenForSchematicEdit(
+    aWasFromSchematic: boolean,
+    aRestorePending: boolean,
+    aTreeShownNow: boolean,
+  ): boolean {
+    // Auto-hiding a visible tree schedules its restore. A chained schematic edit finds the tree
+    // already auto-hidden, so keep the pending restore rather than dropping it. An explicit user
+    // toggle clears the flag elsewhere, so a tree hidden without a pending restore stays that way.
+    if (aTreeShownNow) return true;
+
+    return aWasFromSchematic && aRestorePending;
+  }
+
+  /**
+   * `LoadSymbolFromSchematic( aSymbol )` (symbol_edit_frame.cpp:1990-2090): the placement's
+   * own library symbol, flattened, with the placement's fields brought back into library space.
+   */
   LoadSymbolFromSchematic(aSymbol: SCH_SYMBOL): void {
-    this.hooks.loadSymbolFromSchematic?.(aSymbol);
+    const libSymbolRef = aSymbol.GetLibSymbolRef();
+
+    if (!libSymbolRef) return; // wxCHECK( symbol )
+
+    const symbol = libSymbolRef.Flatten();
+
+    symbol.SetLibId(aSymbol.GetLibId());
+
+    // Take in account the symbol orientation and mirroring. to calculate the field
+    // positions in symbol editor (i.e. no rotation, no mirroring)
+    const MIRROR = SYMBOL_ORIENTATION_T.SYM_MIRROR_X | SYMBOL_ORIENTATION_T.SYM_MIRROR_Y;
+    const orientation = aSymbol.GetOrientation() & ~MIRROR;
+    const mirror = aSymbol.GetOrientation() & MIRROR;
+
+    const fullSetOfFields: SCH_FIELD[] = [];
+
+    for (const field of aSymbol.GetFields()) {
+      const symPos = aSymbol.GetPosition();
+      const fieldPos = field.GetPosition();
+      const pos = { x: fieldPos.x - symPos.x, y: fieldPos.y - symPos.y };
+      const libField = new SCH_FIELD(symbol, field.GetId());
+
+      libField.assignField(field);
+
+      // The inverse transform is mirroring before, rotate after
+      switch (mirror) {
+        case SYMBOL_ORIENTATION_T.SYM_MIRROR_X:
+          pos.y = -pos.y;
+          break;
+        case SYMBOL_ORIENTATION_T.SYM_MIRROR_Y:
+          pos.x = -pos.x;
+          break;
+        default:
+          break;
+      }
+
+      switch (orientation) {
+        case SYMBOL_ORIENTATION_T.SYM_ORIENT_90:
+          [pos.x, pos.y] = [-pos.y, pos.x];
+          break;
+        case SYMBOL_ORIENTATION_T.SYM_ORIENT_270:
+          [pos.x, pos.y] = [pos.y, -pos.x];
+          break;
+        case SYMBOL_ORIENTATION_T.SYM_ORIENT_180:
+          pos.x = -pos.x;
+          pos.y = -pos.y;
+          break;
+        default:
+          break;
+      }
+
+      libField.SetPosition(pos);
+
+      fullSetOfFields.push(libField);
+    }
+
+    symbol.SetFields(fullSetOfFields);
+
+    if (this.m_symbol) this.SetCurSymbol(null, false);
+
+    this.m_isSymbolFromSchematic = true;
+    this.m_schematicSymbolUUID = aSymbol.m_Uuid;
+    this.m_reference = symbol.GetReferenceField().GetText();
+    this.m_unit = Math.max(1, aSymbol.GetUnit());
+    this.m_bodyStyle = Math.max(1, aSymbol.GetBodyStyle());
+
+    // Optimize default edit options for this symbol
+    // Usually if units are locked, graphic items are specific to each unit
+    // and if units are interchangeable, graphic items are common to units
+    this.m_toolManager
+      ?.GetTool(SYMBOL_EDITOR_DRAWING_TOOLS)
+      ?.SetDrawSpecificUnit(symbol.UnitsLocked());
+
+    // The buffered screen for the symbol
+    this.SetScreen(new SCH_SCREEN());
+    this.SetCurSymbol(symbol, true);
+    // setSymWatcher( nullptr ): no file watcher on a page.
+
+    this.ReCreateMenuBar();
+    this.RecreateToolbars();
+
+    // Auto-hide the tree while editing a schematic symbol, remembering to restore it in
+    // SaveSettings so the user's preference survives a restart. Hide via the pane directly, not
+    // ToggleLibraryTree, which would treat this as a user toggle and drop the pending restore.
+    this.m_libTreeAutoHiddenForSchematicEdit = SYMBOL_EDIT_FRAME.libTreeAutoHiddenForSchematicEdit(
+      this.m_isSymbolFromSchematic,
+      this.m_libTreeAutoHiddenForSchematicEdit,
+      this.IsLibraryTreeShown(),
+    );
+
+    if (this.IsLibraryTreeShown()) this.hooks.showLibraryTreePane?.(false);
+
+    this.UpdateTitle();
+    this.RebuildSymbolUnitAndBodyStyleLists();
+    this.UpdateSymbolMsgPanelInfo();
+
+    // Let tools add things to the view if necessary
+    this.m_toolManager?.ResetTools(RESET_REASON.MODEL_RELOAD);
+
+    this.GetCanvas()?.GetView().UpdateAllItems(VIEW_UPDATE_FLAGS.ALL);
+    this.GetCanvas()?.Refresh();
   }
 
   /** `IsLibraryTreeShown()`. */
@@ -931,6 +1056,10 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
 
   /** `ToggleLibraryTree()`. */
   override ToggleLibraryTree(): void {
+    // An explicit toggle makes the live visibility authoritative, so drop any pending restore
+    // that LoadSymbolFromSchematic's auto-hide left behind.
+    this.m_libTreeAutoHiddenForSchematicEdit = false;
+
     this.hooks.toggleLibraryTree?.();
   }
 

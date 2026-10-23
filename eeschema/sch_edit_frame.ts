@@ -749,6 +749,74 @@ export class SCH_EDIT_FRAME extends SCH_BASE_FRAME implements SCHEMATIC_HOLDER {
   }
 
   /**
+   * `SaveSymbolToSchematic( aSymbol, aSchematicSymbolUUID )` (sch_edit_frame.cpp:2239-2302): the
+   * symbol editor's edit of a placement's symbol, given to that placement and to every unit
+   * annotated with the same reference.
+   */
+  SaveSymbolToSchematic(aSymbol: LIB_SYMBOL, aSchematicSymbolUUID: KIID): void {
+    const principalPath = new SCH_SHEET_PATH();
+    const sheets = this.Schematic().Hierarchy();
+    const item = sheets.ResolveItem(aSchematicSymbolUUID, principalPath, true);
+    const principalSymbol = item?.Type() === KICAD_T.SCH_SYMBOL_T ? (item as SCH_SYMBOL) : null;
+    const commit = new SCH_COMMIT(this.m_toolManager!);
+
+    if (!principalSymbol) return;
+
+    let principalRef = '';
+
+    if (principalSymbol.IsAnnotated(principalPath))
+      principalRef = principalSymbol.GetRef(principalPath, false);
+
+    const allUnits: [SCH_SYMBOL, SCH_SHEET_PATH][] = [];
+
+    for (const path of sheets) {
+      for (const candidate of path.LastScreen()!.Items().OfType(KICAD_T.SCH_SYMBOL_T)) {
+        const candidateSymbol = candidate as SCH_SYMBOL;
+
+        if (
+          candidateSymbol === principalSymbol ||
+          (candidateSymbol.IsAnnotated(path) &&
+            candidateSymbol.GetRef(path, false) === principalRef)
+        ) {
+          allUnits.push([candidateSymbol, path]);
+        }
+      }
+    }
+
+    for (const [unit, path] of allUnits) {
+      // This needs to be done before the LIB_SYMBOL is changed to prevent stale
+      // library symbols in the schematic file.
+      path.LastScreen()!.Remove(unit);
+
+      if (!unit.IsNew()) commit.Modify(unit, path.LastScreen());
+
+      unit.SetLibSymbol(aSymbol.Flatten());
+      unit.UpdateFields(
+        this.GetCurrentSheet(),
+        true /* update style */,
+        true /* update ref */,
+        true /* update other fields */,
+        false /* reset ref */,
+        false /* reset other fields */,
+      );
+
+      path.LastScreen()!.Append(unit);
+      this.GetCanvas()?.GetView().Update(unit);
+    }
+
+    // Clear any orphaned alternate pins.
+    for (const pin of principalSymbol.GetPins()) {
+      const altName = pin.GetAlt();
+
+      if (altName === '') continue;
+
+      if (!pin.GetAlternates().has(altName)) pin.SetAlt('');
+    }
+
+    if (!commit.Empty()) commit.Push('Save Symbol to Schematic');
+  }
+
+  /**
    * `SCH_EDIT_FRAME::DisplayCurrentSheet` (sch_edit_frame.cpp:2320), as far as the ported tools
    * reach: the find dialog's brightening, the operating-point display and SCH_EDITOR_CONTROL's
    * net-highlight refresh wait for their tools.
