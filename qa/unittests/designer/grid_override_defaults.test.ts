@@ -37,29 +37,25 @@ describe('grid overrides are enabled by default', () => {
     expect(EESCHEMA_DEFAULTS.window.grid.overrides_enabled).toBe(true);
   });
 
-  // A guard against "fixing" this by turning every override on: `true` here
-  // means the override MECHANISM is armed, not that any individual item type
-  // is overridden. Those are separate params and upstream leaves the eeschema
-  // arm's `override_connected` true and the rest false — see the note below.
-  it('but that does not mean every item type is overridden', () => {
-    const { overrides } = EESCHEMA_DEFAULTS.window.grid;
-    expect(overrides.wires.enabled).toBe(false);
-    expect(overrides.text.enabled).toBe(false);
-    expect(overrides.graphics.enabled).toBe(false);
+  // `true` here means the override MECHANISM is armed; each item type is its own param. The
+  // eeschema arm turns connected, wires and text on and leaves graphics off
+  // (app_settings.cpp:499-508), at indices 1, 1, 3 and 2 (:511-520) of the 100/50/25/10 mil
+  // list - and the installed build's eeschema.json says the same. This asserted wires and text
+  // OFF until 10-24, which was our old default rather than the C++'s.
+  it('and which item types are overridden, at which grid', () => {
+    expect(EESCHEMA_DEFAULTS.window.grid.overrides).toEqual({
+      connected: { enabled: true, size: '50 mil' },
+      wires: { enabled: true, size: '50 mil' },
+      text: { enabled: true, size: '10 mil' },
+      graphics: { enabled: false, size: '25 mil' },
+    });
   });
 });
 
 /**
- * KNOWN GAP, deliberately not asserted here.
- *
- * `override_connected` is the parameter the per-editor split above actually
- * changes: `true` for eeschema/symbol_editor (app_settings.cpp:499-500),
- * `false` for every other frame (:525-526). We model ONE global grid block
- * where KiCad has per-frame window settings, so there is no value this file
- * could assert that is right for both. Pinning either one would be pinning
- * half a bug.
- *
- * Same reason `PCBNEW_DEFAULTS` is not checked: our pcbnew settings carry no
- * grid-override block at all, so there is nothing to compare against the
- * `else` arm yet.
+ * KNOWN GAP, deliberately not asserted here: the `else` arm (:523-536), which every frame but
+ * eeschema and the symbol editor takes. Each editor has its own settings slice now, and the
+ * eeschema arm is asserted above (the symbol editor's in symbol_edit_frame_grid_live), but
+ * `PCBNEW_DEFAULTS` carries no grid-override block at all, so there is nothing to compare the
+ * `else` arm against yet.
  */

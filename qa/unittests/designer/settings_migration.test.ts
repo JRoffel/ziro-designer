@@ -143,6 +143,54 @@ describe('v8: the schematic opens on wDark', () => {
     const chosen = s('_builtin_default');
     expect(migrateEeschemaSettings(chosen, 8)).toBe(false);
     expect(chosen.appearance.color_theme).toBe('_builtin_default');
-    expect(SETTINGS_VERSION).toBe(8);
+    expect(SETTINGS_VERSION).toBeGreaterThanOrEqual(8);
+  });
+});
+
+describe('v9: the schematic snaps on KiCad’s grid overrides', () => {
+  const OLD = {
+    connected: { enabled: false, size: '50 mil' },
+    wires: { enabled: false, size: '50 mil' },
+    text: { enabled: false, size: '25 mil' },
+    graphics: { enabled: false, size: '25 mil' },
+  };
+
+  it('is the default for a new user: connected, wires and text on, at 50, 50 and 10 mil', () => {
+    // app_settings.cpp:495-521, and the installed build's own eeschema.json.
+    expect(EESCHEMA_DEFAULTS.window.grid.overrides).toEqual({
+      connected: { enabled: true, size: '50 mil' },
+      wires: { enabled: true, size: '50 mil' },
+      text: { enabled: true, size: '10 mil' },
+      graphics: { enabled: false, size: '25 mil' },
+    });
+  });
+
+  it('moves the stored old default once, and leaves any other choice alone', () => {
+    const v = (aRows: typeof OLD) => {
+      const s = structuredClone(EESCHEMA_DEFAULTS) as EeschemaSettings;
+      s.window.grid.overrides = structuredClone(aRows);
+      return s;
+    };
+    const old = v(OLD);
+    expect(migrateEeschemaSettings(old, 8)).toBe(true);
+    expect(old.window.grid.overrides).toEqual(EESCHEMA_DEFAULTS.window.grid.overrides);
+
+    // Any row changed from the old default is a choice, and stays.
+    for (const key of ['connected', 'wires', 'text', 'graphics'] as const) {
+      const rows = structuredClone(OLD);
+      rows[key] = { ...rows[key], enabled: !rows[key].enabled };
+      const chosen = v(rows);
+      expect(migrateEeschemaSettings(chosen, 8), key).toBe(false);
+      expect(chosen.window.grid.overrides, key).toEqual(rows);
+    }
+    const sized = structuredClone(OLD);
+    sized.text.size = '10 mil';
+    expect(migrateEeschemaSettings(v(sized), 8)).toBe(false);
+
+    // ...and from 9 on the old rows are a choice too.
+    const later = v(OLD);
+    expect(migrateEeschemaSettings(later, 9)).toBe(false);
+    expect(later.window.grid.overrides).toEqual(OLD);
+    expect(SETTINGS_VERSION).toBe(9);
   });
 });

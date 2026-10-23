@@ -1820,7 +1820,7 @@ export const PRIVACY_DEFAULTS: PrivacySettings = {
  * used the app before, a default that was simply wrong has to be rewritten
  * once, here. KiCad's own SETTINGS_MANAGER migrates stored files the same way.
  */
-export const SETTINGS_VERSION = 8;
+export const SETTINGS_VERSION = 9;
 
 /**
  * Where the calculator's custom regulators used to live.
@@ -1991,6 +1991,26 @@ export function migrateEeschemaSettings(s: EeschemaSettings, from: number): bool
   // KiCad Default's light sheet, was stored whole with every slice, so it is moved once here.
   if (from < 8 && s?.appearance?.color_theme === '_builtin_default') {
     s.appearance.color_theme = 'stock:wdark';
+    changed = true;
+  }
+
+  // v9: the grid override rows defaulted all off, text at 25 mil, against KiCad's connected, wires
+  // and text on at 50, 50 and 10 mil (app_settings.cpp:495-521). The default was stored whole, so
+  // the rows are moved once - only where they are still exactly that old default.
+  const ov = s?.window?.grid?.overrides;
+  const was = (aRow: { enabled: boolean; size: string } | undefined, aSize: string) =>
+    !!aRow && aRow.enabled === false && aRow.size === aSize;
+  if (
+    from < 9 &&
+    ov &&
+    was(ov.connected, '50 mil') &&
+    was(ov.wires, '50 mil') &&
+    was(ov.text, '25 mil') &&
+    was(ov.graphics, '25 mil')
+  ) {
+    ov.connected = { enabled: true, size: '50 mil' };
+    ov.wires = { enabled: true, size: '50 mil' };
+    ov.text = { enabled: true, size: '10 mil' };
     changed = true;
   }
 

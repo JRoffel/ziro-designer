@@ -258,12 +258,8 @@ export const SYMBOL_EDITOR_DEFAULTS: SymbolEditorSettings = {
       // and 2 of the four-entry list above — 50 mil, 50 mil, 10 mil, 25 mil.
       // Confirmed against the installed build's own
       // `~/.config/kicad/10.0/symbol_editor.json`, which is the parity target.
-      //
-      // EESCHEMA_DEFAULTS disagrees with its own arm of that same `if`: it has
-      // all four off and text at 25 mil. That is a pre-existing defect in the
-      // schematic's settings, not a difference between the two editors — the
-      // C++ gives them one branch — and it is left alone here rather than
-      // fixed in passing.
+      // EESCHEMA_DEFAULTS carries the same rows: the C++ gives the two editors
+      // one branch.
       overrides: {
         connected: { enabled: true, size: '50 mil' },
         wires: { enabled: true, size: '50 mil' },

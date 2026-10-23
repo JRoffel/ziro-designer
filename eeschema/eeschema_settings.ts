@@ -513,10 +513,14 @@ export const EESCHEMA_DEFAULTS: EeschemaSettings = {
       // (ACTIONS::toggleGridOverrides declares TOOLBAR_STATE::TOGGLE), so the
       // wrong default reads as the wrong button state.
       overrides_enabled: true,
+      // The eeschema/symbol_editor arm of `app_settings.cpp:495-521`: connected, wires and text
+      // ON, graphics OFF, at grid indices 1, 1, 3 and 2 of the list above - 50, 50, 10 and 25
+      // mil - and the installed build's own eeschema.json agrees. Ours had all four off and text
+      // at 25 mil until 10-24; the settings migration v9 moves that stored default once.
       overrides: {
-        connected: { enabled: false, size: '50 mil' },
-        wires: { enabled: false, size: '50 mil' },
-        text: { enabled: false, size: '25 mil' },
+        connected: { enabled: true, size: '50 mil' },
+        wires: { enabled: true, size: '50 mil' },
+        text: { enabled: true, size: '10 mil' },
         graphics: { enabled: false, size: '25 mil' },
       },
     },
