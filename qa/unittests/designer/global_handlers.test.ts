@@ -10,10 +10,7 @@
  * every pointer move must not turn a bug into a flood.
  */
 import { describe, it, expect } from 'vitest';
-import {
-  fromInjectedScript,
-  installGlobalErrorHandlers,
-} from '@ziroeda/designer/src/telemetry/global_handlers.js';
+import { installGlobalErrorHandlers } from '@ziroeda/designer/src/telemetry/global_handlers.js';
 
 interface Captured {
   err: unknown;
@@ -193,21 +190,23 @@ describe("a browser's own injected script", () => {
   });
 
   it('every frame must be injected: one of ours keeps the report', () => {
-    expect(fromInjectedScript(IAB)).toBe(true);
-    expect(fromInjectedScript(withStack('sendDataToNative@iabjs://logger:1:2120'))).toBe(true);
+    const reported = (aStack: string): boolean => {
+      const h = harness();
+      h.target.fire('unhandledrejection', { reason: withStack(aStack) });
+      return h.captured.length === 1;
+    };
+    expect(reported('sendDataToNative@iabjs://logger:1:2120')).toBe(false);
     expect(
-      fromInjectedScript(
-        withStack('fn@moz-extension://abc/content.js:3:4\nfn@chrome-extension://def/x.js:1:1'),
+      reported('fn@moz-extension://abc/content.js:3:4\nfn@chrome-extension://def/x.js:1:1'),
+    ).toBe(false);
+    expect(
+      reported(
+        'Error: x\n    at ours (https://designer.ziroeda.com/assets/a.js:1:2)\n    at iabjs://x:1:2',
       ),
     ).toBe(true);
-    expect(
-      fromInjectedScript(
-        withStack(
-          'Error: x\n    at ours (https://designer.ziroeda.com/assets/a.js:1:2)\n    at iabjs://x:1:2',
-        ),
-      ),
-    ).toBe(false);
-    expect(fromInjectedScript(withStack('Error: no frames at all'))).toBe(false);
-    expect(fromInjectedScript('a string')).toBe(false);
+    expect(reported('Error: no frames at all')).toBe(true);
+    const h = harness();
+    h.target.fire('unhandledrejection', { reason: 'a string' });
+    expect(h.captured.length).toBe(1);
   });
 });

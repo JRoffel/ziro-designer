@@ -57,7 +57,7 @@ const INJECTED_SCRIPT =
  * Whether every frame of \a err's stack is a script the browser injected - an Android in-app
  * browser's `iabjs://` logger, an extension - so nothing of ours is in it to fix.
  */
-export function fromInjectedScript(err: unknown): boolean {
+function fromInjectedScript(err: unknown): boolean {
   if (!(err instanceof Error) || !err.stack) return false;
 
   // "at fn (url:line:col)" (V8) or "fn@url:line:col" (SpiderMonkey, JavaScriptCore).
