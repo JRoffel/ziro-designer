@@ -32,8 +32,6 @@ import {
 import {
   IMPORTED_ARC,
   IMPORTED_CIRCLE,
-  IMPORTED_ELLIPSE,
-  IMPORTED_ELLIPSE_ARC,
   IMPORTED_LINE,
   IMPORTED_SPLINE,
   IMPORTED_TEXT,
@@ -60,6 +58,43 @@ const shapesOf = (plugin: DXF_IMPORT_PLUGIN): IMPORTED_SHAPE[] => {
 /** Reach into a buffered shape's private geometry. */
 const geom = <T>(shape: IMPORTED_SHAPE, field: string): T =>
   (shape as unknown as Record<string, T>)[field] as T;
+
+/** The SPLINE shapes an import produced, with their ends. */
+const splinesOf = (aPlugin: DXF_IMPORT_PLUGIN) =>
+  shapesOf(aPlugin).map((sh) => {
+    expect(sh).toBeInstanceOf(IMPORTED_SPLINE);
+    return {
+      start: geom<{ x: number; y: number }>(sh, 'm_start'),
+      end: geom<{ x: number; y: number }>(sh, 'm_end'),
+    };
+  });
+
+/**
+ * The splines chain end to start, and every end lies on the ellipse of semi-axes \a aMajor and
+ * \a aMinor centred on the origin, its major axis at \a aRotationDeg.
+ */
+function expectOnEllipse(
+  aCurves: { start: { x: number; y: number }; end: { x: number; y: number } }[],
+  aMajor: number,
+  aMinor: number,
+  aRotationDeg: number,
+): void {
+  const r = (aRotationDeg * Math.PI) / 180;
+  const onEllipse = (p: { x: number; y: number }): number => {
+    const u = p.x * Math.cos(r) + p.y * Math.sin(r);
+    const v = -p.x * Math.sin(r) + p.y * Math.cos(r);
+    return (u / aMajor) ** 2 + (v / aMinor) ** 2;
+  };
+
+  aCurves.forEach((c, i) => {
+    expect(onEllipse(c.start)).toBeCloseTo(1, 9);
+    expect(onEllipse(c.end)).toBeCloseTo(1, 9);
+    if (i > 0) {
+      expect(c.start.x).toBeCloseTo(aCurves[i - 1]!.end.x, 9);
+      expect(c.start.y).toBeCloseTo(aCurves[i - 1]!.end.y, 9);
+    }
+  });
+}
 
 const load = (text: string): DXF_IMPORT_PLUGIN => {
   const plugin = new DXF_IMPORT_PLUGIN();
@@ -534,14 +569,17 @@ describe('DXF_IMPORT_PLUGIN: circles and arcs', () => {
       ]),
     );
 
-    // The minor axis is a *ratio* of the major, so both radii come out of the
-    // one vector the file gives.
-    expect(shapesOf(oval)[0]).toBeInstanceOf(IMPORTED_ELLIPSE);
-    expect(geom(shapesOf(oval)[0]!, 'm_majorRadius')).toBeCloseTo(3, 12);
-    expect(geom(shapesOf(oval)[0]!, 'm_minorRadius')).toBeCloseTo(1.5, 12);
+    // Anything else is TransformEllipseToBeziers' splines (dxf_import_plugin.cpp addEllipse):
+    // four for a full turn, chained end to start, on the ellipse whose minor axis is the
+    // ratio of the one vector the file gives.
+    const curves = splinesOf(oval);
+    expect(curves.length).toBe(4);
+    expect(curves[0]!.start.x).toBeCloseTo(3, 9);
+    expect(curves[0]!.start.y).toBeCloseTo(0, 9);
+    expectOnEllipse(curves, 3, 1.5, 0);
   });
 
-  it('and a partial one becomes an elliptical arc, its angles kept in radians', () => {
+  it('and a partial one becomes splines over the arc, its angles kept in radians', () => {
     // "DXF elliptical arcs store their angles in radians (unlike circular arcs
     // which use degrees)".
     const arc = load(
@@ -557,10 +595,14 @@ describe('DXF_IMPORT_PLUGIN: circles and arcs', () => {
       ]),
     );
 
-    const shape = shapesOf(arc)[0]!;
-    expect(shape).toBeInstanceOf(IMPORTED_ELLIPSE_ARC);
-    expect(geom(shape, 'm_minorRadius')).toBeCloseTo(1, 12);
-    expect((geom(shape, 'm_endAngle') as EDA_ANGLE).AsDegrees()).toBeCloseTo(90, 9);
+    // A quarter turn from the major axis to the minor one (Y is down here, up in the file).
+    const curves = splinesOf(arc);
+    expect(curves.length).toBeGreaterThan(0);
+    expect(curves[0]!.start.x).toBeCloseTo(4, 9);
+    expect(curves[0]!.start.y).toBeCloseTo(0, 9);
+    expect(curves.at(-1)!.end.x).toBeCloseTo(0, 9);
+    expect(Math.abs(curves.at(-1)!.end.y)).toBeCloseTo(1, 9);
+    expectOnEllipse(curves, 4, 1, 0);
   });
 
   it('a tilted ellipse takes its rotation from the major axis vector', () => {
@@ -576,9 +618,10 @@ describe('DXF_IMPORT_PLUGIN: circles and arcs', () => {
       ]),
     );
 
-    const shape = shapesOf(tilted)[0]!;
-    expect(geom(shape, 'm_majorRadius')).toBeCloseTo(5, 12);
-    expect((geom(shape, 'm_rotation') as EDA_ANGLE).AsDegrees()).toBeCloseTo(-90, 9);
+    const curves = splinesOf(tilted);
+    expect(curves[0]!.start.x).toBeCloseTo(0, 9);
+    expect(curves[0]!.start.y).toBeCloseTo(-5, 9);
+    expectOnEllipse(curves, 5, 2, -90);
   });
 });
 

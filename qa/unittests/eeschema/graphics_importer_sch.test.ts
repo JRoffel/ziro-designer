@@ -341,8 +341,8 @@ describe('an ellipse, which a schematic can hold and a board cannot', () => {
   });
 
   it('so a DXF ELLIPSE reaches the sheet instead of being reported away', () => {
-    // The whole point of the pair: `addEllipse` used to end at
-    // "DXF ellipses are not currently supported." for anything non-circular.
+    // As KiCad 10.0.6 reads it: dxf_import_plugin.cpp addEllipse hands the importer
+    // TransformEllipseToBeziers' four curves, never an ellipse.
     const dxf = [
       '0',
       'SECTION',
@@ -373,12 +373,6 @@ describe('an ellipse, which a schematic can hold and a board cannot', () => {
     plugin.Import();
 
     const g = graphics(imp.GetItems());
-    expect(g).toHaveLength(1);
-    expect(g[0]?.kind).toBe('ellipse');
-    if (g[0]?.kind === 'ellipse') {
-      expect(g[0].majorRadius).toBe(mmToIU(10));
-      expect(g[0].minorRadius).toBe(mmToIU(5));
-    }
-    expect(plugin.GetMessages()).not.toContain('not currently supported');
+    expect(g.map((x) => x.kind)).toEqual(['bezier', 'bezier', 'bezier', 'bezier']);
   });
 });

@@ -93,6 +93,8 @@ import {
   EDA_ANGLE_T,
 } from '@ziroeda/kimath/src/geometry/eda_angle.js';
 import { RotatePointD } from '@ziroeda/kimath/src/trigo.js';
+import { ELLIPSE } from '@ziroeda/kimath/src/geometry/ellipse.js';
+import { TransformEllipseToBeziers } from '@ziroeda/kimath/src/bezier_curves.js';
 import type { Vec2 } from '@ziroeda/kimath/src/math/vector2.js';
 
 /**
@@ -903,38 +905,16 @@ export class DXF_IMPORT_PLUGIN extends DL_CREATION_ADAPTER {
     const lineWidth = this.lineWeightToWidth(this.getAttributes().getWidth(), layer);
     const sourceLayer = this.getDxfLayerName(this.getAttributes().getLayer());
 
-    const majorRadius = Math.hypot(major.x, major.y);
-    const minorRadius = majorRadius * aData.ratio;
-    const rotation = EDA_ANGLE.fromVector(major);
+    // TODO: testcases for negative extrusion vector; handle it here
+
+    const ellipse = ELLIPSE.fromMajorAxis(center, major, aData.ratio, startAngle, endAngle);
+    const splines = TransformEllipseToBeziers(ellipse, false);
 
     const buffer = this.bufferToUse();
     buffer.SetCurrentSourceLayer(sourceLayer);
 
-    // A sweep of a full turn is the whole ellipse, and a file may spell that
-    // either way round.
-    const whole =
-      startAngle.equals(endAngle) || Math.abs(endAngle.sub(startAngle).AsDegrees() - 360.0) < 1e-9;
-
-    if (whole) {
-      buffer.AddEllipse(
-        center,
-        majorRadius,
-        minorRadius,
-        rotation,
-        new IMPORTED_STROKE(lineWidth),
-        false /* aFilled */,
-      );
-    } else {
-      buffer.AddEllipseArc(
-        center,
-        majorRadius,
-        minorRadius,
-        rotation,
-        startAngle,
-        endAngle,
-        new IMPORTED_STROKE(lineWidth),
-      );
-    }
+    for (const b of splines)
+      buffer.AddSpline(b.Start, b.C1, b.C2, b.End, new IMPORTED_STROKE(lineWidth));
 
     // "Naive bounding": the major axis in both directions, which is never too
     // small and never claims to be tight.
