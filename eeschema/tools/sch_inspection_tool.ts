@@ -34,6 +34,9 @@ import { SCH_ITEM } from '../sch_item.js';
 import type { SCH_MARKER } from '../sch_marker.js';
 import { SCH_SYMBOL } from '../sch_symbol.js';
 import { SYMBOL_EDIT_FRAME } from '../symbol_editor/symbol_edit_frame.js';
+import { CheckLibSymbol } from '../symbol_checker.js';
+import { DisplayInfoMessage } from '@ziroeda/common/confirm.js';
+import { KiROUND } from '@ziroeda/kimath/src/math/util.js';
 import { SYMBOL_DIFF_WIDGET } from '../widgets/symbol_diff_widget.js';
 import { SCH_ACTIONS } from './sch_actions.js';
 import { SCH_CONDITIONS, SCH_SELECTION_TOOL } from './sch_selection_tool.js';
@@ -210,6 +213,34 @@ export class SCH_INSPECTION_TOOL extends SCH_TOOL_BASE<SCH_BASE_FRAME> {
     // updates. If marker is nullptr the dialog excludes whichever marker is selected in the
     // dialog itself.
     dlg.ExcludeMarker(marker);
+
+    return 0;
+  }
+
+  /**
+   * `CheckSymbol( aEvent )` (sch_inspection_tool.cpp:270): the symbol editor's symbol run through
+   * CheckLibSymbol at the canvas grid; "No symbol issues found." or the warnings in an
+   * HTML_MESSAGE_BOX, which the window draws.
+   */
+  CheckSymbol(_aEvent: TOOL_EVENT): number {
+    const symbol = (this.m_frame as unknown as SYMBOL_EDIT_FRAME).GetCurSymbol();
+
+    if (!symbol) return 0;
+
+    const messages: string[] = [];
+    const grid_size = KiROUND(this.getView()!.GetGAL()!.GetGridSize().x);
+
+    CheckLibSymbol(symbol, messages, grid_size, this.m_frame!.GetUnitsProvider());
+
+    if (messages.length === 0) {
+      void DisplayInfoMessage('No symbol issues found.');
+    } else {
+      // HTML_MESSAGE_BOX dlg( m_frame, _( "Symbol Warnings" ) ); dlg.AddHTML_Text( msg ) each.
+      void this.m_frame!.ShowModalDialog('HTML_MESSAGE_BOX', [], {
+        caption: 'Symbol Warnings',
+        html: messages.join(''),
+      });
+    }
 
     return 0;
   }
@@ -443,8 +474,8 @@ export class SCH_INSPECTION_TOOL extends SCH_TOOL_BASE<SCH_BASE_FRAME> {
     this.Go(SYNC_HANDLER(this.CrossProbe), EVENTS.SelectedEvent);
     this.Go(SYNC_HANDLER(this.ExcludeMarker), SCH_ACTIONS.excludeMarker.MakeEvent());
 
-    // CheckSymbol (the Symbol Editor's checker) and RunSimulation (the simulator frame) come with
-    // their frames.
+    this.Go(SYNC_HANDLER(this.CheckSymbol), SCH_ACTIONS.checkSymbol.MakeEvent());
+    // RunSimulation (the simulator frame) comes with its frame.
     this.Go(this.DiffSymbol, SCH_ACTIONS.diffSymbol.MakeEvent());
     this.Go(SYNC_HANDLER(this.ShowBusSyntaxHelp), SCH_ACTIONS.showBusSyntaxHelp.MakeEvent());
 
