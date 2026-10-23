@@ -57,6 +57,8 @@ export interface SWATCH {
   background?: Color4d;
   enabled?: boolean;
   onChange: (aColor: Color4d) => void;
+  /** `GetNewSwatchColor()`: each new value opens the colour picker. */
+  openRequest?: number;
 }
 
 /** `m_rbFillNone` .. `m_rbFillCustom`, their wx ids NO_FILL .. FILLED_WITH_COLOR. */
@@ -193,6 +195,8 @@ export function DIALOG_SHAPE_PROPERTIES_BASE(p: DIALOG_SHAPE_PROPERTIES_BASE_PRO
               >
                 {/* m_customColorSwatch: a bare COLOR_SWATCH, no panel */}
                 <ColorSwatch
+                  key={p.m_customColorSwatch.openRequest ?? 0}
+                  openOnMount={!!p.m_customColorSwatch.openRequest}
                   label="Fill with color"
                   color={p.m_customColorSwatch.color}
                   background={p.m_customColorSwatch.background}

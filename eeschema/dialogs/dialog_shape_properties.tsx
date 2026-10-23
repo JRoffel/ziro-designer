@@ -3,13 +3,12 @@
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
 /**
  * `DIALOG_SHAPE_PROPERTIES` (eeschema/dialogs/dialog_shape_properties.cpp) over
- * DIALOG_SHAPE_PROPERTIES_BASE, in the schematic editor: a shape's border (a UNIT_BINDER in the
- * frame's units; unticked is width -1, "no border", unlike 0, "the default width"), its style
- * from `lineTypeNames`, the fill choice and colour, and a rule area's exclude/DNP flags.
- *
- * Not carried over yet: the symbol editor's branch (`m_fillBook` page 1, the fill radios, Private
- * and the common-to-all checkboxes, the read-only OK). The symbol editor still edits shapes in
- * its own form until its live switch; the base carries that page so it lands unchanged.
+ * DIALOG_SHAPE_PROPERTIES_BASE: a shape's border (a UNIT_BINDER in the frame's units; unticked is
+ * width -1, "no border", unlike 0, "the default width"), its style from `lineTypeNames`, and its
+ * fill - the schematic editor's fill choice and colour, or in the symbol editor (`m_fillBook`
+ * page 1) the four fill radios with their custom colour, Private, the common-to-all-units and
+ * -body-styles boxes and a read-only OK for a symbol that cannot be edited - plus a rule area's
+ * exclude/DNP flags.
  */
 import { type JSX, useRef, useState } from 'react';
 import { FILL_MODE_NAMES } from '@ziroeda/common';
@@ -21,12 +20,19 @@ import { LINE_STYLE, LINE_STYLE_NAMES } from '@ziroeda/common/stroke_params.js';
 import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
 import { UNIT_BINDER, unitLabel } from '@ziroeda/common/widgets/unit_binder.js';
 import { SCH_COMMIT } from '../sch_commit.js';
-import type { SCH_EDIT_FRAME } from '../sch_edit_frame.js';
+import { FRAME_T } from '@ziroeda/common/frame_type.js';
+import { COLOR4D_UNSPECIFIED, color4dEquals } from '@ziroeda/common/gal/color4d.js';
+import { FILL_T } from '@ziroeda/common/eda_shape.js';
+import { SCH_LAYER_ID } from '@ziroeda/common/layer_id.js';
+import type { SCH_BASE_FRAME } from '../sch_base_frame.js';
+import type { SYMBOL_EDIT_FRAME } from '../symbol_editor/symbol_edit_frame.js';
+import { currentSymbolEditorSettings } from '../symbol_editor/symbol_editor_settings.js';
 import { SCH_RULE_AREA } from '../sch_rule_area.js';
 import type { SCH_SHAPE } from '../sch_shape.js';
 import {
   type BITMAP_COMBO_ITEM,
   DIALOG_SHAPE_PROPERTIES_BASE,
+  type FILL_RADIO,
 } from './dialog_shape_properties_base.js';
 
 /** `lineTypeNames`, as the constructor fills `m_borderStyleCombo`. */
@@ -52,14 +58,24 @@ export interface SHAPE_DIALOG_VALUES {
   /** `m_fillCtrl->GetSelection()`, a UI_FILL_MODE. */
   fill: number;
   fillColor: Color4d;
+  /** The symbol editor's page: which of `m_rbFillNone` .. `m_rbFillCustom` is set. */
+  fillRadio: FILL_RADIO;
+  /** `m_customColorSwatch`. */
+  customColor: Color4d;
+  /** `m_privateCheckbox`. */
+  isPrivate: boolean;
+  /** `m_checkApplyToAllUnits`. */
+  allUnits: boolean;
+  /** `m_checkApplyToAllBodyStyles`. */
+  allBodyStyles: boolean;
 }
 
 export class DIALOG_SHAPE_PROPERTIES {
-  private readonly m_frame: SCH_EDIT_FRAME;
+  private readonly m_frame: SCH_BASE_FRAME;
   private readonly m_shape: SCH_SHAPE;
   private readonly m_borderWidth: UNIT_BINDER;
 
-  constructor(aParent: SCH_EDIT_FRAME, aShape: SCH_SHAPE) {
+  constructor(aParent: SCH_BASE_FRAME, aShape: SCH_SHAPE) {
     this.m_frame = aParent;
     this.m_shape = aShape;
     this.m_borderWidth = new UNIT_BINDER(aParent, 'Width:', (m) => DisplayErrorMessage(m));
@@ -91,19 +107,118 @@ export class DIALOG_SHAPE_PROPERTIES {
     return BORDER_STYLES;
   }
 
+  /** `dynamic_cast<SYMBOL_EDIT_FRAME*>( m_frame )`. */
+  private symbolEditor(): SYMBOL_EDIT_FRAME | null {
+    return this.m_frame.IsType(FRAME_T.FRAME_SCH_SYMBOL_EDITOR)
+      ? (this.m_frame as unknown as SYMBOL_EDIT_FRAME)
+      : null;
+  }
+
+  /** In the symbol editor: `m_fillBook` page 1 and `m_symbolEditorSizer` shown. */
+  IsSymbolEditor(): boolean {
+    return this.symbolEditor() !== null;
+  }
+
+  /** `!symbolEditor->IsSymbolEditable() || symbolEditor->IsSymbolAlias()`: OK reads "Read Only". */
+  IsReadOnly(): boolean {
+    const symbolEditor = this.symbolEditor();
+
+    return !!symbolEditor && (!symbolEditor.IsSymbolEditable() || symbolEditor.IsSymbolAlias());
+  }
+
+  /** `m_checkApplyToAllUnits->Enable( symbol->IsMultiUnit() )`. */
+  AllUnitsEnabled(): boolean {
+    return !!this.m_shape.GetParentSymbol()?.IsMultiUnit();
+  }
+
+  /** `m_checkApplyToAllBodyStyles->Enable( symbol->IsMultiBodyStyle() )`. */
+  AllBodyStylesEnabled(): boolean {
+    return !!this.m_shape.GetParentSymbol()?.IsMultiBodyStyle();
+  }
+
+  /** `m_frame->GetRenderSettings()->GetLayerColor( aLayer )`. */
+  private layerColor(aLayer: SCH_LAYER_ID): Color4d {
+    return this.m_frame.GetRenderSettings()?.GetLayerColor(aLayer) ?? COLOR4D_UNSPECIFIED;
+  }
+
+  /**
+   * `onFillRadioButton()`: the radio set, and the custom swatch showing the colour that fill
+   * paints with. @return the changes, and whether the swatch's picker opens (`GetNewSwatchColor`).
+   */
+  OnFillRadio(
+    aValues: SHAPE_DIALOG_VALUES,
+    aRadio: FILL_RADIO,
+  ): { patch: Partial<SHAPE_DIALOG_VALUES>; openPicker: boolean } {
+    switch (aRadio) {
+      case 'none':
+        return {
+          patch: { fillRadio: 'none', customColor: COLOR4D_UNSPECIFIED },
+          openPicker: false,
+        };
+
+      case 'outline': {
+        let color = aValues.borderColor;
+
+        // `|| !m_rbFillOutline->GetValue()` is false here: the radio was set just above.
+        if (color4dEquals(color, COLOR4D_UNSPECIFIED))
+          color = this.layerColor(SCH_LAYER_ID.LAYER_DEVICE);
+
+        return { patch: { fillRadio: 'outline', customColor: color }, openPicker: false };
+      }
+
+      case 'background':
+        return {
+          patch: {
+            fillRadio: 'background',
+            customColor: this.layerColor(SCH_LAYER_ID.LAYER_DEVICE_BACKGROUND),
+          },
+          openPicker: false,
+        };
+
+      case 'custom':
+        return { patch: { fillRadio: 'custom' }, openPicker: true };
+    }
+  }
+
+  /** `onBorderSwatch()`: with the outline fill, the fill follows the border colour. */
+  OnBorderSwatch(aValues: SHAPE_DIALOG_VALUES, aColor: Color4d): Partial<SHAPE_DIALOG_VALUES> {
+    const patch: Partial<SHAPE_DIALOG_VALUES> = { borderColor: aColor };
+
+    if (aValues.fillRadio === 'outline') patch.fillColor = aColor;
+
+    // `m_rbFillOutline->IsEnabled()`: only in the symbol editor.
+    if (this.IsSymbolEditor() && aValues.fillRadio === 'outline') {
+      let color = patch.fillColor ?? aValues.fillColor;
+
+      if (color4dEquals(color, COLOR4D_UNSPECIFIED))
+        color = this.layerColor(SCH_LAYER_ID.LAYER_DEVICE);
+
+      patch.customColor = color;
+    }
+
+    return patch;
+  }
+
+  /** `onCustomColorSwatch()`: picking a custom colour selects that fill. */
+  OnCustomColorSwatch(aColor: Color4d): Partial<SHAPE_DIALOG_VALUES> {
+    return { customColor: aColor, fillRadio: 'custom' };
+  }
+
   /** `onBorderChecked()`: ticking the border with no width gives it the default line width. */
   OnBorderChecked(aWidthText: string, aBorder: boolean): string {
     this.m_borderWidth.SetText(aWidthText);
 
     if (aBorder && this.m_borderWidth.GetValue() < 0) {
-      const defaultInMils = this.m_frame.eeconfig()?.drawing.default_line_thickness ?? 0;
+      const defaultInMils = this.IsSymbolEditor()
+        ? currentSymbolEditorSettings().defaults.line_width
+        : (this.m_frame.eeconfig()?.drawing.default_line_thickness ?? 0);
       this.m_borderWidth.SetValue(schIUScale.milsToIU(defaultInMils));
     }
 
     return this.m_borderWidth.GetText();
   }
 
-  /** `TransferDataToWindow()`, the schematic branch. */
+  /** `TransferDataToWindow()`. */
   TransferDataToWindow(): SHAPE_DIALOG_VALUES {
     const shape = this.m_shape;
     const ruleArea = shape instanceof SCH_RULE_AREA ? shape : null;
@@ -119,6 +234,34 @@ export class DIALOG_SHAPE_PROPERTIES {
     else if (s < LINE_STYLE_NAMES.length) borderStyle = s;
     else console.assert(false, 'Line type not found in the type lookup map');
 
+    let fillRadio: FILL_RADIO = 'none';
+    let customColor = COLOR4D_UNSPECIFIED;
+    let isPrivate = false;
+    let allUnits = false;
+    let allBodyStyles = false;
+
+    if (this.IsSymbolEditor()) {
+      if (shape.GetFillMode() === FILL_T.FILLED_SHAPE) {
+        fillRadio = 'outline';
+        customColor = shape.GetStroke().GetColor();
+
+        if (color4dEquals(customColor, COLOR4D_UNSPECIFIED))
+          customColor = this.layerColor(SCH_LAYER_ID.LAYER_DEVICE);
+      } else if (shape.GetFillMode() === FILL_T.FILLED_WITH_BG_BODYCOLOR) {
+        fillRadio = 'background';
+        customColor = this.layerColor(SCH_LAYER_ID.LAYER_DEVICE_BACKGROUND);
+      } else if (shape.GetFillMode() === FILL_T.FILLED_WITH_COLOR) {
+        fillRadio = 'custom';
+        customColor = shape.GetFillColor();
+      }
+
+      const symbol = shape.GetParentSymbol();
+
+      isPrivate = shape.IsPrivate();
+      allUnits = !!symbol?.IsMultiUnit() && shape.GetUnit() === 0;
+      allBodyStyles = !!symbol?.IsMultiBodyStyle() && shape.GetBodyStyle() === 0;
+    }
+
     return {
       excludeFromSim: ruleArea?.GetExcludedFromSim() ?? false,
       excludeFromBom: ruleArea?.GetExcludedFromBOM() ?? false,
@@ -130,10 +273,15 @@ export class DIALOG_SHAPE_PROPERTIES {
       borderColor: shape.GetStroke().GetColor(),
       fill: shape.GetFillModeProp(),
       fillColor: shape.GetFillColor(),
+      fillRadio,
+      customColor,
+      isPrivate,
+      allUnits,
+      allBodyStyles,
     };
   }
 
-  /** `TransferDataFromWindow()`, the schematic branch. */
+  /** `TransferDataFromWindow()`. */
   TransferDataFromWindow(aValues: SHAPE_DIALOG_VALUES): boolean {
     const shape = this.m_shape;
     this.m_borderWidth.SetText(aValues.borderWidth);
@@ -163,8 +311,28 @@ export class DIALOG_SHAPE_PROPERTIES {
 
     shape.SetStroke(stroke);
 
-    shape.SetFillModeProp(aValues.fill);
-    shape.SetFillColor(aValues.fillColor);
+    const symbolEditor = this.symbolEditor();
+
+    if (symbolEditor) {
+      if (aValues.fillRadio === 'outline') shape.SetFillMode(FILL_T.FILLED_SHAPE);
+      else if (aValues.fillRadio === 'background')
+        shape.SetFillMode(FILL_T.FILLED_WITH_BG_BODYCOLOR);
+      else if (aValues.fillRadio === 'custom') shape.SetFillMode(FILL_T.FILLED_WITH_COLOR);
+      else shape.SetFillMode(FILL_T.NO_FILL);
+
+      shape.SetFillColor(aValues.customColor);
+
+      shape.SetPrivate(aValues.isPrivate);
+
+      if (aValues.allBodyStyles) shape.SetBodyStyle(0);
+      else shape.SetBodyStyle(symbolEditor.GetBodyStyle());
+
+      if (aValues.allUnits) shape.SetUnit(0);
+      else shape.SetUnit(symbolEditor.GetUnit());
+    } else {
+      shape.SetFillModeProp(aValues.fill);
+      shape.SetFillColor(aValues.fillColor);
+    }
 
     if (!commit.Empty()) commit.Push(`Edit ${shape.GetFriendlyName()}`);
 
@@ -190,6 +358,7 @@ export function DialogShapeProperties({
   onCancel: () => void;
 }): JSX.Element {
   const [v, setV] = useState(initial);
+  const [pickerRequest, setPickerRequest] = useState(0);
   const widthRef = useRef<HTMLInputElement>(null);
   const set = (patch: Partial<SHAPE_DIALOG_VALUES>): void => setV((p) => ({ ...p, ...patch }));
   const background = dlg.SwatchBackground();
@@ -227,11 +396,11 @@ export function DialogShapeProperties({
         color: v.borderColor,
         background,
         enabled: v.border,
-        onChange: (c) => set({ borderColor: c }),
+        onChange: (c) => set(dlg.OnBorderSwatch(v, c)),
       }}
       borderStyleItems={dlg.BorderStyleItems()}
       m_borderStyleCombo={{ value: v.borderStyle, onChange: (i) => set({ borderStyle: i }) }}
-      fillBookSelection={0}
+      fillBookSelection={dlg.IsSymbolEditor() ? 1 : 0}
       fillChoices={FILL_MODE_NAMES}
       m_fillCtrl={{ value: v.fill, onChange: (i) => set({ fill: i }) }}
       m_fillColorSwatch={{
@@ -240,13 +409,31 @@ export function DialogShapeProperties({
         enabled: fillOn,
         onChange: (c) => set({ fillColor: c }),
       }}
-      fillRadio="none"
-      onFillRadio={() => {}}
-      m_customColorSwatch={{ color: v.fillColor, onChange: () => {} }}
-      symbolEditorShown={false}
-      m_privateCheckbox={{ value: false, onChange: () => {} }}
-      m_checkApplyToAllUnits={{ value: false, onChange: () => {} }}
-      m_checkApplyToAllBodyStyles={{ value: false, onChange: () => {} }}
+      fillRadio={v.fillRadio}
+      onFillRadio={(r) => {
+        const { patch, openPicker } = dlg.OnFillRadio(v, r);
+        set(patch);
+        if (openPicker) setPickerRequest((n) => n + 1);
+      }}
+      m_customColorSwatch={{
+        color: v.customColor,
+        background,
+        onChange: (c) => set(dlg.OnCustomColorSwatch(c)),
+        openRequest: pickerRequest,
+      }}
+      symbolEditorShown={dlg.IsSymbolEditor()}
+      m_privateCheckbox={{ value: v.isPrivate, onChange: (on) => set({ isPrivate: on }) }}
+      m_checkApplyToAllUnits={{
+        value: v.allUnits,
+        enabled: dlg.AllUnitsEnabled(),
+        onChange: (on) => set({ allUnits: on }),
+      }}
+      m_checkApplyToAllBodyStyles={{
+        value: v.allBodyStyles,
+        enabled: dlg.AllBodyStylesEnabled(),
+        onChange: (on) => set({ allBodyStyles: on }),
+      }}
+      {...(dlg.IsReadOnly() ? { okLabel: 'Read Only', okEnabled: false } : {})}
       onOK={() => onOk(v)}
       onCancel={onCancel}
     />
