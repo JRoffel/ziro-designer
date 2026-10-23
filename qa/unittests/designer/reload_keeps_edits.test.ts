@@ -261,18 +261,39 @@ describe('the manager raises an open project; it does not re-open it', () => {
     expect(APP.match(/style=\{frameStyle\(view === '[a-z]+'\)\}/g)?.length).toBe(9);
   });
 
-  it('every frame is built while the manager is up, most-used first', () => {
+  it('the two editors a project opens into are built while the manager is up', () => {
     expect(APP).toMatch(
       /useEffect\(\s*\(\) => \(view === 'home' \? warmFrames\(mountFor\) : undefined\),\s*\[view, mountFor\],?\s*\)/,
     );
-    expect(APP).toMatch(
-      /const WARM_ORDER: FrameView\[\] = \[\s*'schematic',\s*'pcb',\s*'symbols',\s*'footprints',\s*'gerber',\s*'drawingsheet',\s*'image',\s*'calculator',?\s*\]/,
+    // Only those two: a warm canvas keeps its GAL's memory for the life of the
+    // page, and eight of them ran smaller machines out of memory (Sentry V/W).
+    const order = APP.slice(
+      APP.indexOf('const WARM_ORDER'),
+      APP.indexOf('];', APP.indexOf('const WARM_ORDER')),
     );
+    expect([...order.matchAll(/^\s*'([a-z]+)',$/gm)].map((m) => m[1])).toEqual([
+      'schematic',
+      'pcb',
+    ]);
     // The board frame can exist before a project does: it is born on the
     // empty board, as PCB_EDIT_FRAME is.
     expect(APP).toMatch(/const boardFile: PickedFile = pcbFile \?\? WARM_BOARD;/);
     expect(APP).toMatch(/\{pcbMounted && \(/);
     expect(APP).not.toMatch(/\{pcbMounted && pcbFile && \(/);
+  });
+
+  it('a frame that is not warm loads behind its own named dialog, never an empty window', () => {
+    // Every frame's Suspense boundary names the editor it is waiting for.
+    // (The library-table dialog's boundary is not a frame: it shows nothing until it is up.)
+    const sites = [...APP.matchAll(/<Suspense fallback=\{([^}]*)\}>/g)]
+      .map((m) => m[1])
+      .filter((f) => f !== 'null');
+    expect(sites).toHaveLength(9);
+    for (const f of sites) expect(f).toMatch(/^frameLoading\('[A-Z][A-Za-z ]+'\)$/);
+    // ...and what it shows is WX_PROGRESS_REPORTER's dialog.
+    expect(APP).toMatch(
+      /const frameLoading = \(aName: string\)[\s\S]*?<ProgressDialog title=\{aName\}/,
+    );
   });
 
   it('a no-project open on a frame that held a project is "Create Schematic"', () => {

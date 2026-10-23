@@ -203,7 +203,15 @@ function prefetchEditors(): () => void {
  * which serves the editor as hundreds of unbundled modules, makes it long.
  * The face is the shell's own, so the beat is a dark frame, not a white flash.
  */
-const frameLoading: JSX.Element = <div className="ze-app" />;
+/**
+ * What a frame shows while its code downloads, the first time it is asked for: the editor's
+ * WX_PROGRESS_REPORTER dialog, never an empty window.
+ */
+const frameLoading = (aName: string): JSX.Element => (
+  <div className="ze-app">
+    <ProgressDialog title={aName} label={`Loading the ${aName}...`} />
+  </div>
+);
 
 /**
  * How a frame is kept while another is shown.
@@ -267,18 +275,15 @@ type FrameView =
   | 'image'
   | 'calculator';
 const WARM_ORDER: FrameView[] = [
+  // The two editors a project opens into. The other six are built when first asked for, behind
+  // the loading dialog: each warm canvas holds its GAL's memory for the life of the page, and
+  // eight of them on the home page ran smaller machines out of memory.
   'schematic',
   'pcb',
-  'symbols',
-  'footprints',
-  'gerber',
-  'drawingsheet',
-  'image',
-  'calculator',
 ];
 
 /**
- * Build every frame before it is asked for.
+ * Build the frames of WARM_ORDER - the schematic and board editors - before they are asked for.
  *
  * With every chunk on disk, a first click on a launcher still paid for the
  * frame's construction — React's first render of a very large tree, its
@@ -287,7 +292,9 @@ const WARM_ORDER: FrameView[] = [
  * this machine's GPU (qa/probes/profile_editor_open.mjs). A second open of
  * the same frame is 30-50 ms, because the frame exists. So the frames are
  * made to exist early: mounted here, hidden, while the manager is on screen
- * and the thread is idle, one per idle slot.
+ * and the thread is idle, one per idle slot. Only those two: a warm canvas
+ * keeps its GAL's memory for as long as the page is open, and eight of them
+ * ran smaller machines out of memory on the home page.
  *
  * This is safe only because of two things that were not true before: a
  * hidden frame does no work (`shown` gates the open in the schematic and
@@ -1895,7 +1902,7 @@ export function App(): JSX.Element {
       {schMounted && (
         <div style={frameStyle(view === 'schematic')}>
           <Frozen shown={view === 'schematic'}>
-            <Suspense fallback={frameLoading}>
+            <Suspense fallback={frameLoading('Schematic Editor')}>
               <SchematicEditor
                 onExitToHome={goHome}
                 onShowPcb={() => void showPcbFromSchematic()}
@@ -1957,7 +1964,7 @@ export function App(): JSX.Element {
       {pcbMounted && (
         <div style={frameStyle(view === 'pcb')}>
           <Frozen shown={view === 'pcb'}>
-            <Suspense fallback={frameLoading}>
+            <Suspense fallback={frameLoading('PCB Editor')}>
               <PcbEditorMount
                 fileName={pcbBasename(boardFile.name)}
                 text={boardFile.text}
@@ -1994,7 +2001,7 @@ export function App(): JSX.Element {
       {symMounted && (
         <div style={frameStyle(view === 'symbols')}>
           <Frozen shown={view === 'symbols'}>
-            <Suspense fallback={frameLoading}>
+            <Suspense fallback={frameLoading('Symbol Editor')}>
               <SymbolEditor
                 onExitToHome={goHome}
                 projectName={projectName}
@@ -2018,7 +2025,7 @@ export function App(): JSX.Element {
       {fpMounted && (
         <div style={frameStyle(view === 'footprints')}>
           <Frozen shown={view === 'footprints'}>
-            <Suspense fallback={frameLoading}>
+            <Suspense fallback={frameLoading('Footprint Editor')}>
               <FootprintEditor
                 onExitToHome={goHome}
                 initialProject={projectFiles}
@@ -2042,7 +2049,7 @@ export function App(): JSX.Element {
       {calcMounted && (
         <div style={frameStyle(view === 'calculator')}>
           <Frozen shown={view === 'calculator'}>
-            <Suspense fallback={frameLoading}>
+            <Suspense fallback={frameLoading('Calculator Tools')}>
               <CalculatorTools onExitToHome={goHome} />
             </Suspense>
           </Frozen>
@@ -2051,7 +2058,7 @@ export function App(): JSX.Element {
       {dsMounted && (
         <div style={frameStyle(view === 'drawingsheet')}>
           <Frozen shown={view === 'drawingsheet'}>
-            <Suspense fallback={frameLoading}>
+            <Suspense fallback={frameLoading('Drawing Sheet Editor')}>
               <DrawingSheetEditor
                 onExitToHome={goHome}
                 kiway={kiway}
@@ -2084,7 +2091,7 @@ export function App(): JSX.Element {
       {imgMounted && (
         <div style={frameStyle(view === 'image')}>
           <Frozen shown={view === 'image'}>
-            <Suspense fallback={frameLoading}>
+            <Suspense fallback={frameLoading('Image Converter')}>
               <ImageConverter onExitToHome={goHome} kiway={kiway} />
             </Suspense>
           </Frozen>
@@ -2093,7 +2100,7 @@ export function App(): JSX.Element {
       {fpvMounted && (
         <div style={frameStyle(view === 'fpviewer')}>
           <Frozen shown={view === 'fpviewer'}>
-            <Suspense fallback={frameLoading}>
+            <Suspense fallback={frameLoading('Footprint Viewer')}>
               <FootprintViewer
                 kiway={kiway}
                 onExitToHome={goHome}
@@ -2111,7 +2118,7 @@ export function App(): JSX.Element {
       {gbMounted && (
         <div style={frameStyle(view === 'gerber')}>
           <Frozen shown={view === 'gerber'}>
-            <Suspense fallback={frameLoading}>
+            <Suspense fallback={frameLoading('Gerber Viewer')}>
               <GerberViewer
                 onExitToHome={goHome}
                 kiway={kiway}

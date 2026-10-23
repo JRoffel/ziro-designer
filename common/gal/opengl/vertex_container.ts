@@ -56,8 +56,15 @@ export abstract class VERTEX_CONTAINER {
     this.markDirtyRange(aOffset, aSize);
   }
 
-  ///< Default initial size of a container (expressed in vertices)
-  static readonly DEFAULT_SIZE = 1048576;
+  /**
+   * Default initial size of a container (expressed in vertices). KiCad's is 1048576. A C++ `malloc`
+   * of those 32 MB commits nothing until it is written; an ArrayBuffer is zero-filled and reserved
+   * whole, and OPENGL_GAL makes five containers, so each canvas held 160 MB before it drew anything
+   * - a gigabyte across the home page's pre-opened editors, and an out-of-memory on smaller
+   * machines. Every container doubles when it fills (NONCACHED_CONTAINER::Allocate,
+   * CACHED_CONTAINER::reallocate), so a smaller start changes the memory and not the drawing.
+   */
+  static readonly DEFAULT_SIZE = 65536;
 
   /**
    * Return a pointer to a new container of an appropriate type.
@@ -236,8 +243,10 @@ export class NONCACHED_CONTAINER extends VERTEX_CONTAINER {
 
   /// @copydoc VERTEX_CONTAINER::Allocate( unsigned int aSize )
   Allocate(aSize: number): number {
-    if (this.m_freeSpace < aSize) {
-      // Double the space
+    // Double the space - until it fits. KiCad doubles once: from its 1M vertices one primitive
+    // never outruns a doubling, but from DEFAULT_SIZE here one can, and a typed array drops the
+    // writes past its end without a word.
+    while (this.m_freeSpace < aSize) {
       const newVertices = VERTEX_STORAGE.grow(this.m_vertices!, this.m_currentSize * 2);
 
       this.m_vertices = newVertices;
