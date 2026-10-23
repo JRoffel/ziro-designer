@@ -32,7 +32,10 @@ import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { ANGLE_HORIZONTAL, ANGLE_VERTICAL } from '@ziroeda/kimath/src/geometry/eda_angle.js';
 import { schIUScale } from '@ziroeda/common/eda_units.js';
 import { SCH_COMMIT } from '../sch_commit.js';
+import { FRAME_T } from '@ziroeda/common/frame_type.js';
+import type { SCH_BASE_FRAME } from '../sch_base_frame.js';
 import type { SCH_EDIT_FRAME } from '../sch_edit_frame.js';
+import type { SYMBOL_EDIT_FRAME } from '../symbol_editor/symbol_edit_frame.js';
 import type { SCH_TEXT } from '../sch_text.js';
 import type { SCH_TEXTBOX } from '../sch_textbox.js';
 import { DIALOG_TEXT_PROPERTIES_BASE, type ICON_BUTTON } from './dialog_text_properties_base.js';
@@ -90,6 +93,12 @@ export interface TEXT_DIALOG_VALUES {
   borderStyle: string;
   filled: boolean;
   fillColor: Color4d;
+  /** The symbol editor's m_privateCheckbox. */
+  isPrivate: boolean;
+  /** m_commonToAllUnits. */
+  commonToAllUnits: boolean;
+  /** m_commonToAllBodyStyles. */
+  commonToAllBodyStyles: boolean;
 }
 
 /** DIALOG_TEXT_PROPERTIES' window over its base. */
@@ -149,7 +158,7 @@ export function DialogTextProperties({
       m_textCtrl={v.text}
       onText={(t) => set({ text: t })}
       textRef={textRef}
-      schematicOnlyShown
+      schematicOnlyShown={dlg.IsSchematicEditor()}
       m_excludeFromSim={{ value: v.excludeFromSim, onChange: (on) => set({ excludeFromSim: on }) }}
       onSyntaxHelp={() => dlg.ShowSyntaxHelp()}
       font={v.face}
@@ -201,10 +210,18 @@ export function DialogTextProperties({
       onHyperlinkText={(t) => set({ hyperlink: t, ...(t !== '' ? { hyperlinkOn: true } : {}) })}
       // onHyperlinkCombo: a destination picked from the list ticks Link.
       onHyperlinkCombo={() => set({ hyperlinkOn: true })}
-      symbolEditorShown={false}
-      m_privateCheckbox={{ value: false, onChange: () => {} }}
-      m_commonToAllUnits={{ value: false, onChange: () => {} }}
-      m_commonToAllBodyStyles={{ value: false, onChange: () => {} }}
+      symbolEditorShown={dlg.IsSymbolEditor()}
+      m_privateCheckbox={{ value: v.isPrivate, onChange: (on) => set({ isPrivate: on }) }}
+      m_commonToAllUnits={{
+        value: v.commonToAllUnits,
+        enabled: dlg.CommonToAllUnitsEnabled(),
+        onChange: (on) => set({ commonToAllUnits: on }),
+      }}
+      m_commonToAllBodyStyles={{
+        value: v.commonToAllBodyStyles,
+        enabled: dlg.CommonToAllBodyStylesEnabled(),
+        onChange: (on) => set({ commonToAllBodyStyles: on }),
+      }}
       onOK={() => onOk(v)}
       onCancel={onCancel}
     />
@@ -228,18 +245,22 @@ export const INVALID_HYPERLINK_MESSAGE =
   'or "#<page number>" to create a hyperlink to a page in this schematic.';
 
 /**
- * `DIALOG_TEXT_PROPERTIES` for a live SCH_TEXT or SCH_TEXTBOX in the schematic editor. The
- * symbol editor's private and common-to-units boxes belong to that frame and are not here.
+ * `DIALOG_TEXT_PROPERTIES` for a live SCH_TEXT or SCH_TEXTBOX: in the schematic editor with the
+ * exclude-from-simulation box and the sheet-page hyperlinks, in the symbol editor with Private and
+ * the common-to-all-units / -body-styles boxes instead.
  */
 export class DIALOG_TEXT_PROPERTIES {
-  private readonly m_frame: SCH_EDIT_FRAME;
+  private readonly m_frame: SCH_BASE_FRAME;
+  /** `m_isSymbolEditor = dynamic_cast<SYMBOL_EDIT_FRAME*>( aParent ) != nullptr`. */
+  private readonly m_isSymbolEditor: boolean;
   private readonly m_currentItem: SCH_TEXT | SCH_TEXTBOX;
   private readonly m_textSize: UNIT_BINDER;
   private readonly m_borderWidth: UNIT_BINDER;
   private readonly m_hyperlinkChoices: { text: string; menuText?: string }[] = [];
 
-  constructor(aParent: SCH_EDIT_FRAME, aItem: SCH_TEXT | SCH_TEXTBOX) {
+  constructor(aParent: SCH_BASE_FRAME, aItem: SCH_TEXT | SCH_TEXTBOX) {
     this.m_frame = aParent;
+    this.m_isSymbolEditor = aParent.IsType(FRAME_T.FRAME_SCH_SYMBOL_EDITOR);
     this.m_currentItem = aItem;
     this.m_textSize = new UNIT_BINDER(aParent, 'Text size:', (aMessage) =>
       DisplayErrorMessage(aMessage),
@@ -248,7 +269,11 @@ export class DIALOG_TEXT_PROPERTIES {
       DisplayErrorMessage(aMessage),
     );
 
-    for (const sheet of aParent.Schematic().Hierarchy()) {
+    // `if( SCH_EDIT_FRAME* schematicEditor = dynamic_cast<SCH_EDIT_FRAME*>( m_frame ) )`; else
+    // the exclude box, syntax help and hyperlink controls are hidden (IsSchematicEditor).
+    if (!this.IsSchematicEditor()) return;
+
+    for (const sheet of (aParent as SCH_EDIT_FRAME).Schematic().Hierarchy()) {
       const sheetPageNum = sheet.GetPageNumber();
       const sheetName = sheet.size() === 1 ? '<root sheet>' : (sheet.Last()?.GetName() ?? '');
 
@@ -262,6 +287,26 @@ export class DIALOG_TEXT_PROPERTIES {
     this.m_hyperlinkChoices.push({ text: 'file://', menuText: 'file://...' });
     this.m_hyperlinkChoices.push({ text: 'http://', menuText: 'http://...' });
     this.m_hyperlinkChoices.push({ text: 'https://', menuText: 'https://...' });
+  }
+
+  /** In the schematic editor: `m_excludeFromSim`, `m_syntaxHelp` and the hyperlink shown. */
+  IsSchematicEditor(): boolean {
+    return this.m_frame.IsType(FRAME_T.FRAME_SCH);
+  }
+
+  /** `m_fgSymbolEditor->Show( m_isSymbolEditor )`. */
+  IsSymbolEditor(): boolean {
+    return this.m_isSymbolEditor;
+  }
+
+  /** `m_commonToAllUnits->Enable( symbol->IsMultiUnit() )`. */
+  CommonToAllUnitsEnabled(): boolean {
+    return this.m_isSymbolEditor && !!this.m_currentItem.GetParentSymbol()?.IsMultiUnit();
+  }
+
+  /** `m_commonToAllBodyStyles->Enable( symbol->IsMultiBodyStyle() )`. */
+  CommonToAllBodyStylesEnabled(): boolean {
+    return this.m_isSymbolEditor && !!this.m_currentItem.GetParentSymbol()?.IsMultiBodyStyle();
   }
 
   IsTextBox(): boolean {
@@ -330,7 +375,8 @@ export class DIALOG_TEXT_PROPERTIES {
       hAlign: H_OF[item.GetHorizJustify()] ?? 'left',
       vAlign: V_OF[item.GetVertJustify()] ?? 'center',
       angle: item.GetTextAngle().IsVertical() ? 90 : 0,
-      excludeFromSim: item.GetExcludedFromSim(),
+      // `if( !m_isSymbolEditor ) m_excludeFromSim->SetValue( … )`: the base's unticked box.
+      excludeFromSim: this.m_isSymbolEditor ? false : item.GetExcludedFromSim(),
       hyperlink: item.GetHyperlink(),
       hyperlinkOn: !!item.GetHyperlink(),
       border: false,
@@ -339,6 +385,9 @@ export class DIALOG_TEXT_PROPERTIES {
       borderStyle: lineStyleToken(LINE_STYLE.SOLID),
       filled: false,
       fillColor: item.GetTextColor(),
+      isPrivate: false,
+      commonToAllUnits: false,
+      commonToAllBodyStyles: false,
     };
 
     if (this.IsTextBox()) {
@@ -358,6 +407,14 @@ export class DIALOG_TEXT_PROPERTIES {
       );
       values.filled = textBox.IsSolidFill();
       values.fillColor = textBox.GetFillColor();
+    }
+
+    if (this.m_isSymbolEditor) {
+      const symbol = item.GetParentSymbol();
+
+      values.isPrivate = item.IsPrivate();
+      values.commonToAllUnits = !!symbol?.IsMultiUnit() && item.GetUnit() === 0;
+      values.commonToAllBodyStyles = !!symbol?.IsMultiBodyStyle() && item.GetBodyStyle() === 0;
     }
 
     return values;
@@ -399,6 +456,18 @@ export class DIALOG_TEXT_PROPERTIES {
     // On Windows, a new line is coded as \r\n. We use only \n in KiCad files.
     item.SetText(text.replaceAll('\r', ''));
     item.SetExcludedFromSim(aValues.excludeFromSim);
+
+    if (this.m_isSymbolEditor) {
+      const symbolEditor = this.m_frame as unknown as SYMBOL_EDIT_FRAME;
+
+      item.SetPrivate(aValues.isPrivate);
+
+      if (!aValues.commonToAllUnits) item.SetUnit(symbolEditor.GetUnit());
+      else item.SetUnit(0);
+
+      if (!aValues.commonToAllBodyStyles) item.SetBodyStyle(symbolEditor.GetBodyStyle());
+      else item.SetBodyStyle(0);
+    }
 
     item.SetHyperlink(aValues.hyperlink);
 
