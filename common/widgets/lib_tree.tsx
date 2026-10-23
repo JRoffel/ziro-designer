@@ -12,6 +12,7 @@ import { TextCtrl } from '@ziroeda/wx/controls.js';
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -62,10 +63,23 @@ import { EditClearSymbolic, EditFindSymbolic } from '@ziroeda/wx/wx_search_ctrl.
  */
 function CanvasItemOutline({ left, width }: { left: number; width: number }): JSX.Element {
   const [box, setBox] = useState<{ w: number; h: number } | null>(null);
-  const ref = useCallback((el: SVGSVGElement | null) => {
+  const ref = useRef<SVGSVGElement>(null);
+  // Measured whenever the cell's box changes, as upstream draws it on every paint with the cell's
+  // rectangle. Measured once at mount, a row laid out later (a frame built hidden) kept an SVG's
+  // default 300 x 150 and drew the outline five rows tall; a dragged column kept the old width.
+  useLayoutEffect(() => {
+    const el = ref.current;
     if (!el) return;
-    const r = el.getBoundingClientRect();
-    setBox({ w: Math.round(r.width), h: Math.round(r.height) });
+    const measure = (): void => {
+      const r = el.getBoundingClientRect();
+      const next = { w: Math.round(r.width), h: Math.round(r.height) };
+      setBox((b) => (b && b.w === next.w && b.h === next.h ? b : next));
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
   }, []);
   // Upstream's six points, verbatim. The notch is 4 device pixels whatever the
   // row is wide, so the shape is measured rather than expressed as a ratio -

@@ -577,3 +577,14 @@ describe("the Symbol Editor's pane captions carry the close box their pane asks 
     expect(caption(root, 'Libraries')).toBeDefined();
   });
 });
+
+describe('the canvas-item outline is the Item cell’s height', () => {
+  /**
+   * `LIB_TREE_RENDERER::Render` draws round the cell's rectangle. The outline is an absolute
+   * <svg>, a replaced element: `top: 0; bottom: 0` with `height: auto` leaves it at its intrinsic
+   * 150 px, and in a real browser it ran five rows down the tree (a 26 px row measured 150).
+   */
+  it('takes the row’s height rather than its own', () => {
+    expect(rule('.ze-libtree-canvasitem')).toMatch(/(^|[;\s])height:\s*100%/);
+  });
+});

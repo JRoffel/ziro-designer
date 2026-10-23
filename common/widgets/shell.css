@@ -6186,6 +6186,9 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
      Description column. Only the vertical extent is the row's. */
   top: 0;
   bottom: 0;
+  /* An <svg> is a replaced element: with `height: auto`, top and bottom do not stretch it, and it
+     kept its intrinsic 150 px - the outline ran five rows down the tree. The row's own height. */
+  height: 100%;
   pointer-events: none;
   overflow: visible;
 }

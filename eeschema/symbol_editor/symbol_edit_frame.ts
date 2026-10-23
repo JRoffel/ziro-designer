@@ -20,6 +20,8 @@ import { TOOL_MANAGER } from '@ziroeda/common/tool/tool_manager.js';
 import { ZOOM_TOOL } from '@ziroeda/common/tool/zoom_tool.js';
 import { RSTRING_T } from '@ziroeda/common/project.js';
 import { VIEW_UPDATE_FLAGS } from '@ziroeda/common/view/view_item.js';
+import { BOX2I } from '@ziroeda/kimath/src/math/box2.js';
+import { schIUScale } from '@ziroeda/common/eda_units.js';
 import {
   ENVVARS_CHANGED,
   type TOOLS_HOLDER_INPUT_SETTINGS,
@@ -201,6 +203,22 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
     renderSettings.m_ShowHiddenFields = settings.show_hidden_lib_fields;
     renderSettings.m_ShowPinAltIcons = settings.show_pin_alt_icons;
     renderSettings.SetDefaultFont('');
+  }
+
+  /**
+   * `GetDocumentExtents( aIncludeAllVisible )` (:1674): what Zoom to Fit fits - the symbol's unit
+   * as drawn, or a reasonable drawing area with no symbol.
+   */
+  override GetDocumentExtents(_aIncludeAllVisible = true): BOX2I {
+    if (!this.m_symbol) {
+      // Gives a reasonable drawing area size
+      const width = schIUScale.mmToIU(50);
+      const height = schIUScale.mmToIU(30);
+
+      return new BOX2I({ x: -width / 2, y: -height / 2 }, { x: width, y: height });
+    }
+
+    return this.m_symbol.Flatten().GetUnitBoundingBox(this.m_unit, this.m_bodyStyle);
   }
 
   /**
