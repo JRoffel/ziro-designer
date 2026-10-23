@@ -657,7 +657,9 @@ export function FootprintEditFrame({
   useEffect(() => {
     const board = frame.GetBoard();
 
-    if (!panel || !board) return;
+    // The frame's canvas is the live panel. A lost WebGL context, or a rebuild in the same
+    // commit, destroys `panel` before this render's value catches up; its view is gone then.
+    if (!panel || !board || frame.GetCanvas() !== panel) return;
 
     const opts = new PCB_DISPLAY_OPTIONS();
     opts.m_ContrastModeDisplay =

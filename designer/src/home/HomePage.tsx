@@ -969,10 +969,17 @@ export function HomePage({
   >(null);
   const refreshSaved = (): void => {
     if (storageAvailable())
-      void listProjects().then((list) => {
-        setSaved(list);
-        setSavedLoaded(true);
-      });
+      void listProjects().then(
+        (list) => {
+          setSaved(list);
+          setSavedLoaded(true);
+        },
+        // Storage the browser refuses (a private window, site data blocked) or
+        // fails inside (Firefox's "Internal error"): the storage probe already
+        // puts that in the banner, so the list is simply empty, not an
+        // unhandled rejection.
+        () => setSavedLoaded(true),
+      );
   };
   useEffect(refreshSaved, []);
 

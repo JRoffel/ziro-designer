@@ -41,7 +41,13 @@ export function loadBitmapFontImage(): Promise<ImageBitmap> {
       premultiplyAlpha: 'none',
       colorSpaceConversion: 'none',
     });
-  })();
+  })().catch((err: unknown) => {
+    // A failed fetch (a 504 from the edge, the network down) is not the atlas:
+    // forget it so the next panel asks again, rather than every canvas in the
+    // tab failing on the one cached rejection until a reload.
+    s_fontImage = null;
+    throw err;
+  });
 
   return s_fontImage;
 }

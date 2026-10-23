@@ -154,3 +154,22 @@ describe('reporting must never become the crash', () => {
     expect(h.captured).toHaveLength(0);
   });
 });
+
+describe('the ResizeObserver loop notice', () => {
+  it('is not reported: no error object, nothing failed', () => {
+    const h = harness();
+    h.target.fire('error', { message: 'ResizeObserver loop limit exceeded' });
+    h.target.fire('error', {
+      message: 'ResizeObserver loop completed with undelivered notifications.',
+    });
+    expect(h.captured.length).toBe(0);
+  });
+
+  it('a thrown error that merely mentions it still is', () => {
+    const h = harness();
+    const err = new Error('ResizeObserver loop limit exceeded');
+    h.target.fire('error', { error: err, message: err.message });
+    h.target.fire('error', { message: 'Script error.' });
+    expect(h.captured.map((c) => c.err)).toEqual([err, expect.any(Error)]);
+  });
+});

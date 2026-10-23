@@ -46,6 +46,9 @@ export interface GlobalHandlerOptions {
   windowMs?: number;
 }
 
+/** "ResizeObserver loop limit exceeded" / "... completed with undelivered notifications." */
+const RESIZE_OBSERVER_LOOP = /^ResizeObserver loop /;
+
 /** What an error is "the same as", for de-duplication. */
 function signatureOf(err: unknown): string {
   if (err instanceof Error) {
@@ -108,6 +111,10 @@ export function installGlobalErrorHandlers(opts: GlobalHandlerOptions = {}): () 
 
   const onError = (e: unknown): void => {
     const ev = e as { error?: unknown; message?: string };
+    // The browser's own notice that a ResizeObserver callback resized what it observes, so some
+    // notifications wait for the next frame. It carries no error object and nothing failed: the
+    // spec reports it through `error` only so a page can notice a layout that never settles.
+    if (ev?.error == null && RESIZE_OBSERVER_LOOP.test(ev?.message ?? '')) return;
     report(ev?.error ?? new Error(ev?.message ?? 'Unknown error'), 'window.onerror');
   };
   const onRejection = (e: unknown): void => {

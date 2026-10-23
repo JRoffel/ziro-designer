@@ -17,7 +17,11 @@ import {
   type ScrubbableEvent,
 } from '@ziroeda/designer/src/telemetry/scrub.js';
 import { SENTRY, SetSentryBackend } from '@ziroeda/common/app_monitor.js';
-import { prepareEvent, sentryBackend } from '@ziroeda/designer/src/telemetry/sentry_backend.js';
+import {
+  keepIntegration,
+  prepareEvent,
+  sentryBackend,
+} from '@ziroeda/designer/src/telemetry/sentry_backend.js';
 
 const sentry = (): SENTRY => {
   SetSentryBackend(sentryBackend);
@@ -191,5 +195,14 @@ describe('opt-out enforcement', () => {
       },
     } as ScrubbableEvent;
     expect(prepareEvent(hostile)).toBeNull();
+  });
+});
+
+describe('the SDK integrations kept', () => {
+  it("drops the SDK's own window handlers (ours report those) and the heavy collectors", () => {
+    for (const name of ['GlobalHandlers', 'BrowserTracing', 'Replay', 'BrowserProfiling'])
+      expect(keepIntegration({ name })).toBe(false);
+    for (const name of ['Dedupe', 'LinkedErrors', 'Breadcrumbs', 'HttpContext'])
+      expect(keepIntegration({ name })).toBe(true);
   });
 });

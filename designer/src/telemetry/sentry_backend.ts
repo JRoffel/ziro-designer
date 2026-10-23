@@ -56,6 +56,17 @@ export function prepareEvent(event: ScrubbableEvent): ScrubbableEvent | null {
   }
 }
 
+/**
+ * The SDK's default integrations we keep: not the ones that would collect far more than a stack
+ * trace, and not its own window error / rejection handlers - `installGlobalErrorHandlers` is on
+ * both events already, rate-limited, and the SDK's second copy reported every one twice.
+ */
+export function keepIntegration(aIntegration: { name: string }): boolean {
+  return !['BrowserTracing', 'Replay', 'BrowserProfiling', 'GlobalHandlers'].includes(
+    aIntegration.name,
+  );
+}
+
 /** Run `aCall` on the SDK now, or when it arrives unless reporting closes first. */
 function withSdk(aCall: (aSdk: Sdk) => void): void {
   if (sdk) aCall(sdk);
@@ -103,11 +114,7 @@ export const sentryBackend: SENTRY_BACKEND = {
         maxBreadcrumbs: 20,
         // Upstream samples 5% of transactions; we trace none (TRANSACTION).
         tracesSampleRate: 0,
-        integrations: (defaults) =>
-          // Drop the integrations that would collect far more than a stack trace.
-          defaults.filter(
-            (i) => !['BrowserTracing', 'Replay', 'BrowserProfiling'].includes(i.name),
-          ),
+        integrations: (defaults) => defaults.filter(keepIntegration),
         beforeSend: (event) => prepareEvent(event as ScrubbableEvent) as typeof event | null,
         beforeBreadcrumb: (crumb) =>
           // Console breadcrumbs are dropped at source as well as in the scrubber:
