@@ -67,6 +67,8 @@ export interface WX_INFOBAR {
   AddCloseButton?(aTooltip?: string): void;
   /** `RemoveAllButtons()` (wx_infobar.h:141). */
   RemoveAllButtons(): void;
+  /** `ShowMessage( aMessage, aFlags )` (wx_infobar.h:157): shown until dismissed or replaced. */
+  ShowMessage(aMessage: string, aFlags?: MessageDialogIcon): void;
   /** `ShowMessageFor( aMessage, aTime, aFlags )` (wx_infobar.h:165): shown, then dismissed after aTime ms. */
   ShowMessageFor(aMessage: string, aTime: number, aFlags?: MessageDialogIcon): void;
   /** `Dismiss()` (wx_infobar.h:189). */

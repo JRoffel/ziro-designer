@@ -186,6 +186,7 @@ export function PanelDesignBlockChooser({
     <div className="ze-dbchooser" ref={bodyRef}>
       <div className="ze-dbchooser-tree">
         <LibTree
+          escapeClearsSearch="fromSearch"
           adapter={adapter}
           recentSearchesKey="design_blocks"
           regenerateNonce={regenerateNonce}

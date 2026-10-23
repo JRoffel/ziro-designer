@@ -87,10 +87,10 @@ export interface KiDialogRequest {
   /** `wxOK` without `wxCANCEL`: one OK button. */
   okOnly?: boolean;
   /**
-   * `wxYES_NO | wxCANCEL` with `SetYesNoCancelLabels( yes, no, … )`: Yes, No and Cancel instead
-   * of OK and Cancel, Yes the default.
+   * `wxYES_NO | wxCANCEL` with `SetYesNoCancelLabels( yes, no, cancel )`: Yes, No and Cancel
+   * instead of OK and Cancel, Yes the default.
    */
-  yesNo?: { yes?: string; no?: string };
+  yesNo?: { yes?: string; no?: string; cancel?: string };
 }
 
 /** wxGenericRichMessageDialog's expander labels (wx/richmsgdlg.h). [data] */

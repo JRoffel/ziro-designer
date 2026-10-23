@@ -194,13 +194,18 @@ describe('what the registered cancel means', () => {
     expect(registered('auth/SignIn.tsx')).toEqual(['close, !gate']);
   });
 
-  it('holds the first Esc for the filter box, as PANEL_SYMBOL_CHOOSER does', () => {
+  it('holds the first Esc for the filter box in a chooser, as PANEL_SYMBOL_CHOOSER does', () => {
     // "First escape cancels search string value" - `panel_symbol_chooser.cpp`
     // :347 - and only then does Esc reach the dialog. The tree registers above
     // the dialog containing it and drops off when the box empties, so the
-    // ordering is the stack's rather than a listener race.
+    // ordering is the stack's rather than a listener race. Only in a chooser
+    // (escapeClearsSearch), and for the symbol and design-block choosers only
+    // from the search box: LIB_TREE itself has no Escape, so an editor's dock
+    // keeps its filter (lib_tree_escape.test.tsx drives all three).
     expect(registered('../../common/widgets/lib_tree.tsx')).toEqual([
-      `() => onQueryText(''), search !== ''`,
+      `() => onQueryText(''),
+    search !== '' &&
+      (escapeClearsSearch === 'always' || (escapeClearsSearch === 'fromSearch' && searchFocused)),`,
     ]);
   });
 });

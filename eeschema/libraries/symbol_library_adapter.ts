@@ -437,6 +437,10 @@ let s_downloads: MEMORY_FILESYSTEM | null = null;
 const downloadsMount = (): MEMORY_FILESYSTEM => {
   if (!s_downloads) {
     s_downloads = new MEMORY_FILESYSTEM();
+    // The hosted libraries are KiCad's installed ones: read-only, as their install path is
+    // upstream, so the editor offers an editable copy rather than saving into memory that is
+    // gone on the next load.
+    s_downloads.ReadOnly = true;
     wxMountFileSystem(SYMBOL_DOWNLOAD_DIR, s_downloads);
   }
   return s_downloads;

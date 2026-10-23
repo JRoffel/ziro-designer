@@ -60,6 +60,7 @@ export function Infobar({
   icon = 'warning',
   actionLabel,
   onAction,
+  actions = [],
   closable = false,
   className,
 }: {
@@ -68,6 +69,8 @@ export function Infobar({
   icon?: 'warning' | 'information';
   actionLabel?: string;
   onAction?: () => void;
+  /** `AddButton( wxHyperlinkCtrl* )` for each, in the order added, after `actionLabel`'s. */
+  actions?: readonly { label: string; onAction: () => void }[];
   closable?: boolean;
   className?: string;
 }): JSX.Element | null {
@@ -87,10 +90,12 @@ export function Infobar({
       {/* `margin-right: auto` lives on this, so everything after it is pushed
           to the right edge the way the sizer's spacer pushes the buttons. */}
       <span className="msg">{message}</span>
-      {actionLabel && onAction && (
-        <button type="button" onClick={onAction}>
-          {actionLabel}
-        </button>
+      {[...(actionLabel && onAction ? [{ label: actionLabel, onAction }] : []), ...actions].map(
+        (a) => (
+          <button key={a.label} type="button" onClick={a.onAction}>
+            {a.label}
+          </button>
+        ),
       )}
       {/* `AddCloseButton()` (wx_infobar.cpp:375-382), rightmost, and it only
           hides the bar. The tooltip is upstream's own default string. */}

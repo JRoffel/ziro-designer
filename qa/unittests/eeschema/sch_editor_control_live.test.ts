@@ -435,6 +435,7 @@ describe('SCH_EDITOR_CONTROL', () => {
       IsLocked: () => false,
       AddButton: () => {},
       RemoveAllButtons: () => {},
+      ShowMessage: () => {},
       ShowMessageFor: (m) => {
         messages.push(m);
       },

@@ -22,6 +22,7 @@ import { RSTRING_T } from '@ziroeda/common/project.js';
 import { VIEW_UPDATE_FLAGS } from '@ziroeda/common/view/view_item.js';
 import { BOX2I } from '@ziroeda/kimath/src/math/box2.js';
 import { schIUScale } from '@ziroeda/common/eda_units.js';
+import { unescapeString } from '@ziroeda/common/string_utils.js';
 import {
   ENVVARS_CHANGED,
   type TOOLS_HOLDER_INPUT_SETTINGS,
@@ -30,6 +31,7 @@ import type { BASE_SCREEN } from '@ziroeda/common/base_screen.js';
 import type { wxEvent } from '@ziroeda/wx/wx_event.js';
 import { SymbolLibAdapter } from '../project_sch.js';
 import { SCH_SCREEN } from '../sch_screen.js';
+import { SCH_ACTIONS } from '../tools/sch_actions.js';
 import { SCH_FIND_REPLACE_TOOL } from '../tools/sch_find_replace_tool.js';
 import { SCH_INSPECTION_TOOL } from '../tools/sch_inspection_tool.js';
 import { SCH_POINT_EDITOR } from '../tools/sch_point_editor.js';
@@ -145,6 +147,10 @@ export interface SYMBOL_EDIT_FRAME_HOOKS {
   toggleLibraryTree?(): void;
   /** `FocusOnLibId( aLibID )`: the library tree selects and shows it. */
   focusOnLibId?(aLibId: LIB_ID): void;
+  /** `GetLibTree()->SelectLibId( aLibId )`: the tree selects it, its library expanded. */
+  libTreeSelectLibId?(aLibId: LIB_ID): void;
+  /** `GetLibTree()->Unselect()`. */
+  libTreeUnselect?(): void;
   /** `RebuildSymbolUnitAndBodyStyleLists()`: the unit and body style choosers. */
   rebuildSymbolUnitAndBodyStyleLists?(): void;
   /** `UpdateTitle()`. */
@@ -835,8 +841,21 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
 
     this.m_symbol = aSymbol;
 
+    // select the current symbol in the tree widget
+    if (!this.IsSymbolFromSchematic() && this.m_symbol)
+      this.hooks.libTreeSelectLibId?.(this.m_symbol.GetLibId());
+    else this.hooks.libTreeUnselect?.();
+
+    let symbolName = '';
+    let libName = '';
+
+    if (this.m_symbol) {
+      symbolName = this.m_symbol.GetName();
+      libName = unescapeString(this.m_symbol.GetLibId().GetLibNickname());
+    }
+
     // retain in case this wxFrame is re-opened later on the same PROJECT
-    this.Prj()?.SetRString(RSTRING_T.SCH_LIBEDIT_CUR_SYMBOL, aSymbol ? aSymbol.GetName() : '');
+    this.Prj()?.SetRString(RSTRING_T.SCH_LIBEDIT_CUR_SYMBOL, symbolName);
 
     // Ensure synchronized pin edit can be enabled only symbols with interchangeable units
     this.m_SyncPinEdit =
@@ -852,6 +871,100 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
     if (aUpdateZoom) this.m_toolManager.RunAction(ACTIONS.zoomFitScreen);
 
     this.GetCanvas()?.Refresh();
+    this.m_propertiesPanel?.UpdateData();
+
+    this.updateSymbolInfoBar(symbolName, libName);
+  }
+
+  /** SetCurSymbol's tail (:986-1100): what the infobar says about the symbol just opened. */
+  private updateSymbolInfoBar(aSymbolName: string, aLibName: string): void {
+    const infobar = this.GetInfoBar();
+
+    if (!infobar) return;
+
+    infobar.RemoveAllButtons();
+
+    const msgs: string[] = [];
+    const infobarFlags = 'information';
+
+    if (this.IsSymbolFromSchematic()) {
+      msgs.push(
+        `Editing symbol ${this.m_reference} from schematic.  Saving will update the schematic only.`,
+      );
+
+      infobar.AddButton({
+        label: `Open symbol from library ${aLibName}`,
+        onClick: () => this.GetToolManager()?.RunAction(SCH_ACTIONS.editLibSymbolWithLibEdit),
+      });
+    } else if (this.IsSymbolFromLegacyLibrary()) {
+      msgs.push(
+        'Symbols in legacy libraries are not editable.  Use Manage Symbol Libraries to migrate ' +
+          'to current format.',
+      );
+
+      // InvokeSchEditSymbolLibTable( &Kiway(), this )
+      infobar.AddButton({
+        label: 'Manage symbol libraries',
+        onClick: () => void this.Kiway()?.CreateKiWindow(FRAME_T.DIALOG_SCH_LIBRARY_TABLE),
+      });
+    } else if (this.IsSymbolAlias()) {
+      msgs.push(
+        `Symbol ${unescapeString(aSymbolName)} is a derived symbol. Symbol graphics will not be ` +
+          'editable.',
+      );
+
+      // Don't assume the parent symbol shared pointer is still valid.
+      const rootSymbol = this.m_symbol?.GetRootSymbol() ?? null;
+
+      if (rootSymbol) {
+        const unit = this.GetUnit();
+        const bodyStyle = this.GetBodyStyle();
+        const rootSymbolName = rootSymbol.GetName();
+
+        infobar.AddButton({
+          label: `Open ${unescapeString(rootSymbolName)}`,
+          onClick: () => void this.LoadSymbolFromCurrentLib(rootSymbolName, unit, bodyStyle),
+        });
+      }
+    }
+
+    if (
+      this.m_symbol &&
+      !this.IsSymbolFromSchematic() &&
+      this.m_libMgr.IsLibraryReadOnly(this.m_symbol.GetLibId().GetFullLibraryName())
+    ) {
+      msgs.push('Library is read-only.  Changes cannot be saved to this library.');
+
+      infobar.AddButton({
+        label: 'Create an editable copy',
+        onClick: async () => {
+          const msg = `Create an editable copy of the symbol or the entire library (${aLibName})?`;
+
+          // These buttons are in a weird order(?)
+          const choice = await this.ShowKiDialog({
+            caption: 'Select type of item to save',
+            message: msg,
+            icon: 'question',
+            yesNo: { yes: 'Copy symbol', no: 'Cancel', cancel: 'Copy library' },
+          });
+
+          switch (choice) {
+            case 'yes':
+              await this.SaveSymbolCopyAs(true);
+              break;
+            case 'cancel':
+              await this.SaveLibraryAs();
+              break;
+            default:
+              // Do nothing
+              break;
+          }
+        },
+      });
+    }
+
+    if (msgs.length === 0) infobar.Dismiss();
+    else infobar.ShowMessage(msgs.join('\n'), infobarFlags);
   }
 
   /** The render settings' unit, body style and disabled states, as SetCurSymbol and RebuildView set them. */

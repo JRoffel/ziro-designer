@@ -40,6 +40,12 @@ export interface wxWritableFileSystemMount extends wxFileSystemMount {
   Mkdir(aRelDir: string): boolean;
   /** `wxFileModificationTime`: when the file was last written, or -1 when there is no file. */
   ModificationTime?(aRelPath: string): number;
+  /**
+   * Read-only to KiCad's code: the wx helpers below read it, and refuse to write, remove, rename
+   * or make directories in it, and report its files and directories as not writable - an install
+   * path, which only its owner (the downloader) fills, through the mount's own Write.
+   */
+  ReadOnly?: boolean;
 }
 
 /** Whether a mount keeps bytes: read, written and listed through the helpers below. */
@@ -48,6 +54,11 @@ export function IsWritableMount(aMount: wxFileSystemMount): aMount is wxWritable
   return (
     typeof m.Read === 'function' && typeof m.Write === 'function' && typeof m.List === 'function'
   );
+}
+
+/** A mount KiCad's code may write through the helpers: it keeps bytes and is not read-only. */
+function IsUserWritableMount(aMount: wxFileSystemMount): aMount is wxWritableFileSystemMount {
+  return IsWritableMount(aMount) && !aMount.ReadOnly;
 }
 
 interface MountEntry {
@@ -198,6 +209,7 @@ export function wxDirExists(aPath: string): boolean {
 let s_writeClock = 0;
 
 export class MEMORY_FILESYSTEM implements wxWritableFileSystemMount {
+  ReadOnly = false;
   private readonly m_files = new Map<string, Uint8Array>();
   private readonly m_mtimes = new Map<string, number>();
   private m_writeListener: ((aRelPath: string, aData: Uint8Array) => void) | null = null;
@@ -373,7 +385,7 @@ export function wxReadFileSync(aPath: string): Uint8Array | null {
 export function wxWriteFileSync(aPath: string, aData: Uint8Array): boolean {
   const hit = wxFindMount(wxNormalizePath(aPath));
 
-  if (!hit || !IsWritableMount(hit.mount)) return false;
+  if (!hit || !IsUserWritableMount(hit.mount)) return false;
 
   (hit.mount as wxWritableFileSystemMount).Write(hit.rel, aData);
   return true;
@@ -383,7 +395,7 @@ export function wxWriteFileSync(aPath: string, aData: Uint8Array): boolean {
 export function wxRemoveFile(aPath: string): boolean {
   const hit = wxFindMount(wxNormalizePath(aPath));
 
-  if (!hit || !IsWritableMount(hit.mount)) return false;
+  if (!hit || !IsUserWritableMount(hit.mount)) return false;
 
   return (hit.mount as wxWritableFileSystemMount).Remove(hit.rel);
 }
@@ -392,7 +404,7 @@ export function wxRemoveFile(aPath: string): boolean {
 export function wxRemoveDirTree(aPath: string): boolean {
   const hit = wxFindMount(trimDir(wxNormalizePath(aPath)));
 
-  if (!hit || !IsWritableMount(hit.mount) || hit.rel === '') return false;
+  if (!hit || !IsUserWritableMount(hit.mount) || hit.rel === '') return false;
 
   return (hit.mount as wxWritableFileSystemMount).RemoveTree(hit.rel);
 }
@@ -405,7 +417,7 @@ export function wxRenameFile(aOld: string, aNew: string, aOverwrite = true): boo
   const from = wxFindMount(trimDir(wxNormalizePath(aOld)));
   const to = wxFindMount(trimDir(wxNormalizePath(aNew)));
 
-  if (!from || !to || from.mount !== to.mount || !IsWritableMount(from.mount)) return false;
+  if (!from || !to || from.mount !== to.mount || !IsUserWritableMount(from.mount)) return false;
 
   if (from.rel === '' || to.rel === '') return false;
 
@@ -428,7 +440,7 @@ export function wxDirEnumerate(aPath: string): { name: string; isDir: boolean }[
 export function wxMkdir(aPath: string): boolean {
   const hit = wxFindMount(trimDir(wxNormalizePath(aPath)));
 
-  if (!hit || !IsWritableMount(hit.mount)) return false;
+  if (!hit || !IsUserWritableMount(hit.mount)) return false;
 
   return hit.rel === '' || hit.mount.Mkdir(hit.rel);
 }
@@ -437,7 +449,7 @@ export function wxMkdir(aPath: string): boolean {
 export function wxIsDirWritable(aPath: string): boolean {
   const hit = wxFindMount(trimDir(wxNormalizePath(aPath)));
 
-  return !!hit && IsWritableMount(hit.mount);
+  return !!hit && IsUserWritableMount(hit.mount);
 }
 
 /** `wxCopyFile( aSrc, aDest )`: the bytes of one file at another path (either mount). */
@@ -460,7 +472,7 @@ export function wxFileModificationTime(aPath: string): number {
 export function wxIsFileWritable(aPath: string): boolean {
   const hit = wxFindMount(wxNormalizePath(aPath));
 
-  return !!hit && IsWritableMount(hit.mount) && hit.mount.FileExists(hit.rel);
+  return !!hit && IsUserWritableMount(hit.mount) && hit.mount.FileExists(hit.rel);
 }
 
 let s_tempFileCounter = 0;

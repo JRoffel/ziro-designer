@@ -115,6 +115,7 @@ describe('PCB_CONTROL display modes', () => {
       RemoveAllButtons: () => {
         buttons = [];
       },
+      ShowMessage: () => {},
       ShowMessageFor: (message, time) => {
         shown.push({ message, time, buttons: [...buttons] });
       },

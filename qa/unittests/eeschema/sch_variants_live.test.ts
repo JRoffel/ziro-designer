@@ -60,6 +60,7 @@ function setUp(aHooks: Partial<SCH_EDIT_FRAME_HOOKS> = {}) {
     IsLocked: () => false,
     AddButton: () => {},
     RemoveAllButtons: () => {},
+    ShowMessage: () => {},
     ShowMessageFor: (m) => {
       messages.push(m);
     },

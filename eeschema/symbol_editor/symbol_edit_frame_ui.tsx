@@ -82,6 +82,8 @@ import {
   DialogFieldProperties,
 } from '../dialogs/dialog_field_properties.js';
 import { DialogImportSymbolSelect } from '../dialogs/dialog_import_symbol_select.js';
+import type { MessageDialogIcon } from '@ziroeda/common/confirm_types.js';
+import type { WX_INFOBAR_HYPERLINK } from '@ziroeda/common/eda_base_frame.js';
 import { SchFindDialogHost } from '../dialogs/dialog_sch_find.js';
 import type { DIALOG_IMPORT_SYMBOL_SELECT_ARG } from './symbol_editor_import_export.js';
 import {
@@ -305,12 +307,18 @@ export function SymbolEditor({
   const treeSelRef = useRef(treeSel);
   treeSelRef.current = treeSel;
   const [selectLibId, setSelectLibId] = useState('');
+  const [unselectNonce, setUnselectNonce] = useState(0);
   const [expandLibId, setExpandLibId] = useState('');
   const [aboutOpen, setAboutOpen] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [selFilter, setSelFilter] = useState<SelectionFilterOptions>(defaultSelectionFilter);
   const [selFilterClosed, setSelFilterClosed] = useState(false);
-  const [infoBar, setInfoBar] = useState<string | null>(null);
+  /** The frame's WX_INFOBAR: what it shows, and its hyperlink buttons. */
+  const [infoBar, setInfoBar] = useState<{
+    message: string;
+    icon: MessageDialogIcon;
+    buttons: WX_INFOBAR_HYPERLINK[];
+  } | null>(null);
   const [msgItems, setMsgItems] = useState<MsgPanelItem[]>([]);
   const [modals, setModals] = useState<MODAL[]>([]);
   const modalKey = useRef(0);
@@ -644,6 +652,15 @@ export function SymbolEditor({
           setSelectLibId(aLibId.Format());
           setTreeSel({ lib: aLibId.GetLibNickname(), name: aLibId.GetLibItemName() || null });
         },
+        libTreeSelectLibId: (aLibId) => {
+          setSelectLibId(aLibId.Format());
+          setTreeSel({ lib: aLibId.GetLibNickname(), name: aLibId.GetLibItemName() || null });
+        },
+        libTreeUnselect: () => {
+          setSelectLibId('');
+          setUnselectNonce((n) => n + 1);
+          setTreeSel(null);
+        },
         rebuildSymbolUnitAndBodyStyleLists: () => repaint(),
         updateTitle: () => repaint(),
         showModal: (aDialog, aItems, aArg) => showModalRef.current(aDialog, aItems, aArg),
@@ -668,6 +685,42 @@ export function SymbolEditor({
       frame.SetKiway(null);
     };
   }, [kiway, frame]);
+
+  // `WX_INFOBAR`: the frame and its tools post into it (SetCurSymbol's notices, ShowInfoBarMsg).
+  useEffect(() => {
+    let buttons: WX_INFOBAR_HYPERLINK[] = [];
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const clear = (): void => {
+      if (timer) clearTimeout(timer);
+      timer = null;
+    };
+    const show = (aMessage: string, aFlags: MessageDialogIcon = 'information'): void => {
+      clear();
+      setInfoBar({ message: aMessage, icon: aFlags, buttons: [...buttons] });
+    };
+    frame.SetInfoBar({
+      IsLocked: () => false,
+      AddButton: (aButton) => {
+        buttons.push(aButton);
+      },
+      RemoveAllButtons: () => {
+        buttons = [];
+      },
+      ShowMessage: show,
+      ShowMessageFor: (aMessage, aTime, aFlags) => {
+        show(aMessage, aFlags);
+        timer = setTimeout(() => setInfoBar(null), aTime);
+      },
+      Dismiss: () => {
+        clear();
+        setInfoBar(null);
+      },
+    });
+    return () => {
+      clear();
+      frame.SetInfoBar(null);
+    };
+  }, [frame]);
 
   // The frame's status bar, message panel and toolbar selection.
   const statusRefs = useRef<Record<string, HTMLSpanElement | null>>({});
@@ -828,11 +881,8 @@ export function SymbolEditor({
         return;
       }
 
-      if (await frame.LoadSymbol(new LIB_ID(aLib, aName), aUnit, aBodyStyle)) {
-        frame.GetToolManager()?.RunAction(ACTIONS.zoomFitScreen);
-        setSelectLibId(`${aLib}:${aName}`);
-      }
-
+      // LoadSymbol -> SetCurSymbol( symbol, true ): the zoom and the tree selection are the frame's.
+      await frame.LoadSymbol(new LIB_ID(aLib, aName), aUnit, aBodyStyle);
       repaint();
     },
     [frame, ensureSymbolFile],
@@ -1286,6 +1336,7 @@ export function SymbolEditor({
                     recentSearchesKey="symbols"
                     regenerateNonce={treeNonce}
                     selectLibId={selectLibId}
+                    unselectNonce={unselectNonce}
                     expandLibId={expandLibId}
                     onSelect={onTreeSelect}
                     onChoose={onTreeChoose}
@@ -1343,7 +1394,14 @@ export function SymbolEditor({
           style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}
         >
           {readOnlyNotice}
-          {infoBar && <Infobar message={infoBar} closable />}
+          {infoBar && (
+            <Infobar
+              message={infoBar.message}
+              icon={infoBar.icon === 'information' ? 'information' : 'warning'}
+              actions={infoBar.buttons.map((b) => ({ label: b.label, onAction: b.onClick }))}
+              closable
+            />
+          )}
           <div className="ze-canvas-wrap" style={{ position: 'relative', flex: 1, minHeight: 0 }}>
             {/* SCH_DRAW_PANEL: it takes the canvas's events itself, through WX_VIEW_CONTROLS
                 and the frame's TOOL_DISPATCHER. */}

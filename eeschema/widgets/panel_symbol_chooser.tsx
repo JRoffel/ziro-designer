@@ -577,6 +577,7 @@ export const PanelSymbolChooser = forwardRef<PanelSymbolChooserHandle, PanelSymb
     const tree = (
       <div className="ze-chooser-treepane">
         <LibTree
+          escapeClearsSearch="fromSearch"
           adapter={adapter}
           recentSearchesKey={powerFilter ? 'power' : 'symbols'}
           regenerateNonce={regenerateNonce}

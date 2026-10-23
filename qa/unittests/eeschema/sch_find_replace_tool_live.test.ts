@@ -43,6 +43,7 @@ function setUp() {
     AddButton: () => {},
     AddCloseButton: () => {},
     RemoveAllButtons: () => {},
+    ShowMessage: () => {},
     ShowMessageFor: (aMessage) => {
       status.push(aMessage);
     },

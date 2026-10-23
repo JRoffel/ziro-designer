@@ -202,6 +202,7 @@ export function PanelFootprintChooser({
       <div className="ze-fpchooser-top" style={{ ['--h-sash' as string]: H_SASH_GRAVITY }}>
         <div className="ze-fpchooser-tree">
           <LibTree
+            escapeClearsSearch="always"
             adapter={adapter}
             recentSearchesKey="footprints"
             filters={filters}

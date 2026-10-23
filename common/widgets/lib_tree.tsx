@@ -176,6 +176,13 @@ export interface LibTreeProps {
    */
   unselectNonce?: number;
   /**
+   * The choosers' `OnChar`: the first Esc clears a non-empty search before it reaches the dialog.
+   * 'fromSearch' only when the key comes from the search box (panel_symbol_chooser.cpp:339-357,
+   * panel_design_block_chooser.cpp:180-195); 'always' whatever has focus
+   * (panel_footprint_chooser.cpp:220-231). Not LIB_TREE's own: the editors' docks leave it off.
+   */
+  escapeClearsSearch?: false | 'fromSearch' | 'always';
+  /**
    * `SaveSettings`' `m_cfg.column_widths` (`common/lib_tree_model_adapter.cpp:240-245`)
    * — the header was dragged, so the owner persists the adapter's new widths.
    */
@@ -315,6 +322,7 @@ export function LibTree({
   onPinLibrary,
   onItemContextMenu,
   unselectNonce = 0,
+  escapeClearsSearch = false,
   onColumnWidthsChanged,
   onSortModeChanged,
   onShownColumnsChanged,
@@ -539,11 +547,19 @@ export function LibTree({
     debounce.current = window.setTimeout(() => regenerate(value, true), 200);
   };
 
-  // PANEL_SYMBOL_CHOOSER::OnChar: "first escape cancels search string value",
-  // and only then does Esc reach the dialog. That ordering is exactly what the
-  // modal stack expresses - the tree registers above the dialog that contains
-  // it, and drops off again the moment the box is empty.
-  useModalEscape(() => onQueryText(''), search !== '');
+  // PANEL_SYMBOL_CHOOSER::OnChar (and the footprint and design-block choosers'): "first escape
+  // cancels search string value", and only then does Esc reach the dialog. That ordering is what
+  // the modal stack expresses - the tree registers above the dialog that contains it. Only in a
+  // chooser, and only while the key comes from the search box (`dynamic_cast<wxTextCtrl*>(
+  // eventSource )`): LIB_TREE itself has no Escape, so in the Symbol Editor's dock an Esc that
+  // cancels a tool on the canvas left the library filter alone - it used to clear it, and the
+  // tree collapsed back to the library list.
+  const [searchFocused, setSearchFocused] = useState(false);
+  useModalEscape(
+    () => onQueryText(''),
+    search !== '' &&
+      (escapeClearsSearch === 'always' || (escapeClearsSearch === 'fromSearch' && searchFocused)),
+  );
 
   const setSortMode = (mode: SortMode) => {
     adapter.setSortMode(mode);
@@ -1034,7 +1050,11 @@ export function LibTree({
             off it (lib_tree.cpp:79-81, 450-476) - so they sit INSIDE the entry
             rather than beside it, and the glyphs are the icon theme's, not
             KiCad's. */}
-        <div className="ze-libtree-entry">
+        <div
+          className="ze-libtree-entry"
+          onFocus={(e) => setSearchFocused(e.target === searchRef.current)}
+          onBlur={() => setSearchFocused(false)}
+        >
           <button
             type="button"
             className="ze-entry-icon left"

@@ -104,7 +104,7 @@ export type YesNoCancelResult = 'yes' | 'no' | 'cancel';
  */
 export function yesNoCancelButtons(
   defaultButton: 'yes' | 'no',
-  labels?: { yes?: string; no?: string },
+  labels?: { yes?: string; no?: string; cancel?: string },
 ): {
   id: YesNoCancelResult;
   label: string;
@@ -112,7 +112,7 @@ export function yesNoCancelButtons(
 }[] {
   return [
     { id: 'no', label: labels?.no ?? NO_LABEL, isDefault: defaultButton === 'no' },
-    { id: 'cancel', label: CANCEL_LABEL, isDefault: false },
+    { id: 'cancel', label: labels?.cancel ?? CANCEL_LABEL, isDefault: false },
     { id: 'yes', label: labels?.yes ?? YES_LABEL, isDefault: defaultButton === 'yes' },
   ];
 }

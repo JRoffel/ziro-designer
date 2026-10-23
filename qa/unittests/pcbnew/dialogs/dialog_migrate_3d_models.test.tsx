@@ -142,6 +142,7 @@ describe('on load (PCB_EDIT_FRAME::OnBoardLoaded)', () => {
       RemoveAllButtons: () => {
         links = [];
       },
+      ShowMessage: () => {},
       ShowMessageFor: (msg) => shown.push({ msg, link: links.map((l) => l.label) }),
       Dismiss: () => {},
     });
@@ -164,6 +165,7 @@ describe('on load (PCB_EDIT_FRAME::OnBoardLoaded)', () => {
       IsLocked: () => false,
       AddButton: () => {},
       RemoveAllButtons: () => {},
+      ShowMessage: () => {},
       ShowMessageFor: (msg) => shown.push(msg),
       Dismiss: () => {},
     });

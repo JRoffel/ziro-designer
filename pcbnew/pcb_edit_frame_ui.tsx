@@ -1966,6 +1966,10 @@ export function PcbEditor({
         RemoveAllButtons: () => {
           buttons = [];
         },
+        ShowMessage: (aMessage) => {
+          clear();
+          setFrameInfoBar({ message: aMessage, button: buttons[0] ?? null });
+        },
         ShowMessageFor: (aMessage, aTime) => {
           clear();
           setFrameInfoBar({ message: aMessage, button: buttons[0] ?? null });

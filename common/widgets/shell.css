@@ -7949,6 +7949,10 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
   color: #f7f7f7;
   border-bottom: 1px solid var(--chrome-border);
 }
+/* `ShowMessage( wxJoin( msgs, '\n' ) )`: several messages are several lines. */
+.ze-infobar .msg {
+  white-space: pre-line;
+}
 .ze-infobar .lnk {
   margin-left: 8px;
   color: #6ea8fe;
