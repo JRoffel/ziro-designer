@@ -254,6 +254,20 @@ describe('the schematic probing a net on the board', () => {
     env.probe('$NET: "VCC"');
     expect(env.highlight()).toEqual([]);
   });
+
+  it('ignores a probe while the frame has no canvas (a lost WebGL context, a panel not built)', () => {
+    const env = setup();
+    env.frame.SetCanvas(null);
+    // The tool manager still holds the old view, whose painter went with the panel; nothing may
+    // reach for it.
+    env.frame
+      .GetToolManager()!
+      .GetView()!
+      .SetPainter(null as never);
+    expect(() => env.probe('$NET: "VCC"')).not.toThrow();
+    expect(() => env.probe('$CLEAR')).not.toThrow();
+    expect(env.frame.GetBoard()!.GetHighLightNetCodes().size).toBe(0);
+  });
 });
 
 describe('the board probing a net on the schematic', () => {

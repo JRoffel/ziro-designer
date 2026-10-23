@@ -1653,20 +1653,22 @@ export function HomePage({
     // fresh KICAD_CONFIG_HOME: pane x34..x283), so the floor and the opening
     // width agree — there is no asymmetry here, contrary to what this comment
     // used to claim.
-    const onMove = (ev: MouseEvent): void =>
-      setPanelWidth(Math.min(600, Math.max(250, startW + ev.clientX - startX)));
+    let width = startW;
+    const onMove = (ev: MouseEvent): void => {
+      width = Math.min(600, Math.max(250, startW + ev.clientX - startX));
+      setPanelWidth(width);
+    };
     const onUp = (): void => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       document.body.style.cursor = '';
       // KICAD_MANAGER_FRAME::SaveSettings writes the pane's width back on the
       // way out; written on mouse-up rather than every mousemove so a drag is
-      // one store write, not a hundred.
-      setPanelWidth((w) => {
-        settings.updateKicad((s) => {
-          s.m_LeftWinWidth = w;
-        });
-        return w;
+      // one store write, not a hundred. Not from inside a setPanelWidth
+      // updater: React runs those during render, and the store's notify then
+      // set state in other components mid-render ("Maximum update depth").
+      settings.updateKicad((s) => {
+        s.m_LeftWinWidth = width;
       });
     };
     document.addEventListener('mousemove', onMove);

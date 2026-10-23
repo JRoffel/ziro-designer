@@ -3718,6 +3718,9 @@ export function PcbEditor({
     // restored and the panel rebuilt.
     const onLost = (e: Event): void => {
       e.preventDefault();
+      // The panel goes, so does the worker drawing under it: its view loop reads the panel's
+      // view every frame.
+      renderHost?.Destroy();
       panelRef.current?.Destroy();
       panelRef.current = null;
       frame.SetCanvas(null);

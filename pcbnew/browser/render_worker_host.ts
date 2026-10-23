@@ -82,6 +82,7 @@ export class RENDER_WORKER_HOST {
   private readonly m_env: RENDER_WORKER_HOST_ENV;
   private m_worker: Worker | null = null;
   private m_workerCanvas: HTMLCanvasElement | null = null;
+  private m_destroyed = false;
   private m_viewLoop = 0;
   private m_lastView = '';
   private m_session = 0;
@@ -293,8 +294,14 @@ export class RENDER_WORKER_HOST {
     this.m_workerCanvas = null;
   }
 
-  /** The panel goes: so does the worker. */
+  /**
+   * The panel goes: so does the worker. Once: a lost context destroys it ahead of the panel, and
+   * the window's cleanup asks again after the panel's view is gone.
+   */
   Destroy(): void {
+    if (this.m_destroyed) return;
+
+    this.m_destroyed = true;
     this.m_session++;
     this.stop();
     this.m_panel.SetOnDisplayBoard(null);

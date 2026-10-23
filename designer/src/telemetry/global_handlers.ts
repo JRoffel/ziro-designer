@@ -49,6 +49,29 @@ export interface GlobalHandlerOptions {
 /** "ResizeObserver loop limit exceeded" / "... completed with undelivered notifications." */
 const RESIZE_OBSERVER_LOOP = /^ResizeObserver loop /;
 
+/** The schemes a browser or an extension runs its own injected scripts under. */
+const INJECTED_SCRIPT =
+  /^(iabjs|chrome-extension|moz-extension|safari-extension|safari-web-extension):/;
+
+/**
+ * Whether every frame of \a err's stack is a script the browser injected - an Android in-app
+ * browser's `iabjs://` logger, an extension - so nothing of ours is in it to fix.
+ */
+export function fromInjectedScript(err: unknown): boolean {
+  if (!(err instanceof Error) || !err.stack) return false;
+
+  // "at fn (url:line:col)" (V8) or "fn@url:line:col" (SpiderMonkey, JavaScriptCore).
+  const urls = err.stack
+    .split('\n')
+    .map(
+      (line) =>
+        /(?:\(|@|at )([a-z][a-z0-9+.-]*:[^\s)]*?)(?::\d+){1,2}\)?\s*$/i.exec(line.trim())?.[1],
+    )
+    .filter((u): u is string => !!u);
+
+  return urls.length > 0 && urls.every((u) => INJECTED_SCRIPT.test(u));
+}
+
 /** What an error is "the same as", for de-duplication. */
 function signatureOf(err: unknown): string {
   if (err instanceof Error) {
@@ -86,6 +109,10 @@ export function installGlobalErrorHandlers(opts: GlobalHandlerOptions = {}): () 
         seen = new Set();
         capReported = false;
       }
+      // A browser's own injected script failing (an in-app browser's logger losing its bridge)
+      // is not this app's error.
+      if (fromInjectedScript(err)) return;
+
       const sig = signatureOf(err);
       // The same failure firing every frame is one fact, not a thousand.
       if (seen.has(sig)) return;

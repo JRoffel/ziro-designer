@@ -10,7 +10,10 @@
  * every pointer move must not turn a bug into a flood.
  */
 import { describe, it, expect } from 'vitest';
-import { installGlobalErrorHandlers } from '@ziroeda/designer/src/telemetry/global_handlers.js';
+import {
+  fromInjectedScript,
+  installGlobalErrorHandlers,
+} from '@ziroeda/designer/src/telemetry/global_handlers.js';
 
 interface Captured {
   err: unknown;
@@ -171,5 +174,40 @@ describe('the ResizeObserver loop notice', () => {
     h.target.fire('error', { error: err, message: err.message });
     h.target.fire('error', { message: 'Script error.' });
     expect(h.captured.map((c) => c.err)).toEqual([err, expect.any(Error)]);
+  });
+});
+
+describe("a browser's own injected script", () => {
+  const withStack = (aStack: string) => Object.assign(new Error('x'), { stack: aStack });
+  const IAB = withStack(
+    'Error: Error invoking postMessage: Java object is gone\n' +
+      '    at sendDataToNative (iabjs://navigation_performance_logger_android:1:2120)\n' +
+      '    at iabjs://navigation_performance_logger_android:1:2600',
+  );
+
+  it('an in-app browser logger failing is not reported', () => {
+    const h = harness();
+    h.target.fire('error', { error: IAB, message: IAB.message });
+    h.target.fire('unhandledrejection', { reason: IAB });
+    expect(h.captured.length).toBe(0);
+  });
+
+  it('every frame must be injected: one of ours keeps the report', () => {
+    expect(fromInjectedScript(IAB)).toBe(true);
+    expect(fromInjectedScript(withStack('sendDataToNative@iabjs://logger:1:2120'))).toBe(true);
+    expect(
+      fromInjectedScript(
+        withStack('fn@moz-extension://abc/content.js:3:4\nfn@chrome-extension://def/x.js:1:1'),
+      ),
+    ).toBe(true);
+    expect(
+      fromInjectedScript(
+        withStack(
+          'Error: x\n    at ours (https://designer.ziroeda.com/assets/a.js:1:2)\n    at iabjs://x:1:2',
+        ),
+      ),
+    ).toBe(false);
+    expect(fromInjectedScript(withStack('Error: no frames at all'))).toBe(false);
+    expect(fromInjectedScript('a string')).toBe(false);
   });
 });

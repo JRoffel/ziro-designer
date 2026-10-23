@@ -2490,7 +2490,9 @@ export class PCB_EDIT_FRAME extends PCB_BASE_EDIT_FRAME {
   ExecuteRemoteCommand(cmdline: string): void {
     const pcb = this.GetBoard();
 
-    if (!pcb) return;
+    // Upstream's frame always has its canvas; here a lost WebGL context, or a probe arriving
+    // before the panel is built, leaves none - and no painter to highlight with.
+    if (!pcb || !this.GetCanvas()) return;
 
     const crossProbingSettings = this.hooks.settings().m_CrossProbing;
 
