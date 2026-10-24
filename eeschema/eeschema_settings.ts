@@ -647,7 +647,15 @@ export class EESCHEMA_SETTINGS extends APP_SETTINGS_BASE {
    * `m_LibViewPanel`'s window (`PANEL_LIB_VIEW::window`): the Symbol Library Browser's own grid,
    * cursor and size, `lib_view.window`. The panel's widths and toggle are read off the slice.
    */
-  m_LibViewPanel = { window: new WINDOW_SETTINGS() };
+  m_LibViewPanel = {
+    window: new WINDOW_SETTINGS(),
+    /**
+     * `show_pin_numbers`: in the struct but registered as no PARAM, so it never reaches
+     * eeschema.json. `m_LibViewPanel()` value-initialises it to false, and it lasts as long as
+     * the settings object does - the program.
+     */
+    show_pin_numbers: false,
+  };
 
   constructor() {
     super('eeschema', eeschemaSchemaVersion);

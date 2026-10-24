@@ -751,9 +751,7 @@ export class SYMBOL_VIEWER_FRAME extends SCH_BASE_FRAME {
 
     if (renderSettings) {
       renderSettings.m_ShowPinsElectricalType = libView.show_pin_electrical_type;
-      // `m_ShowPinNumbers = cfg->m_LibViewPanel.show_pin_numbers`: upstream keeps the field but
-      // registers no param for it, so it is always the struct's default.
-      renderSettings.m_ShowPinNumbers = true;
+      renderSettings.m_ShowPinNumbers = cfg.m_LibViewPanel.show_pin_numbers;
     }
 
     // Set parameters to a reasonable value.
@@ -775,6 +773,8 @@ export class SYMBOL_VIEWER_FRAME extends SCH_BASE_FRAME {
     super.SaveSettings(cfg);
 
     const renderSettings = this.GetRenderSettings();
+
+    if (renderSettings) cfg.m_LibViewPanel.show_pin_numbers = renderSettings.m_ShowPinNumbers;
 
     updateEeschemaSettings((s) => {
       // The window block upstream writes with every other PARAM: what EDA_DRAW_FRAME::SaveSettings

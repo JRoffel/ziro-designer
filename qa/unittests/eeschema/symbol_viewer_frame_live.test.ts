@@ -432,6 +432,29 @@ describe('LoadSettings / SaveSettings (:791-839)', () => {
     expect(cfg.m_Window.grid.last_size_idx).not.toBe(4);
   });
 
+  /**
+   * show_pin_numbers is in PANEL_LIB_VIEW but registered as no PARAM, and `m_LibViewPanel()`
+   * value-initialises it (eeschema_settings.cpp:187): false at start, then whatever the browser
+   * last saved into the settings object, for as long as the program runs - never in the file.
+   */
+  it('opens without pin numbers, and remembers the toggle for the session only', () => {
+    useSettings({});
+    t = symbolViewerHarness();
+    const cfg = eeschemaKifaceSettings();
+    t.frame.LoadSettings(cfg);
+
+    expect(t.frame.GetRenderSettings()!.m_ShowPinNumbers).toBe(false);
+    expect(t.frame.ConditionPinNumbersShown()).toBe(false);
+
+    t.frame.GetToolManager()!.RunAction(SCH_ACTIONS.showPinNumbers);
+    t.frame.SaveSettings(cfg);
+    t.frame.GetRenderSettings()!.m_ShowPinNumbers = false;
+    t.frame.LoadSettings(eeschemaKifaceSettings());
+
+    expect(t.frame.GetRenderSettings()!.m_ShowPinNumbers).toBe(true);
+    expect(JSON.stringify(stored)).not.toContain('show_pin_numbers');
+  });
+
   it('writes the widths, the electrical-type toggle and its window back', () => {
     useSettings({ lib_list_width: 150, cmp_list_width: 150, show_pin_electrical_type: true });
     t = symbolViewerHarness();
