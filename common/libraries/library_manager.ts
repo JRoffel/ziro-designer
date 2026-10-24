@@ -25,7 +25,7 @@ import {
   type LIBRARY_RESULT,
   LIBRARY_TABLE,
   LIBRARY_TABLE_OK,
-  type LIBRARY_TABLE_ROW,
+  LIBRARY_TABLE_ROW,
   LIBRARY_TABLE_SCOPE,
   LIBRARY_TABLE_TYPE,
 } from './library_table.js';
@@ -38,17 +38,19 @@ import {
  * by the host (a page reads the project's and the hosted global tables),
  * handed over with `SetTable`.
  *
- * [gap] Nested tables: upstream's `loadNestedTables` reads each `Table` row's
- * file into `m_childTables` and `Rows` recurses into it, hiding a hidden
- * parent's rows and skipping a disabled one (library_manager.cpp:139-189,
- * :784-812). Neither is ported - a `Table` row contributes nothing here.
- * `ApplyLibOverrides` (the `kicad` settings' per-library overrides on a
- * read-only table) is not ported either.
+ * A `Table` row names another table file, whose libraries count as the row's
+ * table's own (`loadNestedTables`, `Rows`): how KiCad 10's global table chains
+ * the stock one.
+ *
+ * [gap] `ApplyLibOverrides` (the `kicad` settings' per-library overrides on a
+ * read-only table) is not ported.
  */
 export class LIBRARY_MANAGER {
   private readonly m_tables = new Map<LIBRARY_TABLE_TYPE, LIBRARY_TABLE>();
   private readonly m_projectTables = new Map<LIBRARY_TABLE_TYPE, LIBRARY_TABLE>();
   private readonly m_adapters = new Map<LIBRARY_TABLE_TYPE, LIBRARY_MANAGER_ADAPTER>();
+  /** `m_childTables`: each nested table, by the URI of the `Table` row that names it. */
+  private readonly m_childTables = new Map<string, LIBRARY_TABLE>();
 
   /** `RegisterAdapter( aType, aAdapter )`: once per type. */
   RegisterAdapter(aType: LIBRARY_TABLE_TYPE, aAdapter: LIBRARY_MANAGER_ADAPTER): void {
@@ -126,6 +128,7 @@ export class LIBRARY_MANAGER {
       }
 
       this.m_projectTables.set(type, table);
+      this.loadNestedTables(table);
     }
 
     for (const adapter of this.m_adapters.values()) adapter.ProjectTablesReloaded(aTablesToLoad);
@@ -160,8 +163,68 @@ export class LIBRARY_MANAGER {
   ): void {
     const map = aScope === LIBRARY_TABLE_SCOPE.PROJECT ? this.m_projectTables : this.m_tables;
 
-    if (aTable) map.set(aType, aTable);
-    else map.delete(aType);
+    if (aTable) {
+      map.set(aType, aTable);
+      this.loadNestedTables(aTable);
+    } else {
+      map.delete(aType);
+    }
+  }
+
+  /**
+   * `loadNestedTables( aRootTable )` (library_manager.cpp:139-189): every `Table` row's file read
+   * into m_childTables, and theirs in turn. A table already met on the way marks the row that
+   * names it again, and a child that does not load marks its row with the child's error.
+   */
+  private loadNestedTables(aRootTable: LIBRARY_TABLE): void {
+    const seenTables = new Set<string>();
+
+    const processOneTable = (aTable: LIBRARY_TABLE): void => {
+      seenTables.add(aTable.Path());
+
+      if (!aTable.IsOk()) return;
+
+      for (const row of aTable.Rows()) {
+        if (row.Type() !== LIBRARY_TABLE_ROW.TABLE_TYPE_NAME) continue;
+
+        let file = LIBRARY_MANAGER.ExpandURI(
+          row.URI(),
+          PgmOrNull()?.GetSettingsManager().Prj() ?? null,
+        );
+
+        // URI may be relative to parent
+        if (!file.startsWith('/')) {
+          const parent = aTable.Path();
+          file = `${parent.slice(0, parent.lastIndexOf('/'))}/${file}`;
+        }
+
+        if (seenTables.has(file)) {
+          row.SetOk(false);
+          row.SetErrorDescription('A reference to this library table already exists');
+          continue;
+        }
+
+        const bytes = wxReadFileSync(file);
+        const child = LIBRARY_TABLE.FromFile(
+          file,
+          bytes ? new TextDecoder().decode(bytes) : null,
+          aRootTable.Scope(),
+        );
+
+        processOneTable(child);
+
+        if (!child.IsOk()) {
+          row.SetOk(false);
+          row.SetErrorDescription(child.ErrorDescription());
+        }
+
+        // applyLibOverrides( *child ): not ported (see the class comment).
+
+        this.m_childTables.set(row.URI(), child);
+      }
+    };
+
+    processOneTable(aRootTable);
   }
 
   /** `Table( aType, aScope )`: the table itself, or null. */
@@ -189,22 +252,44 @@ export class LIBRARY_MANAGER {
           ? [this.m_projectTables.get(aType)]
           : [this.m_tables.get(aType), this.m_projectTables.get(aType)];
 
-    for (const table of tables) {
-      if (!table || table.Type() !== aType) continue;
+    // The tables on the current path. Upstream recurses without one, so a row loadNestedTables
+    // marked for naming a table already met - which keeps that table's URI in m_childTables, under
+    // the row that loaded it - leads back into it forever once invalid rows are asked for.
+    const onPath = new Set<LIBRARY_TABLE>();
 
-      if (!table.IsOk() && !aIncludeInvalid) continue;
+    const processTable = (aTable: LIBRARY_TABLE | undefined, parentHidden: boolean): void => {
+      if (!aTable || aTable.Type() !== aType || onPath.has(aTable)) return;
 
-      for (const row of table.Rows()) {
+      if (!aTable.IsOk() && !aIncludeInvalid) return;
+
+      onPath.add(aTable);
+
+      for (const row of aTable.Rows()) {
         if (!row.IsOk() && !aIncludeInvalid) continue;
 
-        // A nested table's libraries are not followed here.
-        if (row.Type() === 'Table') continue;
+        // Hide child row if parent is hidden
+        if (parentHidden) row.SetHidden(true);
 
-        if (!rows.has(row.Nickname())) rowOrder.push(row.Nickname());
+        if (row.Type() === LIBRARY_TABLE_ROW.TABLE_TYPE_NAME) {
+          const child = this.m_childTables.get(row.URI());
 
-        rows.set(row.Nickname(), row);
+          if (!child) continue;
+
+          // Don't include libraries from disabled nested tables
+          if (row.Disabled()) continue;
+
+          processTable(child, row.Hidden());
+        } else {
+          if (!rows.has(row.Nickname())) rowOrder.push(row.Nickname());
+
+          rows.set(row.Nickname(), row);
+        }
       }
-    }
+
+      onPath.delete(aTable);
+    };
+
+    for (const table of tables) processTable(table, false);
 
     return rowOrder.map((n) => rows.get(n)!);
   }
