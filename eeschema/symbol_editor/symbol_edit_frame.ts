@@ -838,6 +838,19 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
     return this.m_libMgr;
   }
 
+  /** `HasLibModifications()` (symbol_edit_frame.cpp:1912): a buffered library or symbol is dirty. */
+  HasLibModifications(): boolean {
+    // wxCHECK( m_libMgr, false )
+    if (!this.m_libMgr) return false;
+
+    return this.m_libMgr.HasModifications();
+  }
+
+  /** `GetCurrentSelection()` (symbol_edit_frame.cpp:1970): the selection tool's. */
+  override GetCurrentSelection(): SELECTION {
+    return this.m_toolManager!.GetTool(SCH_SELECTION_TOOL)!.GetSelection();
+  }
+
   /** `setupTools()` (symbol_edit_frame.cpp:413-446), with the tools ported so far. */
   setupTools(): void {
     const canvas = this.GetCanvas()!;

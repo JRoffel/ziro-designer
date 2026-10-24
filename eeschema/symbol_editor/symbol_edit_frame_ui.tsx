@@ -1256,7 +1256,7 @@ export function SymbolEditor({
   );
   const title = `${symTitle.modified}${symTitle.document}`;
   useDocumentTitle('symbols', formatTitle(SYM_FRAME_NAME, symTitle.document, modified));
-  useUnsavedGuard(libManager.HasModifications());
+  useUnsavedGuard(frame.HasLibModifications());
 
   // ----- the unit and body style -----------------------------------------------------
   const unitCount = symbol?.GetUnitCount() ?? 0;

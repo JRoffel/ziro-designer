@@ -8,7 +8,10 @@
  * leave live, and which toggles are checked.
  */
 import { afterEach, describe, expect, it } from 'vitest';
+import { IS_MOVING } from '@ziroeda/common/eda_item_flags.js';
 import { LIB_ID } from '@ziroeda/common/lib_id.js';
+import { KICAD_T } from '@ziroeda/core/typeinfo.js';
+import { SCH_SELECTION_TOOL } from '@ziroeda/eeschema/tools/sch_selection_tool.js';
 import { ACTIONS } from '@ziroeda/common/tool/actions.js';
 import type { TOOL_ACTION } from '@ziroeda/common/tool/tool_action.js';
 import { SCH_ACTIONS } from '@ziroeda/eeschema/tools/sch_actions.js';
@@ -169,13 +172,30 @@ describe('a root symbol', () => {
     setUp();
     t.open('U');
     const tm = t.frame.GetToolManager()!;
+    expect(t.frame.HasLibModifications()).toBe(false);
 
     tm.RunAction(ACTIONS.selectAll);
     tm.RunAction(SCH_ACTIONS.rotateCW);
 
+    expect(t.frame.HasLibModifications()).toBe(true);
+
     expect(enabled(ACTIONS.undo)).toBe(true);
     expect(enabled(ACTIONS.redo)).toBe(false);
     expect(enabled(ACTIONS.revert)).toBe(true);
+  });
+
+  // SELECTION_CONDITIONS::Idle, asked of GetCurrentSelection() - the selection tool's.
+  it('pastes nothing while an item is being moved', () => {
+    setUp();
+    const symbol = t.open('U');
+    const tool = t.frame.GetToolManager()!.GetTool(SCH_SELECTION_TOOL)!;
+    const shape = [...symbol.GetDrawItems()].find((i) => i.Type() === KICAD_T.SCH_SHAPE_T)!;
+
+    tool.AddItemToSel(shape);
+    expect(enabled(ACTIONS.paste)).toBe(true);
+
+    shape.SetFlags(IS_MOVING);
+    expect(enabled(ACTIONS.paste)).toBe(false);
   });
 
   it('with interchangeable units, offers synced pin editing - checked as the frame has it', () => {
