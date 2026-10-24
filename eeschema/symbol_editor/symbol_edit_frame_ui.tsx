@@ -136,7 +136,6 @@ import { GRAPHICS_IMPORTER_LIB_SYMBOL } from '../import_gfx/graphics_importer_li
 import type { LIB_SYMBOL } from '../lib_symbol.js';
 import {
   fetchHostedSymbolFile,
-  LoadGlobalSymbolTables,
 } from '../libraries/symbol_library_adapter.js';
 import { SymbolLibAdapter } from '../project_sch.js';
 import { projectSymLibTablePath } from '../project_sym_lib_table.js';
@@ -855,7 +854,7 @@ export function SymbolEditor({
     return () => unmount?.();
   }, [projectKey, projectName, frame]);
 
-  // The hosted libraries as the global table, their names from the index.
+  // The hosted index, once it is in - loading it installs the global tables (loadIndex).
   // biome-ignore lint/correctness/useExhaustiveDependencies: the index loader is the trigger
   useEffect(() => {
     let cancelled = false;
@@ -868,7 +867,6 @@ export function SymbolEditor({
         for (const lib of idx)
           hostedIndex.current.set(lib.name, { symbols: lib.symbols, descr: lib.descr ?? '' });
 
-        LoadGlobalSymbolTables(idx.map((l) => l.name));
         frame.SyncLibraries(false);
       })
       .catch(() => bumpTree());

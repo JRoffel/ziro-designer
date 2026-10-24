@@ -18,7 +18,7 @@
  * Each palette is one wxPanel holding a wxSearchCtrl over a WX_LISTBOX, laid out by the shared
  * `.ze-palette-pane` rules (`shell.css`) the Footprint Library Browser's panes use too.
  *
- * The hosted libraries are the global table, as the Symbol Editor sets it. They are read the way
+ * The hosted libraries are the global table, as the index load sets it. They are read the way
  * the program reads them: listed once the preload has their items, a symbol's own file fetched
  * when the browser lands on it ({@link hostedSymbolHooks}).
  */
@@ -59,7 +59,6 @@ import { createSchDrawPanel } from './browser/sch_canvas.js';
 import { LIB_TREE_ITEM_SYMBOL, type LibTreeItem } from './lib_tree_item.js';
 import {
   fetchHostedSymbolFile,
-  LoadGlobalSymbolTables,
   isHostedSymbolLibraryRow,
   type LibIndexEntry,
   libraryLoaded,
@@ -307,8 +306,8 @@ export function SymbolViewerFrame({
   // ----- the libraries -------------------------------------------------------------
   const [indexLoaded, setIndexLoaded] = useState(false);
 
-  // The hosted libraries as the global table, then each one listed as its preload lands - the
-  // library status changing to LOADED - in one rebuild per batch.
+  // Once the index is in (loading it installs the global tables), each hosted library listed as
+  // its preload lands - the library status changing to LOADED - in one rebuild per batch.
   // biome-ignore lint/correctness/useExhaustiveDependencies: the index loader is the trigger
   useEffect(() => {
     let cancelled = false;
@@ -330,7 +329,6 @@ export function SymbolViewerFrame({
       .then((idx) => {
         if (cancelled) return;
 
-        LoadGlobalSymbolTables(idx.map((l) => l.name));
 
         setIndexLoaded(true);
         rebuild();

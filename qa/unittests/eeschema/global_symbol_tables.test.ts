@@ -16,8 +16,10 @@ import {
 import { PATHS } from '@ziroeda/common/paths.js';
 import { PGM_BASE, Pgm, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
 import {
+  configureSymbolLibraryAdapter,
   isHostedSymbolLibraryRow,
   LoadGlobalSymbolTables,
+  loadIndex,
 } from '@ziroeda/eeschema/libraries/symbol_library_adapter.js';
 import { MEMORY_FILESYSTEM, wxMountFileSystem, wxReadFileSync } from '@ziroeda/wx/filefn.js';
 
@@ -110,5 +112,49 @@ describe('LoadGlobalSymbolTables', () => {
     expect(Pgm().GetLibraryManager().Table(SYM, LIBRARY_TABLE_SCOPE.GLOBAL)!.IsReadOnly()).toBe(
       true,
     );
+  });
+});
+
+/**
+ * PGM_KICAD::OnPgmInit loads the global tables for every window (kicad.cpp:295). Ours are read the
+ * first time the hosted index is in, inside the one index load every chooser shares, so a library
+ * in the user's table is in the schematic's Place Symbol tree without the Symbol Editor having
+ * been opened first.
+ */
+describe('the symbol index', () => {
+  it("installs the global tables once the hosted set is in, the user's own rows read beside it", async () => {
+    const SYMBOLS = new MEMORY_FILESYSTEM();
+    const unmountSymbols = wxMountFileSystem('/Symbols', SYMBOLS);
+    try {
+      SYMBOLS.Write(
+        'Mine.kicad_sym',
+        new TextEncoder().encode(`(kicad_symbol_lib (version 20241209) (generator "qa")
+  (symbol "M" (in_bom yes) (on_board yes)
+    (property "Reference" "U" (at 0 0 0) (effects (font (size 1.27 1.27))))
+    (property "Value" "M" (at 0 0 0) (effects (font (size 1.27 1.27))))))`),
+      );
+      cfg.Write(
+        'sym-lib-table',
+        new TextEncoder().encode(`(sym_lib_table
+  (version 7)
+  (lib (name "KiCad")(type "Table")(uri "${LIBRARY_MANAGER.StockTableReferenceURI(SYM)}")(options "")(descr ""))
+  (lib (name "Mine")(type "KiCad")(uri "/Symbols/Mine.kicad_sym")(options "")(descr ""))
+)
+`),
+      );
+      configureSymbolLibraryAdapter({
+        symbolsBase: () => '',
+        fetchIndex: () => Promise.resolve([{ name: 'Device', count: 1, symbols: ['R'] }]),
+        trackLoad: (_aLabel, aWork) => aWork,
+        loadLibraryItemsPooled: () => Promise.resolve([]),
+      });
+
+      const index = await loadIndex();
+
+      expect(index.map((e) => e.name)).toEqual(['Device', 'Mine']);
+      expect(globalRows().map((r) => r.Nickname())).toEqual(['Device', 'Mine']);
+    } finally {
+      unmountSymbols();
+    }
   });
 });

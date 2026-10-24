@@ -240,7 +240,6 @@ import { jsonFileWildcard, reportFileWildcard } from '@ziroeda/common/wildcards_
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import {
   fetchHostedSymbolFile,
-  LoadGlobalSymbolTables,
 } from './libraries/symbol_library_adapter.js';
 import { type SchErcLine, schErcLines } from './sch_script_api.js';
 import { INFO_CAPTION } from '@ziroeda/common/confirm_types.js';
@@ -595,7 +594,6 @@ async function prepareSymbolLibraries(
   }
 
   const manager = Pgm().GetLibraryManager();
-  LoadGlobalSymbolTables(hosted);
 
   const tablePath = projectSymLibTablePath(aProjectFiles);
   const tableFile = aProjectFiles.find((f) => f.name === tablePath);

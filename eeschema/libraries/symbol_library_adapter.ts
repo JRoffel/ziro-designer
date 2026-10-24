@@ -236,10 +236,16 @@ let indexPromise: Promise<LibIndexEntry[]> | null = null;
  */
 export async function loadIndex(): Promise<LibIndexEntry[]> {
   if (!indexPromise)
-    indexPromise = requireHost().trackLoad(
-      'Loading symbol libraries...',
-      requireHost().fetchIndex(),
-    );
+    indexPromise = requireHost()
+      .trackLoad('Loading symbol libraries...', requireHost().fetchIndex())
+      .then((hosted) => {
+        // PGM_KICAD::OnPgmInit's `GetLibraryManager().LoadGlobalTables()` (kicad.cpp:295): the
+        // global table is the program's from the start, for every window. Here it can only be
+        // read once the hosted set, its stock table, is known - the first time the index is in.
+        if (PgmOrNull()) LoadGlobalSymbolTables(hosted.map((e) => e.name));
+
+        return hosted;
+      });
   const hosted = await indexPromise;
   const table = tableLibraryEntries();
 
