@@ -298,6 +298,7 @@ export function FootprintEditFrame({
   initialProject,
   kiway,
   onWriteProjectFiles,
+  onOutputFile,
 }: {
   app: FOOTPRINT_EDIT_FRAME_APP;
   onExitToHome: () => void;
@@ -309,11 +310,15 @@ export function FootprintEditFrame({
    * `fp-lib-table`, where Save and Add Library write them upstream. None without a project.
    */
   onWriteProjectFiles?: ((files: { name: string; text: string }[]) => void) | undefined;
+  /** A generated output (File > Export > View as PNG): the program downloads it. */
+  onOutputFile?: ((name: string, bytes: Uint8Array, mime: string) => void) | undefined;
 }): JSX.Element {
   const projectRef = useRef(initialProject);
   projectRef.current = initialProject;
   const writeRef = useRef(onWriteProjectFiles);
   writeRef.current = onWriteProjectFiles;
+  const outputRef = useRef(onOutputFile);
+  outputRef.current = onOutputFile;
   const fpCfg = app.useFpEditSettings();
   const userColors = app.useUserColors();
   const userThemes = app.useUserThemes();
@@ -489,6 +494,7 @@ export function FootprintEditFrame({
     const h = (): typeof itemDialogHooksRef.current => itemDialogHooksRef.current;
     const f = new FOOTPRINT_EDIT_FRAME({
       fpEdit: (aFile) => fpEditRef.current(aFile),
+      writeOutputFile: (aPath, aBytes, aMime) => outputRef.current?.(aPath, aBytes, aMime),
       onModify: () => repaint(),
       askUnsavedChanges: (aMessage) =>
         new Promise((resolve) => setUnsaved({ message: aMessage, done: resolve })),
@@ -1067,6 +1073,10 @@ export function FootprintEditFrame({
           return;
         case 'close':
           onExitToHome();
+          return;
+        case 'saveFootprintAsPng':
+          // EVT_TOOL( ID_FPEDIT_SAVE_PNG, FOOTPRINT_EDIT_FRAME::OnSaveFootprintAsPng )
+          frameRef.current?.OnSaveFootprintAsPng();
           return;
       }
 

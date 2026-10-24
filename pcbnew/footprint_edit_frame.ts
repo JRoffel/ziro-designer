@@ -7,6 +7,8 @@
  * owns the library tree and canvas each command changes, so the frame
  * reaches them through {@link FOOTPRINT_EDIT_FRAME_HOOKS}.
  */
+import { BITMAP_TYPE } from '@ziroeda/common/bitmap.js';
+import { DisplayErrorMessage } from '@ziroeda/common/confirm.js';
 import { pcbIUScale, PCB_IU_PER_MM } from '@ziroeda/common/eda_units.js';
 import { FRAME_T } from '@ziroeda/common/frame_type.js';
 import type { KIWAY_MAIL_EVENT } from '@ziroeda/common/kiway_mail.js';
@@ -136,6 +138,8 @@ export interface FOOTPRINT_EDIT_FRAME_HOOKS extends PCB_BASE_EDIT_FRAME_DIALOG_H
   toggleProperties?(): void;
   /** FOOTPRINT_EDITOR_CONTROL::CheckFootprint: show the modeless DIALOG_FOOTPRINT_CHECKER. */
   showFootprintChecker?(): void;
+  /** A generated output (OnSaveFootprintAsPng's image), handed to the window to download. */
+  writeOutputFile?(aPath: string, aBytes: Uint8Array, aMime: string): void;
   /**
    * `ConfirmRevertDialog( this, aMessage )` (confirm.cpp): Revert or Cancel,
    * with "Your current changes will be permanently lost." under it.
@@ -700,6 +704,31 @@ export class FOOTPRINT_EDIT_FRAME extends PCB_BASE_EDIT_FRAME {
 
   override AddFootprintToBoard(aFootprint: FOOTPRINT | null): void {
     if (aFootprint) this.ReloadFootprint(aFootprint);
+  }
+
+  /** A generated output, handed to the window to download. */
+  override WriteOutputFile(aPath: string, aBytes: Uint8Array, aMime: string): void {
+    this.hooks.writeOutputFile?.(aPath, aBytes, aMime);
+  }
+
+  /**
+   * `OnSaveFootprintAsPng( event )` (footprint_edit_frame.cpp:1549), File > Export > View as PNG.
+   * Upstream asks for a path with a wxFD_SAVE dialog; outputs download here, so the image keeps
+   * the name that dialog would have offered.
+   */
+  OnSaveFootprintAsPng(): void {
+    const id = this.GetLoadedFPID();
+
+    if (id.empty()) {
+      DisplayErrorMessage('No footprint selected.');
+      return;
+    }
+
+    // `wxFileName fn( id.GetLibItemName() ); fn.SetExt( wxT( "png" ) );`
+    const fn = `${id.GetLibItemName()}.png`;
+
+    // wxYield() refreshed the screen under the closed dialog; GetScreenshot repaints anyway.
+    this.SaveCanvasImageToFile(fn, BITMAP_TYPE.PNG);
   }
 
   /** `GetLoadedFPID()`: the edited footprint's LIB_ID, or an empty one. */

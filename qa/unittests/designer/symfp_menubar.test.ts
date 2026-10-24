@@ -344,6 +344,23 @@ describe('the Footprint Editor menu bar', () => {
   });
 
   /**
+   * View as PNG is a raw `Add( ..., ID_FPEDIT_SAVE_PNG, ... )` (:78-81) with no update-UI
+   * handler: live with every condition false, and OnSaveFootprintAsPng answers an empty frame.
+   */
+  it('keeps View as PNG live, sending ID_FPEDIT_SAVE_PNG to the frame', () => {
+    const sent: string[] = [];
+    const none: FootprintMenuConditions = Object.fromEntries(
+      Object.keys(FP_ON).map((k) => [k, false]),
+    ) as unknown as FootprintMenuConditions;
+    const bar = footprintEditorMenus({ ...handlers(), action: (id) => sent.push(id) }, {}, none);
+    const row = find(bar, 'View as PNG...')!;
+
+    expect(row.disabled).toBeFalsy();
+    row.action!();
+    expect(sent).toEqual(['saveFootprintAsPng']);
+  });
+
+  /**
    * `ACTIONS::saveAll` appears nowhere in `menubar_footprint_editor.cpp`. The
    * footprint editor has no Save All row; ours had invented one.
    */

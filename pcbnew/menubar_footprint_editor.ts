@@ -200,12 +200,14 @@ export function footprintEditorMenus(
             act('Footprint...', 'exportFootprint', { disabled: !conds.haveFootprint }),
             // :78-81 — not an action at all but a raw
             // `Add( label, help, ID_FPEDIT_SAVE_PNG, BITMAPS::export_png )`,
-            // so the help string is upstream's own and the `&` marks P.
+            // so the help string is upstream's own and the `&` marks P. No
+            // update-UI handler: always live, and OnSaveFootprintAsPng says
+            // "No footprint selected." itself.
             {
               label: 'View as PNG...',
               mnemonic: 'P',
               tooltip: 'Create a PNG file from the current view',
-              disabled: true,
+              action: () => h.action('saveFootprintAsPng'),
             },
           ],
         },
