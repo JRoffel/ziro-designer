@@ -23,7 +23,7 @@
  */
 import { FORMAT_MODE } from '../io/kicad/kicad_io_utils.js';
 import { type OUTPUTFORMATTER, PRETTIFIED_STRING_FORMATTER } from '../richio.js';
-import { wxWriteFileSync } from '@ziroeda/wx/filefn.js';
+import { wxFileExists, wxIsFileWritable, wxWriteFileSync } from '@ziroeda/wx/filefn.js';
 import { XNODE, wxXmlNodeType } from '../xnode.js';
 import {
   LIBRARY_TABLE_PARSER,
@@ -370,9 +370,14 @@ export class LIBRARY_TABLE {
 
   /** `IsReadOnly`: the underlying file exists but is not writable. */
   IsReadOnly(): boolean {
-    return this.m_readOnly;
+    // Web delta: a table built in memory (no file to ask) says so itself, through SetReadOnly.
+    if (this.m_readOnly) return true;
+
+    if (this.m_path === '') return false;
+
+    return wxFileExists(this.m_path) && !wxIsFileWritable(this.m_path);
   }
-  /** Web delta: what `wxFileName::IsFileWritable` would have answered. */
+  /** Web delta: a table with no file of its own, read-only all the same (the hosted one). */
   SetReadOnly(aReadOnly = true): void {
     this.m_readOnly = aReadOnly;
   }

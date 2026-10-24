@@ -32,17 +32,13 @@ import {
   useState,
 } from 'react';
 import { ShowAboutDialog } from '@ziroeda/common/dialog_about/AboutDialog_main.js';
-import { hostedLibraryTable } from '@ziroeda/common/dialogs/lib_table_panel.js';
 import { ABOUT_TITLES } from '@ziroeda/common/eda_base_frame_about_titles.js';
 import { FRAME_T } from '@ziroeda/common/frame_type.js';
 import { loadBitmapFontImage } from '@ziroeda/common/gal/gal_window.js';
 import { showHotkeyList } from '@ziroeda/common/hotkeys_basic.js';
 import type { KIWAY } from '@ziroeda/common/kiway.js';
 import type { LIB_ID } from '@ziroeda/common/lib_id.js';
-import {
-  LIBRARY_TABLE_SCOPE,
-  LIBRARY_TABLE_TYPE,
-} from '@ziroeda/common/libraries/library_table.js';
+import { LIBRARY_TABLE_TYPE } from '@ziroeda/common/libraries/library_table.js';
 import { Pgm } from '@ziroeda/common/pgm_base.js';
 import { strNumCmp } from '@ziroeda/common/string_utils.js';
 import { wasBrowserSuppressed } from '@ziroeda/common/browser_hotkeys.js';
@@ -63,7 +59,8 @@ import { createSchDrawPanel } from './browser/sch_canvas.js';
 import { LIB_TREE_ITEM_SYMBOL, type LibTreeItem } from './lib_tree_item.js';
 import {
   fetchHostedSymbolFile,
-  hostedSymbolLibraryUri,
+  LoadGlobalSymbolTables,
+  isHostedSymbolLibraryRow,
   type LibIndexEntry,
   libraryLoaded,
   loadedLibraryItems,
@@ -142,7 +139,7 @@ export const HOSTED_SYMBOL_SOURCE: SYMBOL_VIEWER_LIBRARY_SOURCE = {
 function isHostedLibrary(aLib: string): boolean {
   const row = SymbolLibAdapter(Pgm().GetSettingsManager().Prj()).GetRow(aLib);
 
-  return !!row && row.Scope() === LIBRARY_TABLE_SCOPE.GLOBAL;
+  return !!row && isHostedSymbolLibraryRow(row);
 }
 
 /**
@@ -164,8 +161,7 @@ export function hostedSymbolHooks(
       for (const row of Pgm().GetLibraryManager().Rows(LIBRARY_TABLE_TYPE.SYMBOL)) {
         const nickname = row.Nickname();
 
-        if (row.Scope() === LIBRARY_TABLE_SCOPE.GLOBAL && aSource.libraryLoaded(nickname))
-          names.add(nickname);
+        if (isHostedSymbolLibraryRow(row) && aSource.libraryLoaded(nickname)) names.add(nickname);
       }
 
       return [...names].sort((a, b) => strNumCmp(a, b, true));
@@ -334,17 +330,7 @@ export function SymbolViewerFrame({
       .then((idx) => {
         if (cancelled) return;
 
-        Pgm()
-          .GetLibraryManager()
-          .SetTable(
-            LIBRARY_TABLE_TYPE.SYMBOL,
-            LIBRARY_TABLE_SCOPE.GLOBAL,
-            hostedLibraryTable(
-              LIBRARY_TABLE_TYPE.SYMBOL,
-              idx.map((l) => l.name),
-              hostedSymbolLibraryUri,
-            ),
-          );
+        LoadGlobalSymbolTables(idx.map((l) => l.name));
 
         setIndexLoaded(true);
         rebuild();
@@ -352,7 +338,7 @@ export function SymbolViewerFrame({
         for (const row of Pgm().GetLibraryManager().Rows(LIBRARY_TABLE_TYPE.SYMBOL)) {
           const nickname = row.Nickname();
 
-          if (row.Scope() === LIBRARY_TABLE_SCOPE.GLOBAL && !libraryLoaded(nickname))
+          if (isHostedSymbolLibraryRow(row) && !libraryLoaded(nickname))
             preloadLibraryItems(nickname).then(rebuild, () => {});
         }
       })

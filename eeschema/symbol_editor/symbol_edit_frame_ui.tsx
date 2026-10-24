@@ -38,7 +38,6 @@ import {
   ShowKicadMessageDialog,
   type UnsavedChangesResult,
 } from '@ziroeda/common/confirm.js';
-import { hostedLibraryTable } from '@ziroeda/common/dialogs/lib_table_panel.js';
 import { HtmlMessageBox } from '@ziroeda/common/dialogs/html_message_box.js';
 import { UnsavedChangesDialog } from '@ziroeda/common/dialogs/dialog_unsaved_changes.js';
 import { ABOUT_TITLES } from '@ziroeda/common/eda_base_frame_about_titles.js';
@@ -118,7 +117,7 @@ import { GRAPHICS_IMPORTER_LIB_SYMBOL } from '../import_gfx/graphics_importer_li
 import type { LIB_SYMBOL } from '../lib_symbol.js';
 import {
   fetchHostedSymbolFile,
-  hostedSymbolLibraryUri,
+  LoadGlobalSymbolTables,
 } from '../libraries/symbol_library_adapter.js';
 import { SymbolLibAdapter } from '../project_sch.js';
 import { projectSymLibTablePath } from '../project_sym_lib_table.js';
@@ -837,17 +836,7 @@ export function SymbolEditor({
         for (const lib of idx)
           hostedIndex.current.set(lib.name, { symbols: lib.symbols, descr: lib.descr ?? '' });
 
-        Pgm()
-          .GetLibraryManager()
-          .SetTable(
-            LIBRARY_TABLE_TYPE.SYMBOL,
-            LIBRARY_TABLE_SCOPE.GLOBAL,
-            hostedLibraryTable(
-              LIBRARY_TABLE_TYPE.SYMBOL,
-              idx.map((l) => l.name),
-              hostedSymbolLibraryUri,
-            ),
-          );
+        LoadGlobalSymbolTables(idx.map((l) => l.name));
         frame.SyncLibraries(false);
       })
       .catch(() => bumpTree());

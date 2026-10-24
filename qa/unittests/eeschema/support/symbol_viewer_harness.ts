@@ -11,6 +11,7 @@ import {
 } from '@ziroeda/common/libraries/library_table.js';
 import { LIB_ID } from '@ziroeda/common/lib_id.js';
 import { PGM_BASE, Pgm, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
+import { SYMBOL_DOWNLOAD_DIR } from '@ziroeda/eeschema/libraries/symbol_library_adapter.js';
 import { SymbolLibAdapter } from '@ziroeda/eeschema/project_sch.js';
 import type { SCH_EDIT_FRAME } from '@ziroeda/eeschema/sch_edit_frame.js';
 import {
@@ -74,6 +75,10 @@ export function symbolViewerLibraries(aFolderRows: readonly string[] = []): {
   SetPgm(new PGM_BASE(null, new SETTINGS_MANAGER()));
   const fs = new MEMORY_FILESYSTEM();
   const unmount = wxMountFileSystem('/libs', fs);
+  // The folder rows are hosted libraries: their URIs lie in the hosted downloads, where this same
+  // store answers for them.
+  const hosted = `${SYMBOL_DOWNLOAD_DIR}/qa`;
+  const unmountHosted = wxMountFileSystem(hosted, fs);
   fs.Write('Alpha.kicad_sym', new TextEncoder().encode(ALPHA));
   fs.Write('Beta.kicad_sym', new TextEncoder().encode(BETA));
 
@@ -88,7 +93,7 @@ export function symbolViewerLibraries(aFolderRows: readonly string[] = []): {
     LIBRARY_TABLE_SCOPE.GLOBAL,
     LIBRARY_TABLE.FromFile(
       '/libs/global-sym-lib-table',
-      `(sym_lib_table (version 7) ${aFolderRows.map((n) => row(n, `/libs/${n}`)).join('')})`,
+      `(sym_lib_table (version 7) ${aFolderRows.map((n) => row(n, `${hosted}/${n}`)).join('')})`,
       LIBRARY_TABLE_SCOPE.GLOBAL,
       LIBRARY_TABLE_TYPE.SYMBOL,
     ),
@@ -113,6 +118,7 @@ export function symbolViewerLibraries(aFolderRows: readonly string[] = []): {
   return {
     fs,
     dispose() {
+      unmountHosted();
       unmount();
       SetPgm(null);
     },

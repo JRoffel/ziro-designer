@@ -306,6 +306,7 @@ describe('the same workspace on another device', () => {
     a.updateGerbview((s) => {
       s.appearance.page_type = 'A4';
     });
+    a.setSymLibTable('(sym_lib_table (version 7))');
 
     const up = await syncSettings(USER, { manager: a });
     expect(up.error).toBeUndefined();
@@ -906,6 +907,8 @@ describe('the per-slice stamps', () => {
     a.updateToolbars('fpedit', () => undefined);
     a.updateToolbars('3d_viewer', () => undefined);
     a.updateViewer3d(() => undefined);
+    // The global symbol library table, written as a save of that file writes it.
+    a.setSymLibTable('');
 
     // Written out rather than compared against `SETTINGS_SLICES`. Comparing the
     // list to itself is an expectation computed by calling the code under test:
@@ -947,6 +950,9 @@ describe('the per-slice stamps', () => {
       'pl_editor',
       'pl_editor-toolbars',
       'privacy',
+      // The user's global symbol library table, `LIBRARY_MANAGER::DefaultGlobalTablePath( SYMBOL )`
+      // - a file beside the settings in `PATHS::GetUserSettingsPath()` (library_manager.cpp:437).
+      'sym-lib-table',
       // `symbol_editor.json` and `symbol_editor-toolbars.json`, the Symbol
       // Editor's own two files — `GetAppSettings<SYMBOL_EDITOR_SETTINGS>(
       // "symbol_editor" )` and `GetToolbarSettings<SYMBOL_EDIT_TOOLBAR_SETTINGS>(

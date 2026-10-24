@@ -1912,6 +1912,10 @@ export const SETTINGS_SLICES = [
   // "gerbview-toolbars" )` (`gerbview/gerbview.cpp:98-99`).
   'gerbview',
   'gerbview-toolbars',
+  // The user's global symbol library table, `LIBRARY_MANAGER::DefaultGlobalTablePath( SYMBOL )`:
+  // a file in `PATHS::GetUserSettingsPath()` beside the settings, which is what this set is. The
+  // value is the table's text, mounted there by prefs/user_library_tables.ts.
+  'sym-lib-table',
 ] as const;
 
 export type SettingsSlice = (typeof SETTINGS_SLICES)[number];
@@ -2339,6 +2343,8 @@ interface SliceValues {
   'pl_editor-toolbars': ToolbarSettings;
   gerbview: GerbviewSettings;
   'gerbview-toolbars': ToolbarSettings;
+  /** The table's text; empty until `LIBRARY_MANAGER::CreateGlobalTable` writes it. */
+  'sym-lib-table': { table: string };
 }
 
 /** `deepMerge` over a fresh copy of the defaults: a fixed-shape file. */
@@ -2389,6 +2395,10 @@ const SLICE_NORMALIZE: { [K in SettingsSlice]: (stored: unknown) => SliceValues[
   'pl_editor-toolbars': normalizeToolbarSettings,
   gerbview: mergedWithGrids(GERBVIEW_DEFAULTS),
   'gerbview-toolbars': normalizeToolbarSettings,
+  'sym-lib-table': (stored) => {
+    const table = (stored as { table?: unknown } | undefined)?.table;
+    return { table: typeof table === 'string' ? table : '' };
+  },
 };
 
 type SliceFiles = { [K in SettingsSlice]: SLICE_SETTINGS<SliceValues[K]> };
@@ -2873,6 +2883,16 @@ export class SettingsManager {
 
   updatePrivacy(mutate: (s: PrivacySettings) => void): void {
     this.update('privacy', mutate);
+  }
+
+  /** The user's global symbol library table, as text (`sym-lib-table`). */
+  get symLibTable(): string {
+    return this.files['sym-lib-table'].value.table;
+  }
+
+  /** Write the user's global symbol library table: what a save of that file does. */
+  setSymLibTable(aText: string): void {
+    this.replace('sym-lib-table', { table: aText });
   }
 
   resetCommon(): void {

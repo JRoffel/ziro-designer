@@ -28,7 +28,7 @@ import { LIB_ID } from '@ziroeda/common/lib_id.js';
 import {
   type LIB_DATA,
   type LIB_STATUS,
-  type LIBRARY_MANAGER,
+  LIBRARY_MANAGER,
   LIBRARY_MANAGER_ADAPTER,
   LOAD_STATUS,
 } from '@ziroeda/common/libraries/library_manager.js';
@@ -37,15 +37,20 @@ import {
   type LIBRARY_RESULT,
   LIBRARY_TABLE_OK,
   type LIBRARY_TABLE_ROW,
+  LIBRARY_TABLE_SCOPE,
   LIBRARY_TABLE_TYPE,
 } from '@ziroeda/common/libraries/library_table.js';
+import {
+  hostedLibraryTable,
+  SetStockLibraryTable,
+} from '@ziroeda/common/libraries/stock_library_tables.js';
 import {
   MEMORY_FILESYSTEM,
   wxFileExists,
   wxMountFileSystem,
   wxReadFileSync,
 } from '@ziroeda/wx/filefn.js';
-import { PgmOrNull } from '@ziroeda/common/pgm_base.js';
+import { Pgm, PgmOrNull } from '@ziroeda/common/pgm_base.js';
 import type { LIB_SYMBOL } from '../lib_symbol.js';
 import { PropPowerSymsOnly } from '../sch_io/kicad_sexpr/sch_io_kicad_sexpr.js';
 import { SCH_FILE_T, type SCH_IO, SCH_IO_MGR } from '../sch_io/sch_io_mgr.js';
@@ -431,7 +436,8 @@ const symbolCache = new Map<string, Promise<LibSymbol | undefined>>();
  * parent chain it extends). The browser cannot read `${KICAD10_SYMBOL_DIR}` synchronously, so this
  * is the download cache SCH_IO_KICAD_SEXPR::LoadSymbol reads instead.
  */
-const SYMBOL_DOWNLOAD_DIR = '/.kicad-symbol-downloads';
+/** Where a hosted library's symbol files are fetched to; its table row names a folder in it. */
+export const SYMBOL_DOWNLOAD_DIR = '/.kicad-symbol-downloads';
 let s_downloads: MEMORY_FILESYSTEM | null = null;
 
 const downloadsMount = (): MEMORY_FILESYSTEM => {
@@ -454,6 +460,46 @@ const downloadsMount = (): MEMORY_FILESYSTEM => {
 export function hostedSymbolLibraryUri(aNickname: string): string {
   downloadsMount().Mkdir(aNickname);
   return `${SYMBOL_DOWNLOAD_DIR}/${aNickname}`;
+}
+
+/** Whether \a aRow is a hosted library's: its URI is a folder in the hosted downloads. */
+export function isHostedSymbolLibraryRow(aRow: { URI(): string }): boolean {
+  return aRow.URI().startsWith(`${SYMBOL_DOWNLOAD_DIR}/`);
+}
+
+/**
+ * The program's global symbol table, as PGM_BASE has it from the start: the hosted set is the stock
+ * table (stock_library_tables.ts), and the user's global table chains it - written with that one row
+ * the first time, the first-run dialog's default (`CreateGlobalTable( SYMBOL, true )`) - loaded into
+ * the library manager. With nowhere to keep a user table (no settings path mounted: a test, a
+ * worker), the stock table is the global one, as it was before there were user tables.
+ */
+export function LoadGlobalSymbolTables(aHostedNames: readonly string[]): void {
+  const SYMBOL = LIBRARY_TABLE_TYPE.SYMBOL;
+  const manager = Pgm().GetLibraryManager();
+
+  // The index lists every library it can read, the tables' own included; those are not hosted.
+  const ownRows = new Set(
+    manager
+      .Rows(SYMBOL)
+      .filter((r) => !isHostedSymbolLibraryRow(r))
+      .map((r) => r.Nickname()),
+  );
+  const stock = hostedLibraryTable(
+    SYMBOL,
+    aHostedNames.filter((n) => !ownRows.has(n)),
+    hostedSymbolLibraryUri,
+  );
+
+  SetStockLibraryTable(SYMBOL, stock);
+
+  if (!LIBRARY_MANAGER.IsTableValid(LIBRARY_MANAGER.DefaultGlobalTablePath(SYMBOL)))
+    LIBRARY_MANAGER.CreateGlobalTable(SYMBOL, true);
+
+  manager.LoadGlobalTables([SYMBOL]);
+
+  if (!manager.Table(SYMBOL, LIBRARY_TABLE_SCOPE.GLOBAL))
+    manager.SetTable(SYMBOL, LIBRARY_TABLE_SCOPE.GLOBAL, stock);
 }
 
 const hostedFiles = new Map<string, Promise<string | null>>();

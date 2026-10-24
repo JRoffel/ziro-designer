@@ -18,7 +18,8 @@
 import { ExpandEnvVarSubstitutions } from '../common.js';
 import { strNumCmp } from '../string_utils.js';
 import { PgmOrNull } from '../pgm_base.js';
-import { wxFileExists, wxReadFileSync } from '@ziroeda/wx/filefn.js';
+import { wxFileExists, wxReadFileSync, wxWriteFileSync } from '@ziroeda/wx/filefn.js';
+import { PATHS } from '../paths.js';
 import type { PROJECT } from '../project.js';
 import {
   LIBRARY_ERROR,
@@ -102,10 +103,27 @@ export class LIBRARY_MANAGER {
         ? [LIBRARY_TABLE_TYPE.SYMBOL, LIBRARY_TABLE_TYPE.FOOTPRINT, LIBRARY_TABLE_TYPE.DESIGN_BLOCK]
         : aTablesToLoad;
 
-    for (const type of types) {
-      this.m_projectTables.delete(type);
+    this.loadTables(aProjectPath, LIBRARY_TABLE_SCOPE.PROJECT, types);
 
-      const fn = `${aProjectPath.replace(/\/+$/, '')}/${LIBRARY_MANAGER.TableFileName(type)}`;
+    for (const adapter of this.m_adapters.values()) adapter.ProjectTablesReloaded(aTablesToLoad);
+  }
+
+  /**
+   * `loadTables( aTablePath, aScope, aTablesToLoad )` (library_manager.cpp:85-136): each named table
+   * read from \a aTablePath into the scope's tables, replacing the one there; a missing file leaves
+   * none, and a table of another type is skipped. Each loaded table's nested tables follow.
+   */
+  private loadTables(
+    aTablePath: string,
+    aScope: LIBRARY_TABLE_SCOPE,
+    aTablesToLoad: readonly LIBRARY_TABLE_TYPE[],
+  ): void {
+    const target = aScope === LIBRARY_TABLE_SCOPE.PROJECT ? this.m_projectTables : this.m_tables;
+
+    for (const type of aTablesToLoad) {
+      target.delete(type);
+
+      const fn = `${aTablePath.replace(/\/+$/, '')}/${LIBRARY_MANAGER.TableFileName(type)}`;
 
       if (!wxFileExists(fn)) continue;
 
@@ -113,11 +131,7 @@ export class LIBRARY_MANAGER {
 
       if (!bytes) continue;
 
-      const table = LIBRARY_TABLE.FromFile(
-        fn,
-        new TextDecoder().decode(bytes),
-        LIBRARY_TABLE_SCOPE.PROJECT,
-      );
+      const table = LIBRARY_TABLE.FromFile(fn, new TextDecoder().decode(bytes), aScope);
 
       // "Library table '%s' has type %s but expected %s; skipping"
       if (table.Type() !== type) {
@@ -127,11 +141,79 @@ export class LIBRARY_MANAGER {
         continue;
       }
 
-      this.m_projectTables.set(type, table);
+      target.set(type, table);
       this.loadNestedTables(table);
     }
+  }
 
-    for (const adapter of this.m_adapters.values()) adapter.ProjectTablesReloaded(aTablesToLoad);
+  /** `DefaultGlobalTablePath( aType )` (:437-445): the user's global table, in the settings path. */
+  static DefaultGlobalTablePath(aType: LIBRARY_TABLE_TYPE): string {
+    return `${PATHS.GetUserSettingsPath().replace(/\/+$/, '')}/${LIBRARY_MANAGER.TableFileName(aType)}`;
+  }
+
+  /** `StockTablePath( aType )` (:448-456): the table installed with the stock libraries. */
+  static StockTablePath(aType: LIBRARY_TABLE_TYPE): string {
+    return `${PATHS.GetStockTemplatesPath().replace(/\/+$/, '')}/${LIBRARY_MANAGER.TableFileName(aType)}`;
+  }
+
+  /**
+   * `StockTableReferenceURI( aType )` (:467-484): how a global table names the stock one. Only a
+   * relocatable install stores the template-dir token; this one is never relocated, so the path.
+   */
+  static StockTableReferenceURI(aType: LIBRARY_TABLE_TYPE): string {
+    return LIBRARY_MANAGER.StockTablePath(aType);
+  }
+
+  /** `IsTableValid( aPath )` (:487-500): a readable table that parses. */
+  static IsTableValid(aPath: string): boolean {
+    const bytes = wxReadFileSync(aPath);
+
+    if (!bytes) return false;
+
+    return LIBRARY_TABLE.FromFile(
+      aPath,
+      new TextDecoder().decode(bytes),
+      LIBRARY_TABLE_SCOPE.GLOBAL,
+    ).IsOk();
+  }
+
+  /**
+   * `CreateGlobalTable( aType, aPopulateDefaultLibraries )` (:526-563): the user's global table
+   * written fresh - empty, or with one row, "KiCad", chained to the stock table.
+   */
+  static CreateGlobalTable(aType: LIBRARY_TABLE_TYPE, aPopulateDefaultLibraries: boolean): boolean {
+    const fn = LIBRARY_MANAGER.DefaultGlobalTablePath(aType);
+    const table = LIBRARY_TABLE.Empty(LIBRARY_TABLE_SCOPE.GLOBAL, aType);
+    table.SetPath(fn);
+
+    if (!wxFileExists(LIBRARY_MANAGER.StockTablePath(aType)))
+      console.debug(
+        `Warning: couldn't read default library table for ${aType} at '${LIBRARY_MANAGER.StockTablePath(aType)}'`,
+      );
+
+    if (aPopulateDefaultLibraries) {
+      const chained = table.InsertRow();
+      chained.SetType(LIBRARY_TABLE_ROW.TABLE_TYPE_NAME);
+      chained.SetNickname('KiCad');
+      chained.SetDescription('KiCad Default Libraries');
+      chained.SetURI(LIBRARY_MANAGER.StockTableReferenceURI(aType));
+    }
+
+    return wxWriteFileSync(fn, new TextEncoder().encode(table.FormatForSave()));
+  }
+
+  /**
+   * `LoadGlobalTables( aTablesToLoad )` (:566-580): the user's global tables read from the settings
+   * path (all three when none is named), their nested tables with them.
+   */
+  LoadGlobalTables(aTablesToLoad: readonly LIBRARY_TABLE_TYPE[] = []): void {
+    this.loadTables(
+      PATHS.GetUserSettingsPath(),
+      LIBRARY_TABLE_SCOPE.GLOBAL,
+      aTablesToLoad.length === 0
+        ? [LIBRARY_TABLE_TYPE.SYMBOL, LIBRARY_TABLE_TYPE.FOOTPRINT, LIBRARY_TABLE_TYPE.DESIGN_BLOCK]
+        : aTablesToLoad,
+    );
   }
 
   /**

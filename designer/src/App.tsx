@@ -65,6 +65,8 @@ import { applyUpdate, subscribeUpdate, updateWaiting, watchForUpdate } from './s
 import { installCommonAppearance } from './ui/common_appearance.js';
 import { projectStoreFileSystem } from './fs/project_store_fs.js';
 import { mountUserSymbolsFolder } from './fs/user_symbols_mount.js';
+import { settings } from './prefs/settings.js';
+import { mountUserLibraryTables } from './prefs/user_library_tables.js';
 import { warmLibraryIndexes } from './libraryHosts.js';
 import '@ziroeda/common/widgets/shell.css';
 import { isBinaryBytes } from './home/files.js';
@@ -435,6 +437,9 @@ export function App(): JSX.Element {
     userIdRef.current = userId;
     reportSignedIn(!!userId);
   }, [userId]);
+
+  // The user's global library tables, files in the settings path backed by their synced slices.
+  useEffect(() => mountUserLibraryTables(settings), []);
 
   // The account's Symbols folder, where a symbol library saved or dropped into the account lives
   // and a table row names it from any project: one mount for the app, read again for each account.

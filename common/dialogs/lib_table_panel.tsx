@@ -70,7 +70,6 @@ import {
   LIBRARY_TABLE,
   LIBRARY_TABLE_OK,
   LIBRARY_TABLE_ROW,
-  LIBRARY_TABLE_SCOPE,
   type LIBRARY_TABLE_TYPE,
 } from '../libraries/library_table.js';
 import { PROJECT_VAR_NAME } from '../project.js';
@@ -475,24 +474,7 @@ export function LibTablePanel(spec: LibTablePanelSpec): JSX.Element {
   );
 }
 
-/** The hosted library set as the global LIBRARY_TABLE: read-only, "KiCad" rows. */
-export function hostedLibraryTable(
-  aType: LIBRARY_TABLE_TYPE,
-  aNames: readonly string[],
-  aUriOf: (aName: string) => string,
-): LIBRARY_TABLE {
-  const table = LIBRARY_TABLE.Empty(LIBRARY_TABLE_SCOPE.GLOBAL, aType);
-
-  for (const name of aNames) {
-    const row = table.InsertRow();
-    row.SetNickname(name);
-    row.SetType('KiCad');
-    row.SetURI(aUriOf(name));
-  }
-
-  table.SetReadOnly();
-  return table;
-}
+export { hostedLibraryTable } from '../libraries/stock_library_tables.js';
 
 /** `LOAD_STATUS::LOADED`, and the not-found error, for a spec's `checkRow`. */
 export const LIB_LOADED: LIB_STATUS = { load_status: LOAD_STATUS.LOADED };

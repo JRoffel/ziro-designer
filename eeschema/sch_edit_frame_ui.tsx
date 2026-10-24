@@ -236,12 +236,11 @@ import {
   LIBRARY_TABLE_SCOPE,
   LIBRARY_TABLE_TYPE,
 } from '@ziroeda/common/libraries/library_table.js';
-import { hostedLibraryTable } from '@ziroeda/common/dialogs/lib_table_panel.js';
 import { jsonFileWildcard, reportFileWildcard } from '@ziroeda/common/wildcards_and_files_ext.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import {
   fetchHostedSymbolFile,
-  hostedSymbolLibraryUri,
+  LoadGlobalSymbolTables,
 } from './libraries/symbol_library_adapter.js';
 import { type SchErcLine, schErcLines } from './sch_script_api.js';
 import { INFO_CAPTION } from '@ziroeda/common/confirm_types.js';
@@ -596,11 +595,7 @@ async function prepareSymbolLibraries(
   }
 
   const manager = Pgm().GetLibraryManager();
-  manager.SetTable(
-    LIBRARY_TABLE_TYPE.SYMBOL,
-    LIBRARY_TABLE_SCOPE.GLOBAL,
-    hostedLibraryTable(LIBRARY_TABLE_TYPE.SYMBOL, hosted, hostedSymbolLibraryUri),
-  );
+  LoadGlobalSymbolTables(hosted);
 
   const tablePath = projectSymLibTablePath(aProjectFiles);
   const tableFile = aProjectFiles.find((f) => f.name === tablePath);
