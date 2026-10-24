@@ -41,7 +41,7 @@ import { type JSX, type ReactNode, useLayoutEffect, useReducer, useRef, useState
 import type { MenuItem } from '@ziroeda/wx/menu.js';
 import { DIALOG_EDIT_LIBRARY_TABLES } from './dialog_edit_library_tables.js';
 import { DIALOG_PLUGIN_OPTIONS } from './dialog_plugin_options.js';
-import { DisplayInfoMessage } from '../confirm.js';
+import { DisplayInfoMessage, ShowKicadMessageDialog } from '../confirm.js';
 import { ENV_VAR } from '../env_vars.js';
 import { GRID_TRICKS } from '../grid_tricks.js';
 import { LIB_ID } from '../lib_id.js';
@@ -70,8 +70,11 @@ import {
   LIBRARY_TABLE,
   LIBRARY_TABLE_OK,
   LIBRARY_TABLE_ROW,
+  LIBRARY_TABLE_SCOPE,
   type LIBRARY_TABLE_TYPE,
 } from '../libraries/library_table.js';
+import { PgmOrNull } from '../pgm_base.js';
+import { wxICON_ERROR, wxOK } from '@ziroeda/wx/defs.js';
 import { PROJECT_VAR_NAME } from '../project.js';
 import { WX_GRID } from '../widgets/wx_grid.js';
 import { wxAuiNotebook } from '@ziroeda/wx/aui_notebook.js';
@@ -118,7 +121,10 @@ export interface LibTablePanelSpec {
   supportsVisibilityColumn: boolean;
   /** The versioned path variable the substitutions list always shows ("SYMBOL_DIR"). */
   dirVarBase: string;
-  /** The global table: the hosted libraries, read-only. */
+  /**
+   * The global table: the library manager's own (the user's table, which chains the hosted set),
+   * or the hosted libraries alone, read-only, where the manager has none.
+   */
   globalTable: LIBRARY_TABLE;
   /** The project table, a working copy of which the project page edits. */
   projectTable: LIBRARY_TABLE;
@@ -396,11 +402,32 @@ export function LibTablePanel(spec: LibTablePanelSpec): JSX.Element {
     return true;
   };
 
-  /** `TransferDataFromWindow`: the project table is written only if it changed. */
+  /**
+   * `TransferDataFromWindow`: each table written only if it changed. The global one is the
+   * manager's own - the user's table, when the dialog shows it - assigned, saved, and read back
+   * (`InvokeSchEditSymbolLibTable`'s `LoadGlobalTables` on `m_GlobalTableChanged`).
+   */
   const onOK = (): void => {
     if (!cur_grid().CommitPendingChanges()) return;
 
     if (!verifyTables()) return;
+
+    const manager = PgmOrNull()?.GetLibraryManager();
+    const globalTable = manager?.Table(spec.type, LIBRARY_TABLE_SCOPE.GLOBAL);
+    const globalModel = notebook.GetPage(0).GetModel();
+
+    if (manager && globalTable === spec.globalTable && !globalModel.Table().equals(globalTable)) {
+      const saved = globalModel.Table().Save();
+
+      if (!saved.ok)
+        void ShowKicadMessageDialog({
+          message: `Error saving global library table:\n\n${saved.error.message}`,
+          caption: 'File Save Error',
+          style: wxOK | wxICON_ERROR,
+        });
+
+      manager.LoadGlobalTables([spec.type]);
+    }
 
     const table = projectModel.Table();
 

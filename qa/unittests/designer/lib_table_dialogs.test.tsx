@@ -11,7 +11,7 @@
  * DIALOG_PLUGIN_OPTIONS (LIB_TABLE_GRID_TRICKS::handleDoubleClick).
  */
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // "Add Existing"'s file dialog onto the computer: the folder the test hands it.
 const pickedFolder = vi.hoisted(() => ({
@@ -23,6 +23,17 @@ vi.mock('@ziroeda/wx/dirdlg.js', async (importOriginal) => ({
 }));
 import { DialogFpLibTable } from '@ziroeda/pcbnew/dialogs/panel_fp_lib_table.js';
 import { DialogSymLibTable } from '@ziroeda/designer/src/widgets/dialog_sym_lib_table.js';
+import { LIBRARY_MANAGER } from '@ziroeda/common/libraries/library_manager.js';
+import {
+  LIBRARY_TABLE_SCOPE,
+  LIBRARY_TABLE_TYPE,
+} from '@ziroeda/common/libraries/library_table.js';
+import { PATHS } from '@ziroeda/common/paths.js';
+import { SetMessageDialogPresenter } from '@ziroeda/common/confirm.js';
+import { wxID_CANCEL, wxID_OK } from '@ziroeda/wx/menu.js';
+import { PGM_BASE, Pgm, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
+import { LoadGlobalSymbolTables } from '@ziroeda/eeschema/libraries/symbol_library_adapter.js';
+import { MEMORY_FILESYSTEM, wxMountFileSystem, wxReadFileSync } from '@ziroeda/wx/filefn.js';
 
 afterEach(cleanup);
 
@@ -119,6 +130,140 @@ describe('Manage Symbol Libraries', () => {
     const options = document.querySelector('td[data-row="0"][data-col="6"]')!;
     fireEvent.mouseDown(options, { button: 0, detail: 2 });
     expect(screen.getByText("Options for Library 'proj'")).toBeTruthy();
+  });
+});
+
+/**
+ * PANEL_SYM_LIB_TABLE's global page is the library manager's global table - the user's own,
+ * chaining the stock one through its "KiCad" row - and OK assigns, saves and re-reads it
+ * (TransferDataFromWindow, InvokeSchEditSymbolLibTable's LoadGlobalTables).
+ */
+describe("Manage Symbol Libraries, with the user's global table", () => {
+  let unmounts: (() => void)[] = [];
+  const userTablePath = () => LIBRARY_MANAGER.DefaultGlobalTablePath(LIBRARY_TABLE_TYPE.SYMBOL);
+  const stored = () => new TextDecoder().decode(wxReadFileSync(userTablePath())!);
+  const globalNames = () =>
+    Pgm()
+      .GetLibraryManager()
+      .Rows(LIBRARY_TABLE_TYPE.SYMBOL, LIBRARY_TABLE_SCOPE.GLOBAL)
+      .map((r) => r.Nickname());
+
+  beforeEach(() => {
+    SetPgm(new PGM_BASE(null, new SETTINGS_MANAGER()));
+    const cfg = new MEMORY_FILESYSTEM();
+    unmounts = [wxMountFileSystem(PATHS.GetUserSettingsPath(), cfg)];
+    cfg.Write(
+      'sym-lib-table',
+      new TextEncoder().encode(`(sym_lib_table
+  (version 7)
+  (lib (name "KiCad")(type "Table")(uri "${LIBRARY_MANAGER.StockTableReferenceURI(LIBRARY_TABLE_TYPE.SYMBOL)}")(options "")(descr ""))
+  (lib (name "Mine")(type "KiCad")(uri "/Symbols/Mine.kicad_sym")(options "")(descr "my parts"))
+)
+`),
+    );
+    LoadGlobalSymbolTables(['Device', 'power']);
+  });
+
+  afterEach(() => {
+    for (const u of unmounts) u();
+    SetPgm(null);
+    SetMessageDialogPresenter(async () => wxID_CANCEL);
+  });
+
+  it("shows the user's table, its chain to the stock table a row of it that opens", () => {
+    openSym();
+    fireEvent.click(screen.getAllByRole('tab')[0]!);
+
+    expect([cellText(0, 3), cellText(0, 5), cellText(1, 3), cellText(1, 7)]).toEqual([
+      'KiCad',
+      'Table',
+      'Mine',
+      'my parts',
+    ]);
+    // LIBRARY_TABLE_OK: a nested table whose file is there gets the button that opens it.
+    expect(document.querySelector('td[data-row="0"][data-col="0"]')?.getAttribute('title')).toBe(
+      'Open library table',
+    );
+    expect(document.querySelector('td[data-row="2"]')).toBeNull();
+  });
+
+  it('saves a changed global table and reads it back, the project table untouched', () => {
+    const { onSave, onClose } = openSym();
+    fireEvent.click(screen.getAllByRole('tab')[0]!);
+    fireEvent.mouseDown(document.querySelector('td[data-row="1"][data-col="3"]')!, { button: 0 });
+    fireEvent.click(screen.getByRole('button', { name: 'Remove library from table' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+
+    expect(stored()).not.toContain('"Mine"');
+    expect(stored()).toContain('"KiCad"');
+    expect(globalNames()).toEqual(['Device', 'power']);
+    expect(onSave).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('writes nothing for OK on an unchanged global table', () => {
+    const { onClose } = openSym();
+    const before = stored();
+
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+
+    expect(stored()).toBe(before);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  // Opened before the hosted index was in, the page showed the hosted set alone: that stand-in is
+  // not the user's table, and OK must not write it over the one that has since been read.
+  it("leaves the user's table alone when the page showed the hosted set instead", () => {
+    const shown: string[] = [];
+    SetMessageDialogPresenter(async (aArg) => {
+      shown.push(aArg.message);
+      return wxID_OK;
+    });
+    Pgm().GetLibraryManager().SetTable(LIBRARY_TABLE_TYPE.SYMBOL, LIBRARY_TABLE_SCOPE.GLOBAL, null);
+    openSym();
+    LoadGlobalSymbolTables(['Device', 'power']);
+    const before = stored();
+
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+
+    expect(stored()).toBe(before);
+    expect(globalNames()).toEqual(['Device', 'power', 'Mine']);
+    expect(shown).toEqual([]);
+  });
+
+  it('says so when the global table cannot be written', () => {
+    const shown: [string, string | undefined][] = [];
+    SetMessageDialogPresenter(async (aArg) => {
+      shown.push([aArg.message, aArg.caption]);
+      return wxID_OK;
+    });
+    const { onClose } = openSym();
+    fireEvent.click(screen.getAllByRole('tab')[0]!);
+    fireEvent.mouseDown(document.querySelector('td[data-row="1"][data-col="3"]')!, { button: 0 });
+    fireEvent.click(screen.getByRole('button', { name: 'Remove library from table' }));
+    // The settings path gone from under the table: nowhere to write it.
+    unmounts.shift()!();
+
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+
+    expect(shown.length).toBe(1);
+    expect(shown[0]![0]).toMatch(/^Error saving global library table:\n\n/);
+    expect(shown[0]![1]).toBe('File Save Error');
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('writes nothing on Cancel', () => {
+    openSym();
+    const before = stored();
+    fireEvent.click(screen.getAllByRole('tab')[0]!);
+    fireEvent.mouseDown(document.querySelector('td[data-row="1"][data-col="3"]')!, { button: 0 });
+    fireEvent.click(screen.getByRole('button', { name: 'Remove library from table' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(stored()).toBe(before);
+    expect(globalNames()).toEqual(['Device', 'power', 'Mine']);
   });
 });
 

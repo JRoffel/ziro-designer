@@ -18,7 +18,8 @@
  * quietly treating the file as usable.
  *
  * Web deltas (the panel's file comment has the shared ones): the global table
- * is the hosted library set and read-only; "Add Existing" lists the
+ * is the library manager's - the user's own, chaining the hosted set - and the
+ * hosted set alone, read-only, before the manager has one; "Add Existing" lists the
  * `.kicad_sym` files already in the project instead of opening a file picker.
  */
 import { type JSX, useRef } from 'react';
@@ -32,6 +33,8 @@ import {
   type LIBRARY_TABLE_ROW,
 } from '@ziroeda/common/libraries/library_table.js';
 import { findProjectFile } from '@ziroeda/common/project_paths.js';
+import { PgmOrNull } from '@ziroeda/common/pgm_base.js';
+import { wxFileExists } from '@ziroeda/wx/filefn.js';
 import { fpLibRowsOf, type FpLibRow } from '@ziroeda/common/fp_lib_table.js';
 import {
   AddSymbolLibraryToProject,
@@ -169,11 +172,16 @@ export function DialogSymLibTable({
       preamble="(sym_lib_table"
       supportsVisibilityColumn
       dirVarBase="SYMBOL_DIR"
-      globalTable={hostedLibraryTable(
-        LIBRARY_TABLE_TYPE.SYMBOL,
-        globalLibraries,
-        (name) => `${globalBase}/${name}.kicad_sym`,
-      )}
+      globalTable={
+        PgmOrNull()
+          ?.GetLibraryManager()
+          .Table(LIBRARY_TABLE_TYPE.SYMBOL, LIBRARY_TABLE_SCOPE.GLOBAL) ??
+        hostedLibraryTable(
+          LIBRARY_TABLE_TYPE.SYMBOL,
+          globalLibraries,
+          (name) => `${globalBase}/${name}.kicad_sym`,
+        )
+      }
       projectTable={projectTableOf(projectFiles)}
       checkRow={(row) => {
         if (row.Type() !== 'KiCad' || !isProjectRelative(row.URI())) return undefined;
@@ -181,7 +189,12 @@ export function DialogSymLibTable({
         // SCH_IO_KICAD_SEXPR_LIB_CACHE::Load: "Library '%s' not found."
         return rowFile(row) ? LIB_LOADED : libNotFound(`Library '${row.URI()}' not found.`);
       }}
-      nestedTableExists={(row) => isProjectRelative(row.URI()) && !!rowFile(row)}
+      nestedTableExists={(row) =>
+        isProjectRelative(row.URI())
+          ? !!rowFile(row)
+          : // The user's table chaining the stock one: a file the program's mounts answer.
+            wxFileExists(PgmOrNull()?.GetLibraryManager().GetFullURI(row, true) ?? row.URI())
+      }
       existing={(rows) => {
         // A file whose name a row's `.kicad_sym` already has is registered.
         const registered = new Set(
