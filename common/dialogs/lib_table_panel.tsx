@@ -474,7 +474,7 @@ export function LibTablePanel(spec: LibTablePanelSpec): JSX.Element {
   );
 }
 
-export { hostedLibraryTable } from '../libraries/stock_library_tables.js';
+export { hostedLibraryTable } from '../libraries/library_manager.js';
 
 /** `LOAD_STATUS::LOADED`, and the not-found error, for a spec's `checkRow`. */
 export const LIB_LOADED: LIB_STATUS = { load_status: LOAD_STATUS.LOADED };

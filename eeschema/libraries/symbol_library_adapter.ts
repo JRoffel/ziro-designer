@@ -43,7 +43,7 @@ import {
 import {
   hostedLibraryTable,
   SetStockLibraryTable,
-} from '@ziroeda/common/libraries/stock_library_tables.js';
+} from '@ziroeda/common/libraries/library_manager.js';
 import {
   MEMORY_FILESYSTEM,
   wxFileExists,
@@ -469,9 +469,9 @@ export function isHostedSymbolLibraryRow(aRow: { URI(): string }): boolean {
 
 /**
  * The program's global symbol table, as PGM_BASE has it from the start: the hosted set is the stock
- * table (stock_library_tables.ts), and the user's global table chains it - written with that one row
- * the first time, the first-run dialog's default (`CreateGlobalTable( SYMBOL, true )`) - loaded into
- * the library manager. With nowhere to keep a user table (no settings path mounted: a test, a
+ * table (SetStockLibraryTable, library_manager.ts), and the user's global table chains it -
+ * written with that one row the first time, the first-run dialog's default
+ * (`CreateGlobalTable( SYMBOL, true )`) - loaded into the library manager. With nowhere to keep a user table (no settings path mounted: a test, a
  * worker), the stock table is the global one, as it was before there were user tables.
  */
 export function LoadGlobalSymbolTables(aHostedNames: readonly string[]): void {

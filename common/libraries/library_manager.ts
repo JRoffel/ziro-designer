@@ -18,7 +18,13 @@
 import { ExpandEnvVarSubstitutions } from '../common.js';
 import { strNumCmp } from '../string_utils.js';
 import { PgmOrNull } from '../pgm_base.js';
-import { wxFileExists, wxReadFileSync, wxWriteFileSync } from '@ziroeda/wx/filefn.js';
+import {
+  MEMORY_FILESYSTEM,
+  wxFileExists,
+  wxMountFileSystem,
+  wxReadFileSync,
+  wxWriteFileSync,
+} from '@ziroeda/wx/filefn.js';
 import { PATHS } from '../paths.js';
 import type { PROJECT } from '../project.js';
 import {
@@ -792,4 +798,47 @@ export abstract class LIBRARY_MANAGER_ADAPTER {
 
     return lib?.status.load_status === LOAD_STATUS.LOADED ? lib : undefined;
   }
+}
+
+/**
+ * The stock library tables: what a KiCad install puts at `PATHS::GetStockTemplatesPath()`
+ * (StockTablePath above), the tables of the libraries that ship with it, which a user's global
+ * table chains (`CreateGlobalTable`). Here the libraries that ship are the hosted set, known once the
+ * program has fetched its index; the program writes each stock table then, into a read-only memory
+ * file system at that path, and the global tables read them from there.
+ */
+let s_stock: MEMORY_FILESYSTEM | null = null;
+
+/** The hosted library set as a LIBRARY_TABLE: read-only, "KiCad" rows. */
+export function hostedLibraryTable(
+  aType: LIBRARY_TABLE_TYPE,
+  aNames: readonly string[],
+  aUriOf: (aName: string) => string,
+): LIBRARY_TABLE {
+  const table = LIBRARY_TABLE.Empty(LIBRARY_TABLE_SCOPE.GLOBAL, aType);
+
+  for (const name of aNames) {
+    const row = table.InsertRow();
+    row.SetNickname(name);
+    row.SetType('KiCad');
+    row.SetURI(aUriOf(name));
+  }
+
+  table.SetReadOnly();
+  return table;
+}
+
+/** The stock table of \a aType, as the install would have it: \a aTable's text at its path. */
+export function SetStockLibraryTable(aType: LIBRARY_TABLE_TYPE, aTable: LIBRARY_TABLE): void {
+  if (!s_stock) {
+    s_stock = new MEMORY_FILESYSTEM();
+    // An install path: KiCad's code reads it and never writes it.
+    s_stock.ReadOnly = true;
+    wxMountFileSystem(PATHS.GetStockTemplatesPath(), s_stock);
+  }
+
+  s_stock.Write(
+    LIBRARY_MANAGER.TableFileName(aType),
+    new TextEncoder().encode(aTable.FormatForSave()),
+  );
 }

@@ -18,7 +18,7 @@ import {
 import {
   hostedLibraryTable,
   SetStockLibraryTable,
-} from '@ziroeda/common/libraries/stock_library_tables.js';
+} from '@ziroeda/common/libraries/library_manager.js';
 import { PATHS } from '@ziroeda/common/paths.js';
 import { PGM_BASE, Pgm, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
 import {
