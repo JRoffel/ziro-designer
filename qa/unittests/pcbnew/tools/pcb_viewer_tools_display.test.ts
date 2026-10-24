@@ -149,7 +149,7 @@ describe('PCB_VIEWER_TOOLS display modes in the Footprint Editor', () => {
 
     expect(fromFrame instanceof FOOTPRINT_EDITOR_SETTINGS).toBe(true);
     expect(fromFrame === painter.viewer_settings()).toBe(true);
-    expect(fromFrame === h.frame.GetFootprintEditorSettings()).toBe(true);
+    expect(fromFrame === (h.frame.GetFootprintEditorSettings() as object)).toBe(true);
     expect(fromFrame === fpEditKifaceSettings()).toBe(true);
     expect(fromFrame === h.frame.GetPcbNewSettings()).toBe(false);
   });
