@@ -5,9 +5,8 @@
  * `SYMBOL_EDITOR_CONTROL` (eeschema/tools/symbol_editor_control.{h,cpp}): the symbol editor's
  * view toggles, unit stepping, flattening a derived symbol, and the library fields table.
  *
- * Still to come, with the library tree and what they call: Init's tree context menu, DdAddLibrary
- * (a file dropped from the desktop), OpenWithTextEditor and OpenDirectory. Their actions are not
- * bound until they are.
+ * Still to come, with the library tree and what they call: Init's tree context menu,
+ * OpenWithTextEditor and OpenDirectory. Their actions are not bound until they are.
  */
 import { FRAME_T } from '@ziroeda/common/frame_type.js';
 import type { COROUTINE_BODY } from '@ziroeda/common/tool/coroutine.js';
@@ -145,6 +144,16 @@ export class SYMBOL_EDITOR_CONTROL extends SCH_TOOL_BASE<SCH_BASE_FRAME> {
 
     if (this.m_frame!.IsType(FRAME_T.FRAME_SCH_SYMBOL_EDITOR))
       yield* this.RunMainStackModal(() => this.editFrame().AddLibraryFile(createNew));
+
+    return 0;
+  }
+
+  /** `DdAddLibrary( aEvent )` (symbol_editor_control.cpp:254-262): a dropped library file added. */
+  *DdAddLibrary(aEvent: TOOL_EVENT): COROUTINE_BODY<number> {
+    const libFile = aEvent.Parameter<string>();
+
+    if (this.m_frame!.IsType(FRAME_T.FRAME_SCH_SYMBOL_EDITOR))
+      yield* this.RunMainStackModal(() => this.editFrame().DdAddLibrary(libFile));
 
     return 0;
   }
@@ -643,6 +652,7 @@ export class SYMBOL_EDITOR_CONTROL extends SCH_TOOL_BASE<SCH_BASE_FRAME> {
   protected override setTransitions(): void {
     this.Go(this.AddLibrary, ACTIONS.newLibrary.MakeEvent());
     this.Go(this.AddLibrary, ACTIONS.addLibrary.MakeEvent());
+    this.Go(this.DdAddLibrary, ACTIONS.ddAddLibrary.MakeEvent());
     this.Go(this.AddSymbol, SCH_ACTIONS.newSymbol.MakeEvent());
     this.Go(this.AddSymbol, SCH_ACTIONS.deriveFromExistingSymbol.MakeEvent());
     this.Go(this.AddSymbol, SCH_ACTIONS.importSymbol.MakeEvent());

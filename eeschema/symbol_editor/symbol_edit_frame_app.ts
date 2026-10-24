@@ -48,6 +48,11 @@ export interface SYMBOL_EDIT_FRAME_APP {
   loadIndex(): Promise<readonly SymbolEditorIndexLibrary[]>;
   /** Where the hosted symbol libraries are served from. */
   symbolsBase(): string;
+  /**
+   * The account's Symbols folder, `GetDefaultUserSymbolsPath()`'s: where a library dropped on the
+   * window is put before the frame adds it.
+   */
+  userSymbolsPath(): string;
   /** The libraries the Plugin and Content Manager installed, as `.kicad_sym` text. */
   installedLibraries(): readonly { name: string; text: string }[];
 

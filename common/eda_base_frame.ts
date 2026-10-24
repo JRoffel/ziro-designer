@@ -431,6 +431,53 @@ export abstract class EDA_BASE_FRAME
     TOOLS_HOLDER.prototype.CommonSettingsChanged.call(this);
   }
 
+  /**
+   * `m_acceptedExts`: the file extensions a drop on this frame takes, each with the action run for
+   * such a file (`ACTIONS::ddAddLibrary` for a symbol library, ...). A frame fills it in its
+   * constructor.
+   */
+  protected m_acceptedExts = new Map<string, TOOL_ACTION>();
+  /** `m_AcceptedFiles`: the dropped files the frame takes, until DoWithAcceptedFiles runs them. */
+  protected m_AcceptedFiles: string[] = [];
+
+  /**
+   * `OnDropFiles( aEvent )` (eda_base_frame.cpp:1789-1810): of the files dropped, the ones whose
+   * extension the frame accepts, each run through its action. (Gerber extensions alias to one; no
+   * frame here accepts Gerbers yet.)
+   */
+  OnDropFiles(aFiles: readonly string[]): void {
+    for (const file of aFiles) {
+      if (this.IsDropAccepted(file)) this.m_AcceptedFiles.push(file);
+    }
+
+    this.DoWithAcceptedFiles();
+    this.m_AcceptedFiles = [];
+  }
+
+  /**
+   * OnDropFiles' test of one file: its extension is one the frame accepts. The window asks it
+   * before it puts a dropped file's bytes anywhere.
+   */
+  IsDropAccepted(aFileName: string): boolean {
+    const leaf = aFileName.slice(aFileName.lastIndexOf('/') + 1);
+    const dot = leaf.lastIndexOf('.');
+
+    return this.m_acceptedExts.has(dot > 0 ? leaf.slice(dot + 1) : '');
+  }
+
+  /** `DoWithAcceptedFiles()` (:1813-1820): each accepted file's action, with the file as parameter. */
+  protected DoWithAcceptedFiles(): void {
+    for (const file of this.m_AcceptedFiles) {
+      const leaf = file.slice(file.lastIndexOf('/') + 1);
+
+      // `m_acceptedExts.at( ext )`: OnDropFiles only lets an accepted extension through.
+      this.m_toolManager?.RunAction(
+        this.m_acceptedExts.get(leaf.slice(leaf.lastIndexOf('.') + 1))!,
+        file,
+      );
+    }
+  }
+
   /** `GetWindowSize()`: the page's measure of the frame, null while it has none. */
   private m_windowSize: (() => { x: number; y: number } | null) | null = null;
 

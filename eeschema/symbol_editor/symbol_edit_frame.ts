@@ -295,6 +295,9 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
     this.hooks = hooks;
     this.m_libMgr = new LIB_SYMBOL_LIBRARY_MANAGER(this);
     this.SetScreen(this.m_dummyScreen);
+
+    // A symbol library dropped on the frame is added to the project (symbol_edit_frame.cpp:280).
+    this.m_acceptedExts.set(KiCadSymbolLibFileExtension, ACTIONS.ddAddLibrary);
   }
 
   /** `FocusOnLibId( aLibID )` (:1490). */
@@ -592,6 +595,60 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
     this.FocusOnLibId(new LIB_ID(libName, ''));
 
     return fn.value;
+  }
+
+  /**
+   * `DdAddLibrary( aLibFile )` (symbol_edit_frame.cpp:1280-1325): a dropped library file added to
+   * the project table under its own name, the table saved, the library read, and both the library
+   * list and the editor told (MAIL_RELOAD_LIB, MAIL_LIB_EDIT).
+   */
+  async DdAddLibrary(aLibFile: string): Promise<void> {
+    // wxFileName( aLibFile ).GetName()
+    const leaf = aLibFile.slice(aLibFile.lastIndexOf('/') + 1);
+    const libName = leaf.includes('.') ? leaf.slice(0, leaf.lastIndexOf('.')) : leaf;
+
+    if (libName === '') return;
+
+    const manager = Pgm().GetLibraryManager();
+    const adapter = SymbolLibAdapter(this.Prj());
+
+    if (adapter.HasLibrary(libName)) {
+      DisplayErrorMessage(`Library '${libName}' already exists.`);
+      return;
+    }
+
+    if (!this.m_libMgr.AddLibrary(aLibFile, LIBRARY_TABLE_SCOPE.PROJECT)) {
+      DisplayErrorMessage('Could not open the library file.');
+      return;
+    }
+
+    const table = manager.Table(LIBRARY_TABLE_TYPE.SYMBOL, LIBRARY_TABLE_SCOPE.PROJECT);
+
+    if (!table) return; // wxCHECK
+
+    let success = true;
+    const result = table.Save();
+
+    if (!result.ok) {
+      await ShowKicadMessageDialog({
+        message: 'Error saving library table.',
+        caption: 'File Save Error',
+        style: wxOK | wxICON_ERROR,
+        extended: result.error.message,
+      });
+      success = false;
+    }
+
+    if (success) adapter.LoadOne(libName);
+
+    const packet = { value: aLibFile };
+    this.Kiway()?.ExpressMail(
+      FRAME_T.FRAME_SCH_SYMBOL_EDITOR,
+      MAIL_T.MAIL_RELOAD_LIB,
+      packet,
+      this,
+    );
+    this.Kiway()?.ExpressMail(FRAME_T.FRAME_SCH_SYMBOL_EDITOR, MAIL_T.MAIL_LIB_EDIT, packet, this);
   }
 
   /** `getTargetLib()` (symbol_edit_frame.cpp:1381). */
@@ -1335,6 +1392,24 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
         if (payload !== '') this.hooks.libEdit(payload);
 
         break;
+
+      case MAIL_T.MAIL_RELOAD_LIB: {
+        const currentLib = this.GetCurLib();
+
+        this.FreezeLibraryTree();
+
+        // Check if the currently selected symbol library been removed or disabled.
+        if (currentLib !== '' && !SymbolLibAdapter(this.Prj()).HasLibrary(currentLib, true)) {
+          this.SetCurLib('');
+          this.emptyScreen();
+        }
+
+        this.SyncLibraries(true);
+        this.ThawLibraryTree();
+        this.RefreshLibraryTree();
+
+        break;
+      }
 
       default:
         break;

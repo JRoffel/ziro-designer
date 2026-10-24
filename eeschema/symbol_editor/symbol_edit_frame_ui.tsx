@@ -86,7 +86,12 @@ import {
   SYMBOL_LIBRARY_SAVE_AS_FILEDLG_HOOK,
   SymbolLibrarySaveAsControls,
 } from '../widgets/symbol_library_save_as_filedlg_hook.js';
-import { MEMORY_FILESYSTEM, wxMountFileSystem } from '@ziroeda/wx/filefn.js';
+import {
+  MEMORY_FILESYSTEM,
+  wxFileExists,
+  wxMountFileSystem,
+  wxWriteFileSync,
+} from '@ziroeda/wx/filefn.js';
 import { type Menu, MenuBar } from '@ziroeda/wx/menu_ui.js';
 import { wxID_CANCEL, wxID_OK } from '@ziroeda/wx/menu.js';
 import { createSchDrawPanel } from '../browser/sch_canvas.js';
@@ -910,6 +915,46 @@ export function SymbolEditor({
     [frame, ensureSymbolFile],
   );
 
+  /**
+   * `OnDropFiles`, with what a page is handed: a dropped file's bytes and name, never a path. A file
+   * the frame takes is put in the account's Symbols folder first - the folder a library in the
+   * account lives in - and the frame adds it from there. One whose name is already there is
+   * refused rather than written over a library in use.
+   */
+  const dropFiles = useCallback(
+    async (aFiles: readonly File[]): Promise<void> => {
+      const paths: string[] = [];
+
+      for (const file of aFiles) {
+        if (!frame.IsDropAccepted(file.name)) continue;
+
+        const path = `${app.userSymbolsPath()}/${file.name}`;
+
+        // A library of that name already in the tables: the frame says so (DdAddLibrary), and
+        // nothing is copied for a library it will not add.
+        if (SymbolLibAdapter(frame.Prj()).HasLibrary(file.name.replace(/\.[^.]*$/, ''))) {
+          paths.push(path);
+          continue;
+        }
+
+        if (wxFileExists(path)) {
+          DisplayErrorMessage(`Library '${file.name.replace(/\.[^.]*$/, '')}' already exists.`);
+          continue;
+        }
+
+        if (!wxWriteFileSync(path, new Uint8Array(await file.arrayBuffer()))) {
+          DisplayErrorMessage('Could not open the library file.');
+          continue;
+        }
+
+        paths.push(path);
+      }
+
+      frame.OnDropFiles(paths);
+    },
+    [frame, app],
+  );
+
   // ----- the canvas ----------------------------------------------------------------
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [fontImage, setFontImage] = useState<ImageBitmap | null>(null);
@@ -1276,7 +1321,19 @@ export function SymbolEditor({
   const leftDockShown = session.has('showLibraryTree') || session.has('showProperties');
 
   return (
-    <div className="ze-app">
+    <div
+      className="ze-app"
+      // `DragAcceptFiles( true )`: a file dragged from the desktop may be dropped on the frame.
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes('Files')) e.preventDefault();
+      }}
+      onDrop={(e) => {
+        if (e.dataTransfer.files.length === 0) return;
+
+        e.preventDefault();
+        void dropFiles([...e.dataTransfer.files]);
+      }}
+    >
       <MenuBar
         menus={menus}
         leftSlot={app.HomeLink({ onClick: onExitToHome })}

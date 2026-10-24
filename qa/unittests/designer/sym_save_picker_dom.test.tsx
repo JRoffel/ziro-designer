@@ -15,12 +15,15 @@ import { KIWAY } from '@ziroeda/common/kiway.js';
 import { PGM_BASE, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
 import { MakeFileDlgHookNewLibrary } from '@ziroeda/common/widgets/filedlg_hook_new_library.js';
 import { SymbolEditorMount as SymbolEditor } from '@ziroeda/designer/src/editors/symbol/symbol_edit_frame_app.js';
+import { SymbolLibAdapter } from '@ziroeda/eeschema/project_sch.js';
 import type { SYMBOL_EDIT_FRAME } from '@ziroeda/eeschema/symbol_editor/symbol_edit_frame.js';
 import {
   SYMBOL_LIBRARY_SAVE_AS_FILEDLG_HOOK,
   SYMBOL_SAVEAS_TYPE,
 } from '@ziroeda/eeschema/widgets/symbol_library_save_as_filedlg_hook.js';
 import { wxFD_OPEN, wxFD_OVERWRITE_PROMPT, wxFD_SAVE } from '@ziroeda/wx/defs.js';
+import { MEMORY_FILESYSTEM, wxMountFileSystem } from '@ziroeda/wx/filefn.js';
+import { SetErrorPresenter } from '@ziroeda/common/confirm.js';
 import {
   SetFileDialog,
   SetSaveFileDialog,
@@ -170,5 +173,100 @@ describe('the Symbol Editor window', () => {
 
     expect(screen.getByTestId('open-chooser')).toBeTruthy();
     expect(saved).toBeNull();
+  });
+});
+
+describe('a library dropped on the Symbol Editor window', () => {
+  /** The account's Symbols folder, as the app mounts it, for the drop to land in. */
+  const mountSymbols = () => {
+    const fs = new MEMORY_FILESYSTEM();
+    const unmount = wxMountFileSystem('/Symbols', fs);
+    return { fs, unmount };
+  };
+  const drop = (aFiles: File[]) =>
+    act(async () => {
+      fireEvent.drop(document.querySelector('.ze-app')!, {
+        dataTransfer: { files: aFiles, types: ['Files'] },
+      });
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+  it('is copied into the Symbols folder, and the frame adds it from there', async () => {
+    const { fs, unmount } = mountSymbols();
+    try {
+      const frame = await openEditor();
+      const dropped = vi.spyOn(frame, 'OnDropFiles');
+
+      await drop([new File(['(kicad_symbol_lib)'], 'Mine.kicad_sym')]);
+
+      expect(new TextDecoder().decode(fs.Read('Mine.kicad_sym')!)).toBe('(kicad_symbol_lib)');
+      expect(dropped).toHaveBeenCalledWith(['/Symbols/Mine.kicad_sym']);
+    } finally {
+      unmount();
+    }
+  });
+
+  it('leaves a file already there alone, and says so', async () => {
+    const { fs, unmount } = mountSymbols();
+    const errors: string[] = [];
+    SetErrorPresenter((aText) => errors.push(aText));
+    try {
+      fs.Write('Mine.kicad_sym', new TextEncoder().encode('(old)'));
+      const frame = await openEditor();
+      const dropped = vi.spyOn(frame, 'OnDropFiles');
+
+      await drop([new File(['(new)'], 'Mine.kicad_sym')]);
+
+      expect(new TextDecoder().decode(fs.Read('Mine.kicad_sym')!)).toBe('(old)');
+      expect(errors).toEqual(["Library 'Mine' already exists."]);
+      expect(dropped).toHaveBeenCalledWith([]);
+    } finally {
+      unmount();
+      SetErrorPresenter(() => {});
+    }
+  });
+
+  it('copies nothing for a library the tables already have, and the frame says so', async () => {
+    const { fs, unmount } = mountSymbols();
+    try {
+      const frame = await openEditor();
+      vi.spyOn(SymbolLibAdapter(frame.Prj()), 'HasLibrary').mockImplementation(
+        (aName) => aName === 'Taken',
+      );
+      const dropped = vi.spyOn(frame, 'OnDropFiles');
+
+      await drop([new File(['(kicad_symbol_lib)'], 'Taken.kicad_sym')]);
+
+      expect(fs.Read('Taken.kicad_sym')).toBeNull();
+      expect(dropped).toHaveBeenCalledWith(['/Symbols/Taken.kicad_sym']);
+    } finally {
+      unmount();
+    }
+  });
+
+  // A drag of anything but files - text, a link - is not the frame's to take.
+  it('leaves a drop that carries no files to the browser', async () => {
+    const frame = await openEditor();
+    const dropped = vi.spyOn(frame, 'OnDropFiles');
+
+    const unhandled = fireEvent.drop(document.querySelector('.ze-app')!, {
+      dataTransfer: { files: [], types: ['text/plain'] },
+    });
+
+    expect(unhandled).toBe(true);
+    expect(dropped).not.toHaveBeenCalled();
+  });
+
+  it('copies nothing the frame does not take', async () => {
+    const { fs, unmount } = mountSymbols();
+    try {
+      await openEditor();
+
+      await drop([new File(['x'], 'notes.txt')]);
+
+      expect(fs.Read('notes.txt')).toBeNull();
+    } finally {
+      unmount();
+    }
   });
 });

@@ -18,6 +18,7 @@ import {
 } from '../../prefs/useSettings.js';
 import { pcm } from '../../pcm/pcmStore.js';
 import { loadIndex, symbolsBase } from '../schematic/symbols/index.js';
+import { USER_DIRS } from '../../fs/chooser_places.js';
 import { useToolbarEntries } from '../../ui/useToolbarEntries.js';
 import { PreferencesDialog } from '../../dialogs/PreferencesDialog.js';
 import { OpenFileDialog } from '../../fs/OpenFileDialog.js';
@@ -38,6 +39,7 @@ export function useSymbolEditFrameApp(): SYMBOL_EDIT_FRAME_APP {
 
       loadIndex,
       symbolsBase,
+      userSymbolsPath: () => USER_DIRS.symbols,
       installedLibraries: () => pcm.installedLibraries(),
 
       useToolbarEntries,
