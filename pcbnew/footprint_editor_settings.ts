@@ -11,7 +11,11 @@
  * construction; every field name and type below is copied from it.
  */
 import { PCB_IU_PER_MM } from '@ziroeda/common';
+import { PgmOrNull } from '@ziroeda/common/pgm_base.js';
 import type { GridEntry, GridOverride } from '@ziroeda/common/settings/grid_settings_ui.js';
+import { LeaderMode as LEADER_MODE } from '@ziroeda/kimath/src/geometry/geometry_utils.js';
+import type { FOOTPRINT_EDITOR_SETTINGS_LIKE } from './pcb_base_frame.js';
+import { PCB_VIEWERS_SETTINGS_BASE } from './pcbnew_settings.js';
 
 /** A Graphics Defaults row that carries only a line width (Edge Cuts, Courtyards). */
 export interface FP_GRAPHICS_LINE_CLASS_LIKE {
@@ -259,4 +263,53 @@ export function checkFpGraphicsRow(
   store.text_italic = row.text_italic;
 
   return { store, error: errors.length > 0 ? errors.join('\n\n') : null };
+}
+
+/** `fpEditSchemaVersion` (footprint_editor_settings.cpp:42). [data] */
+const fpEditSchemaVersion = 5;
+
+/**
+ * `FOOTPRINT_EDITOR_SETTINGS` (include/footprint_editor_settings.h): the Footprint Editor's
+ * settings object, ONE for the program, which the frame, its tools and the painter all read.
+ * Its VIEWERS_DISPLAY_OPTIONS - the sketch pads, graphics and text toggles and the pad numbers,
+ * `pcb_display.*` in `fpedit.json` (footprint_editor_settings.cpp:96-106) - are what
+ * PCB_VIEWER_TOOLS flips for this frame and what PCB_PAINTER draws it with.
+ *
+ * Only the members something here reads are declared; the rest of the JSON is
+ * {@link FP_EDIT_JSON_SETTINGS_LIKE}'s, read by the window.
+ */
+export class FOOTPRINT_EDITOR_SETTINGS
+  extends PCB_VIEWERS_SETTINGS_BASE
+  implements FOOTPRINT_EDITOR_SETTINGS_LIKE
+{
+  m_DisplayInvertXAxis = false;
+  m_DisplayInvertYAxis = false;
+  m_AngleSnapMode: LEADER_MODE = LEADER_MODE.DIRECT;
+
+  constructor() {
+    super('fpedit', fpEditSchemaVersion);
+  }
+}
+
+/** The one FOOTPRINT_EDITOR_SETTINGS when no program object exists (the tests, the render worker). */
+let unregistered: FOOTPRINT_EDITOR_SETTINGS | null = null;
+
+/**
+ * `GetAppSettings<FOOTPRINT_EDITOR_SETTINGS>( "fpedit" )`: the program's one object, registered with
+ * the settings manager under that name on first ask, as the kiface registers it upstream.
+ */
+export function fpEditKifaceSettings(): FOOTPRINT_EDITOR_SETTINGS {
+  const mgr = PgmOrNull()?.GetSettingsManager() ?? null;
+  const s = mgr?.GetAppSettings<object>('fpedit') ?? null;
+
+  if (s instanceof FOOTPRINT_EDITOR_SETTINGS) return s;
+
+  if (!mgr) {
+    unregistered ??= new FOOTPRINT_EDITOR_SETTINGS();
+    return unregistered;
+  }
+
+  const created = new FOOTPRINT_EDITOR_SETTINGS();
+  mgr.RegisterSettings('fpedit', created);
+  return created;
 }

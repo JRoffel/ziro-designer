@@ -21,11 +21,9 @@ import { APPEND_UNDO, BOARD_COMMIT, SKIP_UNDO } from '@ziroeda/pcbnew/board_comm
 import type { BOARD_ITEM } from '@ziroeda/pcbnew/board_item.js';
 import type { BOARD_ITEM_CONTAINER } from '@ziroeda/pcbnew/board_item_container.js';
 import { PCB_BASE_EDIT_FRAME } from '@ziroeda/pcbnew/pcb_base_edit_frame.js';
-import type { FOOTPRINT_EDITOR_SETTINGS_LIKE } from '@ziroeda/pcbnew/pcb_base_frame.js';
 import { PCB_IO_KICAD_SEXPR_PARSER } from '@ziroeda/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr_parser.js';
 import { PCB_TRACK } from '@ziroeda/pcbnew/pcb_track.js';
 import { PCBNEW_SETTINGS } from '@ziroeda/pcbnew/pcbnew_settings.js';
-import { LeaderMode as LEADER_MODE } from '@ziroeda/kimath/src/geometry/geometry_utils.js';
 
 const RESAVE = fileURLToPath(new URL('../../data/pcbnew/resave/', import.meta.url));
 
@@ -50,13 +48,6 @@ class TEST_PCB_EDIT_FRAME extends PCB_BASE_EDIT_FRAME {
   }
   GetPcbNewSettings(): PCBNEW_SETTINGS {
     return this.settings;
-  }
-  GetFootprintEditorSettings(): FOOTPRINT_EDITOR_SETTINGS_LIKE {
-    return {
-      m_DisplayInvertXAxis: false,
-      m_DisplayInvertYAxis: false,
-      m_AngleSnapMode: LEADER_MODE.DIRECT,
-    };
   }
   override OnModify(): void {
     super.OnModify();

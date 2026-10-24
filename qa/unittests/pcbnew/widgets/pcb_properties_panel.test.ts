@@ -13,11 +13,9 @@ import { FRAME_T } from '@ziroeda/common/frame_type.js';
 import { COLOR_SETTINGS } from '@ziroeda/common/settings/color_settings.js';
 import { TOOL_MANAGER } from '@ziroeda/common/tool/tool_manager.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
-import { LeaderMode as LEADER_MODE } from '@ziroeda/kimath/src/geometry/geometry_utils.js';
 import type { BOARD } from '@ziroeda/pcbnew/board.js';
 import type { BOARD_ITEM_CONTAINER } from '@ziroeda/pcbnew/board_item_container.js';
 import { PCB_BASE_EDIT_FRAME } from '@ziroeda/pcbnew/pcb_base_edit_frame.js';
-import type { FOOTPRINT_EDITOR_SETTINGS_LIKE } from '@ziroeda/pcbnew/pcb_base_frame.js';
 import { ParseBoard } from '@ziroeda/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.js';
 import type { PCB_VIA } from '@ziroeda/pcbnew/pcb_track.js';
 import { PCBNEW_SETTINGS } from '@ziroeda/pcbnew/pcbnew_settings.js';
@@ -52,13 +50,6 @@ class TEST_FRAME extends PCB_BASE_EDIT_FRAME {
   readonly colors = new COLOR_SETTINGS('test');
   override GetColorSettings(): COLOR_SETTINGS {
     return this.colors;
-  }
-  GetFootprintEditorSettings(): FOOTPRINT_EDITOR_SETTINGS_LIKE {
-    return {
-      m_DisplayInvertXAxis: false,
-      m_DisplayInvertYAxis: false,
-      m_AngleSnapMode: LEADER_MODE.DIRECT,
-    };
   }
 }
 

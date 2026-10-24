@@ -21,7 +21,6 @@ import { niluuid } from '@ziroeda/common/kiid.js';
 import { type UnsavedChangesResult } from '@ziroeda/common/confirm.js';
 import { PCB_ACTIONS } from './tools/pcb_actions.js';
 import { CLEARANCE_LAYER_FOR, IsCopperLayer, type PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
-import type { FOOTPRINT_EDITOR_SETTINGS_LIKE } from './pcb_base_frame.js';
 import { BOARD, BOARD_USE } from './board.js';
 import type { BOARD_ITEM_CONTAINER } from './board_item_container.js';
 import type { FOOTPRINT } from './footprint.js';
@@ -30,7 +29,6 @@ import { PCBNEW_SETTINGS } from './pcbnew_settings.js';
 import { PAGE_INFO, PAGE_SIZE_TYPE } from '@ziroeda/common/page_info.js';
 import { LIB_ID } from '@ziroeda/common/lib_id.js';
 import { PgmOrNull } from '@ziroeda/common/pgm_base.js';
-import { LeaderMode as LEADER_MODE } from '@ziroeda/kimath/src/geometry/geometry_utils.js';
 import { TOOL_MANAGER } from '@ziroeda/common/tool/tool_manager.js';
 import { TOOL_DISPATCHER } from '@ziroeda/common/tool/tool_dispatcher.js';
 import { RESET_REASON } from '@ziroeda/common/tool/tool_base.js';
@@ -304,21 +302,6 @@ export class FOOTPRINT_EDIT_FRAME extends PCB_BASE_EDIT_FRAME {
   }
 
   private m_fallbackSettings: PCBNEW_SETTINGS | null = null;
-
-  /**
-   * `m_editorSettings`, `GetAppSettings<FOOTPRINT_EDITOR_SETTINGS>( "fpedit" )`:
-   * one object for the frame's life, so what a tool writes into it stays
-   * written. The window keeps it and `fpedit.json` in step.
-   */
-  private readonly m_editorSettings: FOOTPRINT_EDITOR_SETTINGS_LIKE = {
-    m_DisplayInvertXAxis: false,
-    m_DisplayInvertYAxis: false,
-    m_AngleSnapMode: LEADER_MODE.DIRECT,
-  };
-
-  GetFootprintEditorSettings(): FOOTPRINT_EDITOR_SETTINGS_LIKE {
-    return this.m_editorSettings;
-  }
 
   /**
    * `ReloadFootprint` (footprint_edit_frame.cpp:623-718): the board emptied,

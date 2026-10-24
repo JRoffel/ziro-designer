@@ -120,6 +120,7 @@ import {
 } from '@ziroeda/common/layer_id.js';
 import { LSET } from '@ziroeda/common/lset.js';
 import { PgmOrNull } from '@ziroeda/common/pgm_base.js';
+import { fpEditKifaceSettings } from './footprint_editor_settings.js';
 import { RENDER_SETTINGS } from '@ziroeda/common/render_settings.js';
 import type { COLOR_SETTINGS } from '@ziroeda/common/settings/color_settings.js';
 import { printableCharCount, unescapeString } from '@ziroeda/common/string_utils.js';
@@ -751,10 +752,7 @@ export class PCB_PAINTER extends PAINTER {
     switch (this.m_frameType) {
       case FRAME_T.FRAME_FOOTPRINT_EDITOR:
       case FRAME_T.FRAME_FOOTPRINT_WIZARD:
-        return (
-          mgr?.GetAppSettings<PCB_VIEWERS_SETTINGS_BASE>('fpedit') ??
-          PCB_PAINTER.defaultViewerSettings()
-        );
+        return fpEditKifaceSettings();
 
       case FRAME_T.FRAME_FOOTPRINT_VIEWER:
       case FRAME_T.FRAME_FOOTPRINT_CHOOSER:

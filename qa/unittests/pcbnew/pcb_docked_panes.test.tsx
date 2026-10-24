@@ -25,7 +25,6 @@ import { BOARD } from '@ziroeda/pcbnew/board.js';
 import type { BOARD_ITEM_CONTAINER } from '@ziroeda/pcbnew/board_item_container.js';
 import { buildPcbMenus } from '@ziroeda/pcbnew/menubar_pcb_editor.js';
 import { PCB_BASE_EDIT_FRAME } from '@ziroeda/pcbnew/pcb_base_edit_frame.js';
-import type { FOOTPRINT_EDITOR_SETTINGS_LIKE } from '@ziroeda/pcbnew/pcb_base_frame.js';
 import {
   applyToggle,
   foldPcbToggle,
@@ -46,7 +45,6 @@ import { PcbSearchPane } from '@ziroeda/pcbnew/widgets/pcb_search_pane.js';
 import type { PcbSearchWiring } from '@ziroeda/pcbnew/widgets/search_handlers.js';
 import { PCB_VERTEX_EDITOR_PANE } from '@ziroeda/pcbnew/widgets/vertex_editor_pane.js';
 import { PCBNEW_DEFAULTS } from '@ziroeda/designer/src/prefs/settings.js';
-import { LeaderMode as LEADER_MODE } from '@ziroeda/kimath/src/geometry/geometry_utils.js';
 
 afterEach(cleanup);
 
@@ -80,13 +78,6 @@ class TEST_FRAME extends PCB_BASE_EDIT_FRAME {
   }
   GetPcbNewSettings(): PCBNEW_SETTINGS {
     return this.settings;
-  }
-  GetFootprintEditorSettings(): FOOTPRINT_EDITOR_SETTINGS_LIKE {
-    return {
-      m_DisplayInvertXAxis: false,
-      m_DisplayInvertYAxis: false,
-      m_AngleSnapMode: LEADER_MODE.DIRECT,
-    };
   }
 }
 

@@ -61,6 +61,7 @@ import {
   type PCB_VIEWERS_SETTINGS_BASE,
 } from './pcbnew_settings.js';
 import { GRID } from '@ziroeda/common/settings/grid_settings.js';
+import { fpEditKifaceSettings } from './footprint_editor_settings.js';
 
 /**
  * `FOOTPRINT_EDITOR_SETTINGS` as the base frame reads it; the class lands with
@@ -583,7 +584,10 @@ export abstract class PCB_BASE_FRAME extends EDA_DRAW_FRAME {
   /**
    * `Pgm().GetSettingsManager().GetAppSettings<FOOTPRINT_EDITOR_SETTINGS>( "fpedit" )`.
    */
-  abstract GetFootprintEditorSettings(): FOOTPRINT_EDITOR_SETTINGS_LIKE;
+  /** `GetFootprintEditorSettings()` (pcb_base_frame.cpp:891): the program's `fpedit` settings. */
+  GetFootprintEditorSettings(): FOOTPRINT_EDITOR_SETTINGS_LIKE {
+    return fpEditKifaceSettings();
+  }
 
   /**
    * `GetViewerSettingsBase()` (pcb_base_frame.cpp:897-917): the settings whose
@@ -591,12 +595,16 @@ export abstract class PCB_BASE_FRAME extends EDA_DRAW_FRAME {
    *
    * The CVPCB frames' arm (`GetAppSettings<CVPCB_SETTINGS>( "cvpcb" )`) has no
    * subclass of this frame to reach it here: they answer the default's.
+   *
+   * The footprint editor's arm is `GetAppSettings<FOOTPRINT_EDITOR_SETTINGS>( "fpedit" )` itself,
+   * the object the painter draws the frame with, not the frame's own answer to
+   * GetFootprintEditorSettings, which a test frame may stand in for.
    */
   GetViewerSettingsBase(): PCB_VIEWERS_SETTINGS_BASE {
     switch (this.GetFrameType()) {
       case FRAME_T.FRAME_FOOTPRINT_EDITOR:
       case FRAME_T.FRAME_FOOTPRINT_WIZARD:
-        return this.GetFootprintEditorSettings() as unknown as PCB_VIEWERS_SETTINGS_BASE;
+        return fpEditKifaceSettings();
 
       default:
         return this.GetPcbNewSettings();

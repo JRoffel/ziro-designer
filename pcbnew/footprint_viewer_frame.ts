@@ -35,13 +35,12 @@ import { RESET_REASON } from '@ziroeda/common/tool/tool_base.js';
 import { TOOL_DISPATCHER } from '@ziroeda/common/tool/tool_dispatcher.js';
 import { TOOL_MANAGER } from '@ziroeda/common/tool/tool_manager.js';
 import { ZOOM_TOOL } from '@ziroeda/common/tool/zoom_tool.js';
-import { LeaderMode as LEADER_MODE } from '@ziroeda/kimath/src/geometry/geometry_utils.js';
 import { BOARD, BOARD_USE } from './board.js';
 import { BOARD_COMMIT } from './board_commit.js';
 import type { BOARD_ITEM_CONTAINER } from './board_item_container.js';
 import type { FOOTPRINT } from './footprint.js';
 import type { FOOTPRINT_LIBRARY_ADAPTER } from './footprint_library_adapter.js';
-import { type FOOTPRINT_EDITOR_SETTINGS_LIKE, PCB_BASE_FRAME } from './pcb_base_frame.js';
+import { PCB_BASE_FRAME } from './pcb_base_frame.js';
 import { PCB_SCREEN } from './pcb_screen.js';
 import { PCBNEW_SETTINGS } from './pcbnew_settings.js';
 import { FPVIEWER_CONSTANTS, PCB_ACTIONS } from './tools/pcb_actions.js';
@@ -436,15 +435,6 @@ export class FOOTPRINT_VIEWER_FRAME extends PCB_BASE_FRAME {
   }
 
   private m_fallbackSettings: PCBNEW_SETTINGS | null = null;
-
-  /** `PCB_BASE_FRAME::GetFootprintEditorSettings()`; the viewer reads none of it. */
-  GetFootprintEditorSettings(): FOOTPRINT_EDITOR_SETTINGS_LIKE {
-    return {
-      m_DisplayInvertXAxis: false,
-      m_DisplayInvertYAxis: false,
-      m_AngleSnapMode: LEADER_MODE.DIRECT,
-    };
-  }
 
   /** `PROJECT_PCB::FootprintLibAdapter( &Prj() )`, handed in by the window. */
   SetFootprintLibAdapter(aAdapter: FOOTPRINT_LIBRARY_ADAPTER | null): void {

@@ -6,7 +6,14 @@
  * (pcb_viewer_tools.cpp:106-250, 459-469): each flips one setting in the
  * frame's settings object and repaints exactly the items that read it.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { FRAME_T } from '@ziroeda/common/frame_type.js';
+import { PGM_BASE, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
+import {
+  FOOTPRINT_EDITOR_SETTINGS,
+  fpEditKifaceSettings,
+} from '@ziroeda/pcbnew/footprint_editor_settings.js';
+import { PCB_PAINTER } from '@ziroeda/pcbnew/pcb_painter.js';
 import { RESET_REASON } from '@ziroeda/common/tool/tool_base.js';
 import type { VIEW_ITEM } from '@ziroeda/common/view/view_item.js';
 import { VIEW_UPDATE_FLAGS } from '@ziroeda/common/view/view_item.js';
@@ -94,6 +101,57 @@ describe('PCB_VIEWER_TOOLS display modes', () => {
     expect(kinds()).toEqual(
       [...Array(fields).fill('PCB_FIELD_T'), 'PCB_TEXT_T', 'PCB_TEXT_T'].sort(),
     );
+  });
+});
+
+/**
+ * The Footprint Editor's viewer settings are `GetAppSettings<FOOTPRINT_EDITOR_SETTINGS>( "fpedit" )`
+ * (pcb_base_frame.cpp:891-911): ONE object, which the frame's tools flip and the painter draws the
+ * frame with. Each frame used to answer a literal of its own with no VIEWERS_DISPLAY_OPTIONS in it,
+ * so all three sketch toggles threw in the Footprint Editor (Sentry JAVASCRIPT-REACT-X and -Y).
+ */
+describe('PCB_VIEWER_TOOLS display modes in the Footprint Editor', () => {
+  beforeEach(() => {
+    h = toolHarness(
+      BOARD_TEXT,
+      (aBoard) => new TEST_PCB_FRAME(aBoard, FRAME_T.FRAME_FOOTPRINT_EDITOR),
+      () => [new PCB_VIEWER_TOOLS()],
+    );
+    h.mgr.ResetTools(RESET_REASON.MODEL_RELOAD);
+  });
+
+  afterEach(() => SetPgm(null));
+
+  const fpedit = () => fpEditKifaceSettings().m_ViewersDisplay;
+
+  it.each([
+    [PCB_ACTIONS.padDisplayMode, 'm_DisplayPadFill'],
+    [PCB_ACTIONS.graphicsOutlines, 'm_DisplayGraphicsFill'],
+    [PCB_ACTIONS.textOutlines, 'm_DisplayTextFill'],
+  ] as const)('%s flips fpedit, not pcbnew', (aAction, aField) => {
+    const was = fpedit()[aField];
+
+    h.mgr.RunAction(aAction);
+
+    expect(fpedit()[aField]).toBe(!was);
+    expect(viewers()[aField]).toBe(true);
+
+    h.mgr.RunAction(aAction);
+    expect(fpedit()[aField]).toBe(was);
+  });
+
+  it("is what the painter draws the Footprint Editor with, and the program's one", () => {
+    SetPgm(new PGM_BASE(null, new SETTINGS_MANAGER()));
+    const painter = new PCB_PAINTER(null, FRAME_T.FRAME_FOOTPRINT_EDITOR) as unknown as {
+      viewer_settings(): unknown;
+    };
+    const fromFrame = h.frame.GetViewerSettingsBase();
+
+    expect(fromFrame instanceof FOOTPRINT_EDITOR_SETTINGS).toBe(true);
+    expect(fromFrame === painter.viewer_settings()).toBe(true);
+    expect(fromFrame === h.frame.GetFootprintEditorSettings()).toBe(true);
+    expect(fromFrame === fpEditKifaceSettings()).toBe(true);
+    expect(fromFrame === h.frame.GetPcbNewSettings()).toBe(false);
   });
 });
 

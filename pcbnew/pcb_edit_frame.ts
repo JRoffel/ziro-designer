@@ -44,7 +44,6 @@ import { PROPERTIES_TOOL } from '@ziroeda/common/tool/properties_tool.js';
 import { TOOL_MANAGER } from '@ziroeda/common/tool/tool_manager.js';
 import { VIEW_UPDATE_FLAGS, type VIEW_ITEM } from '@ziroeda/common/view/view_item.js';
 import { FLIP_DIRECTION } from '@ziroeda/kimath/src/core/mirror.js';
-import { LeaderMode as LEADER_MODE } from '@ziroeda/kimath/src/geometry/geometry_utils.js';
 import { EDA_ANGLE, EDA_ANGLE_T } from '@ziroeda/kimath/src/geometry/eda_angle.js';
 import type { BOARD } from './board.js';
 import { BOARD_ITEM } from './board_item.js';
@@ -96,7 +95,6 @@ import { STRTOK, strncpyLine } from '@ziroeda/libc/string.js';
 import type { KIWAY_MAIL_EVENT } from '@ziroeda/common/kiway_mail.js';
 import type { KIWAY } from '@ziroeda/common/kiway.js';
 import { MAIL_T } from '@ziroeda/common/mail_type.js';
-import type { FOOTPRINT_EDITOR_SETTINGS_LIKE } from './pcb_base_frame.js';
 import { type AUI_PANELS, PCBNEW_SETTINGS } from './pcbnew_settings.js';
 import { BOARD_COMMIT, SKIP_SET_DIRTY, SKIP_UNDO } from './board_commit.js';
 import type { FOOTPRINT } from './footprint.js';
@@ -3472,14 +3470,6 @@ export class PCB_EDIT_FRAME extends PCB_BASE_EDIT_FRAME {
 
   GetPcbNewSettings(): PCBNEW_SETTINGS {
     return this.hooks.settings();
-  }
-
-  GetFootprintEditorSettings(): FOOTPRINT_EDITOR_SETTINGS_LIKE {
-    return {
-      m_DisplayInvertXAxis: false,
-      m_DisplayInvertYAxis: false,
-      m_AngleSnapMode: LEADER_MODE.DIRECT,
-    };
   }
 
   override OnModify(): void {

@@ -12,10 +12,8 @@ import { PCB_SCREEN } from '@ziroeda/pcbnew/pcb_screen.js';
 import { TOOL_MANAGER } from '@ziroeda/common/tool/tool_manager.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { FRAME_T } from '@ziroeda/common/frame_type.js';
-import { LeaderMode as LEADER_MODE } from '@ziroeda/kimath/src/geometry/geometry_utils.js';
 import type { BOARD_ITEM_CONTAINER } from '@ziroeda/pcbnew/board_item_container.js';
 import { PCB_BASE_EDIT_FRAME } from '@ziroeda/pcbnew/pcb_base_edit_frame.js';
-import type { FOOTPRINT_EDITOR_SETTINGS_LIKE } from '@ziroeda/pcbnew/pcb_base_frame.js';
 import { PCBNEW_SETTINGS } from '@ziroeda/pcbnew/pcbnew_settings.js';
 import type { BOARD } from '@ziroeda/pcbnew/board.js';
 import {
@@ -85,13 +83,6 @@ class TEST_PCB_EDIT_FRAME extends PCB_BASE_EDIT_FRAME {
   }
   GetPcbNewSettings(): PCBNEW_SETTINGS {
     return this.settings;
-  }
-  GetFootprintEditorSettings(): FOOTPRINT_EDITOR_SETTINGS_LIKE {
-    return {
-      m_DisplayInvertXAxis: false,
-      m_DisplayInvertYAxis: false,
-      m_AngleSnapMode: LEADER_MODE.DIRECT,
-    };
   }
 }
 
