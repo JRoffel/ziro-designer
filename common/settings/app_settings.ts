@@ -485,8 +485,26 @@ export function loadAppSettingsBase(s: APP_SETTINGS_BASE, json: APP_SETTINGS_BAS
   s.m_System.last_metric_units = EdaUnitsToInt(json.system.last_metric_units);
   s.m_System.last_imperial_units = EdaUnitsToInt(json.system.last_imperial_units);
 
-  const g = s.m_Window.grid;
-  const jg = json.window.grid;
+  loadWindowSettings(s.m_Window, json.window);
+}
+
+/**
+ * A window's JSON block as `addParamsForWindow( aWindow, aJsonPath, aDefaultWidth,
+ * aDefaultHeight )` (app_settings.cpp) registers it: the grid and cursor, and for a window that
+ * carries them, its size.
+ */
+export type WINDOW_SETTINGS_JSON = APP_SETTINGS_BASE_JSON['window'] & {
+  size_x?: number;
+  size_y?: number;
+};
+
+/** `JSON_SETTINGS::Load` for one `addParamsForWindow` block into its WINDOW_SETTINGS. */
+export function loadWindowSettings(aWindow: WINDOW_SETTINGS, aJson: WINDOW_SETTINGS_JSON): void {
+  if (aJson.size_x !== undefined) aWindow.state.size_x = aJson.size_x;
+  if (aJson.size_y !== undefined) aWindow.state.size_y = aJson.size_y;
+
+  const g = aWindow.grid;
+  const jg = aJson.grid;
   g.grids = jg.sizes.map((aEntry) => new GRID(aEntry.name, aEntry.x, aEntry.y));
   g.last_size_idx = jg.last_size_idx;
   g.fast_grid_1 = jg.fast_grid_1;
@@ -498,8 +516,8 @@ export function loadAppSettingsBase(s: APP_SETTINGS_BASE, json: APP_SETTINGS_BAS
   g.show = jg.show;
   g.overrides_enabled = jg.overrides_enabled;
 
-  s.m_Window.cursor.cross_hair_mode = CROSS_HAIR_MODE_OF[json.window.cursor.crosshair];
-  s.m_Window.cursor.always_show_cursor = json.window.cursor.always_show_cursor;
+  aWindow.cursor.cross_hair_mode = CROSS_HAIR_MODE_OF[aJson.cursor.crosshair];
+  aWindow.cursor.always_show_cursor = aJson.cursor.always_show_cursor;
 }
 
 /**
@@ -520,8 +538,32 @@ export function storeAppSettingsBase(s: APP_SETTINGS_BASE, json: APP_SETTINGS_BA
   set(json.system, 'last_metric_units', EdaUnitsFromInt(s.m_System.last_metric_units));
   set(json.system, 'last_imperial_units', EdaUnitsFromInt(s.m_System.last_imperial_units));
 
-  const g = s.m_Window.grid;
-  const jg = json.window.grid;
+  if (storeWindowSettings(s.m_Window, json.window)) changed = true;
+
+  return changed;
+}
+
+/**
+ * `JSON_SETTINGS::Store` for one `addParamsForWindow` block: the current and fast grids, the
+ * grid's display, the cursor, and the size where the block carries one. Whether anything moved.
+ */
+export function storeWindowSettings(
+  aWindow: WINDOW_SETTINGS,
+  aJson: WINDOW_SETTINGS_JSON,
+): boolean {
+  let changed = false;
+  const set = <T extends object, K extends keyof T>(aObj: T, aKey: K, aValue: T[K]): void => {
+    if (aObj[aKey] !== aValue) {
+      aObj[aKey] = aValue;
+      changed = true;
+    }
+  };
+
+  if (aJson.size_x !== undefined) set(aJson, 'size_x', aWindow.state.size_x);
+  if (aJson.size_y !== undefined) set(aJson, 'size_y', aWindow.state.size_y);
+
+  const g = aWindow.grid;
+  const jg = aJson.grid;
   set(jg, 'last_size_idx', g.last_size_idx);
   set(jg, 'fast_grid_1', g.fast_grid_1);
   set(jg, 'fast_grid_2', g.fast_grid_2);
@@ -533,12 +575,12 @@ export function storeAppSettingsBase(s: APP_SETTINGS_BASE, json: APP_SETTINGS_BA
   set(jg, 'overrides_enabled', g.overrides_enabled);
 
   const crosshair = (Object.keys(CROSS_HAIR_MODE_OF) as (keyof typeof CROSS_HAIR_MODE_OF)[]).find(
-    (k) => CROSS_HAIR_MODE_OF[k] === s.m_Window.cursor.cross_hair_mode,
+    (k) => CROSS_HAIR_MODE_OF[k] === aWindow.cursor.cross_hair_mode,
   );
 
-  if (crosshair) set(json.window.cursor, 'crosshair', crosshair);
+  if (crosshair) set(aJson.cursor, 'crosshair', crosshair);
 
-  set(json.window.cursor, 'always_show_cursor', s.m_Window.cursor.always_show_cursor);
+  set(aJson.cursor, 'always_show_cursor', aWindow.cursor.always_show_cursor);
 
   return changed;
 }

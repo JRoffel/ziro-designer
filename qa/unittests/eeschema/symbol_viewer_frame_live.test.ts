@@ -14,6 +14,7 @@ import { MAIL_T } from '@ziroeda/common/mail_type.js';
 import { FRAME_T } from '@ziroeda/common/frame_type.js';
 import { SYMBOL_VIEWER_FRAME } from '@ziroeda/eeschema/symbol_viewer_frame.js';
 import { SCH_ACTIONS } from '@ziroeda/eeschema/tools/sch_actions.js';
+import { GRID_STYLE } from '@ziroeda/common/gal/gal_display_options.js';
 import {
   EESCHEMA_DEFAULTS,
   type EeschemaSettings,
@@ -379,8 +380,11 @@ describe('LoadSettings / SaveSettings (:791-839)', () => {
     setUpdateEeschemaSettingsProvider(() => {});
   });
 
-  const useSettings = (aLibView: EeschemaSettings['lib_view']) => {
-    stored = structuredClone({ ...EESCHEMA_DEFAULTS, lib_view: aLibView });
+  const useSettings = (aLibView: Partial<EeschemaSettings['lib_view']>) => {
+    stored = structuredClone({
+      ...EESCHEMA_DEFAULTS,
+      lib_view: { ...EESCHEMA_DEFAULTS.lib_view, ...aLibView },
+    });
     setEeschemaSettingsProvider(() => stored);
     setUpdateEeschemaSettingsProvider((mutate) => {
       const next = structuredClone(stored);
@@ -389,30 +393,61 @@ describe('LoadSettings / SaveSettings (:791-839)', () => {
     });
   };
 
-  it('reads lib_view, and with no saved window size clamps the widths as upstream does', () => {
+  const sized = (aWidth: number) => ({
+    ...structuredClone(EESCHEMA_DEFAULTS.lib_view.window),
+    size_x: aWidth,
+  });
+
+  /**
+   * lib_view.window is addParamsForWindow's 500 x 400 (eeschema_settings.cpp:644), so on a first run
+   * the clamp's limit is 500 - 80 and lists of 120 + 180 stand.
+   */
+  it('reads lib_view, and keeps the widths that fit the default 500-wide window', () => {
     useSettings({ lib_list_width: 120, cmp_list_width: 180, show_pin_electrical_type: false });
     t = symbolViewerHarness();
     t.frame.LoadSettings(eeschemaKifaceSettings());
 
     expect(t.frame.GetRenderSettings()!.m_ShowPinsElectricalType).toBe(false);
-    // window.state.size_x is 0, so maxWidth is -80: 120 * ( 120 / 300 ) in ints is 0, and the
-    // symbol list takes the rest, -80. A real window's size undoes it.
-    expect([t.frame.m_libListWidth, t.frame.m_symbolListWidth]).toEqual([0, -80]);
+    expect([t.frame.m_libListWidth, t.frame.m_symbolListWidth]).toEqual([120, 180]);
   });
 
-  it('writes the widths and the electrical-type toggle back', () => {
+  it('clamps them to a narrower saved window, in ints as upstream does', () => {
+    useSettings({ lib_list_width: 120, cmp_list_width: 180, window: sized(280) });
+    t = symbolViewerHarness();
+    t.frame.LoadSettings(eeschemaKifaceSettings());
+
+    // maxWidth 200: 200 * ( 120 / 300 ) is 200 * 0 in ints, and the symbol list takes the rest.
+    expect([t.frame.m_libListWidth, t.frame.m_symbolListWidth]).toEqual([0, 200]);
+  });
+
+  it("keeps its own window settings, lib_view.window, not the schematic editor's", () => {
+    const own = sized(500);
+    own.grid.last_size_idx = 4;
+    useSettings({ window: own });
+    t = symbolViewerHarness();
+    const cfg = eeschemaKifaceSettings();
+
+    expect(t.frame.GetWindowSettings(cfg) === cfg.m_LibViewPanel.window).toBe(true);
+    expect(cfg.m_LibViewPanel.window.grid.last_size_idx).toBe(4);
+    expect(cfg.m_Window.grid.last_size_idx).not.toBe(4);
+  });
+
+  it('writes the widths, the electrical-type toggle and its window back', () => {
     useSettings({ lib_list_width: 150, cmp_list_width: 150, show_pin_electrical_type: true });
     t = symbolViewerHarness();
     t.frame.m_libListWidth = 210;
     t.frame.m_symbolListWidth = 320;
     t.frame.GetRenderSettings()!.m_ShowPinsElectricalType = false;
+    t.frame.GetGalDisplayOptions().m_gridStyle = GRID_STYLE.LINES;
 
     t.frame.SaveSettings(eeschemaKifaceSettings());
 
-    expect(stored.lib_view).toEqual({
-      lib_list_width: 210,
-      cmp_list_width: 320,
-      show_pin_electrical_type: false,
-    });
+    expect([
+      stored.lib_view.lib_list_width,
+      stored.lib_view.cmp_list_width,
+      stored.lib_view.show_pin_electrical_type,
+    ]).toEqual([210, 320, false]);
+    expect(stored.lib_view.window.grid.style).toBe('lines');
+    expect(stored.window.grid.style).toBe(EESCHEMA_DEFAULTS.window.grid.style);
   });
 });

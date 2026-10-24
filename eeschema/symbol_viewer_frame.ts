@@ -45,9 +45,11 @@ import { wxSearchCtrl } from '@ziroeda/wx/wx_search_ctrl.js';
 import { DEFAULT_LINE_WIDTH_MILS } from './default_values.js';
 import {
   currentEeschemaSettings,
+  EESCHEMA_SETTINGS,
   eeschemaKifaceSettings,
   updateEeschemaSettings,
 } from './eeschema_settings.js';
+import { storeWindowSettings } from '@ziroeda/common/settings/app_settings.js';
 import type { LIB_SYMBOL } from './lib_symbol.js';
 import { SymbolLibAdapter } from './project_sch.js';
 import { SCH_BASE_FRAME } from './sch_base_frame.js';
@@ -724,13 +726,12 @@ export class SYMBOL_VIEWER_FRAME extends SCH_BASE_FRAME {
     this.m_toolManager?.RunAction(SCH_ACTIONS.addSymbolToSchematic);
   }
 
-  /**
-   * `GetWindowSettings( aCfg )` (:841): upstream's is `m_LibViewPanel.window`, the browser's own
-   * grid and cursor. Our eeschema.json slice carries `lib_view` without a `window`, so the browser
-   * shares the schematic editor's until it does.
-   */
+  /** `GetWindowSettings( aCfg )` (:841): the browser's own, `lib_view.window`. */
   override GetWindowSettings(aCfg: APP_SETTINGS_BASE): WINDOW_SETTINGS {
-    return aCfg.m_Window;
+    if (aCfg instanceof EESCHEMA_SETTINGS) return aCfg.m_LibViewPanel.window;
+
+    // wxFAIL_MSG( wxT( "SYMBOL_VIEWER not running with EESCHEMA_SETTINGS" ) )
+    return aCfg.m_Window; // non-null fail-safe
   }
 
   /** `LoadSettings( aCfg )` (:791): EESCHEMA_SETTINGS' `lib_view` into the lists and the render. */
@@ -756,7 +757,7 @@ export class SYMBOL_VIEWER_FRAME extends SCH_BASE_FRAME {
     }
 
     // Set parameters to a reasonable value.
-    const maxWidth = cfg.m_Window.state.size_x - 80;
+    const maxWidth = cfg.m_LibViewPanel.window.state.size_x - 80;
 
     if (this.m_libListWidth + this.m_symbolListWidth > maxWidth) {
       // All ints upstream: the ratio truncates to 0 (or 1), and `| 0` keeps C's 0, not JS's -0.
@@ -776,6 +777,9 @@ export class SYMBOL_VIEWER_FRAME extends SCH_BASE_FRAME {
     const renderSettings = this.GetRenderSettings();
 
     updateEeschemaSettings((s) => {
+      // The window block upstream writes with every other PARAM: what EDA_DRAW_FRAME::SaveSettings
+      // just put into m_LibViewPanel.window.
+      storeWindowSettings(cfg.m_LibViewPanel.window, s.lib_view.window);
       s.lib_view.lib_list_width = this.m_libListWidth;
       s.lib_view.cmp_list_width = this.m_symbolListWidth;
 

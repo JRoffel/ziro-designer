@@ -7,7 +7,12 @@
  * settings.ts`, which still owns the store (load, merge, persist) and reads
  * this slice's type and defaults from here.
  */
-import { APP_SETTINGS_BASE, loadAppSettingsBase } from '@ziroeda/common/settings/app_settings.js';
+import {
+  APP_SETTINGS_BASE,
+  loadAppSettingsBase,
+  loadWindowSettings,
+  WINDOW_SETTINGS,
+} from '@ziroeda/common/settings/app_settings.js';
 import { PgmOrNull } from '@ziroeda/common/pgm_base.js';
 import {
   REMOTE_PROVIDER_SETTINGS,
@@ -215,6 +220,17 @@ export interface EeschemaSettings {
     lib_list_width: number; // px
     cmp_list_width: number; // px
     show_pin_electrical_type: boolean;
+    /**
+     * `addParamsForWindow( &m_LibViewPanel.window, "lib_view.window", 500, 400 )`
+     * (eeschema_settings.cpp:644): the browser's own grid and cursor, and its size, which
+     * SYMBOL_VIEWER_FRAME::LoadSettings measures the list widths against.
+     */
+    window: {
+      size_x: number;
+      size_y: number;
+      grid: EeschemaSettings['window']['grid'];
+      cursor: EeschemaSettings['window']['cursor'];
+    };
   };
   /**
    * `EESCHEMA_SETTINGS::m_Simulator.preferences` — what a wheel gesture does on
@@ -334,6 +350,61 @@ export interface EeschemaSettings {
   };
 }
 
+/**
+ * The eeschema arm of `APP_SETTINGS_BASE::addParamsForWindow`'s grid PARAMs (app_settings.cpp), shared
+ * by eeschema.json's two windows, `window` and `lib_view.window`.
+ */
+function eeschemaWindowGrid(): EeschemaSettings['window']['grid'] {
+  return {
+    // `DefaultGridSizeList()`'s eeschema row, asked rather than restated —
+    // the same table the grid selector reads. It was written out by hand here
+    // and agreed with the table by coincidence.
+    sizes: GRID_SIZE_LIST.eeschema.map(gridEntryOf),
+    last_size_idx: DEFAULT_GRID_INDEX.eeschema,
+    fast_grid_1: 1,
+    fast_grid_2: 2,
+    style: 'dots',
+    line_width: 1,
+    min_spacing: 10,
+    snap: 0,
+    show: true,
+    // `true`, and in BOTH arms of the per-editor split: APP_SETTINGS_BASE
+    // gives eeschema/symbol_editor and everything else the same default for
+    // this one (app_settings.cpp:497-498 and :523-524), and only
+    // `override_connected` and `override_graphics_idx` differ between them.
+    // So it is editor-independent, which is why it can live in this one
+    // shared grid block.
+    //
+    // Ours defaulted it false, which is why the schematic's grid-overrides
+    // toolbar button opened unlit where a real eeschema shows it lit — the
+    // button is one of the two that genuinely IS a toggle
+    // (ACTIONS::toggleGridOverrides declares TOOLBAR_STATE::TOGGLE), so the
+    // wrong default reads as the wrong button state.
+    overrides_enabled: true,
+    // The eeschema/symbol_editor arm of `app_settings.cpp:495-521`: connected, wires and text
+    // ON, graphics OFF, at grid indices 1, 1, 3 and 2 of the list above - 50, 50, 10 and 25
+    // mil - and the installed build's own eeschema.json agrees. Ours had all four off and text
+    // at 25 mil until 10-24; the settings migration v9 moves that stored default once.
+    overrides: {
+      connected: { enabled: true, size: '50 mil' },
+      wires: { enabled: true, size: '50 mil' },
+      text: { enabled: true, size: '10 mil' },
+      graphics: { enabled: false, size: '25 mil' },
+    },
+  };
+}
+
+/** The same function's cursor PARAMs. */
+function eeschemaWindowCursor(): EeschemaSettings['window']['cursor'] {
+  return {
+    // KiCad's defaults: CROSS_HAIR_MODE::SMALL_CROSS, always_show_cursor true
+    // (common/settings/app_settings.cpp). A full-window crosshair on top of a
+    // tool's own bitmap cursor reads as two cursors fighting each other.
+    crosshair: 'small',
+    always_show_cursor: true,
+  };
+}
+
 export const EESCHEMA_DEFAULTS: EeschemaSettings = {
   appearance: {
     // Not upstream's DEFAULT_THEME: dark is our identity (DECIDED 2026-09-11), and KiCad ships no
@@ -445,6 +516,13 @@ export const EESCHEMA_DEFAULTS: EeschemaSettings = {
     lib_list_width: 150,
     cmp_list_width: 150,
     show_pin_electrical_type: true,
+    // The same eeschema arm of addParamsForWindow as `window` below, at its 500 x 400.
+    window: {
+      size_x: 500,
+      size_y: 400,
+      grid: eeschemaWindowGrid(),
+      cursor: eeschemaWindowCursor(),
+    },
   },
   // PANEL_SYMBOL_CHOOSER::FinishSetup (panel_symbol_chooser.cpp:436-446) seeds
   // both from dialog units: sash_pos_h = horizPixelsFromDU( 220 ) and
@@ -487,50 +565,8 @@ export const EESCHEMA_DEFAULTS: EeschemaSettings = {
     // `editors/schematic/panes.ts`, which is where the numbers are documented
     // against their `Position()` call sites.
     left_dock_pos: { netNavigator: 0, hierarchy: 1, properties: 2, selectionFilter: 4 },
-    grid: {
-      // `DefaultGridSizeList()`'s eeschema row, asked rather than restated —
-      // the same table the grid selector reads. It was written out by hand here
-      // and agreed with the table by coincidence.
-      sizes: GRID_SIZE_LIST.eeschema.map(gridEntryOf),
-      last_size_idx: DEFAULT_GRID_INDEX.eeschema,
-      fast_grid_1: 1,
-      fast_grid_2: 2,
-      style: 'dots',
-      line_width: 1,
-      min_spacing: 10,
-      snap: 0,
-      show: true,
-      // `true`, and in BOTH arms of the per-editor split: APP_SETTINGS_BASE
-      // gives eeschema/symbol_editor and everything else the same default for
-      // this one (app_settings.cpp:497-498 and :523-524), and only
-      // `override_connected` and `override_graphics_idx` differ between them.
-      // So it is editor-independent, which is why it can live in this one
-      // shared grid block.
-      //
-      // Ours defaulted it false, which is why the schematic's grid-overrides
-      // toolbar button opened unlit where a real eeschema shows it lit — the
-      // button is one of the two that genuinely IS a toggle
-      // (ACTIONS::toggleGridOverrides declares TOOLBAR_STATE::TOGGLE), so the
-      // wrong default reads as the wrong button state.
-      overrides_enabled: true,
-      // The eeschema/symbol_editor arm of `app_settings.cpp:495-521`: connected, wires and text
-      // ON, graphics OFF, at grid indices 1, 1, 3 and 2 of the list above - 50, 50, 10 and 25
-      // mil - and the installed build's own eeschema.json agrees. Ours had all four off and text
-      // at 25 mil until 10-24; the settings migration v9 moves that stored default once.
-      overrides: {
-        connected: { enabled: true, size: '50 mil' },
-        wires: { enabled: true, size: '50 mil' },
-        text: { enabled: true, size: '10 mil' },
-        graphics: { enabled: false, size: '25 mil' },
-      },
-    },
-    cursor: {
-      // KiCad's defaults: CROSS_HAIR_MODE::SMALL_CROSS, always_show_cursor true
-      // (common/settings/app_settings.cpp). A full-window crosshair on top of a
-      // tool's own bitmap cursor reads as two cursors fighting each other.
-      crosshair: 'small',
-      always_show_cursor: true,
-    },
+    grid: eeschemaWindowGrid(),
+    cursor: eeschemaWindowCursor(),
   },
   // eeschema_settings.cpp declares every one of these false, so a new sheet
   // starts with its own empty title block unless asked otherwise.
@@ -607,6 +643,12 @@ const eeschemaSchemaVersion = 3;
  * ({@link currentEeschemaSettings}) by the code that wants them.
  */
 export class EESCHEMA_SETTINGS extends APP_SETTINGS_BASE {
+  /**
+   * `m_LibViewPanel`'s window (`PANEL_LIB_VIEW::window`): the Symbol Library Browser's own grid,
+   * cursor and size, `lib_view.window`. The panel's widths and toggle are read off the slice.
+   */
+  m_LibViewPanel = { window: new WINDOW_SETTINGS() };
+
   constructor() {
     super('eeschema', eeschemaSchemaVersion);
   }
@@ -634,6 +676,8 @@ export function eeschemaKifaceSettings(): EESCHEMA_SETTINGS {
     }
   }
 
-  loadAppSettingsBase(s, currentEeschemaSettings());
+  const slice = currentEeschemaSettings();
+  loadAppSettingsBase(s, slice);
+  loadWindowSettings(s.m_LibViewPanel.window, slice.lib_view.window);
   return s;
 }
