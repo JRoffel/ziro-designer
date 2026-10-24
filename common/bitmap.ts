@@ -10,6 +10,13 @@
 import { BITMAP_STORE } from './bitmap_store.js';
 import type { BITMAPS } from '@ziroeda/include/bitmaps/bitmaps_list.js';
 
+/** `BITMAP_TYPE` (bitmap_types.h:42): the file format `SaveCanvasImageToFile` writes. */
+export enum BITMAP_TYPE {
+  PNG,
+  JPG,
+  BMP,
+}
+
 let s_BitmapStore: BITMAP_STORE | null = null;
 
 export function GetBitmapStore(): BITMAP_STORE {

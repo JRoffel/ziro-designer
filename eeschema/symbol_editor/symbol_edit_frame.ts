@@ -438,7 +438,7 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
   }
 
   /** A generated output, handed to the window to download. */
-  WriteOutputFile(aPath: string, aBytes: Uint8Array, aMime: string): void {
+  override WriteOutputFile(aPath: string, aBytes: Uint8Array, aMime: string): void {
     this.hooks.writeOutputFile?.(aPath, aBytes, aMime);
   }
 

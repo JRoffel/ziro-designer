@@ -53,6 +53,7 @@ import { SHADER_MODE } from './vertex_common.js';
 import { VERTEX_ITEM } from './vertex_item.js';
 import { VERTEX_MANAGER } from './vertex_manager.js';
 import { wxASSERT } from '@ziroeda/wx/wx_assert.js';
+import type { WX_IMAGE } from '@ziroeda/wx/wx_image.js';
 
 const { SHADER_NONE, SHADER_FILLED_CIRCLE, SHADER_STROKED_CIRCLE, SHADER_FONT, SHADER_HOLE_WALL } =
   SHADER_MODE;
@@ -798,10 +799,11 @@ export class OPENGL_GAL extends GAL {
   }
 
   /**
-   * Read the main render buffer back as RGBA pixels, bottom row first as GL delivers them.
+   * Read the main render buffer into \a aDstImage: RGB plus alpha, turned top row first (GL
+   * delivers the bottom row first). False when there is no context or no buffer to read.
    */
-  GetScreenshot(): { width: number; height: number; rgba: Uint8Array } | null {
-    if (!this.IsInitialized() || !this.m_compositor) return null;
+  GetScreenshot(aDstImage: WX_IMAGE): boolean {
+    if (!this.IsInitialized() || !this.m_compositor) return false;
 
     return GAL_CONTEXT_LOCKER(this, () => {
       const gl = this.gl;
@@ -811,19 +813,38 @@ export class OPENGL_GAL extends GAL {
       const w = viewport[2]!;
       const h = viewport[3]!;
 
-      let result: { width: number; height: number; rgba: Uint8Array } | null = null;
+      let ok = false;
 
       if (w > 0 && h > 0) {
         const rgba = new Uint8Array(w * h * 4);
+
         gl.finish();
         gl.pixelStorei(gl.PACK_ALIGNMENT, 1);
         gl.readBuffer(gl.COLOR_ATTACHMENT0);
         gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, rgba);
-        result = { width: w, height: h, rgba };
+
+        // wxImage wants separate RGB and alpha buffers and takes ownership of them.
+        const rgb = new Uint8Array(w * h * 3);
+        const alpha = new Uint8Array(w * h);
+
+        for (let i = 0; i < w * h; ++i) {
+          rgb[i * 3 + 0] = rgba[i * 4 + 0]!;
+          rgb[i * 3 + 1] = rgba[i * 4 + 1]!;
+          rgb[i * 3 + 2] = rgba[i * 4 + 2]!;
+          alpha[i] = rgba[i * 4 + 3]!;
+        }
+
+        aDstImage.SetData(rgb, w, h);
+        aDstImage.SetAlpha(alpha);
+
+        const mirrored = aDstImage.Mirror(false);
+        aDstImage.SetData(mirrored.GetData()!, w, h);
+        aDstImage.SetAlpha(mirrored.GetAlpha()!);
+        ok = true;
       }
 
       this.m_compositor.SetBuffer(OPENGL_COMPOSITOR.DIRECT_RENDERING);
-      return result;
+      return ok;
     });
   }
 

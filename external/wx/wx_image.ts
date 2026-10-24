@@ -124,16 +124,63 @@ export class WX_IMAGE {
   /**
    * `wxImage::SetAlpha( nullptr )`: give the image an alpha plane for the
    * caller to fill (wx leaves it uninitialised; it is zero here).
+   * `SetAlpha( alpha )`: take \a aPlane, one byte per pixel, as the plane.
    * `SetAlpha( x, y, alpha )`: one pixel's.
    */
-  SetAlpha(): void;
+  SetAlpha(aPlane?: Uint8Array): void;
   SetAlpha(x: number, y: number, aAlpha: number): void;
-  SetAlpha(x?: number, y?: number, aAlpha?: number): void {
+  SetAlpha(x?: number | Uint8Array, y?: number, aAlpha?: number): void {
+    if (x instanceof Uint8Array) {
+      this.m_alpha = x;
+      return;
+    }
     if (x === undefined || y === undefined) {
       this.m_alpha = new Uint8Array(this.m_width * this.m_height);
       return;
     }
     if (this.m_alpha) this.m_alpha[y * this.m_width + x] = aAlpha! & 0xff;
+  }
+  /**
+   * `wxImage::SetData( data, new_width, new_height )`: \a aRgb, 3 bytes per pixel, becomes the
+   * image. wx gives the image fresh data, so the alpha plane and the options go with the old.
+   */
+  SetData(aRgb: Uint8Array, aWidth: number, aHeight: number): void {
+    this.m_width = aWidth;
+    this.m_height = aHeight;
+    this.m_rgb = aRgb;
+    this.m_alpha = null;
+    this.m_options = new Map();
+    this.m_pixelsKnown = true;
+  }
+  /**
+   * `wxImage::Mirror( horizontally )`: a copy flipped left to right, or with \a aHorizontally
+   * false, top to bottom; the alpha plane is flipped with it.
+   */
+  Mirror(aHorizontally = true): WX_IMAGE {
+    const w = this.m_width;
+    const h = this.m_height;
+    const image = new WX_IMAGE(w, h);
+    const src = this.m_rgb!;
+    const dst = image.m_rgb!;
+
+    if (this.m_alpha) image.m_alpha = new Uint8Array(w * h);
+
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const tx = aHorizontally ? w - 1 - x : x;
+        const ty = aHorizontally ? y : h - 1 - y;
+        const s = y * w + x;
+        const d = ty * w + tx;
+
+        dst[d * 3] = src[s * 3]!;
+        dst[d * 3 + 1] = src[s * 3 + 1]!;
+        dst[d * 3 + 2] = src[s * 3 + 2]!;
+
+        if (this.m_alpha) image.m_alpha![d] = this.m_alpha[s]!;
+      }
+    }
+
+    return image;
   }
   /** `wxImage::GetRed( x, y )`. */
   GetRed(x: number, y: number): number {

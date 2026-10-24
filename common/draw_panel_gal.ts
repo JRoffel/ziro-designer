@@ -81,6 +81,7 @@ import {
 import { PROF_TIMER } from '@ziroeda/core/profile.js';
 import type { BOX2I } from '@ziroeda/kimath/src/math/box2.js';
 import type { Vec2 as VECTOR2D, VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
+import type { WX_IMAGE } from '@ziroeda/wx/wx_image.js';
 
 /**
  * `TOOL_DISPATCHER` as the panel drives it (`common/tool/tool_dispatcher.h`):
@@ -765,6 +766,18 @@ export class EDA_DRAW_PANEL_GAL
   RequestRefresh(): void {
     this.m_needIdleRefresh = true;
     this.scheduleIdle();
+  }
+
+  /**
+   * Take a screenshot of the canvas, repainted first, into \a aDstImage. Only the OpenGL backend
+   * can; false otherwise.
+   */
+  GetScreenshot(aDstImage: WX_IMAGE): boolean {
+    if (this.m_backend !== GAL_TYPE.GAL_TYPE_OPENGL || !this.m_gal) return false;
+
+    this.DoRePaint(false);
+
+    return (this.m_gal as OPENGL_GAL).GetScreenshot(aDstImage);
   }
 
   /**

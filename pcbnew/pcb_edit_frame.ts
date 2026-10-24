@@ -1472,7 +1472,7 @@ export class PCB_EDIT_FRAME extends PCB_BASE_EDIT_FRAME {
   }
 
   /** A generated output into the project's files (a download when the board is standalone). */
-  WriteOutputFile(aPath: string, aBytes: Uint8Array, aMime: string): void {
+  override WriteOutputFile(aPath: string, aBytes: Uint8Array, aMime: string): void {
     this.hooks.writeOutputFile?.(aPath, aBytes, aMime);
   }
 

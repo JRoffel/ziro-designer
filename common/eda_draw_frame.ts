@@ -71,6 +71,8 @@ import {
   wxFD_SAVE,
 } from '@ziroeda/wx/defs.js';
 import { BOX2I } from '@ziroeda/kimath/src/math/box2.js';
+import { WX_IMAGE } from '@ziroeda/wx/wx_image.js';
+import { BITMAP_TYPE } from './bitmap.js';
 import { KiROUND } from '@ziroeda/kimath/src/math/util.js';
 import type { VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
 
@@ -191,6 +193,44 @@ export abstract class EDA_DRAW_FRAME extends KIWAY_PLAYER {
     if (aCustomizeHook) aCustomizeHook.attached = false;
 
     return Promise.resolve(null);
+  }
+
+  /**
+   * Not KiCad's: where a generated file goes. Upstream writes to the path a wxFileDialog
+   * returned; outputs download here, so a frame hands the bytes to its window. A frame with no
+   * window has nowhere to put them.
+   */
+  WriteOutputFile(_aPath: string, _aBytes: Uint8Array, _aMime: string): void {}
+
+  /**
+   * Save the current view as an image file, \a aFileName in \a aBitmapType's format. Only PNG
+   * has an encoder here (both callers ask for PNG); the others return false. `wxImage::SaveFile`
+   * becomes the bytes handed to WriteOutputFile.
+   */
+  SaveCanvasImageToFile(aFileName: string, aBitmapType: BITMAP_TYPE): boolean {
+    const image = new WX_IMAGE();
+
+    if (!this.GetCanvas()?.GetScreenshot(image)) {
+      // Upstream blits the window through a wxClientDC for a backend with no GL screenshot. The
+      // Cairo canvas's pixels are not read back here, so there is nothing to save.
+      return false;
+    }
+
+    let bytes: Uint8Array | null = null;
+
+    switch (aBitmapType) {
+      case BITMAP_TYPE.PNG:
+        bytes = image.SaveFilePng();
+        break;
+      case BITMAP_TYPE.BMP:
+      case BITMAP_TYPE.JPG:
+        break;
+    }
+
+    if (!bytes) return false;
+
+    this.WriteOutputFile(aFileName, bytes, 'image/png');
+    return true;
   }
 
   /** `wxDirDialog( this, aTitle, aDefaultDir, aStyle ).ShowModal()` then `GetPath()`; null is Cancel. */

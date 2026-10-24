@@ -6,7 +6,7 @@
  * view toggles, unit stepping, flattening a derived symbol, and the library fields table.
  *
  * Still to come, with the library tree and what they call: Init's tree context menu, DdAddLibrary
- * (a file dropped from the desktop), ExportView, AddSymbolToSchematic's symbol
+ * (a file dropped from the desktop), AddSymbolToSchematic's symbol
  * viewer branch (SYMBOL_VIEWER_FRAME is not a live frame yet),
  * AddSymbolToSchematic, OpenWithTextEditor and OpenDirectory. PreviousSymbol / NextSymbol are
  * SYMBOL_VIEWER_FRAME's and come with its tools. Their actions are not bound until they are.
@@ -25,6 +25,7 @@ import { wxBell } from '@ziroeda/wx/utils.js';
 import { schIUScale } from '@ziroeda/common/eda_units.js';
 import { PAGE_INFO } from '@ziroeda/common/page_info.js';
 import { SVGFileExtension } from '@ziroeda/common/wildcards_and_files_ext.js';
+import { BITMAP_TYPE } from '@ziroeda/common/bitmap.js';
 import { wxICON_ERROR, wxOK } from '@ziroeda/wx/defs.js';
 import type { SCH_BASE_FRAME } from '../sch_base_frame.js';
 import {
@@ -461,6 +462,33 @@ export class SYMBOL_EDITOR_CONTROL extends SCH_TOOL_BASE<SCH_BASE_FRAME> {
     return 0;
   }
 
+  *ExportView(_aEvent: TOOL_EVENT): COROUTINE_BODY<number> {
+    if (!this.m_isSymbolEditor) return 0;
+
+    const editFrame = this.editFrame();
+    const symbol = editFrame.GetCurSymbol();
+
+    if (!symbol) {
+      yield* this.RunMainStackModal(() => editFrame.wxMessageBox('No symbol to export'));
+      return 0;
+    }
+
+    // `wxFileName fn( symbol->GetName() ); fn.SetExt( "png" );`
+    const fn = `${symbol.GetName()}.png`;
+
+    // `wxFileDialog( editFrame, _( "Export View as PNG" ), projectPath, fn.GetFullName(), ...,
+    // wxFD_SAVE | wxFD_OVERWRITE_PROMPT )`: the image is downloaded, never written into the
+    // project, so there is no folder to pick and it keeps the offered name. wxYield() refreshed
+    // the screen under the closed dialog; GetScreenshot repaints anyway.
+    const path = fn;
+
+    if (!editFrame.SaveCanvasImageToFile(path, BITMAP_TYPE.PNG)) {
+      yield* this.RunMainStackModal(() => editFrame.wxMessageBox(`Can't save file '${path}'.`));
+    }
+
+    return 0;
+  }
+
   *ExportSymbolAsSVG(_aEvent: TOOL_EVENT): COROUTINE_BODY<number> {
     if (!this.m_isSymbolEditor) return 0;
 
@@ -610,6 +638,7 @@ export class SYMBOL_EDITOR_CONTROL extends SCH_TOOL_BASE<SCH_BASE_FRAME> {
     this.Go(this.CutCopyDelete, SCH_ACTIONS.copySymbol.MakeEvent());
     this.Go(this.DuplicateSymbol, SCH_ACTIONS.pasteSymbol.MakeEvent());
     this.Go(this.ExportSymbol, SCH_ACTIONS.exportSymbol.MakeEvent());
+    this.Go(this.ExportView, SCH_ACTIONS.exportSymbolView.MakeEvent());
     this.Go(this.ExportSymbolAsSVG, SCH_ACTIONS.exportSymbolAsSVG.MakeEvent());
     this.Go(SYNC_HANDLER(this.AddSymbolToSchematic), SCH_ACTIONS.addSymbolToSchematic.MakeEvent());
 

@@ -213,7 +213,7 @@ export function symbolEditorMenus(
             // `SYMBOL_EDITOR_CONTROL::ExportSymbol` returns early when
             // `getTargetSymbol()` is null. Ours used to grey it.
             act('Symbol...', 'exportSymbol'),
-            stub('View as PNG...', 'exportSymbolView'),
+            act('View as PNG...', 'exportSymbolView'),
             act('Symbol as SVG...', 'exportSymbolAsSVG'),
           ],
         },
