@@ -33,6 +33,7 @@ import {
 import {
   applyToggle as fpApplyToggle,
   DEFAULT_TOGGLES as FP_TOGGLES,
+  fpTogglesFromSettings,
   RADIO_GROUPS as FP_GROUPS,
 } from '@ziroeda/pcbnew/footprint_edit_frame.js';
 import {
@@ -219,27 +220,42 @@ describe("SCH_EDIT_FRAME's units group", () => {
 const src = (rel: string): string =>
   readFileSync(fileURLToPath(new URL(`../../../designer/src/${rel}`, import.meta.url)), 'utf8');
 
-describe.each([
-  // footprint_editor_toggles.ts merged into footprint_edit_frame.ts (Stage A
-  // of the pcbnew/ file-structure move): FOOTPRINT_EDIT_FRAME's toolbar
-  // groups sit beside the rest of that class's ported state now, the same
-  // file `UpdateTitle` and the grid moved into.
-  ['../../pcbnew/footprint_edit_frame_ui.tsx', './footprint_edit_frame.js'],
-])('%s seeds its toolbar from its toggles module', (rel, specifier) => {
-  it('takes DEFAULT_TOGGLES from its toggles module', () => {
-    const pattern = new RegExp(
-      `import \\{[^}]*\\bDEFAULT_TOGGLES\\b[^}]*\\} from '${specifier.replace(/[/.]/g, '\\$&')}'`,
-    );
-    expect(src(rel)).toMatch(pattern);
+/**
+ * The Footprint Editor left the list of constant seeds when its sketch modes became the
+ * `pcb_display.*` of `fpedit.json`: `fpTogglesFromSettings` is `DEFAULT_TOGGLES`, from
+ * `footprint_edit_frame.ts` beside it, with the stored modes folded in - the PCB Editor's
+ * reason below, for this frame's three CHECKs.
+ */
+describe('pcbnew/footprint_edit_frame_ui.tsx seeds its toolbar from fpedit.json', () => {
+  const FP = '../../pcbnew/footprint_edit_frame_ui.tsx';
+
+  it('seeds from fpTogglesFromSettings, not from a constant set or a table of its own', () => {
+    const s = src(FP);
+    expect(s).toContain('useState<Set<string>>(() => fpTogglesFromSettings(app.fpEdit()))');
+    expect(s).not.toContain('new Set(DEFAULT_TOGGLES)');
+    expect(s).not.toMatch(/const DEFAULT_TOGGLES\s*(:|=)/);
   });
 
-  it('seeds the state with it and not with a literal of its own', () => {
-    const s = src(rel);
-    expect(s).toContain('useState<Set<string>>(new Set(DEFAULT_TOGGLES))');
-    // A second, local `const DEFAULT_TOGGLES = new Set([...])` would satisfy the
-    // line above while restating the table. That is exactly how the schematic's
-    // wrong unit shipped, so the declaration must not exist here at all.
-    expect(s).not.toMatch(/const DEFAULT_TOGGLES\s*(:|=)/);
+  it('is DEFAULT_TOGGLES while every fill is on, the default', () => {
+    const fills = { graphics_fill: true, text_fill: true, pad_fill: true, pad_numbers: true };
+    expect([...fpTogglesFromSettings({ pcb_display: fills })].sort()).toEqual(
+      [...FP_TOGGLES].sort(),
+    );
+  });
+
+  it('lights each sketch mode whose fill is off, and only that one', () => {
+    for (const [key, id] of [
+      ['pad_fill', 'padDisplayMode'],
+      ['graphics_fill', 'graphicsOutlines'],
+      ['text_fill', 'textOutlines'],
+    ] as const) {
+      const fills = { graphics_fill: true, text_fill: true, pad_fill: true, pad_numbers: true };
+      fills[key] = false;
+      const on = fpTogglesFromSettings({ pcb_display: fills });
+
+      expect(on.has(id), id).toBe(true);
+      expect(on.size, id).toBe(FP_TOGGLES.size + 1);
+    }
   });
 });
 

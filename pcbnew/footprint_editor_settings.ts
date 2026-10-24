@@ -38,6 +38,16 @@ export interface FP_TEXT_ITEM_LIKE {
 }
 
 export interface FP_EDIT_JSON_SETTINGS_LIKE {
+  /**
+   * `pcb_display.*`, FOOTPRINT_EDITOR_SETTINGS' `m_ViewersDisplay` (footprint_editor_settings.cpp:96-106):
+   * the sketch toggles and the pad numbers, all `true` by default.
+   */
+  pcb_display: {
+    graphics_fill: boolean;
+    text_fill: boolean;
+    pad_fill: boolean;
+    pad_numbers: boolean;
+  };
   design_settings: {
     default_footprint_text_items: FP_TEXT_ITEM_LIKE[];
     default_footprint_layer_names: Record<string, string>;
@@ -289,6 +299,34 @@ export class FOOTPRINT_EDITOR_SETTINGS
   constructor() {
     super('fpedit', fpEditSchemaVersion);
   }
+}
+
+/** `JSON_SETTINGS::Load` of the four `pcb_display.*` PARAMs into \a aSettings. */
+export function loadFpEditViewersDisplay(
+  aSettings: PCB_VIEWERS_SETTINGS_BASE,
+  aJson: Pick<FP_EDIT_JSON_SETTINGS_LIKE, 'pcb_display'>,
+): void {
+  const d = aJson.pcb_display;
+  const v = aSettings.m_ViewersDisplay;
+
+  v.m_DisplayGraphicsFill = d.graphics_fill;
+  v.m_DisplayTextFill = d.text_fill;
+  v.m_DisplayPadFill = d.pad_fill;
+  v.m_DisplayPadNumbers = d.pad_numbers;
+}
+
+/** `JSON_SETTINGS::Store` of the same four, from \a aSettings into \a aJson. */
+export function storeFpEditViewersDisplay(
+  aSettings: PCB_VIEWERS_SETTINGS_BASE,
+  aJson: Pick<FP_EDIT_JSON_SETTINGS_LIKE, 'pcb_display'>,
+): void {
+  const d = aJson.pcb_display;
+  const v = aSettings.m_ViewersDisplay;
+
+  d.graphics_fill = v.m_DisplayGraphicsFill;
+  d.text_fill = v.m_DisplayTextFill;
+  d.pad_fill = v.m_DisplayPadFill;
+  d.pad_numbers = v.m_DisplayPadNumbers;
 }
 
 /** The one FOOTPRINT_EDITOR_SETTINGS when no program object exists (the tests, the render worker). */

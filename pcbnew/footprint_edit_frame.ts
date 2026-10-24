@@ -1192,6 +1192,22 @@ export const DEFAULT_TOGGLES: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * The toolbar's seed: {@link DEFAULT_TOGGLES} with the three sketch modes `fpedit.json` holds,
+ * lit as setupUIConditions CHECKs them - `!cond.PadFillDisplay()`, `!cond.GraphicsFillDisplay()`,
+ * `!cond.TextFillDisplay()` over `pcb_display.*` (footprint_editor_settings.cpp:96-103).
+ */
+export function fpTogglesFromSettings(aCfg: Pick<FpEditSettings, 'pcb_display'>): Set<string> {
+  const d = aCfg.pcb_display;
+  const on = new Set(DEFAULT_TOGGLES);
+
+  if (!d.pad_fill) on.add('padDisplayMode');
+  if (!d.graphics_fill) on.add('graphicsOutlines');
+  if (!d.text_fill) on.add('textOutlines');
+
+  return on;
+}
+
+/**
  * Activating `id`, given what is currently on.
  *
  * A member of a radio group REPLACES its group — including itself, so

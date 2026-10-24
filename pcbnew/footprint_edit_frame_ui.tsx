@@ -91,15 +91,20 @@ import type { SELECTED_3D_MODEL } from './dialogs/panel_fp_properties_3d_model.j
 import { FOOTPRINT } from './footprint.js';
 import {
   applyToggle,
-  DEFAULT_TOGGLES,
   FOOTPRINT_COPPER_STACK,
   FOOTPRINT_EDIT_FRAME,
   FP_DEFAULT_ACTIVE_LAYER,
   FP_FRAME_NAME,
   footprintGridIU,
   footprintLayers,
+  fpTogglesFromSettings,
 } from './footprint_edit_frame.js';
-import type { FP_EDIT_JSON_SETTINGS_LIKE } from './footprint_editor_settings.js';
+import {
+  type FP_EDIT_JSON_SETTINGS_LIKE,
+  fpEditKifaceSettings,
+  loadFpEditViewersDisplay,
+  storeFpEditViewersDisplay,
+} from './footprint_editor_settings.js';
 import { fpTargetOf } from './footprint_editor_utils.js';
 import {
   FOOTPRINT_LIBRARY_STORE,
@@ -336,7 +341,8 @@ export function FootprintEditFrame({
   const [, repaint] = useReducer((n: number) => n + 1, 0);
 
   // ----- window state -----------------------------------------------------------
-  const [toggles, setToggles] = useState<Set<string>>(new Set(DEFAULT_TOGGLES));
+  // The sketch modes are `fpedit.json`'s, which the frame's settings object is loaded from below.
+  const [toggles, setToggles] = useState<Set<string>>(() => fpTogglesFromSettings(app.fpEdit()));
   const togglesRef = useRef<ReadonlySet<string>>(toggles);
   togglesRef.current = toggles;
   const [visible, setVisible] = useState<ReadonlySet<string>>(new Set(allFpLayers));
@@ -578,6 +584,9 @@ export function FootprintEditFrame({
       showImageFileDialog: () => h().showImageFileDialog(),
     });
     f.SetFootprintLibAdapter(store);
+    // `GetAppSettings<FOOTPRINT_EDITOR_SETTINGS>( "fpedit" )` as loaded: its `pcb_display.*`,
+    // which the painter draws the frame with and the sketch toggles flip.
+    loadFpEditViewersDisplay(fpEditKifaceSettings(), app.fpEdit());
     return f;
   });
   frameRef.current = frame;
@@ -1002,6 +1011,11 @@ export function FootprintEditFrame({
       if (id !== 'showLibraryTree' && id !== 'showLayersManager' && id !== 'showProperties') {
         const action = actionForId(id);
         if (action) runAction(action);
+      }
+
+      // PCB_VIEWER_TOOLS flipped the fpedit settings' m_ViewersDisplay; SaveSettings writes it.
+      if (id === 'padDisplayMode' || id === 'graphicsOutlines' || id === 'textOutlines') {
+        app.updateFpEdit((s) => storeFpEditViewersDisplay(fpEditKifaceSettings(), s));
       }
 
       setToggles((prev) => applyToggle(prev, id));
