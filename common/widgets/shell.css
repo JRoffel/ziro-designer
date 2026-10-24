@@ -7803,6 +7803,15 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
      what should set the dialog's width rather than a number on the panel. */
   min-width: 640px;
 }
+/* A wxDataViewCtrl's best size is 48 x 48 whatever it holds (qa/probes/drc_dataview_probe.cpp):
+   its rows never size the dialog, in EITHER direction - only the SetMinSize the base states, and
+   what the sizer gives it past that. Every marker list's base states one (DRC 320 high, ERC
+   640 x 260, the footprint checker and both cleanups 660 x 250), so the list is contained both
+   ways and scrolls. `.ze-dataview-window` alone contains the width only: a run with hundreds of
+   violations grew DRC Control past the bottom of the window, its buttons with it. */
+.ze-erc-list.ze-dataview-window {
+  contain: size;
+}
 .ze-erc-row {
   display: flex;
   gap: 8px;
