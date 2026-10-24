@@ -34,6 +34,8 @@ import { readSymbolLib } from './sch_io/sexpr/read-schematic.js';
 import type { LibSymbol } from './types.js';
 import { parse, type PruneOptions } from '@ziroeda/sexpr';
 import { symbolChooserFields } from './lib_symbol.js';
+import { LIB_ID } from '@ziroeda/common/lib_id.js';
+import { type SearchTerm, searchTerm } from '@ziroeda/common/eda_pattern_match.js';
 
 /** One symbol, reduced to what `LIB_TREE_ITEM` exposes. */
 export interface LibTreeItem {
@@ -139,4 +141,61 @@ export const LIB_TREE_PRUNE: PruneOptions = {
  */
 export function readLibTreeItems(text: string): LibTreeItem[] {
   return readSymbolLib(parse(text, LIB_TREE_PRUNE)).map(libTreeItem);
+}
+
+/**
+ * `LIB_SYMBOL::cacheSearchTerms` (lib_symbol.cpp:160-183) over a {@link LibTreeItem}: the library
+ * nickname, the name, the LIB_ID, each keyword, the keywords whole, the description and the
+ * footprint, at the weights upstream gives them. One list for the chooser's tree and the
+ * library browser alike.
+ */
+export function libTreeItemSearchTerms(aNickname: string, aItem: LibTreeItem): SearchTerm[] {
+  const keywords = aItem.keywords;
+  const terms = [
+    searchTerm(aNickname, 4),
+    searchTerm(aItem.name, 8, true),
+    searchTerm(`${aNickname}:${aItem.name}`, 16, true),
+    ...keywords
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((kw) => searchTerm(kw, 4)),
+    searchTerm(keywords, 1),
+    searchTerm(aItem.description, 1),
+  ];
+
+  if (aItem.footprint) terms.push(searchTerm(aItem.footprint, 1));
+
+  return terms;
+}
+
+/**
+ * A {@link LibTreeItem} as the `LIB_TREE_ITEM` LIB_SYMBOL is: what SYMBOL_VIEWER_FRAME's
+ * ReCreateSymbolList asks a symbol for, for a library whose symbols the program keeps as items
+ * rather than parsed (a hosted one, see `loadedLibraries` in symbol_library_adapter.ts).
+ */
+export class LIB_TREE_ITEM_SYMBOL {
+  constructor(
+    private readonly m_nickname: string,
+    private readonly m_item: LibTreeItem,
+  ) {}
+
+  GetName(): string {
+    return this.m_item.name;
+  }
+
+  GetSearchTerms(): SearchTerm[] {
+    return libTreeItemSearchTerms(this.m_nickname, this.m_item);
+  }
+
+  GetPinCount(): number {
+    return this.m_item.pinCount;
+  }
+
+  GetLibId(): LIB_ID {
+    return new LIB_ID(this.m_nickname, this.m_item.name);
+  }
+
+  IsPower(): boolean {
+    return this.m_item.isPower;
+  }
 }

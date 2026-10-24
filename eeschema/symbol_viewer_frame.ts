@@ -21,6 +21,7 @@ import { FRAME_T } from '@ziroeda/common/frame_type.js';
 import type { KIWAY_MAIL_EVENT } from '@ziroeda/common/kiway_mail.js';
 import { SCH_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import { LIB_ID } from '@ziroeda/common/lib_id.js';
+import type { SearchTerm } from '@ziroeda/common/eda_pattern_match.js';
 import { PINNING_SYMBOL } from '@ziroeda/common/lib_tree_model_adapter.js';
 import { MAIL_T } from '@ziroeda/common/mail_type.js';
 import { Pgm, PgmOrNull } from '@ziroeda/common/pgm_base.js';
@@ -171,12 +172,40 @@ export function filterSymbols(libSymbols: readonly LibSymbol[], filter: string):
 // (doReCreateMenuBar), OnSize, doCloseWindow and OnActivate's wx plumbing - which V2 builds on this.
 // ---------------------------------------------------------------------------
 
+/**
+ * What ReCreateSymbolList asks a symbol for: the `LIB_TREE_ITEM` face of LIB_SYMBOL. A LIB_SYMBOL is
+ * one; so is a preloaded item (LIB_TREE_ITEM_SYMBOL, lib_tree_item.ts).
+ */
+export interface SYMBOL_VIEWER_ITEM {
+  GetName(): string;
+  GetSearchTerms(): SearchTerm[];
+  GetPinCount(): number;
+  GetLibId(): LIB_ID;
+}
+
 /** What the window answers for the frame. */
 export interface SYMBOL_VIEWER_FRAME_HOOKS {
   /** `SetTitle( title )`. */
   setTitle?(aTitle: string): void;
   /** `Close()`. */
   close?(): void;
+  /**
+   * `adapter->GetLibraryNames()`, counting a library loaded the way the program loads it: a hosted
+   * one is LOADED once its preload has its items, as the symbol chooser counts it. Without the hook,
+   * the adapter's own.
+   */
+  getLibraryNames?(): string[];
+  /**
+   * `adapter->GetSymbols( aLib, aType )`, likewise: a hosted library's symbols as its preloaded
+   * items, which carry every search term without the library being parsed. Undefined to ask the
+   * adapter.
+   */
+  getSymbols?(aLib: string, aType: SYMBOL_TYPE): SYMBOL_VIEWER_ITEM[] | undefined;
+  /**
+   * The symbol's own file fetched, so `LoadSymbol` finds it: a hosted library keeps each symbol in
+   * a file of its own, fetched on use. True when the symbol can now be loaded.
+   */
+  ensureSymbol?(aLibId: LIB_ID): Promise<boolean>;
 }
 
 /** `wxString::IsNumber()`: an optional sign, then digits only; empty is not a number. */
@@ -221,6 +250,21 @@ export class SYMBOL_VIEWER_FRAME extends SCH_BASE_FRAME {
   m_selection_changed = false;
 
   m_previewItem: LIB_SYMBOL | null = null;
+
+  /** The symbol whose file ensureSymbol is fetching, so a preview asks for it once. */
+  private m_fetching: string | null = null;
+
+  /** `adapter->GetLibraryNames()`, through the window's source when it has one. */
+  private libraryNames(): string[] {
+    return this.hooks.getLibraryNames?.() ?? SymbolLibAdapter(this.Prj()).GetLibraryNames();
+  }
+
+  /** `adapter->GetSymbols( aLib, aType )`, through the window's source when it has one. */
+  private librarySymbols(aLib: string, aType = SYMBOL_TYPE.ALL_SYMBOLS): SYMBOL_VIEWER_ITEM[] {
+    return (
+      this.hooks.getSymbols?.(aLib, aType) ?? SymbolLibAdapter(this.Prj()).GetSymbols(aLib, aType)
+    );
+  }
 
   /**
    * The constructor's non-window half: the screen, the libraries and the filters. The window gives
@@ -371,6 +415,22 @@ export class SYMBOL_VIEWER_FRAME extends SCH_BASE_FRAME {
     const symbol = this.GetSelectedSymbol();
     const view = this.GetCanvas()?.GetView() ?? null;
 
+    // Not loadable yet: a hosted symbol's file is fetched on use. The preview comes back here once
+    // it is, and draws whatever symbol the browser is on by then.
+    if (!symbol && SYMBOL_VIEWER_FRAME.m_currentSymbol.IsValid() && this.hooks.ensureSymbol) {
+      const wanted = SYMBOL_VIEWER_FRAME.m_currentSymbol.Format();
+
+      if (this.m_fetching !== wanted) {
+        this.m_fetching = wanted;
+
+        void this.hooks.ensureSymbol(SYMBOL_VIEWER_FRAME.m_currentSymbol).then((aLoaded) => {
+          if (this.m_fetching === wanted) this.m_fetching = null;
+
+          if (aLoaded) this.updatePreviewSymbol();
+        });
+      }
+    }
+
     if (this.m_previewItem) {
       view?.Remove(this.m_previewItem);
       this.m_previewItem = null;
@@ -461,7 +521,7 @@ export class SYMBOL_VIEWER_FRAME extends SCH_BASE_FRAME {
     const cfg = PgmOrNull()?.GetCommonSettings() ?? null;
     const project = this.Prj().GetProjectFile();
     const adapter = SymbolLibAdapter(this.Prj());
-    const libNicknames = adapter.GetLibraryNames();
+    const libNicknames = this.libraryNames();
     const pinnedMatches: string[] = [];
     const otherMatches: string[] = [];
 
@@ -484,7 +544,8 @@ export class SYMBOL_VIEWER_FRAME extends SCH_BASE_FRAME {
 
       // Remove libs which have no power symbols, if this filter is activated
       if (this.m_listPowerOnly) {
-        const symbolNames = adapter.GetSymbolNames(aLib, SYMBOL_TYPE.POWER_ONLY);
+        // `adapter->GetSymbolNames( aLib, SYMBOL_TYPE::POWER_ONLY )`
+        const symbolNames = this.librarySymbols(aLib, SYMBOL_TYPE.POWER_ONLY);
 
         if (symbolNames.length === 0) return;
       }
@@ -565,7 +626,7 @@ export class SYMBOL_VIEWER_FRAME extends SCH_BASE_FRAME {
     if (libName === '') return false;
 
     const adapter = SymbolLibAdapter(this.Prj());
-    const symbols = adapter.GetSymbols(libName);
+    const symbols = this.librarySymbols(libName);
 
     const excludes = new Set<string>();
 

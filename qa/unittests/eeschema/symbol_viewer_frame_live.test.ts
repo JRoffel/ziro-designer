@@ -14,6 +14,9 @@ import { MAIL_T } from '@ziroeda/common/mail_type.js';
 import { FRAME_T } from '@ziroeda/common/frame_type.js';
 import { SYMBOL_VIEWER_FRAME } from '@ziroeda/eeschema/symbol_viewer_frame.js';
 import { SCH_ACTIONS } from '@ziroeda/eeschema/tools/sch_actions.js';
+import { LIB_TREE_ITEM_SYMBOL, type LibTreeItem } from '@ziroeda/eeschema/lib_tree_item.js';
+import { SYMBOL_TYPE } from '@ziroeda/eeschema/libraries/symbol_library_adapter.js';
+import { SymbolLibAdapter } from '@ziroeda/eeschema/project_sch.js';
 import { GRID_STYLE } from '@ziroeda/common/gal/gal_display_options.js';
 import {
   EESCHEMA_DEFAULTS,
@@ -472,5 +475,162 @@ describe('LoadSettings / SaveSettings (:791-839)', () => {
     ]).toEqual([210, 320, false]);
     expect(stored.lib_view.window.grid.style).toBe('lines');
     expect(stored.window.grid.style).toBe(EESCHEMA_DEFAULTS.window.grid.style);
+  });
+});
+
+/**
+ * A hosted library: a folder of one file per symbol, fetched on use, whose symbols the program
+ * keeps as preloaded items. The window answers getLibraryNames / getSymbols from those items (the
+ * chooser's own source) and ensureSymbol by fetching the one file; the frame's ReCreate* and its
+ * preview run unchanged over them.
+ */
+describe('a hosted library (items preloaded, files fetched on use)', () => {
+  const ITEMS: LibTreeItem[] = [
+    {
+      name: 'OPAMP',
+      description: 'Dual operational amplifier',
+      keywords: 'amp',
+      footprint: '',
+      isPower: false,
+      isRoot: true,
+      pinCount: 8,
+      unitCount: 3,
+      chooserFields: [],
+    },
+    {
+      name: 'REG',
+      description: 'Linear regulator',
+      keywords: 'ldo',
+      footprint: '',
+      isPower: false,
+      isRoot: true,
+      pinCount: 3,
+      unitCount: 1,
+      chooserFields: [],
+    },
+  ];
+
+  const REG_FILE = `(kicad_symbol_lib (version 20241209) (generator "kicad_symbol_editor")
+  (symbol "REG" (in_bom yes) (on_board yes)
+    (property "Reference" "U" (at 0 0 0) (effects (font (size 1.27 1.27))))
+    (property "Value" "REG" (at 0 0 0) (effects (font (size 1.27 1.27))))
+    (property "Description" "Linear regulator" (at 0 0 0) (effects (font (size 1.27 1.27)) (hide yes)))
+    (symbol "REG_1_1" (rectangle (start -5.08 -2.54) (end 5.08 2.54) (stroke (width 0) (type default)) (fill (type none))))))`;
+
+  let ensured: string[];
+  /** Releases the fetches in flight - the file arrives only when the test says so. */
+  let arrive: () => void;
+  /** Whether the next fetch fails, as an offline one does. */
+  let failNext: boolean;
+
+  const hosted = () => {
+    ensured = [];
+    failNext = false;
+    let gate = new Promise<void>((r) => (arrive = r));
+    t = symbolViewerHarness({
+      getLibraryNames: () => [...SymbolLibAdapter(null).GetLibraryNames(), 'Gamma'],
+      getSymbols: (aLib, aType) =>
+        aLib === 'Gamma'
+          ? ITEMS.filter((i) => aType !== SYMBOL_TYPE.POWER_ONLY || i.isPower).map(
+              (i) => new LIB_TREE_ITEM_SYMBOL('Gamma', i),
+            )
+          : undefined,
+      ensureSymbol: async (aLibId) => {
+        ensured.push(aLibId.Format());
+        await gate;
+        gate = new Promise<void>((r) => (arrive = r));
+        if (failNext) {
+          failNext = false;
+          return false;
+        }
+        t.fs.Write(
+          `Gamma/${aLibId.GetLibItemName()}.kicad_sym`,
+          new TextEncoder().encode(REG_FILE),
+        );
+        SymbolLibAdapter(null).LoadOne('Gamma');
+        return true;
+      },
+    }, () => {}, ['Gamma']);
+  };
+
+  it('lists it, and its symbols from the items', () => {
+    hosted();
+    expect(libs()).toEqual(['Alpha', 'Beta', 'Gamma']);
+
+    clickLib('Gamma');
+    expect(symbols()).toEqual(['OPAMP', 'REG']);
+  });
+
+  it("filters its symbols on the items' descriptions, keywords and pin counts", () => {
+    hosted();
+    clickLib('Gamma');
+
+    t.frame.m_symbolFilter.SetValue('regulator');
+    expect(symbols()).toEqual(['REG']);
+
+    t.frame.m_symbolFilter.SetValue('amp');
+    expect(symbols()).toEqual(['OPAMP']);
+
+    t.frame.m_symbolFilter.SetValue('8');
+    expect(symbols()).toEqual(['OPAMP']);
+  });
+
+  it('leaves it out of a power-only list when none of its items is power', () => {
+    hosted();
+    t.frame.m_listPowerOnly = true;
+    t.frame.ReCreateLibList();
+
+    expect(libs()).toEqual(['Beta']);
+  });
+
+  it("fetches the clicked symbol's file, once, then previews it", async () => {
+    hosted();
+    clickLib('Gamma');
+    clickSymbol('REG');
+
+    expect(t.frame.m_previewItem).toBeNull();
+    expect(ensured).toEqual(['Gamma:REG']);
+
+    // Another preview while the file is on its way (a unit pick, an activation) does not fetch again.
+    t.frame.updatePreviewSymbol();
+    expect(t.frame.m_previewItem).toBeNull();
+    expect(ensured).toEqual(['Gamma:REG']);
+
+    arrive();
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(t.frame.m_previewItem?.GetName()).toBe('REG');
+    expect(ensured).toEqual(['Gamma:REG']);
+  });
+
+  it('fetches again after a fetch that failed', async () => {
+    hosted();
+    failNext = true;
+    clickLib('Gamma');
+    clickSymbol('REG');
+    arrive();
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(t.frame.m_previewItem).toBeNull();
+
+    t.frame.updatePreviewSymbol();
+    expect(ensured).toEqual(['Gamma:REG', 'Gamma:REG']);
+
+    arrive();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(t.frame.m_previewItem?.GetName()).toBe('REG');
+  });
+
+  it('drops a fetch the browser has moved on from', async () => {
+    hosted();
+    clickLib('Gamma');
+    clickSymbol('REG');
+    clickLib('Alpha');
+    clickSymbol('R');
+
+    arrive();
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(t.frame.m_previewItem?.GetName()).toBe('R');
   });
 });

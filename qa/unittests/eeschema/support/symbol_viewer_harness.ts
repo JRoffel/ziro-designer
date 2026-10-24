@@ -56,6 +56,8 @@ export interface SYMBOL_VIEWER_HARNESS {
   frame: SYMBOL_VIEWER_FRAME;
   harness: SCH_HARNESS;
   titles: string[];
+  /** The in-memory filesystem mounted at /libs. */
+  fs: MEMORY_FILESYSTEM;
   dispose(): void;
 }
 
@@ -67,6 +69,7 @@ export interface SYMBOL_VIEWER_HARNESS {
 export function symbolViewerHarness(
   aHooks: SYMBOL_VIEWER_FRAME_HOOKS = {},
   aBeforeFrame: () => void = () => {},
+  aFolderRows: readonly string[] = [],
 ): SYMBOL_VIEWER_HARNESS {
   SetPgm(new PGM_BASE(null, new SETTINGS_MANAGER()));
   const fs = new MEMORY_FILESYSTEM();
@@ -74,11 +77,19 @@ export function symbolViewerHarness(
   fs.Write('Alpha.kicad_sym', new TextEncoder().encode(ALPHA));
   fs.Write('Beta.kicad_sym', new TextEncoder().encode(BETA));
 
-  const rows = ['Alpha', 'Beta']
-    .map(
-      (n) => `(lib (name "${n}")(type "KiCad")(uri "/libs/${n}.kicad_sym")(options "")(descr ""))`,
-    )
-    .join('');
+  // A folder row is a library kept as one file per symbol, fetched on use - a hosted one.
+  for (const n of aFolderRows) fs.Mkdir(n);
+
+  const rows =
+    ['Alpha', 'Beta']
+      .map(
+        (n) =>
+          `(lib (name "${n}")(type "KiCad")(uri "/libs/${n}.kicad_sym")(options "")(descr ""))`,
+      )
+      .join('') +
+    aFolderRows
+      .map((n) => `(lib (name "${n}")(type "KiCad")(uri "/libs/${n}")(options "")(descr ""))`)
+      .join('');
 
   Pgm()
     .GetLibraryManager()
@@ -112,6 +123,7 @@ export function symbolViewerHarness(
     frame,
     harness,
     titles,
+    fs,
     dispose() {
       unmount();
       SetPgm(null);

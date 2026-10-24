@@ -23,7 +23,7 @@ import { searchTerm } from '@ziroeda/common';
 import { LibTreeModelAdapter, type SortMode } from '@ziroeda/common/lib_tree_model_adapter.js';
 import { LibTreeNode, LibTreeNodeType } from '@ziroeda/common/lib_tree_model.js';
 import { letterSubReference } from './fieldbox.js';
-import { libTreeItem, type LibTreeItem } from './lib_tree_item.js';
+import { libTreeItem, type LibTreeItem, libTreeItemSearchTerms } from './lib_tree_item.js';
 import type { LibIndexEntry } from './libraries/symbol_library_adapter.js';
 import type { LibSymbol } from './types.js';
 
@@ -98,18 +98,7 @@ export function populateItemNode(
   node.isPower = item.isPower;
   node.isRoot = item.isRoot;
   node.pinCount = item.pinCount;
-  node.sourceSearchTerms = [
-    searchTerm(node.libNickname, 4),
-    searchTerm(node.name, 8, true),
-    searchTerm(node.libId, 16, true),
-    ...keywords
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((kw) => searchTerm(kw, 4)),
-    searchTerm(keywords, 1),
-    searchTerm(item.description, 1),
-  ];
-  if (node.footprint) node.sourceSearchTerms.push(searchTerm(node.footprint, 1));
+  node.sourceSearchTerms = libTreeItemSearchTerms(node.libNickname, item);
 
   // cacheChooserFields: fields flagged `(show_in_chooser yes)` become columns,
   // and "Keywords" is offered unless the symbol defines a field by that name.
