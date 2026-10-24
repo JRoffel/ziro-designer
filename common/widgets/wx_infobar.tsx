@@ -62,6 +62,7 @@ export function Infobar({
   onAction,
   actions = [],
   closable = false,
+  onClose,
   className,
 }: {
   message: string;
@@ -72,6 +73,8 @@ export function Infobar({
   /** `AddButton( wxHyperlinkCtrl* )` for each, in the order added, after `actionLabel`'s. */
   actions?: readonly { label: string; onAction: () => void }[];
   closable?: boolean;
+  /** The close button was pressed: the bar has hidden itself, and the caller may follow it. */
+  onClose?: () => void;
   className?: string;
 }): JSX.Element | null {
   // Keyed on the message so a different one re-opens a bar the user closed,
@@ -105,7 +108,10 @@ export function Infobar({
           className="ze-infobar-close"
           title="Hide this message."
           aria-label="Hide this message."
-          onClick={() => setHiddenFor(message)}
+          onClick={() => {
+            setHiddenFor(message);
+            onClose?.();
+          }}
         >
           <img src={closeIcon} alt="" aria-hidden="true" />
         </button>

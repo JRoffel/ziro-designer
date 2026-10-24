@@ -14,6 +14,7 @@ import {
   useRef,
   useState,
   useCallback,
+  useSyncExternalStore,
   lazy,
   Suspense,
   type CSSProperties,
@@ -59,7 +60,8 @@ import {
   reportSignedIn,
 } from './home/save_state.js';
 import { SaveIndicator } from './ui/SaveIndicator.js';
-import { ReadOnlyNotice } from '@ziroeda/common/widgets/wx_infobar.js';
+import { Infobar, ReadOnlyNotice } from '@ziroeda/common/widgets/wx_infobar.js';
+import { applyUpdate, subscribeUpdate, updateWaiting, watchForUpdate } from './sw_update.js';
 import { installCommonAppearance } from './ui/common_appearance.js';
 import { projectStoreFileSystem } from './fs/project_store_fs.js';
 import { warmLibraryIndexes } from './libraryHosts.js';
@@ -1542,6 +1544,36 @@ export function App(): JSX.Element {
     <ReadOnlyNotice message={demoMessage} actionLabel="Save a copy" onAction={saveDemoCopy} />
   );
 
+  // A new version, downloaded and waiting (sw_update.ts). On the launcher nothing is open, so it
+  // takes over at once; over an editor it is offered on the editor's WX_INFOBAR strip, ahead of
+  // the demo's own message, which comes back when this one is closed.
+  const updateReady = useSyncExternalStore(subscribeUpdate, () => updateWaiting() !== null);
+  const flushSavesRef = useRef(flushSaves);
+  flushSavesRef.current = flushSaves;
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+    watchForUpdate(navigator.serviceWorker, () => {
+      flushSavesRef.current();
+      window.location.reload();
+    });
+  }, []);
+  useEffect(() => {
+    if (updateReady && view === 'home') applyUpdate();
+  }, [updateReady, view]);
+  const [updateClosed, setUpdateClosed] = useState(false);
+  const updateNotice =
+    updateReady && !updateClosed ? (
+      <Infobar
+        icon="information"
+        message="A new version of ZiroEDA is available."
+        actionLabel="Reload Now"
+        onAction={applyUpdate}
+        closable
+        onClose={() => setUpdateClosed(true)}
+      />
+    ) : null;
+  const frameNotice = updateNotice ?? demoNotice;
+
   /** File > Close Project, for the whole app: the editors drop the project too,
    *  not only the manager's tree. */
   const closeProject = useCallback(() => {
@@ -1953,7 +1985,7 @@ export function App(): JSX.Element {
                 shown={view === 'schematic'}
                 extraSheetFiles={sessionSheets}
                 projectName={projectName}
-                readOnlyNotice={demoNotice}
+                readOnlyNotice={frameNotice}
                 readOnly={!!demoProject}
                 kiway={kiway}
               />
@@ -1991,7 +2023,7 @@ export function App(): JSX.Element {
                 onPersistFiles={persistFilesNow}
                 onOutputFile={onOutputFile}
                 kiway={kiway}
-                readOnlyNotice={demoNotice}
+                readOnlyNotice={frameNotice}
                 readOnly={!!demoProject}
               />
             </Suspense>
@@ -2017,7 +2049,7 @@ export function App(): JSX.Element {
                  editable symbol in a project that still is not saved would be
                  a worse answer than upstream's - so this is the project's own
                  strip, the same call pl_editor makes just above. */
-                readOnlyNotice={demoProject ? demoNotice : null}
+                readOnlyNotice={updateNotice ?? (demoProject ? demoNotice : null)}
               />
             </Suspense>
           </Frozen>
@@ -2075,11 +2107,12 @@ export function App(): JSX.Element {
                  (pagelayout_editor/files.cpp:276-281) - message in KiCad's
                  words, close button and nothing else. */
                 readOnlyNotice={
-                  !demoProject ? null : projectFiles ? (
+                  updateNotice ??
+                  (!demoProject ? null : projectFiles ? (
                     demoNotice
                   ) : (
                     <ReadOnlyNotice message="Layout file is read only." />
-                  )
+                  ))
                 }
                 // Always passed: a Save As into `/Templates` needs no open project,
                 // and the editor's only other answer was a browser download.
