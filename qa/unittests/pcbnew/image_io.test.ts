@@ -202,8 +202,14 @@ describe('writing an image built from scratch (format( PCB_REFERENCE_IMAGE* ))',
   });
 
   it('round-trips a payload longer than one line', () => {
-    // A real PNG: 20 x 20 pixels stored uncompressed is well over three lines.
-    const long = btoa(String.fromCharCode(...new WX_IMAGE(20, 20).SaveFilePng()!));
+    // A real PNG: 20 x 20 pixels of noise, which deflate cannot shrink, is well over three lines.
+    const noise = new WX_IMAGE(20, 20);
+    let seed = 1;
+    for (let i = 0; i < 20 * 20 * 3; i++) {
+      seed = (seed * 1103515245 + 12345) >>> 0;
+      noise.GetData()![i] = seed >>> 24;
+    }
+    const long = btoa(String.fromCharCode(...noise.SaveFilePng()!));
     expect(long.length).toBeGreaterThan(BASE64_LINE_WIDTH * 3);
     const back = images(ParseBoard(FormatBoard(build(() => {}, long))))[0]!;
 

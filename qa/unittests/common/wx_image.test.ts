@@ -92,3 +92,34 @@ describe('WX_IMAGE PNG decoding', () => {
     expect(Array.from(g.GetData()!)).toEqual([18, 18, 18, 208, 208, 208]);
   });
 });
+
+describe('WX_IMAGE PNG encoding', () => {
+  // libpng deflates what wxPNGHandler hands it. Stored blocks made a Symbol Editor view 16 MB.
+  it('deflates: a flat 200 x 200 image is a few hundred bytes, not 160 kB', () => {
+    const flat = new WX_IMAGE(200, 200);
+    flat.GetData()!.fill(0x40);
+    flat.SetAlpha();
+
+    const png = flat.SaveFilePng()!;
+    expect(png.length).toBeLessThan(1000);
+
+    const back = new WX_IMAGE();
+    expect(back.LoadFile(png)).toBe(true);
+    expect([back.GetWidth(), back.GetHeight()]).toEqual([200, 200]);
+    expect(back.GetData()!.every((v) => v === 0x40)).toBe(true);
+    expect(back.GetAlpha()!.every((v) => v === 0)).toBe(true);
+  });
+
+  it('round-trips pixels deflate cannot shrink', () => {
+    const noise = new WX_IMAGE(64, 48);
+    let seed = 7;
+    for (let i = 0; i < 64 * 48 * 3; i++) {
+      seed = (seed * 1103515245 + 12345) >>> 0;
+      noise.GetData()![i] = seed >>> 24;
+    }
+
+    const back = new WX_IMAGE();
+    expect(back.LoadFile(noise.SaveFilePng()!)).toBe(true);
+    expect([...back.GetData()!]).toEqual([...noise.GetData()!]);
+  });
+});

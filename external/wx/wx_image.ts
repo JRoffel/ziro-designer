@@ -18,7 +18,8 @@
  */
 
 import { inflateZlib } from './inflate.js';
-import { PNG_SIGNATURE, pngChunk, pngCrc32, zlibStored } from './imagpng.js';
+import { zlibSync } from 'fflate';
+import { PNG_SIGNATURE, pngChunk, pngCrc32 } from './imagpng.js';
 
 /** `wxImageResolution`. */
 export enum wxImageResolution {
@@ -343,7 +344,11 @@ export class WX_IMAGE {
       parts.push(pngChunk('pHYs', phys));
     }
 
-    parts.push(pngChunk('IDAT', zlibStored(raw)));
+    // libpng deflates the rows. wxPNGHandler sets a level only when the image carries
+    // wxIMAGE_OPTION_PNG_COMPRESSION_LEVEL (from memory of wx 3.2's imagpng.cpp; no wx source is on
+    // disk here), so it is libpng's Z_DEFAULT_COMPRESSION: zlib level 6. libpng also picks a filter
+    // per row; ours stay None, so the bytes differ from wx's while the pixels do not.
+    parts.push(pngChunk('IDAT', zlibSync(raw, { level: 6 })));
     parts.push(pngChunk('IEND', new Uint8Array(0)));
 
     let total = 0;
