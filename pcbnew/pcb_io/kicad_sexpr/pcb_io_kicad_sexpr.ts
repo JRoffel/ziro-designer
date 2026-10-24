@@ -52,7 +52,34 @@ import {
 } from '@ziroeda/common/layer_id.js';
 import { LAYER_RANGE } from '@ziroeda/common/layer_range.js';
 import { LSET } from '@ziroeda/common/lset.js';
-import { type OUTPUTFORMATTER, PRETTIFIED_STRING_FORMATTER } from '@ziroeda/common/richio.js';
+import {
+  type OUTPUTFORMATTER,
+  PRETTIFIED_STRING_FORMATTER,
+  STRING_FORMATTER,
+} from '@ziroeda/common/richio.js';
+import { IO_ERROR, THROW_IO_ERROR } from '@ziroeda/common/exceptions.js';
+import { IGNORE_PARENT_GROUP } from '@ziroeda/common/eda_item.js';
+import { IO_FILE_DESC } from '@ziroeda/common/io/io_base.js';
+import { LIB_ID } from '@ziroeda/common/lib_id.js';
+import { PgmOrNull } from '@ziroeda/common/pgm_base.js';
+import { ReplaceIllegalFileNameChars } from '@ziroeda/common/string_utils.js';
+import { KiCadFootprintFileExtension } from '@ziroeda/common/wildcards_and_files_ext.js';
+import { TimestampDir } from '@ziroeda/kiplatform/io.js';
+import {
+  wxDirEnumerate,
+  wxDirExists,
+  wxFileExists,
+  wxFileModificationTime,
+  wxIsDirWritable,
+  wxIsFileWritable,
+  wxMkdir,
+  wxReadFileSync,
+  wxRemoveDirTree,
+  wxRemoveFile,
+  wxWriteFileSync,
+} from '@ziroeda/wx/filefn.js';
+import type { PCBNEW_SETTINGS } from '../../pcbnew_settings.js';
+import { PCB_IO, type PCB_IO_PROPERTIES } from '../pcb_io.js';
 import { FormatDouble2Str, formatF, formatG } from '@ziroeda/common/string_utils.js';
 import {
   RECT_CHAMFER_BOTTOM_LEFT,
@@ -242,12 +269,218 @@ function cmpNoCase(a: string, b: string): number {
   return la < lb ? -1 : la > lb ? 1 : 0;
 }
 
-export class PCB_IO_KICAD_SEXPR {
-  /** `m_out`: the output formatter. */
+/** `FP_CACHE_ENTRY`: a footprint and the file it was read from. */
+export class FP_CACHE_ENTRY {
+  /** `m_filename`: the directory and the file name. */
+  private m_filename: { path: string; name: string };
+  private readonly m_footprint: FOOTPRINT;
+
+  constructor(aFootprint: FOOTPRINT, aFileName: { path: string; name: string }) {
+    this.m_filename = aFileName;
+    this.m_footprint = aFootprint;
+  }
+
+  /** `GetFileName().GetFullPath()`. */
+  GetFullPath(): string {
+    return `${this.m_filename.path}/${this.m_filename.name}`;
+  }
+
+  SetFilePath(aFilePath: string): void {
+    this.m_filename = { path: aFilePath, name: this.m_filename.name };
+  }
+
+  GetFootprint(): FOOTPRINT {
+    return this.m_footprint;
+  }
+}
+
+/** `FILEEXT::KiCadFootprintFileExtension`'s spec, as `FP_CACHE` lists a library with it. */
+const FOOTPRINT_FILE_SPEC = `*.${KiCadFootprintFileExtension}`;
+
+/**
+ * `FP_CACHE` (pcb_io_kicad_sexpr.cpp:85-276): the footprints of one `.pretty` library, one
+ * `.kicad_mod` file each, keyed by footprint name.
+ */
+export class FP_CACHE {
+  /** `m_owner`: the plugin object that owns the cache. */
+  private readonly m_owner: PCB_IO_KICAD_SEXPR;
+  /** `m_lib_raw_path`: the path of the library, for quick comparisons. */
+  private m_lib_raw_path: string;
+  /** `m_footprints`: footprint name to its file and footprint. */
+  private readonly m_footprints = new Map<string, FP_CACHE_ENTRY>();
+  /** `m_cache_dirty`: stored separately because it is expensive to check the timestamp. */
+  private m_cache_dirty = true;
+  /** `m_cache_timestamp`: a hash of the timestamps of all the footprint files. */
+  private m_cache_timestamp = 0;
+
+  constructor(aOwner: PCB_IO_KICAD_SEXPR, aLibraryPath: string) {
+    this.m_owner = aOwner;
+    this.m_lib_raw_path = aLibraryPath;
+  }
+
+  GetPath(): string {
+    return this.m_lib_raw_path;
+  }
+
+  /**
+   * `IsWritable()`: `m_lib_path.IsOk() && m_lib_path.IsDirWritable()` - `access( W_OK )`, which
+   * a folder that is not there fails.
+   */
+  IsWritable(): boolean {
+    return wxDirExists(this.m_lib_raw_path) && wxIsDirWritable(this.m_lib_raw_path);
+  }
+
+  /** `Exists()`: `m_lib_path.IsOk() && m_lib_path.DirExists()`. */
+  Exists(): boolean {
+    return wxDirExists(this.m_lib_raw_path);
+  }
+
+  GetFootprints(): Map<string, FP_CACHE_ENTRY> {
+    return this.m_footprints;
+  }
+
+  /**
+   * `Save( aFootprintFilter )`: write the footprint files, or only \a aFootprintFilter's.
+   *
+   * @throw IO_ERROR if the library cannot be created or is read only.
+   */
+  Save(aFootprintFilter: FOOTPRINT | null = null): void {
+    this.m_cache_timestamp = 0;
+
+    if (!wxDirExists(this.m_lib_raw_path) && !wxMkdir(this.m_lib_raw_path))
+      THROW_IO_ERROR(`Cannot create footprint library '${this.m_lib_raw_path}'.`);
+
+    if (!wxIsDirWritable(this.m_lib_raw_path))
+      THROW_IO_ERROR(`Footprint library '${this.m_lib_raw_path}' is read only.`);
+
+    for (const fpCacheEntry of this.m_footprints.values()) {
+      const footprint = fpCacheEntry.GetFootprint();
+
+      if (aFootprintFilter && footprint !== aFootprintFilter) continue;
+
+      // If we've requested to embed the fonts in the footprint, do so.  Otherwise, clear the
+      // embedded fonts from the footprint.  Embedded fonts will be used if available.
+      if (footprint.GetAreFontsEmbedded()) footprint.EmbedFonts();
+      else footprint.GetEmbeddedFiles().ClearEmbeddedFonts();
+
+      const fileName = fpCacheEntry.GetFullPath();
+
+      // PRETTIFIED_FILE_OUTPUTFORMATTER formatter( fileName );
+      const formatter = new PRETTIFIED_STRING_FORMATTER();
+
+      this.m_owner.SetOutputFormatter(formatter);
+      this.m_owner.Format(footprint);
+
+      if (!wxWriteFileSync(fileName, new TextEncoder().encode(formatter.Finish())))
+        THROW_IO_ERROR(`Error writing file '${fileName}'.`);
+
+      this.m_cache_timestamp += wxFileModificationTime(fileName);
+    }
+
+    // If we've saved the full cache, we clear the dirty flag.
+    if (!aFootprintFilter) this.m_cache_dirty = false;
+  }
+
+  /**
+   * `Load()`: every `.kicad_mod` in the library parsed; a file that does not parse is left out,
+   * and the errors are thrown together once the rest are in.
+   */
+  Load(): void {
+    this.m_cache_dirty = false;
+    this.m_cache_timestamp = 0;
+
+    const entries = wxDirEnumerate(this.m_lib_raw_path);
+
+    if (!entries) THROW_IO_ERROR(`Footprint library '${this.m_lib_raw_path}' not found.`);
+
+    const files = entries.filter(
+      (e) => !e.isDir && e.name.toLowerCase().endsWith(`.${KiCadFootprintFileExtension}`),
+    );
+
+    if (files.length === 0) return;
+
+    let cacheError = '';
+
+    for (const { name: fullName } of files) {
+      const fullPath = `${this.m_lib_raw_path}/${fullName}`;
+
+      // Queue I/O errors so only files that fail to parse don't get loaded.
+      try {
+        const bytes = wxReadFileSync(fullPath);
+
+        if (!bytes) THROW_IO_ERROR(`Unable to open file '${fullPath}'`);
+
+        const parser = new PCB_IO_KICAD_SEXPR_PARSER(new TextDecoder().decode(bytes), fullPath);
+        const item = parser.Parse();
+        const fpName = fullName.slice(0, fullName.lastIndexOf('.'));
+
+        if (item.Type() !== KICAD_T.PCB_FOOTPRINT_T) THROW_IO_ERROR(''); // caught just below
+
+        const footprint = item as FOOTPRINT;
+        footprint.SetFPID(new LIB_ID('', fpName));
+        this.m_footprints.set(
+          fpName,
+          new FP_CACHE_ENTRY(footprint, { path: this.m_lib_raw_path, name: fullName }),
+        );
+      } catch (ioe) {
+        if (cacheError !== '') cacheError += '\n\n';
+
+        cacheError += `Unable to read file '${fullPath}'\n`;
+        cacheError += (ioe as Error).message;
+      }
+    }
+
+    this.m_cache_timestamp = FP_CACHE.GetTimestamp(this.m_lib_raw_path);
+
+    if (cacheError !== '') THROW_IO_ERROR(cacheError);
+  }
+
+  /** `Remove( aFootprintName )`: the footprint out of the cache, and its file deleted. */
+  Remove(aFootprintName: string): void {
+    const entry = this.m_footprints.get(aFootprintName);
+
+    if (!entry) {
+      THROW_IO_ERROR(`Library '${this.m_lib_raw_path}' has no footprint '${aFootprintName}'.`);
+    }
+
+    // Remove the footprint from the cache and delete the footprint file from the library.
+    const fullPath = entry.GetFullPath();
+    this.m_footprints.delete(aFootprintName);
+    wxRemoveFile(fullPath);
+  }
+
+  IsPath(aPath: string): boolean {
+    return aPath === this.m_lib_raw_path;
+  }
+
+  SetPath(aPath: string): void {
+    this.m_lib_raw_path = aPath;
+
+    for (const footprint of this.m_footprints.values()) footprint.SetFilePath(aPath);
+  }
+
+  /** `IsModified()`: dirty, or a footprint file was written, added or removed since. */
+  IsModified(): boolean {
+    this.m_cache_dirty =
+      this.m_cache_dirty || FP_CACHE.GetTimestamp(this.m_lib_raw_path) !== this.m_cache_timestamp;
+
+    return this.m_cache_dirty;
+  }
+
+  /** `GetTimestamp( aLibPath )`: `KIPLATFORM::IO::TimestampDir` over the footprint files. */
+  static GetTimestamp(aLibPath: string): number {
+    return TimestampDir(aLibPath, FOOTPRINT_FILE_SPEC);
+  }
+}
+
+export class PCB_IO_KICAD_SEXPR extends PCB_IO {
+  /** `m_cache`: the footprint library cache. */
+  private m_cache: FP_CACHE | null = null;
+  /** `m_sf`: what `m_out` points at until a caller hands it a formatter. */
+  private readonly m_sf = new STRING_FORMATTER();
+  /** `m_out`: output any Format()s to this, no ownership. */
   private m_out: OUTPUTFORMATTER;
-  private readonly m_ctl: number;
-  /** `m_board`: which BOARD, no ownership here. */
-  private m_board: BOARD | null = null;
+  private m_ctl: number;
   /** `m_groupValidPtrs`: the board's items, for validating group members. */
   private readonly m_groupValidPtrs = new Set<BOARD_ITEM>();
   /**
@@ -256,14 +489,279 @@ export class PCB_IO_KICAD_SEXPR {
    */
   private readonly m_generator: string;
 
-  constructor(
-    aOut: OUTPUTFORMATTER,
-    aControlFlags: number = CTL_FOR_BOARD,
-    aGenerator: string = GENERATOR,
-  ) {
-    this.m_out = aOut;
+  /** `PCB_IO_KICAD_SEXPR( int aControlFlags = CTL_FOR_BOARD )`. */
+  constructor(aControlFlags: number = CTL_FOR_BOARD, aGenerator: string = GENERATOR) {
+    super('KiCad');
+    this.m_out = this.m_sf;
     this.m_ctl = aControlFlags;
     this.m_generator = aGenerator;
+  }
+
+  /** `SetOutputFormatter( OUTPUTFORMATTER* aFormatter )`. */
+  SetOutputFormatter(aFormatter: OUTPUTFORMATTER): void {
+    this.m_out = aFormatter;
+  }
+
+  override GetBoardFileDesc(): IO_FILE_DESC {
+    return new IO_FILE_DESC('KiCad printed circuit board files', ['kicad_pcb']);
+  }
+
+  override GetLibraryDesc(): IO_FILE_DESC {
+    return new IO_FILE_DESC('KiCad footprint files', [], ['kicad_mod'], false);
+  }
+
+  /** `init( aProperties )`: the per-call state reset. */
+  private init(aProperties: PCB_IO_PROPERTIES | null): void {
+    this.m_board = null;
+    this.m_props = aProperties;
+  }
+
+  /** `validateCache( aLibraryPath, checkModified )`: a fresh cache unless this one is current. */
+  private validateCache(aLibraryPath: string, checkModified = true): void {
+    if (
+      !this.m_cache ||
+      !this.m_cache.IsPath(aLibraryPath) ||
+      (checkModified && this.m_cache.IsModified())
+    ) {
+      // a spectacular episode in memory management:
+      this.m_cache = new FP_CACHE(this, aLibraryPath);
+      this.m_cache.Load();
+    }
+  }
+
+  override FootprintEnumerate(
+    aFootprintNames: string[],
+    aLibPath: string,
+    aBestEfforts: boolean,
+    aProperties: PCB_IO_PROPERTIES | null = null,
+  ): void {
+    let errorMsg = '';
+
+    this.init(aProperties);
+
+    try {
+      this.validateCache(aLibPath);
+
+      if (!wxDirExists(aLibPath)) THROW_IO_ERROR(`Footprint library '${aLibPath}' not found.`);
+    } catch (ioe) {
+      if (!(ioe instanceof IO_ERROR)) throw ioe;
+
+      errorMsg = ioe.message;
+    }
+
+    // Some of the files may have been parsed correctly so we want to add the valid files to
+    // the library.
+    for (const name of this.m_cache!.GetFootprints().keys()) aFootprintNames.push(name);
+
+    if (errorMsg !== '' && !aBestEfforts) THROW_IO_ERROR(errorMsg);
+  }
+
+  private getFootprint(
+    aLibraryPath: string,
+    aFootprintName: string,
+    aProperties: PCB_IO_PROPERTIES | null,
+    checkModified: boolean,
+  ): FOOTPRINT | null {
+    this.init(aProperties);
+
+    try {
+      this.validateCache(aLibraryPath, checkModified);
+    } catch (ioe) {
+      // do nothing with the error
+      if (!(ioe instanceof IO_ERROR)) throw ioe;
+    }
+
+    return this.m_cache!.GetFootprints().get(aFootprintName)?.GetFootprint() ?? null;
+  }
+
+  override GetEnumeratedFootprint(
+    aLibraryPath: string,
+    aFootprintName: string,
+    aProperties: PCB_IO_PROPERTIES | null = null,
+  ): FOOTPRINT | null {
+    return this.getFootprint(aLibraryPath, aFootprintName, aProperties, false);
+  }
+
+  /**
+   * `FootprintExists`: "checking the cache sounds like a good idea, but won't catch files which
+   * differ only in case" - so it asks the filesystem.
+   */
+  override FootprintExists(
+    aLibraryPath: string,
+    aFootprintName: string,
+    _aProperties: PCB_IO_PROPERTIES | null = null,
+  ): boolean {
+    return wxFileExists(`${aLibraryPath}/${aFootprintName}.${KiCadFootprintFileExtension}`);
+  }
+
+  override FootprintLoad(
+    aLibraryPath: string,
+    aFootprintName: string,
+    aKeepUUID = false,
+    aProperties: PCB_IO_PROPERTIES | null = null,
+  ): FOOTPRINT | null {
+    const footprint = this.getFootprint(aLibraryPath, aFootprintName, aProperties, true);
+
+    if (footprint) {
+      const copy = aKeepUUID
+        ? footprint.Clone()
+        : (footprint.Duplicate(IGNORE_PARENT_GROUP) as FOOTPRINT);
+
+      copy.SetParent(null);
+      return copy;
+    }
+
+    return null;
+  }
+
+  override FootprintSave(
+    aLibraryPath: string,
+    aFootprint: FOOTPRINT,
+    aProperties: PCB_IO_PROPERTIES | null = null,
+  ): void {
+    this.init(aProperties);
+
+    // In this public PLUGIN API function, we can safely assume it was
+    // called for saving into a library path.
+    this.m_ctl = CTL_FOR_LIBRARY;
+
+    // Support saving to a single-file path like "/tmp/foo.kicad_mod" by treating the directory
+    // as the library path and the file base-name as the footprint name.
+    let libPath = aLibraryPath;
+    let singleFileBaseName = ''; // without extension
+    let saveSingleFile = false;
+
+    if (aLibraryPath.endsWith(`.${KiCadFootprintFileExtension}`)) {
+      saveSingleFile = true;
+      libPath = aLibraryPath.slice(0, aLibraryPath.lastIndexOf('/'));
+      const leaf = aLibraryPath.slice(aLibraryPath.lastIndexOf('/') + 1);
+      singleFileBaseName = leaf.slice(0, leaf.lastIndexOf('.'));
+    }
+
+    this.validateCache(libPath, !aProperties || !aProperties.has('skip_cache_validation'));
+
+    const cache = this.m_cache!;
+
+    if (!cache.IsWritable()) {
+      if (!cache.Exists()) {
+        // "Library '%s' does not exist. Would you like to create it?": `Pgm().IsGUI()` is
+        // false for the plugin here, which has no window to ask from.
+        return;
+      }
+
+      THROW_IO_ERROR(`Library '${libPath}' is read only.`);
+    }
+
+    // The map key used by the cache and the on-disk filename base.
+    const footprintName = saveSingleFile
+      ? singleFileBaseName
+      : aFootprint.GetFPID().GetUniStringLibItemName();
+
+    const fpName = ReplaceIllegalFileNameChars(
+      saveSingleFile ? singleFileBaseName : aFootprint.GetFPID().GetUniStringLibItemName(),
+      '_',
+    );
+
+    // Quietly overwrite footprint and delete footprint file from path for any by same name.
+    const fullName = `${fpName}.${KiCadFootprintFileExtension}`;
+    const fullPath = `${libPath}/${fullName}`;
+
+    if (wxFileExists(fullPath) && !wxIsFileWritable(fullPath))
+      THROW_IO_ERROR(`Insufficient permissions to delete '${fullPath}'.`);
+
+    if (cache.GetFootprints().has(footprintName)) {
+      cache.GetFootprints().delete(footprintName);
+      wxRemoveFile(fullPath);
+    }
+
+    // I need my own copy for the cache
+    const footprint = aFootprint.Clone();
+    const cfg = PgmOrNull()?.GetSettingsManager().GetAppSettings<PCBNEW_SETTINGS>('pcbnew');
+
+    // It's orientation should be zero and it should be on the front layer, detached from its
+    // board and group, its nets orphaned.
+    footprintSaveClone(footprint, cfg ? cfg.m_FlipDirection : FLIP_DIRECTION.TOP_BOTTOM);
+
+    cache
+      .GetFootprints()
+      .set(footprintName, new FP_CACHE_ENTRY(footprint, { path: libPath, name: fullName }));
+    cache.Save(footprint);
+  }
+
+  override FootprintDelete(
+    aLibraryPath: string,
+    aFootprintName: string,
+    aProperties: PCB_IO_PROPERTIES | null = null,
+  ): void {
+    this.init(aProperties);
+
+    this.validateCache(aLibraryPath);
+
+    if (!this.m_cache!.IsWritable()) THROW_IO_ERROR(`Library '${aLibraryPath}' is read only.`);
+
+    this.m_cache!.Remove(aFootprintName);
+  }
+
+  override ClearCachedFootprints(aLibraryPath: string): void {
+    if (this.m_cache?.IsPath(aLibraryPath)) this.m_cache = null;
+  }
+
+  override GetLibraryTimestamp(aLibraryPath: string): number {
+    return FP_CACHE.GetTimestamp(aLibraryPath);
+  }
+
+  /** `CreateLibrary( aLibraryPath )`: an empty `.pretty` folder. */
+  override CreateLibrary(aLibraryPath: string, aProperties: PCB_IO_PROPERTIES | null = null): void {
+    if (wxDirExists(aLibraryPath))
+      THROW_IO_ERROR(`Cannot overwrite library path '${aLibraryPath}'.`);
+
+    this.init(aProperties);
+
+    this.m_cache = new FP_CACHE(this, aLibraryPath);
+    this.m_cache.Save();
+  }
+
+  /** `DeleteLibrary( aLibraryPath )`: its footprint files, then the folder. */
+  override DeleteLibrary(
+    aLibraryPath: string,
+    _aProperties: PCB_IO_PROPERTIES | null = null,
+  ): boolean {
+    // Return if there is no library path to delete.
+    if (!wxDirExists(aLibraryPath)) return false;
+
+    if (!wxIsDirWritable(aLibraryPath))
+      THROW_IO_ERROR(`Insufficient permissions to delete folder '${aLibraryPath}'.`);
+
+    const entries = wxDirEnumerate(aLibraryPath) ?? [];
+
+    if (entries.some((e) => e.isDir))
+      THROW_IO_ERROR(`Library folder '${aLibraryPath}' has unexpected sub-folders.`);
+
+    // All the footprint files must be deleted before the directory can be deleted.
+    for (const e of entries) {
+      if (!e.name.endsWith(`.${KiCadFootprintFileExtension}`))
+        THROW_IO_ERROR(
+          `Unexpected file '${aLibraryPath}/${e.name}' found in library path '${aLibraryPath}'.`,
+        );
+    }
+
+    for (const e of entries) wxRemoveFile(`${aLibraryPath}/${e.name}`);
+
+    // `wxRmdir`: a folder a mount only knew through its files is gone with them already.
+    if (wxDirExists(aLibraryPath) && !wxRemoveDirTree(aLibraryPath))
+      THROW_IO_ERROR(`Footprint library '${aLibraryPath}' cannot be deleted.`);
+
+    if (this.m_cache && !this.m_cache.IsPath(aLibraryPath)) this.m_cache = null;
+
+    return true;
+  }
+
+  override IsLibraryWritable(aLibraryPath: string): boolean {
+    this.init(null);
+
+    this.validateCache(aLibraryPath);
+
+    return this.m_cache!.IsWritable();
   }
 
   /** `m_board`, for the item formatters that ask it (`GetBoard()` is null in a library). */
@@ -2784,7 +3282,8 @@ export function FormatBoard(
   // wxString sanityResult = aBoard->GroupsSanityCheck(): the "Internal Group Data Error" query
   // is not ported; a cycle is repaired at load.
   const formatter = new PRETTIFIED_STRING_FORMATTER();
-  const pcb_io = new PCB_IO_KICAD_SEXPR(formatter, aControlFlags, aGenerator);
+  const pcb_io = new PCB_IO_KICAD_SEXPR(aControlFlags, aGenerator);
+  pcb_io.SetOutputFormatter(formatter);
   pcb_io.FormatBoardToFormatter(formatter, aBoard);
   return formatter.Finish();
 }
@@ -2812,7 +3311,8 @@ export async function FormatBoardAsync(
   aControlFlags: number = CTL_FOR_BOARD,
 ): Promise<string | null> {
   const formatter = new PRETTIFIED_STRING_FORMATTER();
-  const pcb_io = new PCB_IO_KICAD_SEXPR(formatter, aControlFlags, aGenerator);
+  const pcb_io = new PCB_IO_KICAD_SEXPR(aControlFlags, aGenerator);
+  pcb_io.SetOutputFormatter(formatter);
   const steps = pcb_io.FormatBoardToFormatterSteps(formatter, aBoard);
   let sliceStart = performance.now();
 
@@ -2838,7 +3338,8 @@ export function FormatFootprintForLibrary(
   aGenerator: string = GENERATOR,
 ): string {
   const formatter = new PRETTIFIED_STRING_FORMATTER();
-  const pcb_io = new PCB_IO_KICAD_SEXPR(formatter, CTL_FOR_LIBRARY, aGenerator);
+  const pcb_io = new PCB_IO_KICAD_SEXPR(CTL_FOR_LIBRARY, aGenerator);
+  pcb_io.SetOutputFormatter(formatter);
   pcb_io.SetBoard(aFootprint.GetBoard());
   pcb_io.Format(aFootprint);
   return formatter.Finish();
@@ -2888,7 +3389,8 @@ export const CTL_FOR_CLIPBOARD = CTL_OMIT_INITIAL_COMMENTS;
  */
 export function FormatClipboardBoard(aBoard: BOARD, aGenerator: string = GENERATOR): string {
   const formatter = new PRETTIFIED_STRING_FORMATTER();
-  const pcb_io = new PCB_IO_KICAD_SEXPR(formatter, CTL_FOR_CLIPBOARD, aGenerator);
+  const pcb_io = new PCB_IO_KICAD_SEXPR(CTL_FOR_CLIPBOARD, aGenerator);
+  pcb_io.SetOutputFormatter(formatter);
   pcb_io.SetBoard(aBoard);
   formatter.Print(
     `(kicad_pcb (version ${SEXPR_BOARD_FILE_VERSION}) (generator ${formatter.Quotew(aGenerator)}) (generator_version ${formatter.Quotew(MAJOR_MINOR_VERSION)})`,
@@ -2915,7 +3417,8 @@ export function FormatClipboardFootprint(
   aGenerator: string = GENERATOR,
 ): string {
   const formatter = new PRETTIFIED_STRING_FORMATTER();
-  const pcb_io = new PCB_IO_KICAD_SEXPR(formatter, CTL_FOR_CLIPBOARD, aGenerator);
+  const pcb_io = new PCB_IO_KICAD_SEXPR(CTL_FOR_CLIPBOARD, aGenerator);
+  pcb_io.SetOutputFormatter(formatter);
   pcb_io.SetBoard(aFootprint.GetBoard());
   pcb_io.Format(aFootprint);
   return formatter.Finish();

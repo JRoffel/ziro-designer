@@ -206,7 +206,8 @@ export class CLIPBOARD_IO {
 
     const board = this.m_board!;
     const formatter = new PRETTIFIED_STRING_FORMATTER(FORMAT_MODE.COMPACT_TEXT_PROPERTIES);
-    const io = new PCB_IO_KICAD_SEXPR(formatter, CTL_FOR_CLIPBOARD, GENERATOR);
+    const io = new PCB_IO_KICAD_SEXPR(CTL_FOR_CLIPBOARD, GENERATOR);
+    io.SetOutputFormatter(formatter);
 
     io.SetBoard(board);
 

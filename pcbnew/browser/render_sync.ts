@@ -50,7 +50,8 @@ function topLevel(aItem: BOARD_ITEM): BOARD_ITEM {
 export function FormatRenderSyncItems(aBoard: BOARD, aItems: Iterable<BOARD_ITEM>): string {
   const formatter = new PRETTIFIED_STRING_FORMATTER();
   // A transport, as the DRC and fill jobs' board text: nets by name, every layer spelled out.
-  const io = new PCB_IO_KICAD_SEXPR(formatter, CTL_FOR_BOARD | CTL_ENUMERATE_LAYERS);
+  const io = new PCB_IO_KICAD_SEXPR(CTL_FOR_BOARD | CTL_ENUMERATE_LAYERS);
+  io.SetOutputFormatter(formatter);
 
   io.SetBoard(aBoard);
   formatter.Print(`(kicad_pcb (version ${SEXPR_BOARD_FILE_VERSION})`);

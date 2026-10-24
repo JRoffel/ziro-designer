@@ -1325,7 +1325,8 @@ export class BOARD extends BOARD_ITEM_CONTAINER {
 
     try {
       const formatter = new STRING_FORMATTER();
-      const pi = new PCB_IO_KICAD_SEXPR(formatter);
+      const pi = new PCB_IO_KICAD_SEXPR();
+      pi.SetOutputFormatter(formatter);
 
       pi.FormatBoardToFormatter(formatter, this);
 
