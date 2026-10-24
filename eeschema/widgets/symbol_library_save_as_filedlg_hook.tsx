@@ -9,6 +9,10 @@
  * (TransferDataFromCustomControls).
  */
 
+import { type JSX, useState } from 'react';
+import type { wxFileDialogCustomizeHook } from '@ziroeda/common/widgets/filedlg_hook_new_library.js';
+import { RadioButton } from '@ziroeda/wx/controls.js';
+
 /** `SYMBOL_SAVEAS_TYPE`. */
 export enum SYMBOL_SAVEAS_TYPE {
   NORMAL_SAVE_AS,
@@ -25,9 +29,11 @@ export const SYMBOL_SAVEAS_LABELS: readonly [SYMBOL_SAVEAS_TYPE, string][] = [
   [SYMBOL_SAVEAS_TYPE.ADD_PROJECT_TABLE_ENTRY, 'Add new project library table entry'],
 ];
 
-export class SYMBOL_LIBRARY_SAVE_AS_FILEDLG_HOOK {
+export class SYMBOL_LIBRARY_SAVE_AS_FILEDLG_HOOK implements wxFileDialogCustomizeHook {
   /** Tells the window which hook this is. */
   readonly kind = 'symbolLibrarySaveAs' as const;
+  /** The window drew the controls. */
+  attached = false;
   private m_option: SYMBOL_SAVEAS_TYPE;
 
   constructor(aOption: SYMBOL_SAVEAS_TYPE) {
@@ -42,4 +48,34 @@ export class SYMBOL_LIBRARY_SAVE_AS_FILEDLG_HOOK {
   GetOption(): SYMBOL_SAVEAS_TYPE {
     return this.m_option;
   }
+}
+
+/**
+ * `AddCustomControls( customizer )`: the four radio buttons, in upstream's order, the hook's option
+ * checked. A pick is `TransferDataFromCustomControls`, at once - the option is read only after OK.
+ */
+export function SymbolLibrarySaveAsControls({
+  hook,
+}: {
+  hook: SYMBOL_LIBRARY_SAVE_AS_FILEDLG_HOOK;
+}): JSX.Element {
+  hook.attached = true;
+  const [option, setOption] = useState(hook.GetOption());
+
+  return (
+    <>
+      {SYMBOL_SAVEAS_LABELS.map(([value, label]) => (
+        <RadioButton
+          key={value}
+          name="symbol-library-save-as"
+          label={label}
+          checked={option === value}
+          onChange={() => {
+            hook.TransferDataFromCustomControls(value);
+            setOption(value);
+          }}
+        />
+      ))}
+    </>
+  );
 }

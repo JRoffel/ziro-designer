@@ -71,7 +71,21 @@ import { ProgressDialog } from '@ziroeda/common/widgets/wx_progress_reporters.js
 import type { GRID_TEXT_BUTTON_HOST } from '@ziroeda/common/widgets/grid_text_button_helpers.js';
 import { Combo } from '@ziroeda/wx/combobox.js';
 import { wxFD_FILE_MUST_EXIST, wxFD_OPEN, wxFD_SAVE } from '@ziroeda/wx/defs.js';
-import { type ChooserFilter, WxFileDialog, wxFileDialogGetPath } from '@ziroeda/wx/filedlg.js';
+import {
+  type ChooserFilter,
+  WxFileDialog,
+  wxFileDialogGetPath,
+  WxSaveFileDialog,
+} from '@ziroeda/wx/filedlg.js';
+import {
+  type FILEDLG_HOOK_NEW_LIBRARY,
+  FileDlgHookNewLibraryControls,
+  type wxFileDialogCustomizeHook,
+} from '@ziroeda/common/widgets/filedlg_hook_new_library.js';
+import {
+  SYMBOL_LIBRARY_SAVE_AS_FILEDLG_HOOK,
+  SymbolLibrarySaveAsControls,
+} from '../widgets/symbol_library_save_as_filedlg_hook.js';
 import { MEMORY_FILESYSTEM, wxMountFileSystem } from '@ziroeda/wx/filefn.js';
 import { type Menu, MenuBar } from '@ziroeda/wx/menu_ui.js';
 import { wxID_CANCEL, wxID_OK } from '@ziroeda/wx/menu.js';
@@ -170,6 +184,17 @@ export interface SymbolEditorFile {
 
 /** `.MinSize( FromDIP( 250 ), … )` for the Libraries pane (symbol_edit_frame.cpp). [data] */
 const LIBRARY_TREE_WIDTH = 250;
+
+/** `dlg.SetCustomizeHook( hook )`: the hook's own controls, by the hook it is. */
+function customizeHookControls(aHook: wxFileDialogCustomizeHook): JSX.Element | undefined {
+  if (aHook instanceof SYMBOL_LIBRARY_SAVE_AS_FILEDLG_HOOK)
+    return <SymbolLibrarySaveAsControls hook={aHook} />;
+
+  if ((aHook as Partial<FILEDLG_HOOK_NEW_LIBRARY>).kind === 'new_library')
+    return <FileDlgHookNewLibraryControls hook={aHook as FILEDLG_HOOK_NEW_LIBRARY} />;
+
+  return undefined;
+}
 
 /**
  * The toolbar and menu ids this window's bars carry that are not the TOOL_ACTION's own name.
@@ -336,11 +361,12 @@ export function SymbolEditor({
     pinCount: number;
     done: (aFpid: string | null) => void;
   } | null>(null);
-  /** `wxFileDialog( this, ... )` with wxFD_OPEN, until it closes. */
+  /** `wxFileDialog( this, ... )`, until it closes; `save` for wxFD_SAVE. */
   const [fileDialogRequest, setFileDialogRequest] = useState<{
     title: string;
     defaultDir: string;
     filters: readonly ChooserFilter[];
+    save?: { defaultFile: string; hook?: wxFileDialogCustomizeHook };
     resolve: (aPath: string | null) => void;
   } | null>(null);
   const [treeRevision, bumpTree] = useReducer((n: number) => n + 1, 0);
@@ -623,22 +649,23 @@ export function SymbolEditor({
             else next.delete('showLibraryTree');
             return next;
           }),
-        fileDialog: (aTitle, aDefaultDir, _aDefaultFile, aWildcard, aStyle) => {
-          // The picker opens files, as the schematic's does; naming a new one to write is not
-          // ported yet.
-          if (aStyle & wxFD_SAVE) {
-            console.warn(`wxFileDialog(wxFD_SAVE) '${aTitle}' is not ported yet`);
-            return Promise.resolve(null);
-          }
-          return new Promise((resolve) =>
+        fileDialog: (aTitle, aDefaultDir, aDefaultFile, aWildcard, aStyle, aCustomizeHook) =>
+          new Promise((resolve) =>
             setFileDialogRequest({
               title: aTitle,
               defaultDir: aDefaultDir,
               filters: Array.isArray(aWildcard) ? aWildcard : [aWildcard as ChooserFilter],
+              ...(aStyle & wxFD_SAVE
+                ? {
+                    save: {
+                      defaultFile: aDefaultFile,
+                      ...(aCustomizeHook ? { hook: aCustomizeHook } : {}),
+                    },
+                  }
+                : {}),
               resolve,
             }),
-          );
-        },
+          ),
         unsavedChangesDialog: (aMessage) =>
           new Promise((resolve) => setUnsaved({ message: aMessage, done: resolve })),
         syncLibraries: () => bumpTree(),
@@ -1439,7 +1466,27 @@ export function SymbolEditor({
       <SchFindDialogHost frame={frame} frameType="FRAME_SCH_SYMBOL_EDITOR" />
 
       {/* The symbols kind is PATHS::GetDefaultUserSymbolsPath()'s folder, where a library goes. */}
-      {fileDialogRequest && (
+      {fileDialogRequest?.save && (
+        // wxFD_SAVE: a library to write, in the account's Symbols folder unless the frame names one.
+        <WxSaveFileDialog
+          title={fileDialogRequest.title}
+          initialName={fileDialogRequest.save.defaultFile}
+          filters={fileDialogRequest.filters}
+          {...(fileDialogRequest.defaultDir
+            ? { initialPath: fileDialogRequest.defaultDir }
+            : { initialPlace: 'symbols' })}
+          kind="symbols"
+          projectDir={projectName ? `/${projectName}` : null}
+          {...(fileDialogRequest.save.hook
+            ? { extra: customizeHookControls(fileDialogRequest.save.hook) }
+            : {})}
+          onDone={(path) => {
+            setFileDialogRequest(null);
+            fileDialogRequest.resolve(path);
+          }}
+        />
+      )}
+      {fileDialogRequest && !fileDialogRequest.save && (
         <WxFileDialog
           title={fileDialogRequest.title}
           filters={fileDialogRequest.filters}

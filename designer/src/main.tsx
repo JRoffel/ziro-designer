@@ -25,9 +25,10 @@ import { installGlobalErrorHandlers } from './telemetry/global_handlers.js';
 import { startUsageStats } from './telemetry/usage.js';
 import { installOverlayScrollbars } from '@ziroeda/common/widgets/overlay_scrollbars.js';
 import { installDialogSizeHints } from '@ziroeda/common/dialog_shim.js';
-import { SetFileDialog } from '@ziroeda/wx/filedlg.js';
+import { SetFileDialog, SetSaveFileDialog } from '@ziroeda/wx/filedlg.js';
 import { InitPgm } from './pgm_app.js';
 import { OpenFileDialog } from './fs/OpenFileDialog.js';
+import { SaveAsDialog } from './fs/SaveAsDialog.js';
 import { installOutlineFontProvider } from '@ziroeda/common/font/outline_fonts.js';
 import { missingFeatures, unsupportedMessage } from './browser_support.js';
 import { checkStorageHealth, setTemplateSink } from './home/projectStore.js';
@@ -76,6 +77,10 @@ InstallMessageDialogPresenter();
 // The chooser's `kind` is its own set of shared folders; common passes a string.
 SetFileDialog((p) => (
   <OpenFileDialog {...p} kind={p.kind as Parameters<typeof OpenFileDialog>[0]['kind']} />
+));
+// ...and its wxFD_SAVE form, the Save As chooser every editor's Save As opens.
+SetSaveFileDialog((p) => (
+  <SaveAsDialog {...p} kind={p.kind as Parameters<typeof SaveAsDialog>[0]['kind']} />
 ));
 // `textWidth` measures an outline face with the glyphs the renderer fills
 // (#154); until a face has loaded both sides fall back to the stroke font.

@@ -168,9 +168,8 @@ export function symbolEditorMenus(
       items: [
         act('New Library...', 'newLibrary'),
         act('Add Library...', 'addLibrary'),
-        // SCH_ACTIONS::saveLibraryAs (sch_actions.cpp:178), Ctrl+Shift+S. Still greyed: it asks
-        // for a new library file through a wxFD_SAVE picker, which has no counterpart yet.
-        stub('Save Library As...', 'saveLibraryAs', { shortcut: 'Ctrl+Shift+S' }),
+        // SCH_ACTIONS::saveLibraryAs (sch_actions.cpp:178), Ctrl+Shift+S.
+        act('Save Library As...', 'saveLibraryAs', { shortcut: 'Ctrl+Shift+S' }),
         act('New Symbol...', 'newSymbol', { shortcut: browserSafeKey('Ctrl+N') }),
         // ENABLE( isSymbolFromSchematicCond ) (:535) — live only when this
         // frame was opened on a symbol that lives in a schematic.

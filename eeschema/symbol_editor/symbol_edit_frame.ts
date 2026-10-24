@@ -71,7 +71,7 @@ import { Pgm } from '@ziroeda/common/pgm_base.js';
 import type { ChooserFilter } from '@ziroeda/wx/filedlg.js';
 import { wxICON_ERROR, wxOK } from '@ziroeda/wx/defs.js';
 import { SCH_IO_MGR } from '../sch_io/sch_io_mgr.js';
-import type { SYMBOL_LIBRARY_SAVE_AS_FILEDLG_HOOK } from '../widgets/symbol_library_save_as_filedlg_hook.js';
+import type { wxFileDialogCustomizeHook } from '@ziroeda/common/widgets/filedlg_hook_new_library.js';
 import { SYMBOL_EDITOR_UNDO_REDO_MIXIN } from './symbol_editor_undo_redo.js';
 import { SYMBOL_EDITOR_FILES_MIXIN, SYMBOL_EDITOR_MIXIN } from './symbol_editor.js';
 import { SYMBOL_EDITOR_IMPORT_EXPORT_MIXIN } from './symbol_editor_import_export.js';
@@ -128,7 +128,7 @@ export interface SYMBOL_EDIT_FRAME_HOOKS {
     aDefaultFile: string,
     aWildcard: ChooserFilter | readonly ChooserFilter[],
     aStyle: number,
-    aCustomizeHook?: SYMBOL_LIBRARY_SAVE_AS_FILEDLG_HOOK,
+    aCustomizeHook?: wxFileDialogCustomizeHook,
   ): Promise<string | null>;
   /** `SyncLibraries( aShowProgress, aPreloadCancelled, aForceRefresh )`: the tree rebuilt. */
   syncLibraries?(aShowProgress: boolean, aPreloadCancelled: boolean, aForceRefresh: string): void;
@@ -427,6 +427,7 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
     aDefaultFile: string,
     aWildcard: string | readonly ChooserFilter[],
     aStyle: number,
+    aCustomizeHook?: wxFileDialogCustomizeHook,
   ): Promise<string | null> {
     return this.FileDialog(
       aTitle,
@@ -434,6 +435,7 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
       aDefaultFile,
       typeof aWildcard === 'string' ? [] : aWildcard,
       aStyle,
+      aCustomizeHook,
     );
   }
 
@@ -449,7 +451,7 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
     aDefaultFile: string,
     aWildcard: ChooserFilter | readonly ChooserFilter[],
     aStyle: number,
-    aCustomizeHook?: SYMBOL_LIBRARY_SAVE_AS_FILEDLG_HOOK,
+    aCustomizeHook?: wxFileDialogCustomizeHook,
   ): Promise<string | null> {
     return (
       this.hooks.fileDialog?.(

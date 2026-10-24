@@ -72,6 +72,45 @@ export function WxFileDialog(props: WxFileDialogProps): JSX.Element {
   return <Impl {...props} />;
 }
 
+/**
+ * `wxFileDialog( …, wxFD_SAVE | wxFD_OVERWRITE_PROMPT )`: a path to write, named in the app's save
+ * chooser - which asks before replacing a file that is there, and hands back the path only.
+ */
+export interface WxSaveFileDialogProps {
+  title: string;
+  /** `aDefaultFile`: the name the entry starts with. */
+  initialName: string;
+  filters?: readonly ChooserFilter[];
+  /** `aDefaultDir`, when the caller names one. */
+  initialPath?: string;
+  /** Which shared folder this document kind belongs in (`symbols` for a symbol library). */
+  kind?: string;
+  /** The places row to open on when no directory is named: the kind's own folder. */
+  initialPlace?: string;
+  /** The open project's folder, e.g. `/MyBoard`. */
+  projectDir?: string | null;
+  /** `wxFileDialogCustomizeHook::AddCustomControls`: the controls under the chooser. */
+  extra?: JSX.Element;
+  /** The chosen path, or `null` for `wxID_CANCEL`. */
+  onDone: (path: string | null) => void;
+}
+
+let s_saveFileDialog: ((props: WxSaveFileDialogProps) => JSX.Element) | null = null;
+
+/** The app installs its save chooser. */
+export function SetSaveFileDialog(
+  aImpl: ((props: WxSaveFileDialogProps) => JSX.Element) | null,
+): void {
+  s_saveFileDialog = aImpl;
+}
+
+export function WxSaveFileDialog(props: WxSaveFileDialogProps): JSX.Element {
+  if (!s_saveFileDialog)
+    throw new Error('wxFileDialog(wxFD_SAVE) used before the app installed one');
+  const Impl = s_saveFileDialog;
+  return <Impl {...props} />;
+}
+
 /** Where a file the picker hands back is readable when no mount holds its path. */
 const PICKED_FILES_DIR = '/.picked-files';
 let s_pickedFiles: MEMORY_FILESYSTEM | null = null;

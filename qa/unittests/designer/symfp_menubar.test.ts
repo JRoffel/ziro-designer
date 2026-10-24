@@ -189,6 +189,15 @@ describe('the Symbol Editor menu bar', () => {
     );
   });
 
+  /**
+   * Save Library As is `ENABLE( libSelectedCondition )` (symbol_edit_frame.cpp:530): live once a
+   * library is selected, now that its wxFD_SAVE picker is drawn. It was greyed whatever was selected.
+   */
+  it('lights Save Library As only with a library selected', () => {
+    expect(find(sym(), 'Save Library As...')?.disabled).toBe(false);
+    expect(find(sym({ libSelected: false }), 'Save Library As...')?.disabled).toBe(true);
+  });
+
   /** :95-116. Ours was six entries against upstream's eighteen. */
   it('Edit is upstream, row for row', () => {
     expect(rows(sym(), 'Edit')).toEqual([
