@@ -123,6 +123,8 @@ export interface WxListBoxProps {
   noBorder?: boolean;
   /** The list took the focus (`HasFocus()` is what `OnCharHook` asks). */
   onFocus?: () => void;
+  /** ...and lost it. */
+  onBlur?: () => void;
   onKeyDown?: (e: KeyboardEvent<HTMLDivElement>) => void;
   ariaLabel?: string;
   testId?: string;
@@ -144,6 +146,7 @@ export function WxListBox({
   onDoubleClick,
   noBorder = false,
   onFocus,
+  onBlur,
   onKeyDown,
   ariaLabel,
   testId,
@@ -203,6 +206,7 @@ export function WxListBox({
       data-testid={testId}
       tabIndex={0}
       onFocus={onFocus}
+      onBlur={onBlur}
       onKeyDown={onKeyDown}
       onDoubleClick={
         onDoubleClick

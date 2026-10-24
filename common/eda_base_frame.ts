@@ -431,8 +431,35 @@ export abstract class EDA_BASE_FRAME
     TOOLS_HOLDER.prototype.CommonSettingsChanged.call(this);
   }
 
-  /** Save common frame parameters to a configuration data file. */
-  SaveSettings(_aCfg: APP_SETTINGS_BASE): void {}
+  /** `GetWindowSize()`: the page's measure of the frame, null while it has none. */
+  private m_windowSize: (() => { x: number; y: number } | null) | null = null;
+
+  /** The page tells the frame how to measure itself. */
+  SetWindowSizeSource(aSource: (() => { x: number; y: number } | null) | null): void {
+    this.m_windowSize = aSource;
+  }
+
+  /**
+   * `SaveWindowSettings( aCfg )` (eda_base_frame.cpp:1229): the frame's size, which a frame's
+   * LoadSettings measures its panes against. The position, the maximised state, the display and
+   * the AUI layout are the browser's to keep, not the frame's.
+   */
+  SaveWindowSettings(aCfg: WINDOW_SETTINGS): void {
+    const size = this.m_windowSize?.() ?? null;
+
+    if (!size) return;
+
+    aCfg.state.size_x = size.x;
+    aCfg.state.size_y = size.y;
+  }
+
+  /**
+   * Save common frame parameters to a configuration data file: `SaveSettings( aCfg )`
+   * (eda_base_frame.cpp:1296). The file history is the page's own.
+   */
+  SaveSettings(aCfg: APP_SETTINGS_BASE): void {
+    this.SaveWindowSettings(this.GetWindowSettings(aCfg));
+  }
 
   // ---- wxFrame's status bar ---------------------------------------------
 

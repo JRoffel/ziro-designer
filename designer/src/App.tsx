@@ -133,6 +133,15 @@ const GerberViewer = lazy(() =>
   import('./editors/gerbview/GerberViewer.js').then((m) => ({ default: m.GerberViewer })),
 );
 /**
+ * `SYMBOL_VIEWER_FRAME`, the Symbol Library Browser: a KIWAY player of its own (`FRAME_SCH_VIEWER`),
+ * raised by `ACTIONS::showSymbolBrowser` from the schematic and symbol editors.
+ */
+const SymbolViewer = lazy(() =>
+  import('./editors/schematic/symbol_viewer_frame_app.js').then((m) => ({
+    default: m.SymbolViewer,
+  })),
+);
+/**
  * `FOOTPRINT_VIEWER_FRAME`, the Footprint Library Browser: a KIWAY player of
  * its own (`FRAME_FOOTPRINT_VIEWER`), raised by `ACTIONS::showFootprintBrowser`
  * from the board and footprint editors.
@@ -447,6 +456,7 @@ export function App(): JSX.Element {
     | 'image'
     | 'gerber'
     | 'fpviewer'
+    | 'symviewer'
   >('home');
   /**
    * The address bar, and the open project's identity -- the two halves of
@@ -636,6 +646,7 @@ export function App(): JSX.Element {
   const [imgMounted, setImgMounted] = useState(false);
   const [gbMounted, setGbMounted] = useState(false);
   const [fpvMounted, setFpvMounted] = useState(false);
+  const [symvMounted, setSymvMounted] = useState(false);
   /**
    * The frame that raised the Footprint Library Browser. Upstream it is a
    * top-level window over whichever frame opened it, so closing it shows that
@@ -643,6 +654,8 @@ export function App(): JSX.Element {
    * the view it came from.
    */
   const fpvOpenerRef = useRef<typeof view>('home');
+  /** The frame that raised the Symbol Library Browser, which its close returns to. */
+  const symvOpenerRef = useRef<typeof view>('home');
   // "Add symbol to schematic": the symbol editor hands eeschema a symbol to place.
   // The file the project manager double-clicked into the footprint / symbol
   // editor (KiCad's MAIL_FP_EDIT / MAIL_LIB_EDIT). Re-sent with a fresh nonce
@@ -729,6 +742,7 @@ export function App(): JSX.Element {
     else if (v === 'image') setImgMounted(true);
     else if (v === 'gerber') setGbMounted(true);
     else if (v === 'fpviewer') setFpvMounted(true);
+    else if (v === 'symviewer') setSymvMounted(true);
   }, []);
   // The two big frames, built while the manager is up. See `warmFrames`.
   useEffect(() => (view === 'home' ? warmFrames(mountFor) : undefined), [view, mountFor]);
@@ -1036,8 +1050,13 @@ export function App(): JSX.Element {
     if (restoring) return;
     // The browser is a child window, not a place to reopen into: a reload
     // comes back to the frame that raised it.
-    const opener = fpvOpenerRef.current;
-    const restorable = view !== 'fpviewer' ? view : opener === 'fpviewer' ? 'home' : opener;
+    const opener =
+      view === 'fpviewer'
+        ? fpvOpenerRef.current
+        : view === 'symviewer'
+          ? symvOpenerRef.current
+          : view;
+    const restorable = opener === 'fpviewer' || opener === 'symviewer' ? 'home' : opener;
     saveSession({ view: restorable, startFile });
   }, [view, startFile, restoring]);
 
@@ -1605,6 +1624,7 @@ export function App(): JSX.Element {
       [FRAME_T.FRAME_BM2CMP]: 'image',
       [FRAME_T.FRAME_CALC]: 'calculator',
       [FRAME_T.FRAME_FOOTPRINT_VIEWER]: 'fpviewer',
+      [FRAME_T.FRAME_SCH_VIEWER]: 'symviewer',
     };
 
     return new KIWAY({
@@ -1615,6 +1635,7 @@ export function App(): JSX.Element {
         mountFor(v);
         setView((prev) => {
           if (v === 'fpviewer' && prev !== 'fpviewer') fpvOpenerRef.current = prev;
+          if (v === 'symviewer' && prev !== 'symviewer') symvOpenerRef.current = prev;
           return v;
         });
         return true;
@@ -2144,6 +2165,25 @@ export function App(): JSX.Element {
                 onClose={() => {
                   setFpvMounted(false);
                   setView(fpvOpenerRef.current === 'fpviewer' ? 'home' : fpvOpenerRef.current);
+                }}
+              />
+            </Suspense>
+          </Frozen>
+        </div>
+      )}
+      {symvMounted && (
+        <div style={frameStyle(view === 'symviewer')}>
+          <Frozen shown={view === 'symviewer'}>
+            <Suspense fallback={frameLoading('Symbol Library Browser')}>
+              <SymbolViewer
+                kiway={kiway}
+                active={view === 'symviewer'}
+                onExitToHome={goHome}
+                // `SYMBOL_VIEWER_FRAME::doCloseWindow` destroys the frame, so the next open is a
+                // fresh one (and KIWAY hears it close).
+                onClose={() => {
+                  setSymvMounted(false);
+                  setView(symvOpenerRef.current === 'symviewer' ? 'home' : symvOpenerRef.current);
                 }}
               />
             </Suspense>

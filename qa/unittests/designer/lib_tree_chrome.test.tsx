@@ -365,10 +365,10 @@ describe('no consumer restates the tree locally', () => {
   it('only the chooser scopes anything, and only its wxALL border', () => {
     const scoped = Array.from(SHELL.matchAll(/^([^{}\n][^{\n]*)\{/gm))
       .map((m) => (m[1] ?? '').trim())
-      .filter((sel) => sel.includes('.ze-libtree'))
-      .filter((sel) =>
-        /\.(ze-leftdock|sch-leftdock|ze-chooser[\w-]*|ze-lib-viewer-pane)\b/.test(sel),
-      );
+      // The tree's own class, not `.ze-libtree-entry`: that is wxSearchCtrl, a widget of its own,
+      // which a palette's sizer gives proportion 0 (`.ze-palette-pane > .ze-libtree-entry`).
+      .filter((sel) => /\.ze-libtree(?![\w-])/.test(sel))
+      .filter((sel) => /\.(ze-leftdock|sch-leftdock|ze-chooser[\w-]*|ze-palette-pane)\b/.test(sel));
 
     expect(scoped).toEqual(['.ze-chooser-treepane > .ze-libtree']);
     expect(decl('.ze-chooser-treepane > .ze-libtree', 'margin')).toBe('5px');

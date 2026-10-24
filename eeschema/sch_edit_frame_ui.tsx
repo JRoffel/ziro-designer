@@ -824,7 +824,6 @@ export function SchematicEditor({
     PresencePanel,
     AssignFootprints,
     DialogSymbolChooser,
-    SymbolLibraryBrowser,
     DialogRescueEach,
     SymbolChooserFrame,
   } = app;
@@ -2515,8 +2514,6 @@ export function SchematicEditor({
   const [setupOpen, setSetupOpen] = useState(false);
   // Export Netlist (DIALOG_EXPORT_NETLIST) dialog.
   const [netlistOpen, setNetlistOpen] = useState(false);
-  // Symbol Library Browser (SYMBOL_VIEWER_FRAME).
-  const [browserOpen, setBrowserOpen] = useState(false);
   // Assign Footprints (CVPCB_MAINFRAME).
   const [assignFpOpen, setAssignFpOpen] = useState(false);
   // The sheets of THIS design, in hierarchy order, cvpcb is handed the
@@ -4985,7 +4982,8 @@ export function SchematicEditor({
       else if (id === 'bom') runLiveAction(SCH_ACTIONS.generateBOM);
       else if (id === 'exportNetlist') setNetlistOpen(true);
       else if (id === 'editSymbolFields') runLiveAction(SCH_ACTIONS.editSymbolFields);
-      else if (id === 'symbolBrowser') setBrowserOpen(true);
+      // COMMON_CONTROL::ShowPlayer( FRAME_SCH_VIEWER ): the browser is a KIWAY player of its own.
+      else if (id === 'symbolBrowser') runLiveAction(ACTIONS.showSymbolBrowser);
       else if (id === 'assignFootprints') setAssignFpOpen(true);
       else if (id === 'showCalculator') onShowCalculator?.();
       // ACTIONS::selectAll, whose row carries Ctrl+A and dispatches from there.
@@ -6536,19 +6534,6 @@ export function SchematicEditor({
                 onSaveLibTable={saveProjectFpLibTable}
                 onSaveEquFiles={saveProjectEquFiles}
                 onClose={() => setAssignFpOpen(false)}
-              />
-            )}
-            {/* Symbol Library Browser: "Add Symbol to Schematic" attaches the pick
-              to the cursor exactly like the Place Symbol chooser. */}
-            {browserOpen && (
-              <SymbolLibraryBrowser
-                onPick={(lib) => {
-                  setBrowserOpen(false);
-                  placeFlags.current = { keepSymbol: true, placeAllUnits: false, unitCount: 1 };
-                  setPlaceLib(lib);
-                  setActiveTool('placeSymbol');
-                }}
-                onClose={() => setBrowserOpen(false)}
               />
             )}
           </div>

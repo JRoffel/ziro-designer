@@ -273,9 +273,8 @@ export function symbolEditorMenus(
           submenu: [chk('Properties', 'showProperties'), chk('Library Tree', 'showLibraryTree')],
         },
         SEP,
-        // ACTIONS::showSymbolBrowser is COMMON_CONTROL::ShowPlayer( FRAME_SCH_VIEWER ), and the
-        // symbol browser is not a KIWAY player yet: lit, the row would do nothing.
-        stub('Symbol Library Browser', 'showSymbolBrowser'),
+        // ACTIONS::showSymbolBrowser: COMMON_CONTROL::ShowPlayer( FRAME_SCH_VIEWER ).
+        act('Symbol Library Browser', 'showSymbolBrowser'),
         SEP,
         act('Zoom In', 'zoomInCenter'),
         act('Zoom Out', 'zoomOutCenter'),

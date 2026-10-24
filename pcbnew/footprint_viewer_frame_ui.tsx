@@ -115,7 +115,6 @@ import {
   footprintViewerMenus,
 } from './toolbars_footprint_viewer.js';
 import '@ziroeda/common/widgets/shell.css';
-import './footprint_viewer_frame_ui.css';
 
 /**
  * What the browser asks of the program: the footprint libraries and their
@@ -760,7 +759,7 @@ export function FootprintViewerFrame({
         />
 
         {/* AUI pane "Libraries" */}
-        <div className="ze-fpviewer-pane" style={{ width: libWidth }}>
+        <div className="ze-palette-pane" style={{ width: libWidth }}>
           <WxSearchCtrl
             value={libFilter}
             onChange={setLibFilter}
@@ -794,7 +793,7 @@ export function FootprintViewerFrame({
         />
 
         {/* AUI pane "Footprints" */}
-        <div className="ze-fpviewer-pane ze-fpviewer-fps" style={{ width: fpWidth }}>
+        <div className="ze-palette-pane ze-palette-after-sash" style={{ width: fpWidth }}>
           <WxSearchCtrl
             value={fpFilter}
             onChange={setFpFilter}
@@ -823,7 +822,7 @@ export function FootprintViewerFrame({
 
         {/* AUI pane "DrawFrame": `PCB_DRAW_PANEL_GAL`, which takes the canvas's
             events itself through WX_VIEW_CONTROLS and the frame's TOOL_DISPATCHER. */}
-        <div className="ze-fpviewer-canvas" data-testid="fpviewer-canvas">
+        <div className="ze-palette-canvas" data-testid="fpviewer-canvas">
           <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, outline: 'none' }} />
         </div>
       </div>

@@ -2,20 +2,14 @@
 // Copyright (C) 2026 ZiroEDA and contributors.
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
 /**
- * `eeschema/toolbars_symbol_viewer.cpp`: `SYMBOL_VIEWER_TOOLBAR_SETTINGS::
- * DefaultToolbarConfig` (`TOOLBAR_LOC::TOP_MAIN`) and
- * `SYMBOL_VIEWER_FRAME::doReCreateMenuBar` — upstream keeps both in the same
- * file, so this does too, split out of `symbol_viewer_frame_ui.tsx` (the
- * window) the way `symbol_viewer_frame.ts` (the logic) is.
+ * `eeschema/toolbars_symbol_viewer.cpp`: `SYMBOL_VIEWER_TOOLBAR_SETTINGS::DefaultToolbarConfig`
+ * (`TOOLBAR_LOC::TOP_MAIN`) and `SYMBOL_VIEWER_FRAME::doReCreateMenuBar`. Upstream keeps both in
+ * the same file, so this does too, beside `symbol_viewer_frame_ui.tsx` (the window).
  */
 import type { ToolEntry } from '@ziroeda/common/tool/action_toolbar.js';
-import type { Menu } from '@ziroeda/wx/menu.js';
+import type { Menu, MenuItem } from '@ziroeda/wx/menu.js';
 import { addClose } from '@ziroeda/common/tool/action_menu.js';
-import { letterSubReference } from './fieldbox.js';
-
-/** BODY_STYLE::BASE / DEMORGAN (symbol_edit_frame.h DEMORGAN_STD / DEMORGAN_ALT). */
-export const DEMORGAN_STD = 'Standard';
-export const DEMORGAN_ALT = 'Alternate';
+import { standardHelpMenu } from '@ziroeda/common/eda_base_frame_help_menu.js';
 
 /** SYMBOL_VIEWER_TOOLBAR_SETTINGS::DefaultToolbarConfig( TOOLBAR_LOC::TOP_MAIN ). */
 export const TOP_TOOLBAR: ToolEntry[] = [
@@ -44,58 +38,53 @@ export const TOP_TOOLBAR: ToolEntry[] = [
   { id: 'addSymbolToSchematic', icon: 'addSymbolToSchematic', title: 'Add Symbol to Schematic' },
 ];
 
-/** LIB_SYMBOL::GetUnitDisplayName( aUnit, true ), no per-unit names in the file format yet. */
-export const unitDisplayName = (unit: number): string => `Unit ${letterSubReference(unit)}`;
+/**
+ * `ACTION_TOOLBAR_CONTROLS::unitSelector` / `bodyStyleSelector`'s factories in `configureToolbars`:
+ * `new wxChoice( m_tbTopMain, ..., wxDefaultPosition, wxSize( 150, -1 ) )`. [data]
+ */
+export const SYMBOL_VIEWER_CHOICE_WIDTH = 150;
+
+/** What the menu rows run: the window's close, an action id, and the Help menu's two windows. */
+export interface SymbolViewerMenuHandlers {
+  close: () => void;
+  action: (id: string) => void;
+  showHotkeys: () => void;
+  showAbout: () => void;
+  /** The CHECK conditions of the two render toggles (`setupUIConditions`). */
+  electricalTypesShown: boolean;
+  pinNumbersShown: boolean;
+}
 
 /**
- * `SYMBOL_VIEWER_FRAME::doReCreateMenuBar`, transcribed. The frame had no
- * menu bar here at all, so the one row upstream's File menu carries -
- * `fileMenu->AddClose( _( "Symbol Viewer" ) )` - was missing along with the
- * whole View menu.
- *
- * Not `AddStandardHelpMenu`, which upstream appends third: its About row
- * opens a dialog that is still hand-rolled once per frame here, and adding a
- * ninth copy of it to reach one menu row is the duplication this repo is
- * trying to remove. Recorded rather than quietly dropped.
+ * `SYMBOL_VIEWER_FRAME::doReCreateMenuBar`, transcribed. File carries `AddClose( _( "Symbol
+ * Viewer" ) )` alone; View has the four zooms, two separators in a row as upstream appends them,
+ * and the two render toggles as CHECK rows; then `AddStandardHelpMenu( menuBar )`. Accelerators are
+ * the actions' `DefaultHotkey`s: Home and F5 on Zoom to Fit and Refresh, none on the rest.
  */
-export function buildSymbolViewerMenus(opts: {
-  onClose: () => void;
-  onAction: (id: string) => void;
-  showElectricalTypes: boolean;
-  showPinNumbers: boolean;
-}): Menu[] {
-  const { onClose, onAction, showElectricalTypes, showPinNumbers } = opts;
+export function symbolViewerMenus(h: SymbolViewerMenuHandlers): Menu[] {
+  const act = (label: string, id: string, extra: Partial<MenuItem> = {}): MenuItem => ({
+    label,
+    action: () => h.action(id),
+    ...extra,
+  });
+
   return [
-    { label: 'File', items: [addClose('Symbol Viewer', onClose)] },
+    { label: 'File', items: [addClose('Symbol Viewer', h.close)] },
     {
       label: 'View',
       items: [
-        { label: 'Zoom In', icon: 'zoomIn', action: () => onAction('zoomInCenter') },
-        { label: 'Zoom Out', icon: 'zoomOut', action: () => onAction('zoomOutCenter') },
-        {
-          label: 'Zoom to Fit',
-          icon: 'zoomFit',
-          shortcut: 'Home',
-          action: () => onAction('zoomFitScreen'),
-        },
-        {
-          label: 'Refresh',
-          icon: 'zoomRedraw',
-          shortcut: 'F5',
-          action: () => onAction('zoomRedraw'),
-        },
+        act('Zoom In', 'zoomInCenter', { icon: 'zoomIn' }),
+        act('Zoom Out', 'zoomOutCenter', { icon: 'zoomOut' }),
+        act('Zoom to Fit', 'zoomFitScreen', { icon: 'zoomFit', shortcut: 'Home' }),
+        act('Refresh', 'zoomRedraw', { icon: 'zoomRedraw', shortcut: 'F5' }),
         { sep: true },
-        {
-          label: 'Show Pin Electrical Types',
-          checked: showElectricalTypes,
-          action: () => onAction('showElectricalTypes'),
-        },
-        {
-          label: 'Show Pin Numbers',
-          checked: showPinNumbers,
-          action: () => onAction('showPinNumbers'),
-        },
+        { sep: true },
+        act('Show Pin Electrical Types', 'showElectricalTypes', {
+          checked: h.electricalTypesShown,
+        }),
+        act('Show Pin Numbers', 'showPinNumbers', { checked: h.pinNumbersShown }),
       ],
     },
+    standardHelpMenu({ showHotkeys: h.showHotkeys, showAbout: h.showAbout }),
   ];
 }

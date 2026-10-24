@@ -2,615 +2,684 @@
 // Copyright (C) 2026 ZiroEDA and contributors.
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
 /**
- * Symbol Library Browser. Counterpart: `eeschema/symbol_viewer_frame.cpp`
- * (SYMBOL_VIEWER_FRAME), the browse-first companion to the Choose Symbol
- * dialog. The frame's AUI panes become panes of one modal: the "Libraries"
- * palette, the "Symbols" palette and the canvas, with the top toolbar above
- * and the message panel below. The logic (filtering) is
- * `symbol_viewer_frame.ts`; the toolbar and menu are `toolbars_symbol_viewer.ts`.
+ * The Symbol Library Browser's window: `SYMBOL_VIEWER_FRAME`'s constructor and event table
+ * (`eeschema/symbol_viewer_frame.cpp:82-266`). The frame (`symbol_viewer_frame.ts`) holds the
+ * lists, the filters, the unit and body-style choices and the preview; this file draws them and
+ * hands their events back, as the event table does.
+ *
+ * The AUI panes, as the constructor adds them (`:206-215`):
+ *
+ *     TopMainToolbar   HToolbar  Top     Layer 6
+ *     MsgPanel         Messages  Bottom  Layer 6
+ *     Libraries        Palette   Left    Layer 2  no caption  Min 100  Best 200
+ *     Symbols          Palette   Left    Layer 1  no caption  Min 100  Best 300
+ *     DrawFrame        Canvas    Center
+ *
+ * Each palette is one wxPanel holding a wxSearchCtrl over a WX_LISTBOX, laid out by the shared
+ * `.ze-palette-pane` rules (`shell.css`) the Footprint Library Browser's panes use too.
+ *
+ * The hosted libraries are the global table, as the Symbol Editor sets it. They are read the way
+ * the program reads them: listed once the preload has their items, a symbol's own file fetched
+ * when the browser lands on it ({@link hostedSymbolHooks}).
  */
-
-import { useCallback, useEffect, useMemo, useRef, useState, type JSX, type ReactNode } from 'react';
-import type { LibSymbol } from './types.js';
 import {
-  filterLibraries,
-  filterSymbols,
-  hasDeMorgan,
-  symbolName,
-  unitCount,
-  type SYMBOL_VIEWER_FRAME_APP,
-} from './symbol_viewer_frame.js';
+  type JSX,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useReducer,
+  useRef,
+  useState,
+} from 'react';
+import { ShowAboutDialog } from '@ziroeda/common/dialog_about/AboutDialog_main.js';
+import { hostedLibraryTable } from '@ziroeda/common/dialogs/lib_table_panel.js';
+import { ABOUT_TITLES } from '@ziroeda/common/eda_base_frame_about_titles.js';
+import { FRAME_T } from '@ziroeda/common/frame_type.js';
+import { loadBitmapFontImage } from '@ziroeda/common/gal/gal_window.js';
+import { showHotkeyList } from '@ziroeda/common/hotkeys_basic.js';
+import type { KIWAY } from '@ziroeda/common/kiway.js';
+import type { LIB_ID } from '@ziroeda/common/lib_id.js';
 import {
-  DEMORGAN_ALT,
-  DEMORGAN_STD,
-  TOP_TOOLBAR,
-  buildSymbolViewerMenus,
-  unitDisplayName,
-} from './toolbars_symbol_viewer.js';
-import { symbolProperty, type LibIndexEntry } from './libraries/symbol_library_adapter.js';
-import { GetAssociatedDocument } from '@ziroeda/common/eda_doc.js';
+  LIBRARY_TABLE_SCOPE,
+  LIBRARY_TABLE_TYPE,
+} from '@ziroeda/common/libraries/library_table.js';
+import { Pgm } from '@ziroeda/common/pgm_base.js';
+import { strNumCmp } from '@ziroeda/common/string_utils.js';
+import { wasBrowserSuppressed } from '@ziroeda/common/browser_hotkeys.js';
+import { ACTIONS } from '@ziroeda/common/tool/actions.js';
 import { Toolbar } from '@ziroeda/common/tool/action_toolbar.js';
-import {
-  fitSymbol,
-  renderSymbolScene,
-  type SymbolViewOptions,
-  type Viewport,
-} from './symbol_editor/symbol_renderer.js';
-import { useModalEscape } from '@ziroeda/common/dialog_shim.js';
-import { MsgPanel } from '@ziroeda/common/widgets/msgpanel_ui.js';
-import { Sash } from '@ziroeda/common/widgets/wx_splitter_window.js';
+import type { TOOL_ACTION } from '@ziroeda/common/tool/tool_action.js';
+import { useMenuHotkeys } from '@ziroeda/common/tool/use_menu_hotkeys.js';
+import { useDocumentTitle } from '@ziroeda/common/use_document_title.js';
+import { KISTATUSBAR_FIELDS, KiStatusBar } from '@ziroeda/common/widgets/kistatusbar.js';
+import { MsgPanel, type MsgPanelItem } from '@ziroeda/common/widgets/msgpanel_ui.js';
+import { WxListBox } from '@ziroeda/common/widgets/wx_listbox.js';
+import type { wxChoice } from '@ziroeda/wx/choice.js';
+import { Combo } from '@ziroeda/wx/combobox.js';
 import { MenuBar } from '@ziroeda/wx/menu_ui.js';
-import { dispatchMenuHotkey } from '@ziroeda/common/tool/action_menu_hotkeys.js';
-import type { FocusLike } from '@ziroeda/common/browser_hotkeys.js';
-// LIB_TREE_MODEL_ADAPTER::GetPinningSymbol.
-import { PINNING_SYMBOL } from '@ziroeda/common/lib_tree_model_adapter.js';
+import { DockSash } from '@ziroeda/wx/wx_aui_sash.js';
+import { WxSearchCtrl } from '@ziroeda/wx/wx_search_ctrl.js';
+import { createSchDrawPanel } from './browser/sch_canvas.js';
+import { LIB_TREE_ITEM_SYMBOL, type LibTreeItem } from './lib_tree_item.js';
+import {
+  fetchHostedSymbolFile,
+  hostedSymbolLibraryUri,
+  type LibIndexEntry,
+  libraryLoaded,
+  loadedLibraryItems,
+  preloadLibraryItems,
+  SYMBOL_TYPE,
+} from './libraries/symbol_library_adapter.js';
+import { SymbolLibAdapter } from './project_sch.js';
+import type { SCH_DRAW_PANEL } from './sch_draw_panel.js';
+import { SYMBOL_VIEWER_FRAME, type SYMBOL_VIEWER_FRAME_HOOKS } from './symbol_viewer_frame.js';
+import { SCH_ACTIONS } from './tools/sch_actions.js';
+import {
+  SYMBOL_VIEWER_CHOICE_WIDTH,
+  symbolViewerMenus,
+  TOP_TOOLBAR,
+} from './toolbars_symbol_viewer.js';
+import '@ziroeda/common/widgets/shell.css';
 
-interface Props {
-  app: SYMBOL_VIEWER_FRAME_APP;
-  onPick: (lib: LibSymbol) => void;
-  onClose: () => void;
+/**
+ * What the window asks of the program. `eeschema` never imports `designer`; the designer's
+ * `symbol_viewer_frame_app.tsx` is the one file that answers it.
+ */
+export interface SYMBOL_VIEWER_FRAME_APP {
+  /** The symbol library index: the hosted set, with the tables' other rows beside it. */
+  loadIndex(): Promise<readonly LibIndexEntry[]>;
+  /** The colour theme in use; a change is `CommonSettingsChanged`. */
+  useSchematicTheme(): unknown;
+  /** The home link in the title bar. */
+  HomeLink(props: { onClick?: () => void }): ReactNode;
+  /** The busy panel the library list shows while the index is fetched. */
+  LibraryLoadingPanel(props: { label: string; fallback: JSX.Element | null }): ReactNode;
 }
 
-export function SymbolLibraryBrowser({ app, onPick, onClose }: Props): JSX.Element {
-  // wxDialog maps Esc to wxID_CANCEL for free; ours has to ask. See
-  // ui/modal_escape.ts.
-  useModalEscape(onClose);
+export interface SymbolViewerFrameProps {
+  app: SYMBOL_VIEWER_FRAME_APP;
+  kiway?: KIWAY;
+  /** The frame is the one on screen: a change to true is `EVT_ACTIVATE` (`OnActivate`). */
+  active?: boolean;
+  /** `Close()`: File > Close. */
+  onClose: () => void;
+  /** The home link: back to the project manager. */
+  onExitToHome?: () => void;
+}
 
+/** The view stamp App writes on `<body>` while this frame is the one on screen. */
+export const SYMVIEWER_VIEW = 'symviewer';
+
+/** `.BestSize( 200, -1 )` / `.BestSize( 300, -1 )` (`:211-214`). [data] */
+const LIB_LIST_BEST_WIDTH = 200;
+const SYMBOL_LIST_BEST_WIDTH = 300;
+/** `.MinSize( 100, -1 )` on both palettes. [data] */
+const LIST_MIN_WIDTH = 100;
+
+/** The constructor's title, before DisplayLibInfos has a library to name. */
+const FRAME_TITLE = 'Symbol Library Browser';
+
+/** What the hosted libraries are read through: the program's preload and its per-symbol fetch. */
+export interface SYMBOL_VIEWER_LIBRARY_SOURCE {
+  /** `GetLibraryStatus( lib )->load_status == LOAD_STATUS::LOADED`, as the preload has it. */
+  libraryLoaded(aLib: string): boolean;
+  /** The preloaded items of a LOADED library. */
+  loadedLibraryItems(aLib: string): readonly LibTreeItem[] | undefined;
+  /** One symbol's file fetched into its library's folder; null when the host has none. */
+  fetchSymbolFile(aLibId: LIB_ID): Promise<string | null>;
+}
+
+export const HOSTED_SYMBOL_SOURCE: SYMBOL_VIEWER_LIBRARY_SOURCE = {
+  libraryLoaded,
+  loadedLibraryItems,
+  fetchSymbolFile: fetchHostedSymbolFile,
+};
+
+/**
+ * Whether \a aLib is a hosted library: a row of the global table, which the hosted set is. A
+ * project row of the same nickname shadows it and is read as any other row.
+ */
+function isHostedLibrary(aLib: string): boolean {
+  const row = SymbolLibAdapter(Pgm().GetSettingsManager().Prj()).GetRow(aLib);
+
+  return !!row && row.Scope() === LIBRARY_TABLE_SCOPE.GLOBAL;
+}
+
+/**
+ * The frame's library source over the hosted set. A hosted library is LOADED once the preload has
+ * its items (the chooser counts it the same way), lists its symbols from them, and has a symbol's
+ * own file fetched, then the library re-read, when the browser lands on that symbol. Every other
+ * row is the adapter's.
+ */
+export function hostedSymbolHooks(
+  aSource: SYMBOL_VIEWER_LIBRARY_SOURCE = HOSTED_SYMBOL_SOURCE,
+): Required<Pick<SYMBOL_VIEWER_FRAME_HOOKS, 'getLibraryNames' | 'getSymbols' | 'ensureSymbol'>> {
+  const adapter = () => SymbolLibAdapter(Pgm().GetSettingsManager().Prj());
+
+  return {
+    // `GetLibraryNames()`: the loaded rows, `StrNumCmp` case-insensitive (library_manager.cpp).
+    getLibraryNames: () => {
+      const names = new Set(adapter().GetLibraryNames());
+
+      for (const row of Pgm().GetLibraryManager().Rows(LIBRARY_TABLE_TYPE.SYMBOL)) {
+        const nickname = row.Nickname();
+
+        if (row.Scope() === LIBRARY_TABLE_SCOPE.GLOBAL && aSource.libraryLoaded(nickname))
+          names.add(nickname);
+      }
+
+      return [...names].sort((a, b) => strNumCmp(a, b, true));
+    },
+
+    getSymbols: (aLib, aType) => {
+      if (!isHostedLibrary(aLib)) return undefined;
+
+      return (aSource.loadedLibraryItems(aLib) ?? [])
+        .filter((item) => aType !== SYMBOL_TYPE.POWER_ONLY || item.isPower)
+        .map((item) => new LIB_TREE_ITEM_SYMBOL(aLib, item));
+    },
+
+    ensureSymbol: async (aLibId) => {
+      const lib = aLibId.GetLibNickname();
+
+      if (!isHostedLibrary(lib)) return false;
+
+      if (!(await aSource.fetchSymbolFile(aLibId))) return false;
+
+      adapter().LoadOne(lib);
+      return true;
+    },
+  };
+}
+
+/** The TOOL_ACTION a toolbar or menu id runs: every id is `SCH_ACTIONS[id]` or `ACTIONS[id]`. */
+function actionForId(aId: string): TOOL_ACTION | null {
+  for (const table of [SCH_ACTIONS, ACTIONS]) {
+    const action = (table as unknown as Record<string, unknown>)[aId];
+
+    if (action && typeof action === 'object' && 'MakeEvent' in action) return action as TOOL_ACTION;
+  }
+
+  return null;
+}
+
+/** A frame `wxChoice`, drawn: its strings, its selection, its enabled state. */
+function ChoiceControl({
+  choice,
+  title,
+  onSelect,
+}: {
+  choice: wxChoice;
+  title: string;
+  onSelect: () => void;
+}): JSX.Element {
+  return (
+    <Combo
+      title={title}
+      style={{ width: SYMBOL_VIEWER_CHOICE_WIDTH }}
+      disabled={!choice.IsEnabled()}
+      value={String(choice.GetSelection())}
+      options={choice.GetStrings().map((label, i) => ({ value: String(i), label }))}
+      onChange={(v) => {
+        // `EVT_CHOICE`: the selection is the control's before the handler reads it.
+        choice.SetSelection(Number(v));
+        onSelect();
+      }}
+    />
+  );
+}
+
+export function SymbolViewerFrame({
+  app,
+  kiway,
+  active = true,
+  onClose,
+  onExitToHome,
+}: SymbolViewerFrameProps): JSX.Element {
+  const [, repaint] = useReducer((n: number) => n + 1, 0);
   const theme = app.useSchematicTheme();
-  const cfg = app.settings.eeschema.lib_view;
 
-  const [index, setIndex] = useState<LibIndexEntry[]>([]);
-  const [libFilter, setLibFilter] = useState('');
-  const [symFilter, setSymFilter] = useState('');
-  // m_currentSymbol: the LIB_ID the frame is parked on (library + item name).
-  const [curLib, setCurLib] = useState<string | null>(null);
-  const [curSym, setCurSym] = useState<string | null>(null);
-  // The selected library, loaded whole: the symbol filter scores keywords,
-  // description and pin count, not just names (ReCreateSymbolList).
-  const [libSymbols, setLibSymbols] = useState<LibSymbol[]>([]);
-  const [fetching, setFetching] = useState(false);
-  const [unit, setUnit] = useState(1);
-  const [bodyStyle, setBodyStyle] = useState(1);
-  const [showElectricalTypes, setShowElectricalTypes] = useState(cfg.show_pin_electrical_type);
-  // m_ShowPinNumbers is not a persisted param upstream, it starts off.
-  const [showPinNumbers, setShowPinNumbers] = useState(false);
-  const [libWidth, setLibWidth] = useState(cfg.lib_list_width);
-  const [symWidth, setSymWidth] = useState(cfg.cmp_list_width);
-  const [status, setStatus] = useState('');
+  const mounted = useRef(false);
+  const titleRef = useRef(FRAME_TITLE);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  const libWidthRef = useRef(0);
+  const symbolWidthRef = useRef(0);
 
-  // m_selection_changed: a manual pick resets unit/body style on the next symbol.
-  const selectionChanged = useRef(false);
-  // Which list the arrow keys drive (OnCharHook asks the focused widget).
-  const libPaneFocused = useRef(true);
-  const libFilterRef = useRef<HTMLInputElement>(null);
-  const symFilterRef = useRef<HTMLInputElement>(null);
+  const [frame] = useState(() => {
+    const f: SYMBOL_VIEWER_FRAME = new SYMBOL_VIEWER_FRAME({
+      setTitle: (aTitle) => {
+        titleRef.current = aTitle;
+        if (mounted.current) repaint();
+      },
+      close: () => closeRef.current(),
+      ...hostedSymbolHooks(),
+      getListWidth: (aList) =>
+        aList === f.m_libList ? libWidthRef.current : symbolWidthRef.current,
+    });
 
+    // The constructor reads its settings before it lays the panes out.
+    const cfg = f.config();
+    if (cfg) f.LoadSettings(cfg);
+
+    return f;
+  });
+
+  // `if( m_libListWidth > 0 ) SetAuiPaneSize( ... )`, else the pane's BestSize (`:217-221`).
+  const [libWidth, setLibWidth] = useState(() =>
+    frame.m_libListWidth > 0 ? frame.m_libListWidth : LIB_LIST_BEST_WIDTH,
+  );
+  const [symbolWidth, setSymbolWidth] = useState(() =>
+    frame.m_symbolListWidth > 0 ? frame.m_symbolListWidth : SYMBOL_LIST_BEST_WIDTH,
+  );
+  libWidthRef.current = libWidth;
+  symbolWidthRef.current = symbolWidth;
+
+  // Each widget the frame owns repaints the window when the frame changes it.
   useEffect(() => {
+    mounted.current = true;
+    const widgets = [
+      frame.m_libFilter,
+      frame.m_libList,
+      frame.m_symbolFilter,
+      frame.m_symbolList,
+      frame.m_unitChoice,
+      frame.m_bodyStyleChoice,
+    ];
+
+    for (const w of widgets) w.SetChangeListener(repaint);
+
+    repaint();
+
+    return () => {
+      mounted.current = false;
+      for (const w of widgets) w.SetChangeListener(null);
+    };
+  }, [frame]);
+
+  // `KIWAY::Player()` records the frame it made; its close tells KIWAY it is gone.
+  useEffect(() => {
+    if (!kiway) return;
+    frame.SetKiway(kiway);
+    kiway.SetPlayerFrame(FRAME_T.FRAME_SCH_VIEWER, frame);
+    return () => {
+      kiway.PlayerDidClose(FRAME_T.FRAME_SCH_VIEWER, frame);
+      frame.SetKiway(null);
+    };
+  }, [kiway, frame]);
+
+  // ----- the libraries -------------------------------------------------------------
+  const [indexLoaded, setIndexLoaded] = useState(false);
+
+  // The hosted libraries as the global table, then each one listed as its preload lands - the
+  // library status changing to LOADED - in one rebuild per batch.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the index loader is the trigger
+  useEffect(() => {
+    let cancelled = false;
+    let queued = false;
+
+    const rebuild = (): void => {
+      if (queued) return;
+      queued = true;
+      setTimeout(() => {
+        queued = false;
+        if (cancelled) return;
+        frame.ReCreateLibList();
+        repaint();
+      }, 0);
+    };
+
     app
       .loadIndex()
-      .then((entries) => setIndex([...entries]))
-      .catch(() => setIndex([]));
-    // Once per mount, as the constructor's ReCreateLibList did: `app` is stable.
-  }, [app]);
+      .then((idx) => {
+        if (cancelled) return;
 
-  const libs = useMemo(
-    () => filterLibraries(index, libFilter, app.settings.common.system.session.pinned_symbol_libs),
-    [index, libFilter, app.settings.common.system.session.pinned_symbol_libs],
-  );
+        Pgm()
+          .GetLibraryManager()
+          .SetTable(
+            LIBRARY_TABLE_TYPE.SYMBOL,
+            LIBRARY_TABLE_SCOPE.GLOBAL,
+            hostedLibraryTable(
+              LIBRARY_TABLE_TYPE.SYMBOL,
+              idx.map((l) => l.name),
+              hostedSymbolLibraryUri,
+            ),
+          );
 
-  // Load the selected library (SYMBOL_LIBRARY_ADAPTER::GetSymbols).
-  useEffect(() => {
-    if (!curLib) {
-      setLibSymbols([]);
-      return;
-    }
-    let cancelled = false;
-    setFetching(true);
-    app
-      .loadLibrarySymbols(curLib)
-      .then((syms) => {
-        if (!cancelled) setLibSymbols(syms);
+        setIndexLoaded(true);
+        rebuild();
+
+        for (const row of Pgm().GetLibraryManager().Rows(LIBRARY_TABLE_TYPE.SYMBOL)) {
+          const nickname = row.Nickname();
+
+          if (row.Scope() === LIBRARY_TABLE_SCOPE.GLOBAL && !libraryLoaded(nickname))
+            preloadLibraryItems(nickname).then(rebuild, () => {});
+        }
       })
-      .catch(() => {
-        if (!cancelled) setLibSymbols([]);
-      })
-      .finally(() => {
-        if (!cancelled) setFetching(false);
-      });
+      .catch(() => setIndexLoaded(true));
+
     return () => {
       cancelled = true;
     };
-  }, [curLib, app]);
+  }, [app.loadIndex]);
 
-  const symbols = useMemo(() => filterSymbols(libSymbols, symFilter), [libSymbols, symFilter]);
-
-  const previewSym = useMemo(
-    () => symbols.find((s) => symbolName(s) === curSym) ?? null,
-    [symbols, curSym],
-  );
-
-  // ReCreateSymbolList's tail: a selection that the current list no longer
-  // holds is dropped, and with it the unit / body style.
-  useEffect(() => {
-    if (curSym && !symbols.some((s) => symbolName(s) === curSym)) {
-      setCurSym(null);
-      setUnit(1);
-      setBodyStyle(1);
-    }
-  }, [symbols, curSym]);
-
-  /** SetSelectedSymbol: park on a symbol, resetting unit/body style on a manual pick. */
-  const selectSymbol = useCallback(
-    (name: string) => {
-      if (curSym === name) return;
-      if (selectionChanged.current) {
-        setUnit(1);
-        setBodyStyle(1);
-        selectionChanged.current = false;
-      }
-      setCurSym(name);
-    },
-    [curSym],
-  );
-
-  /** SetSelectedLibrary: switching library rebuilds the symbol list from scratch. */
-  const selectLibrary = useCallback(
-    (name: string) => {
-      selectionChanged.current = true;
-      if (curLib === name) return;
-      setCurLib(name);
-      setCurSym(null);
-      setUnit(1);
-      setBodyStyle(1);
-    },
-    [curLib],
-  );
-
-  // ----- canvas ------------------------------------------------------------
-
+  // ----- the canvas ------------------------------------------------------------------
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const viewportRef = useRef<Viewport | null>(null);
-  const [size, setSize] = useState({ w: 0, h: 0 });
+  const [fontImage, setFontImage] = useState<ImageBitmap | null>(null);
+  const [panel, setPanel] = useState<SCH_DRAW_PANEL | null>(null);
 
-  const opts: SymbolViewOptions = useMemo(
-    () => ({
-      unit,
-      bodyStyle,
-      showPinElectricalTypes: showElectricalTypes,
-      forcePinNumbers: showPinNumbers,
-      // The viewer's GAL shows the symbol as drawn: no hidden pins/fields.
-      showHiddenPins: false,
-      showHiddenFields: false,
-      // The Symbol Library Browser is a viewer over the library table, and
-      // `SYMBOL_VIEWER_FRAME` has no Display Options page of its own — the
-      // setting belongs to the Symbol EDITOR. Upstream's viewer leaves the
-      // render setting at `SCH_RENDER_SETTINGS`' default, which is false
-      // (`sch_render_settings.cpp:44`).
-      showPinAltIcons: false,
-    }),
-    [unit, bodyStyle, showElectricalTypes, showPinNumbers],
+  useEffect(() => {
+    let cancelled = false;
+    loadBitmapFontImage().then(
+      (img) => {
+        if (!cancelled) setFontImage(img);
+      },
+      (err: unknown) => console.warn(`Could not use OpenGL: ${(err as Error).message}`),
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // SaveSettings when the frame closes, while the canvas - and so the render settings - is still
+  // there: declared before the canvas, so its cleanup runs first.
+  useEffect(
+    () => () => {
+      const cfg = frame.config();
+      if (cfg) frame.SaveSettings(cfg);
+    },
+    [frame],
   );
 
-  const draw = useCallback(() => {
-    const canvas = canvasRef.current;
-    const vp = viewportRef.current;
-    if (!canvas || !vp) return;
-    const ctx = canvas.getContext('2d');
-    if (ctx) renderSymbolScene(ctx, previewSym, vp, theme, canvas.width, canvas.height, opts);
-  }, [previewSym, theme, opts]);
-
-  // The refit effect below must repaint with the newest draw() without being
-  // re-run by it (a display toggle repaints, it does not refit).
-  const drawRef = useRef(draw);
   useEffect(() => {
-    drawRef.current = draw;
+    const canvas = canvasRef.current;
+
+    if (!canvas || !fontImage) return;
+
+    const built = createSchDrawPanel(frame, canvas, fontImage);
+
+    if (!built) return;
+
+    frame.ActivateGalCanvas();
+    setPanel(built);
+    repaint();
+
+    return () => {
+      // The destructor: the preview leaves the view before the view goes.
+      if (frame.m_previewItem) {
+        built.GetView().Remove(frame.m_previewItem);
+        frame.m_previewItem = null;
+      }
+
+      built.Destroy();
+      frame.SetCanvas(null);
+      setPanel(null);
+    };
+  }, [frame, fontImage]);
+
+  // `CommonSettingsChanged`: the colour theme into the view.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the theme is the trigger; the frame reads it
+  useEffect(() => {
+    if (panel) frame.CommonSettingsChanged();
+  }, [panel, theme]);
+
+  // `OnActivate`: the frame coming to the front re-reads the libraries.
+  useEffect(() => {
+    if (active && panel) {
+      frame.OnActivate();
+      repaint();
+    }
+  }, [frame, active, panel]);
+
+  // The status bar and the message panel.
+  const statusRefs = useRef<Record<string, HTMLSpanElement | null>>({});
+  const [msgItems, setMsgItems] = useState<MsgPanelItem[]>([]);
+  useEffect(() => {
+    frame.SetStatusTextSink((aText, aField) => {
+      const name = KISTATUSBAR_FIELDS[aField];
+      const el = name ? statusRefs.current[name] : null;
+      if (el) el.textContent = aText;
+    });
+    frame.SetMsgPanelSink((aItems) =>
+      setMsgItems(aItems.map((i) => ({ upper: i.GetUpperText(), lower: i.GetLowerText() }))),
+    );
+    return () => {
+      frame.SetStatusTextSink(null);
+      frame.SetMsgPanelSink(null);
+    };
+  }, [frame]);
+  const statusSpan = (name: string): JSX.Element => (
+    <span
+      ref={(el) => {
+        statusRefs.current[name] = el;
+      }}
+    />
+  );
+
+  // ----- focus: the frame's SetFocus() moves it; the page reports it back -----------------
+  const rootRef = useRef<HTMLDivElement>(null);
+  const libFilterRef = useRef<HTMLInputElement>(null);
+  const symbolFilterRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const listOf = (aTestId: string): HTMLElement | null =>
+      rootRef.current?.querySelector<HTMLElement>(`[data-testid="${aTestId}"]`) ?? null;
+
+    if (frame.m_libFilter.TakeFocusRequest()) libFilterRef.current?.focus();
+    if (frame.m_symbolFilter.TakeFocusRequest()) symbolFilterRef.current?.focus();
+    if (frame.m_libList.TakeFocusRequest()) listOf('symviewer-lib-list')?.focus();
+    if (frame.m_symbolList.TakeFocusRequest()) listOf('symviewer-sym-list')?.focus();
   });
 
-  /** ACTIONS::zoomFitScreen, the viewer runs it after every symbol change. */
-  const zoomFit = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || canvas.width === 0) return;
-    viewportRef.current = fitSymbol(previewSym, unit, bodyStyle, canvas.width, canvas.height);
-    draw();
-  }, [previewSym, unit, bodyStyle, draw]);
+  /** `TOOL_MANAGER::RunAction`, as a menu row or a toolbar button runs it. */
+  const runAction = useCallback(
+    (aId: string) => {
+      const action = actionForId(aId);
 
-  const zoomAbout = useCallback(
-    (px: number, py: number, factor: number) => {
-      const vp = viewportRef.current;
-      if (!vp) return;
-      const wx = (px - vp.offsetX) / vp.scale;
-      const wy = (py - vp.offsetY) / vp.scale;
-      const scale = vp.scale * factor;
-      viewportRef.current = { scale, offsetX: px - wx * scale, offsetY: py - wy * scale };
-      draw();
+      if (action) frame.GetToolManager()?.RunAction(action);
+
+      repaint();
     },
-    [draw],
+    [frame],
   );
 
+  // ----- OnCharHook (`:920-985`) -------------------------------------------------------
   useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(() => setSize({ w: el.clientWidth, h: el.clientHeight }));
+    // Capture phase: EVT_CHAR_HOOK reaches the frame before the focused control.
+    const onKey = (e: KeyboardEvent): void => {
+      if ((document.body.dataset.activeView ?? SYMVIEWER_VIEW) !== SYMVIEWER_VIEW) return;
+      // A menu accelerator that ran has already prevented the key; our own browser suppressor
+      // prevents keys too, and that is not a handler.
+      if (e.defaultPrevented && !wasBrowserSuppressed(e)) return;
+
+      if (frame.OnCharHook(e.key, e.shiftKey)) {
+        e.preventDefault();
+        repaint();
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [frame]);
+
+  // ----- menus (doReCreateMenuBar) ------------------------------------------------------
+  const [aboutOpen, setAboutOpen] = useState(false);
+  const menus = symbolViewerMenus({
+    close: () => frame.CloseLibraryViewer(),
+    action: runAction,
+    showHotkeys: showHotkeyList,
+    showAbout: () => setAboutOpen(true),
+    electricalTypesShown: frame.ConditionElectricalTypesShown(),
+    pinNumbersShown: frame.ConditionPinNumbersShown(),
+  });
+  useMenuHotkeys(menus, SYMVIEWER_VIEW);
+
+  /** `setupUIConditions()` (`:297-333`): the two CHECK toggles, lit... */
+  const lit = new Set<string>();
+  if (frame.ConditionElectricalTypesShown()) lit.add('showElectricalTypes');
+  if (frame.ConditionPinNumbersShown()) lit.add('showPinNumbers');
+
+  /** ...and Show Datasheet's ENABLE. */
+  const disabled = new Set<string>();
+  if (!frame.ConditionShowDatasheet()) disabled.add('showDatasheet');
+
+  // ----- the frame's size, and the two palettes' widths ---------------------------------------
+  // `GetWindowSize()` for SaveWindowSettings: the last size the frame was shown at - a hidden frame
+  // measures nothing, and its saved size is the one it had on screen.
+  const windowSize = useRef<{ x: number; y: number } | null>(null);
+  useEffect(() => {
+    frame.SetWindowSizeSource(() => windowSize.current);
+    return () => frame.SetWindowSizeSource(null);
+  }, [frame]);
+
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const [bodyWidth, setBodyWidth] = useState(0);
+  useEffect(() => {
+    const root = rootRef.current;
+    const el = bodyRef.current;
+    if (!root || !el || typeof ResizeObserver === 'undefined') return;
+    const measure = (): void => {
+      setBodyWidth(el.clientWidth);
+      if (root.offsetWidth > 0 && root.offsetHeight > 0)
+        windowSize.current = { x: root.offsetWidth, y: root.offsetHeight };
+    };
+    const ro = new ResizeObserver(measure);
+    ro.observe(root);
     ro.observe(el);
-    setSize({ w: el.clientWidth, h: el.clientHeight });
+    measure();
     return () => ro.disconnect();
   }, []);
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || size.w === 0 || size.h === 0) return;
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.floor(size.w * dpr);
-    canvas.height = Math.floor(size.h * dpr);
-    viewportRef.current = fitSymbol(previewSym, unit, bodyStyle, canvas.width, canvas.height);
-    drawRef.current();
-    // The frame refits on a resize and after every updatePreviewSymbol (which
-    // ends in zoomFitScreen); the display toggles only repaint.
-  }, [size, previewSym, unit, bodyStyle]);
-
-  useEffect(draw, [draw]);
-
-  // ----- toolbar actions ---------------------------------------------------
-
-  const shownIndex = symbols.findIndex((s) => symbolName(s) === curSym);
-
-  /** SelectNextSymbol / SelectPreviousSymbol: step, stopping at either end. */
-  const stepSymbol = useCallback(
-    (delta: number) => {
-      if (symbols.length === 0) return;
-      const next = Math.min(symbols.length - 1, Math.max(0, shownIndex + delta));
-      const sym = symbols[next];
-      if (sym) selectSymbol(symbolName(sym));
-    },
-    [symbols, shownIndex, selectSymbol],
-  );
-
-  const showDatasheet = useCallback(() => {
-    // SCH_INSPECTION_TOOL::ShowDatasheet (sch_inspection_tool.cpp:483-519).
-    if (!previewSym) return;
-    const datasheet = symbolProperty(previewSym, 'Datasheet');
-    if (datasheet === '' || datasheet === '~') setStatus('No datasheet defined.');
-    else GetAssociatedDocument(datasheet, null);
-  }, [previewSym]);
-
-  const addToSchematic = useCallback(() => {
-    if (previewSym) onPick(previewSym);
-  }, [previewSym, onPick]);
-
-  const onAction = useCallback(
-    (id: string) => {
-      switch (id) {
-        case 'previousSymbol':
-          stepSymbol(-1);
-          break;
-        case 'nextSymbol':
-          stepSymbol(1);
-          break;
-        case 'zoomRedraw':
-          draw();
-          break;
-        case 'zoomInCenter': {
-          const c = canvasRef.current;
-          if (c) zoomAbout(c.width / 2, c.height / 2, 1.25);
-          break;
-        }
-        case 'zoomOutCenter': {
-          const c = canvasRef.current;
-          if (c) zoomAbout(c.width / 2, c.height / 2, 0.8);
-          break;
-        }
-        case 'zoomFitScreen':
-          zoomFit();
-          break;
-        case 'showElectricalTypes': {
-          const next = !showElectricalTypes;
-          setShowElectricalTypes(next);
-          app.settings.updateEeschema((s) => (s.lib_view.show_pin_electrical_type = next));
-          break;
-        }
-        case 'showPinNumbers':
-          setShowPinNumbers((v) => !v);
-          break;
-        case 'showDatasheet':
-          showDatasheet();
-          break;
-        case 'addSymbolToSchematic':
-          addToSchematic();
-          break;
-      }
-    },
-    [stepSymbol, draw, zoomAbout, zoomFit, showDatasheet, addToSchematic, showElectricalTypes, app],
-  );
-
-  const toggled = useMemo(() => {
-    const on = new Set<string>();
-    if (showElectricalTypes) on.add('showElectricalTypes');
-    if (showPinNumbers) on.add('showPinNumbers');
-    return on;
-  }, [showElectricalTypes, showPinNumbers]);
-
-  // setupUIConditions: Show Datasheet needs one, Add Symbol needs a selection.
-  const disabledIds = useMemo(() => {
-    const off = new Set<string>();
-    if (!previewSym || !symbolProperty(previewSym, 'Datasheet')) off.add('showDatasheet');
-    if (!previewSym) off.add('addSymbolToSchematic');
-    if (symbols.length === 0) {
-      off.add('previousSymbol');
-      off.add('nextSymbol');
-    }
-    return off;
-  }, [previewSym, symbols.length]);
-
-  // ----- menus (toolbars_symbol_viewer.ts's buildSymbolViewerMenus) --------
-
-  const menus = useMemo(
-    () => buildSymbolViewerMenus({ onClose, onAction, showElectricalTypes, showPinNumbers }),
-    [onClose, onAction, showElectricalTypes, showPinNumbers],
-  );
-
-  // ----- keyboard (SYMBOL_VIEWER_FRAME::OnCharHook) ------------------------
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent): void => {
-      // The menu rows own their own accelerators - Close, Zoom to Fit, Refresh
-      // - and `modalFloor: 1` is this frame being a modal itself, exactly as
-      // CVPCB's dialog does it. Nothing below re-states a key a row declares.
-      if (dispatchMenuHotkey(menus, e, { target: e.target as FocusLike, modalFloor: 1 })) {
-        e.preventDefault();
-        return;
-      }
-      // Escape is the dialog's Cancel and belongs to the modal stack, not here
-      // - see ui/modal_escape.ts, and useModalEscape above.
-      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-        const delta = e.key === 'ArrowUp' ? -1 : 1;
-        if (libPaneFocused.current) {
-          const at = libs.findIndex((l) => l.name === curLib);
-          const next = at + delta;
-          if (next >= 0 && next < libs.length) selectLibrary(libs[next]!.name);
-        } else {
-          stepSymbol(delta);
-        }
-        e.preventDefault();
-      } else if (e.key === 'Tab' && document.activeElement === libFilterRef.current) {
-        if (!e.shiftKey) {
-          symFilterRef.current?.focus();
-          e.preventDefault();
-        }
-      } else if (e.key === 'Tab' && document.activeElement === symFilterRef.current) {
-        if (e.shiftKey) {
-          libFilterRef.current?.focus();
-          e.preventDefault();
-        }
-      } else if (e.key === 'Enter' && previewSym) {
-        e.preventDefault();
-        addToSchematic();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [menus, onClose, libs, curLib, selectLibrary, stepSymbol, previewSym, addToSchematic]);
-
-  // ----- pane sashes (the AUI "Libraries" / "Symbols" pane widths) ----------
-
-  const bodyRef = useRef<HTMLDivElement>(null);
-  // Both sashes are `ui/Sash`, the shared wxSplitterWindow one; what stays
-  // here is only where each position is persisted.
-  const bodyBox = (): DOMRect | undefined => bodyRef.current?.getBoundingClientRect();
-  const setLibSash = (w: number): void => {
-    setLibWidth(w);
-    app.settings.updateEeschema((s) => (s.lib_view.lib_list_width = w));
-  };
-  const setSymSash = (w: number): void => {
-    setSymWidth(w);
-    app.settings.updateEeschema((s) => (s.lib_view.cmp_list_width = w));
-  };
-
-  // ----- toolbar controls (unit / body style choices) ----------------------
-
-  const units = previewSym ? unitCount(previewSym) : 1;
-  const bodyStyles = previewSym && hasDeMorgan(previewSym) ? 2 : 1;
-
-  const controls: Record<string, ReactNode> = {
-    bodyStyleSelector: (
-      <select
-        className="ze-tb-choice"
-        aria-label="Body style"
-        disabled={bodyStyles <= 1}
-        value={bodyStyle}
-        onChange={(e) => setBodyStyle(Number(e.target.value))}
-      >
-        {bodyStyles > 1 ? (
-          <>
-            <option value={1}>{DEMORGAN_STD}</option>
-            <option value={2}>{DEMORGAN_ALT}</option>
-          </>
-        ) : null}
-      </select>
-    ),
-    unitSelector: (
-      <select
-        className="ze-tb-choice"
-        aria-label="Unit"
-        disabled={units <= 1}
-        value={unit}
-        onChange={(e) => setUnit(Number(e.target.value))}
-      >
-        {units > 1
-          ? Array.from({ length: units }, (_, i) => unitDisplayName(i + 1)).map((name, i) => (
-              <option key={name} value={i + 1}>
-                {name}
-              </option>
-            ))
-          : null}
-      </select>
-    ),
-  };
-
-  // DisplayLibInfos: the frame title carries the selected library's full URI.
-  const title = curLib
-    ? `${app.libraryUri(curLib)}, Symbol Library Browser`
-    : 'Symbol Library Browser';
-
-  const description = previewSym ? symbolProperty(previewSym, 'Description') : '';
-  const keywords = previewSym ? symbolProperty(previewSym, 'ki_keywords') : '';
-  const parent = previewSym?.extends ?? '';
+  const title = titleRef.current;
+  useDocumentTitle(SYMVIEWER_VIEW, title);
 
   return (
-    <div className="ze-modal-backdrop" onMouseDown={onClose}>
-      <div
-        className="ze-modal ze-lib-viewer"
-        // `wxBusyCursor` while a library is read (SYMBOL_VIEWER_FRAME::ReCreateLibList
-        // and every library load in eeschema): the pointer says busy, the
-        // canvas stays as it is. Here the read is a fetch, so the wait is
-        // real, but it is still not a thing drawn over the canvas.
-        style={fetching ? { cursor: 'progress' } : undefined}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <div className="ze-modal-header" title={title}>
-          <span className="ze-lib-viewer-title">{title}</span>
-          <span className="x" title="Close" onClick={onClose}>
-            ✕
-          </span>
-        </div>
+    <div className="ze-app" ref={rootRef} data-testid="symviewer-frame">
+      <MenuBar menus={menus} leftSlot={app.HomeLink({ onClick: onExitToHome })} title={title} />
 
-        <MenuBar menus={menus} />
-
-        <Toolbar
-          entries={TOP_TOOLBAR}
-          orientation="horizontal"
-          toggled={toggled}
-          disabledIds={disabledIds}
-          onActivate={onAction}
-          controls={controls}
-        />
-
-        <div className="ze-lib-viewer-body" ref={bodyRef}>
-          {/* AUI pane "Libraries" */}
-          <div className="ze-lib-viewer-pane" style={{ width: libWidth }}>
-            <input
-              ref={libFilterRef}
-              className="ze-search"
-              placeholder="Filter"
-              value={libFilter}
-              onChange={(e) => setLibFilter(e.target.value)}
-              onFocus={() => (libPaneFocused.current = true)}
-              autoFocus
+      <Toolbar
+        entries={TOP_TOOLBAR}
+        orientation="horizontal"
+        toggled={lit}
+        disabledIds={disabled}
+        onActivate={runAction}
+        controls={{
+          bodyStyleSelector: (
+            <ChoiceControl
+              choice={frame.m_bodyStyleChoice}
+              title="Body style"
+              onSelect={() => frame.onSelectSymbolBodyStyle()}
             />
-            <div className="ze-lib-viewer-list" onMouseDown={() => (libPaneFocused.current = true)}>
-              {index.length === 0 && (
-                <app.LibraryLoadingPanel
-                  kind="symbols"
-                  fallback={
-                    <div className="ze-muted" style={{ padding: '4px 10px' }}>
-                      No libraries
-                    </div>
-                  }
-                  label="Loading symbol libraries..."
-                />
-              )}
-              {libs.map((l) => (
-                <div
-                  key={l.name}
-                  className={`ze-tree-item${curLib === l.name ? ' active' : ''}`}
-                  onClick={() => selectLibrary(l.name)}
-                >
-                  {app.settings.common.system.session.pinned_symbol_libs.includes(l.name)
-                    ? PINNING_SYMBOL
-                    : ''}
-                  {l.name}
-                </div>
-              ))}
-            </div>
-          </div>
-          <Sash
-            edge="right"
-            size={libWidth}
-            min={100}
-            max={(bodyBox()?.width ?? 0) - 240}
-            onResize={setLibSash}
-          />
-
-          {/* AUI pane "Symbols" */}
-          <div className="ze-lib-viewer-pane" style={{ width: symWidth }}>
-            <input
-              ref={symFilterRef}
-              className="ze-search"
-              placeholder="Filter"
-              title={
-                'Filter on symbol name, keywords, description and pin count.\n' +
-                'Search terms are separated by spaces.  All search terms must match.\n' +
-                'A term which is a number will also match against the pin count.'
-              }
-              value={symFilter}
-              onChange={(e) => setSymFilter(e.target.value)}
-              onFocus={() => (libPaneFocused.current = false)}
+          ),
+          unitSelector: (
+            <ChoiceControl
+              choice={frame.m_unitChoice}
+              title="Unit"
+              onSelect={() => frame.onSelectSymbolUnit()}
             />
-            <div
-              className="ze-lib-viewer-list"
-              onMouseDown={() => (libPaneFocused.current = false)}
-            >
-              {symbols.map((s) => {
-                const name = symbolName(s);
-                return (
-                  <div
-                    key={s.libId}
-                    className={`ze-tree-item${curSym === name ? ' active' : ''}`}
-                    onClick={() => {
-                      selectionChanged.current = true;
-                      selectSymbol(name);
-                    }}
-                    onDoubleClick={() => onPick(s)}
-                  >
-                    {name}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-          <Sash
-            edge="right"
-            size={symWidth}
-            min={100}
-            max={(bodyBox()?.width ?? 0) - 240}
-            onResize={setSymSash}
-          />
+          ),
+        }}
+      />
 
-          {/* AUI pane "DrawFrame" */}
-          <div className="ze-lib-viewer-canvas" ref={containerRef}>
-            <canvas
-              ref={canvasRef}
-              onWheel={(e) => {
-                const canvas = canvasRef.current;
-                if (!canvas) return;
-                const rect = canvas.getBoundingClientRect();
-                const dpr = window.devicePixelRatio || 1;
-                zoomAbout(
-                  (e.clientX - rect.left) * dpr,
-                  (e.clientY - rect.top) * dpr,
-                  Math.exp(-e.deltaY * 0.001),
-                );
+      <div className="ze-body" ref={bodyRef}>
+        {/* AUI pane "Libraries" */}
+        <div className="ze-palette-pane" style={{ width: libWidth }}>
+          <WxSearchCtrl
+            value={frame.m_libFilter.GetValue()}
+            onChange={(v) => frame.m_libFilter.SetValue(v)}
+            descriptiveText={frame.m_libFilter.GetDescriptiveText()}
+            inputRef={libFilterRef}
+            onFocus={() => frame.m_libFilter.SetHasFocus(true)}
+            onBlur={() => frame.m_libFilter.SetHasFocus(false)}
+            testId="symviewer-lib-filter"
+            autoFocus
+          />
+          {indexLoaded ? (
+            <WxListBox
+              items={frame.m_libList.GetStrings()}
+              selection={frame.m_libList.GetSelection()}
+              noBorder
+              onSelect={(n) => {
+                frame.m_libList.SetSelection(n);
+                frame.ClickOnLibList();
               }}
+              onFocus={() => frame.m_libList.SetHasFocus(true)}
+              onBlur={() => frame.m_libList.SetHasFocus(false)}
+              testId="symviewer-lib-list"
+              ariaLabel="Libraries"
             />
-          </div>
+          ) : (
+            app.LibraryLoadingPanel({ label: 'Loading symbol libraries...', fallback: null })
+          )}
         </div>
-
-        {/* EDA_MSG_PANEL: updatePreviewSymbol's Name / Parent / Description / Keywords. */}
-        <MsgPanel
-          testId="lib-viewer-message-panel"
-          items={[
-            ...(previewSym
-              ? [
-                  { upper: 'Name', lower: symbolName(previewSym) },
-                  { upper: 'Parent', lower: parent },
-                  { upper: 'Description', lower: description },
-                  { upper: 'Keywords', lower: keywords },
-                ]
-              : []),
-            ...(status ? [{ upper: '', lower: status }] : []),
-          ]}
+        <DockSash
+          edge="right"
+          width={libWidth}
+          min={LIST_MIN_WIDTH}
+          max={Math.max(LIST_MIN_WIDTH, bodyWidth - symbolWidth - LIST_MIN_WIDTH)}
+          onResize={setLibWidth}
         />
+
+        {/* AUI pane "Symbols" */}
+        <div className="ze-palette-pane ze-palette-after-sash" style={{ width: symbolWidth }}>
+          <WxSearchCtrl
+            value={frame.m_symbolFilter.GetValue()}
+            onChange={(v) => frame.m_symbolFilter.SetValue(v)}
+            descriptiveText={frame.m_symbolFilter.GetDescriptiveText()}
+            toolTip={frame.m_symbolFilter.GetToolTip()}
+            inputRef={symbolFilterRef}
+            onFocus={() => frame.m_symbolFilter.SetHasFocus(true)}
+            onBlur={() => frame.m_symbolFilter.SetHasFocus(false)}
+            testId="symviewer-sym-filter"
+          />
+          <WxListBox
+            items={frame.m_symbolList.GetStrings()}
+            selection={frame.m_symbolList.GetSelection()}
+            noBorder
+            onSelect={(n) => {
+              frame.m_symbolList.SetSelection(n);
+              frame.ClickOnSymbolList();
+            }}
+            // `EVT_LISTBOX_DCLICK`: a row activated, not a click below the last one.
+            onDoubleClick={(aRow) => {
+              if (aRow >= 0) frame.DClickOnSymbolList();
+            }}
+            onFocus={() => frame.m_symbolList.SetHasFocus(true)}
+            onBlur={() => frame.m_symbolList.SetHasFocus(false)}
+            testId="symviewer-sym-list"
+            ariaLabel="Symbols"
+          />
+        </div>
+        <DockSash
+          edge="right"
+          width={symbolWidth}
+          min={LIST_MIN_WIDTH}
+          max={Math.max(LIST_MIN_WIDTH, bodyWidth - libWidth - LIST_MIN_WIDTH)}
+          onResize={setSymbolWidth}
+        />
+
+        {/* AUI pane "DrawFrame": SCH_DRAW_PANEL, whose events go to the frame's TOOL_DISPATCHER. */}
+        <div className="ze-palette-canvas" data-testid="symviewer-canvas">
+          <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, outline: 'none' }} />
+        </div>
       </div>
+
+      <MsgPanel items={msgItems} testId="symviewer-message-panel" />
+
+      <KiStatusBar
+        testIds={{ message: 'symviewer-status-msg', coords: 'symviewer-coords' }}
+        fields={{
+          message: statusSpan('message'),
+          zoom: statusSpan('zoom'),
+          coords: statusSpan('coords'),
+          deltas: statusSpan('deltas'),
+          grid: statusSpan('grid'),
+          units: statusSpan('units'),
+        }}
+      />
+
+      {aboutOpen && (
+        <ShowAboutDialog title={ABOUT_TITLES.symbolViewer} onClose={() => setAboutOpen(false)} />
+      )}
     </div>
   );
 }

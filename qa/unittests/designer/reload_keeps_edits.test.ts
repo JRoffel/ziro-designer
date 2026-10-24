@@ -257,8 +257,9 @@ describe('the manager raises an open project; it does not re-open it', () => {
     // 240 ms for the board frame on this GPU against 30-50 with this.
     expect(APP).toMatch(/const HIDDEN_FRAME: CSSProperties = \{\s*contentVisibility: 'hidden'/);
     expect(APP).not.toMatch(/display: view === '[a-z]+' \? 'contents' : 'none'/);
-    // Nine frames: a427bf56 added FOOTPRINT_VIEWER_FRAME ('fpviewer').
-    expect(APP.match(/style=\{frameStyle\(view === '[a-z]+'\)\}/g)?.length).toBe(9);
+    // Ten frames: a427bf56 added FOOTPRINT_VIEWER_FRAME ('fpviewer'), and SYMBOL_VIEWER_FRAME
+    // ('symviewer') became a KIWAY player in its own right.
+    expect(APP.match(/style=\{frameStyle\(view === '[a-z]+'\)\}/g)?.length).toBe(10);
   });
 
   it('the two editors a project opens into are built while the manager is up', () => {
@@ -288,7 +289,7 @@ describe('the manager raises an open project; it does not re-open it', () => {
     const sites = [...APP.matchAll(/<Suspense fallback=\{([^}]*)\}>/g)]
       .map((m) => m[1])
       .filter((f) => f !== 'null');
-    expect(sites).toHaveLength(9);
+    expect(sites).toHaveLength(10);
     for (const f of sites) expect(f).toMatch(/^frameLoading\('[A-Z][A-Za-z ]+'\)$/);
     // ...and what it shows is WX_PROGRESS_REPORTER's dialog.
     expect(APP).toMatch(
@@ -310,7 +311,7 @@ describe('the manager raises an open project; it does not re-open it', () => {
     expect(APP).toMatch(
       /function Frozen\(\{ shown, children \}[\s\S]*?if \(shown\) last\.current = children;\s*return last\.current;/,
     );
-    expect(APP.match(/<Frozen shown=\{view === '[a-z]+'\}>/g)?.length).toBe(9);
+    expect(APP.match(/<Frozen shown=\{view === '[a-z]+'\}>/g)?.length).toBe(10);
   });
 
   it('the library editors re-sync the project on the frame that exists, keyed on identity', () => {

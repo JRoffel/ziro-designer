@@ -89,11 +89,6 @@ export interface EESCHEMA_APP {
   // ----- windows/dialogs (component-shaped, called as JSX) ----------------
   /** `DIALOG_SYMBOL_CHOOSER`, `PickSymbolFromLibrary`'s dialog (`picksymbol.ts`). */
   DialogSymbolChooser: (props: DialogSymbolChooserProps) => ReactNode;
-  /** `SYMBOL_VIEWER_FRAME`, the Symbol Library Browser. */
-  SymbolLibraryBrowser: (props: {
-    onPick: (lib: LibSymbol) => void;
-    onClose: () => void;
-  }) => ReactNode;
   /** `DIALOG_RESCUE_EACH` (`project_rescue.ts` holds its contract). */
   DialogRescueEach: (props: DialogRescueEachProps) => ReactNode;
   /** `FRAME_SYMBOL_CHOOSER` (SYMBOL_CHOOSER_FRAME), as a quasi-modal player: the picked LIB_ID. */

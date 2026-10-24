@@ -5618,52 +5618,53 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
    toolbar on top, "Libraries" | "Symbols" palettes left of the canvas, message
    panel at the bottom, laid out inside one modal. Upstream's default frame is
    500 x 400 with 150 px list panes. */
-.ze-modal.ze-lib-viewer {
-  width: 1000px;
-  height: 640px;
-}
-.ze-lib-viewer-title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ze-lib-viewer-body {
-  flex: 1;
-  display: flex;
-  min-height: 0;
-  min-width: 0;
-}
-.ze-lib-viewer-pane {
+/* The library browsers' panes: FOOTPRINT_VIEWER_FRAME and SYMBOL_VIEWER_FRAME build the same
+   AUI layout (footprint_viewer_frame.cpp:275-289, symbol_viewer_frame.cpp:206-215) - a
+   "Libraries" and a second Palette on the left, the canvas in the centre - each Palette one
+   wxPanel holding a vertical box sizer:
+
+       libSizer->Add( m_libFilter, 0, wxEXPAND, 5 );   // wxSearchCtrl
+       libSizer->Add( m_libList,   1, wxEXPAND, 5 );   // WX_LISTBOX, wxLB_HSCROLL|wxNO_BORDER
+
+   The 5 is a border with no direction flag, so it is no border at all.
+
+   A Palette is `EDA_PANE().Palette()`, `PaneBorder( true )` (eda_base_frame.h:965-970), so wxAUI
+   draws its 1px border round the pane. The top edge is the top toolbar's own bottom rule, and a
+   pane against a vertical toolbar meets that toolbar's rule, so those two are not drawn twice. */
+.ze-palette-pane {
   display: flex;
   flex: 0 0 auto;
   flex-direction: column;
+  box-sizing: border-box;
+  /* [data] `.MinSize( 100, -1 )` on both palettes of both browsers. */
   min-width: 100px;
   min-height: 0;
+  border-right: var(--aui-pane-border-size) solid var(--aui-pane-border);
+  border-bottom: var(--aui-pane-border-size) solid var(--aui-pane-border);
 }
-.ze-lib-viewer-pane .ze-search {
-  margin: 4px;
+/* A palette that follows a sash, not a toolbar, states its own left edge. */
+.ze-palette-pane.ze-palette-after-sash {
+  border-left: var(--aui-pane-border-size) solid var(--aui-pane-border);
+}
+/* `Add( m_libFilter, 0, wxEXPAND )`: proportion 0, its own height. [data] */
+.ze-palette-pane > .ze-libtree-entry {
   flex: 0 0 auto;
 }
-.ze-lib-viewer-list {
-  flex: 1;
+/* `Add( m_libList, 1, wxEXPAND )`: proportion 1, everything left. [data] */
+.ze-palette-pane > .ze-listbox {
+  flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
-  padding: 2px 0;
 }
-/* The GAL canvas pane: the <canvas> is absolutely placed so its device-pixel
-   backing store never feeds an intrinsic width back into the flex row. */
-.ze-lib-viewer-canvas {
+/* The centre pane, `EDA_PANE().Canvas()`. Its left edge meets a sash, so it is stated. The
+   <canvas> inside is absolutely placed, so its device-pixel backing store never feeds an
+   intrinsic width back into the flex row. */
+.ze-palette-canvas {
   position: relative;
   flex: 1;
   min-width: 0;
   min-height: 0;
-  overflow: hidden;
-}
-.ze-lib-viewer-canvas canvas {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+  display: flex;
+  border-left: var(--aui-pane-border-size) solid var(--aui-pane-border);
 }
 
 /* Choose Symbol dialog (dialog_symbol_chooser + panel_symbol_chooser):

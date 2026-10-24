@@ -157,6 +157,8 @@ export interface WxSearchCtrlProps {
   toolTip?: string;
   inputRef?: Ref<HTMLInputElement>;
   onFocus?: () => void;
+  /** The entry lost the focus (`HasFocus()`). */
+  onBlur?: () => void;
   onKeyDown?: (e: KeyboardEvent<HTMLInputElement>) => void;
   autoFocus?: boolean;
   testId?: string;
@@ -176,6 +178,7 @@ export function WxSearchCtrl({
   toolTip,
   inputRef,
   onFocus,
+  onBlur,
   onKeyDown,
   autoFocus,
   testId,
@@ -198,6 +201,7 @@ export function WxSearchCtrl({
         autoFocus={autoFocus}
         onChange={(e) => onChange(e.target.value)}
         onFocus={onFocus}
+        onBlur={onBlur}
         onKeyDown={onKeyDown}
         aria-label={ariaLabel}
       />

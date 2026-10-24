@@ -476,6 +476,51 @@ describe('LoadSettings / SaveSettings (:791-839)', () => {
     expect(stored.lib_view.window.grid.style).toBe('lines');
     expect(stored.window.grid.style).toBe(EESCHEMA_DEFAULTS.window.grid.style);
   });
+
+  /**
+   * `if( m_libListWidth && m_libList ) m_libListWidth = m_libList->GetSize().x;` and
+   * `m_symbolListWidth = m_symbolList->GetSize().x;` (:822-825): the lists as the window drew them,
+   * except a library list LoadSettings clamped to nothing, which stays nothing.
+   */
+  it('records the widths the window drew the lists at', () => {
+    useSettings({});
+    const drawn = new Map<unknown, number>();
+    t = symbolViewerHarness({ getListWidth: (aList) => drawn.get(aList) ?? -1 });
+    drawn.set(t.frame.m_libList, 240).set(t.frame.m_symbolList, 360);
+    t.frame.m_libListWidth = 1;
+
+    t.frame.SaveSettings(eeschemaKifaceSettings());
+    expect([stored.lib_view.lib_list_width, stored.lib_view.cmp_list_width]).toEqual([240, 360]);
+
+    t.frame.m_libListWidth = 0;
+    t.frame.SaveSettings(eeschemaKifaceSettings());
+    expect([stored.lib_view.lib_list_width, stored.lib_view.cmp_list_width]).toEqual([0, 360]);
+  });
+
+  /**
+   * EDA_BASE_FRAME::SaveSettings -> SaveWindowSettings (eda_base_frame.cpp:1229-1300): the size the
+   * frame was shown at goes into its window block, so the next LoadSettings clamps the lists
+   * against the real window, not addParamsForWindow's 500.
+   */
+  it('saves the size it was shown at, which the next open measures the lists against', () => {
+    useSettings({ lib_list_width: 200, cmp_list_width: 300 });
+    t = symbolViewerHarness();
+
+    // Without a size the window block keeps its 500, and 200 + 300 does not fit 500 - 80.
+    t.frame.SaveSettings(eeschemaKifaceSettings());
+    expect(stored.lib_view.window.size_x).toBe(500);
+
+    t.frame.SetWindowSizeSource(() => ({ x: 1200, y: 800 }));
+    t.frame.m_libListWidth = 200;
+    t.frame.m_symbolListWidth = 300;
+    t.frame.SaveSettings(eeschemaKifaceSettings());
+
+    expect([stored.lib_view.window.size_x, stored.lib_view.window.size_y]).toEqual([1200, 800]);
+    expect(stored.window).toEqual(EESCHEMA_DEFAULTS.window);
+
+    t.frame.LoadSettings(eeschemaKifaceSettings());
+    expect([t.frame.m_libListWidth, t.frame.m_symbolListWidth]).toEqual([200, 300]);
+  });
 });
 
 /**

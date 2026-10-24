@@ -450,7 +450,9 @@ const BASELINE: Record<string, { colours: number; metrics: number }> = {
   // colours 15 -> 12, metrics 81 -> 41 (10-11): the Schematic Setup panels' inline styles.
   // colours 12 -> 11, metrics 41 -> 37 (10-20): the schematic Plot dialog's project-folder
   // popup went when plots started downloading.
-  'editors/schematic': { colours: 11, metrics: 37 },
+  // metrics 37 -> 35 (10-24): the record Symbol Library Browser's inline styles, gone with the
+  // modal when SYMBOL_VIEWER_FRAME became a window of its own.
+  'editors/schematic': { colours: 11, metrics: 35 },
   // 166 -> 163 metrics on `editors/schematic`, moved here whole: cvpcb's
   // three windows left `editors/schematic/dialogs/` for the root `cvpcb/`
   // package (cvpcb/STRUCTURE.md's stage two). No colours moved (the five
@@ -863,7 +865,9 @@ const BASELINE: Record<string, { colours: number; metrics: number }> = {
   // and Zone-shared forms' .ze-printdlg-* / .ze-txt-* / .ze-tvp-* rules, gone with their _ui files.
   // colours 116 -> 113, metrics 504 -> 488 (10-15): the record Symbol Fields Table's dead
   // .ze-sft-* block, gone with its live port.
-  'common/widgets': { colours: 113, metrics: 488 },
+  // metrics 488 -> 485 (10-24): the modal .ze-lib-viewer* block out, the library browsers' shared
+  // .ze-palette-* panes in (moved from pcbnew's own footprint_viewer_frame_ui.css). Rescanned.
+  'common/widgets': { colours: 113, metrics: 485 },
   // 10-10: metrics 1 -> 0, the menu drawing's one literal went to external/wx with it.
   'common/tool': { colours: 0, metrics: 0 },
   // metrics 0 -> 15 on 09-26: the stage-1 moves, 8 from `dialogs` and 7 from
@@ -1733,7 +1737,8 @@ describe('the scan totals, so the numbers in the PR stay true', () => {
     // 721 -> 705 (10-15): the common/widgets row above.
     // 705 -> 701 (10-20): the editors/schematic row above.
     // 701 -> 686 (10-23): the editors/symbol row above.
-    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(686);
+    // 686 -> 681 (10-24): the editors/schematic and common/widgets rows above. Rescanned.
+    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(681);
   });
 
   it('and the two agree with the per-area table, which is where they come from', () => {

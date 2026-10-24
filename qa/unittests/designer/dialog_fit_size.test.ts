@@ -250,7 +250,7 @@ describe('the pile of hand-picked dialog sizes does not grow', () => {
     expect(inlineSized()).toHaveLength(3);
   });
 
-  it('6 shell.css variants still name their own size', () => {
+  it('5 shell.css variants still name their own size', () => {
     // 15 until `.ze-pgs` stopped restating what `.ze-modal` now gets right, and
     // 14 until Open Project became the shared file chooser: `.ze-open-project`
     // named a 920x620 and the window that replaced it is sized by the chooser,
@@ -380,7 +380,11 @@ describe('the pile of hand-picked dialog sizes does not grow', () => {
     // in any case the box has no stated width: GtkMessageDialog is as wide as
     // its label, which wraps at `max-width-chars 60`, so `max-content` over a
     // `max-width` on the label is the same rule (qa/probes/msgdlg_probe.py).
-    expect(cssSized()).toHaveLength(6);
+    //
+    // 6 -> 5: `.ze-modal.ze-lib-viewer`'s 1000 x 640 is gone with the modal. The Symbol Library
+    // Browser is SYMBOL_VIEWER_FRAME, a KIWAY player the size of the program's window, as the
+    // Footprint Library Browser is; no dialog box is left to size.
+    expect(cssSized()).toHaveLength(5);
   });
 
   it('and every one of them is a dialog, so the scan is really finding them', () => {

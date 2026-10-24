@@ -62,53 +62,73 @@ export interface SYMBOL_VIEWER_HARNESS {
 }
 
 /**
- * The program, the two libraries and the frame; call dispose() in afterEach. The frame's statics
- * (the last symbol, unit and body style) are reset first, as a new program would have them.
- * \a aBeforeFrame runs once the libraries are in place, before the frame is made.
+ * The program and its libraries: "Alpha" and "Beta" as project rows, and each of \a aFolderRows as a
+ * row of the global table - a hosted library, kept as one file per symbol and fetched on use - over
+ * an empty folder. The frame's statics (the last symbol, unit and body style) are reset, as a new
+ * program would have them.
  */
-export function symbolViewerHarness(
-  aHooks: SYMBOL_VIEWER_FRAME_HOOKS = {},
-  aBeforeFrame: () => void = () => {},
-  aFolderRows: readonly string[] = [],
-): SYMBOL_VIEWER_HARNESS {
+export function symbolViewerLibraries(aFolderRows: readonly string[] = []): {
+  fs: MEMORY_FILESYSTEM;
+  dispose(): void;
+} {
   SetPgm(new PGM_BASE(null, new SETTINGS_MANAGER()));
   const fs = new MEMORY_FILESYSTEM();
   const unmount = wxMountFileSystem('/libs', fs);
   fs.Write('Alpha.kicad_sym', new TextEncoder().encode(ALPHA));
   fs.Write('Beta.kicad_sym', new TextEncoder().encode(BETA));
 
-  // A folder row is a library kept as one file per symbol, fetched on use - a hosted one.
   for (const n of aFolderRows) fs.Mkdir(n);
 
-  const rows =
-    ['Alpha', 'Beta']
-      .map(
-        (n) =>
-          `(lib (name "${n}")(type "KiCad")(uri "/libs/${n}.kicad_sym")(options "")(descr ""))`,
-      )
-      .join('') +
-    aFolderRows
-      .map((n) => `(lib (name "${n}")(type "KiCad")(uri "/libs/${n}")(options "")(descr ""))`)
-      .join('');
+  const row = (aName: string, aUri: string) =>
+    `(lib (name "${aName}")(type "KiCad")(uri "${aUri}")(options "")(descr ""))`;
+  const manager = Pgm().GetLibraryManager();
 
-  Pgm()
-    .GetLibraryManager()
-    .SetTable(
+  manager.SetTable(
+    LIBRARY_TABLE_TYPE.SYMBOL,
+    LIBRARY_TABLE_SCOPE.GLOBAL,
+    LIBRARY_TABLE.FromFile(
+      '/libs/global-sym-lib-table',
+      `(sym_lib_table (version 7) ${aFolderRows.map((n) => row(n, `/libs/${n}`)).join('')})`,
+      LIBRARY_TABLE_SCOPE.GLOBAL,
       LIBRARY_TABLE_TYPE.SYMBOL,
+    ),
+  );
+  manager.SetTable(
+    LIBRARY_TABLE_TYPE.SYMBOL,
+    LIBRARY_TABLE_SCOPE.PROJECT,
+    LIBRARY_TABLE.FromFile(
+      '/libs/sym-lib-table',
+      `(sym_lib_table (version 7) ${['Alpha', 'Beta'].map((n) => row(n, `/libs/${n}.kicad_sym`)).join('')})`,
       LIBRARY_TABLE_SCOPE.PROJECT,
-      LIBRARY_TABLE.FromFile(
-        '/libs/sym-lib-table',
-        `(sym_lib_table (version 7) ${rows})`,
-        LIBRARY_TABLE_SCOPE.PROJECT,
-        LIBRARY_TABLE_TYPE.SYMBOL,
-      ),
-    );
+      LIBRARY_TABLE_TYPE.SYMBOL,
+    ),
+  );
   SymbolLibAdapter(null).LoadOne('Alpha');
   SymbolLibAdapter(null).LoadOne('Beta');
 
   SYMBOL_VIEWER_FRAME.m_currentSymbol = new LIB_ID();
   SYMBOL_VIEWER_FRAME.m_unit = 1;
   SYMBOL_VIEWER_FRAME.m_bodyStyle = 1;
+
+  return {
+    fs,
+    dispose() {
+      unmount();
+      SetPgm(null);
+    },
+  };
+}
+
+/**
+ * The program, the libraries and the frame; call dispose() in afterEach. \a aBeforeFrame runs once
+ * the libraries are in place, before the frame is made.
+ */
+export function symbolViewerHarness(
+  aHooks: SYMBOL_VIEWER_FRAME_HOOKS = {},
+  aBeforeFrame: () => void = () => {},
+  aFolderRows: readonly string[] = [],
+): SYMBOL_VIEWER_HARNESS {
+  const { fs, dispose } = symbolViewerLibraries(aFolderRows);
 
   aBeforeFrame();
 
@@ -119,14 +139,5 @@ export function symbolViewerHarness(
   });
   const harness = schToolHarness(frame as unknown as SCH_EDIT_FRAME);
 
-  return {
-    frame,
-    harness,
-    titles,
-    fs,
-    dispose() {
-      unmount();
-      SetPgm(null);
-    },
-  };
+  return { frame, harness, titles, fs, dispose };
 }

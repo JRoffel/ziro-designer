@@ -2,20 +2,12 @@
 // Copyright (C) 2026 ZiroEDA and contributors.
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
 /**
- * `SYMBOL_VIEWER_FRAME` (`eeschema/symbol_viewer_frame.cpp`), the Symbol
- * Library Browser's logic: the library/symbol filtering
- * (`ReCreateLibList`/`ReCreateSymbolList`) and the `SYMBOL_VIEWER_FRAME_APP`
- * seam the window (`symbol_viewer_frame_ui.tsx`) reads designer through.
- * `eeschema` never imports `designer`; the designer-side
- * `useSymbolViewerFrameApp()` (`designer/src/editors/schematic/eeschema_app.tsx`)
- * is the one file that answers this interface, the same job
- * `symbol_editor/symbol_edit_frame_app.ts` does for `SYMBOL_EDIT_FRAME_APP`.
+ * `SYMBOL_VIEWER_FRAME` (`eeschema/symbol_viewer_frame.cpp`), the Symbol Library Browser: a library
+ * list, a symbol list and a preview of the selected symbol on its own canvas. The window -
+ * its panes, toolbar and menu bar - is `symbol_viewer_frame_ui.tsx`, which draws this frame's
+ * widgets and hands their events back to it.
  */
-import type { ReactNode } from 'react';
 import { EdaCombinedMatcher } from '@ziroeda/common';
-import type { EESCHEMA_SETTINGS_STORE } from './browser/eeschema_app.js';
-import type { Theme } from './sch_render_settings.js';
-import type { LibSymbol } from './types.js';
 import { schIUScale } from '@ziroeda/common/eda_units.js';
 import { FRAME_T } from '@ziroeda/common/frame_type.js';
 import type { KIWAY_MAIL_EVENT } from '@ziroeda/common/kiway_mail.js';
@@ -61,116 +53,7 @@ import { SCH_ACTIONS } from './tools/sch_actions.js';
 import { SCH_INSPECTION_TOOL } from './tools/sch_inspection_tool.js';
 import { SCH_SELECTION_TOOL } from './tools/sch_selection_tool.js';
 import { SYMBOL_EDITOR_CONTROL } from './tools/symbol_editor_control.js';
-import {
-  symbolPinCount,
-  symbolSearchTerms,
-  type LibIndexEntry,
-  SYMBOL_TYPE,
-} from './libraries/symbol_library_adapter.js';
-
-export interface SYMBOL_VIEWER_FRAME_APP {
-  settings: EESCHEMA_SETTINGS_STORE;
-  /** `SCH_RENDER_SETTINGS::LoadColors` of the active colour theme, for this render. */
-  useSchematicTheme(): Theme;
-  /** The hosted symbol library index. */
-  loadIndex(): Promise<readonly LibIndexEntry[]>;
-  /** Every symbol of one library, whole (the browser filters on more than names). */
-  loadLibrarySymbols(library: string): Promise<LibSymbol[]>;
-  /** LIBRARY_MANAGER::GetFullURI, for the frame title. */
-  libraryUri(library: string): string;
-  /** The "still loading" pane the library list shows. */
-  LibraryLoadingPanel: (props: {
-    kind?: 'symbols';
-    fallback?: ReactNode;
-    label?: string;
-  }) => ReactNode;
-}
-
-/** LIB_SYMBOL::GetUnitCount, the highest unit number the symbol defines. */
-export function unitCount(sym: LibSymbol): number {
-  return Math.max(1, ...sym.units.map((u) => u.unit));
-}
-
-/** LIB_SYMBOL::HasDeMorganBodyStyles, a body style 2 (`_1_2`, `_2_2`, …) exists. */
-export function hasDeMorgan(sym: LibSymbol): boolean {
-  return sym.units.some((u) => u.bodyStyle === 2);
-}
-
-/** The tokenizer both filters use: whitespace-separated terms (wxTOKEN_STRTOK). */
-export function filterTerms(filter: string): string[] {
-  return filter.split(/[ \t\r\n]+/).filter(Boolean);
-}
-
-/** LIB_ID::GetLibItemName, the list shows names, not full ids. */
-export function symbolName(sym: LibSymbol): string {
-  return sym.libId.split(':').pop() ?? sym.libId;
-}
-
-/**
- * `SYMBOL_VIEWER_FRAME::ReCreateLibList`: every library the filter admits,
- * pinned ones first. A filter is a set of terms, each matched against every
- * library name; a library that any term matches is listed (upstream's
- * per-term sweep). One difference kept from before the move: upstream runs
- * `process( lib )` once per matching term with no de-duplication, so a library
- * two terms both match is appended twice; this lists it once.
- */
-export function filterLibraries(
-  index: readonly LibIndexEntry[],
-  filter: string,
-  pinned: readonly string[],
-): LibIndexEntry[] {
-  const terms = filterTerms(filter);
-  let matches: LibIndexEntry[];
-  if (terms.length === 0) {
-    matches = [...index];
-  } else {
-    const seen = new Set<string>();
-    matches = [];
-    for (const term of terms) {
-      const matcher = new EdaCombinedMatcher(term.toLowerCase());
-      for (const lib of index) {
-        if (matcher.find(lib.name.toLowerCase()) >= 0 && !seen.has(lib.name)) {
-          seen.add(lib.name);
-          matches.push(lib);
-        }
-      }
-    }
-  }
-  return [
-    ...matches.filter((l) => pinned.includes(l.name)),
-    ...matches.filter((l) => !pinned.includes(l.name)),
-  ];
-}
-
-/**
- * `SYMBOL_VIEWER_FRAME::ReCreateSymbolList`: each filter term must score
- * against the symbol's search terms (a term which is a number also matches
- * the pin count); a term that scores nothing excludes the symbol.
- */
-export function filterSymbols(libSymbols: readonly LibSymbol[], filter: string): LibSymbol[] {
-  const terms = filterTerms(filter);
-  if (terms.length === 0) return [...libSymbols];
-  const excludes = new Set<string>();
-  for (const term of terms) {
-    const lower = term.toLowerCase();
-    const matcher = new EdaCombinedMatcher(lower);
-    const asNumber = /^-?\d+$/.test(term) ? Number(term) : null;
-    for (const sym of libSymbols) {
-      let matched = matcher.scoreTerms(symbolSearchTerms(sym)).score;
-      if (asNumber !== null && asNumber === symbolPinCount(sym)) matched++;
-      if (!matched) excludes.add(sym.libId);
-    }
-  }
-  return libSymbols.filter((s) => !excludes.has(s.libId));
-}
-
-// ---------------------------------------------------------------------------
-// `SYMBOL_VIEWER_FRAME` itself, on the live model (symbol viewer port stage V1). The record helpers
-// above are what the window still draws through; the window switch (V2) replaces them.
-//
-// Not here yet: the window - its panes, toolbars (toolbars_symbol_viewer.cpp) and menu bar
-// (doReCreateMenuBar), OnSize, doCloseWindow and OnActivate's wx plumbing - which V2 builds on this.
-// ---------------------------------------------------------------------------
+import { SYMBOL_TYPE } from './libraries/symbol_library_adapter.js';
 
 /**
  * What ReCreateSymbolList asks a symbol for: the `LIB_TREE_ITEM` face of LIB_SYMBOL. A LIB_SYMBOL is
@@ -206,6 +89,8 @@ export interface SYMBOL_VIEWER_FRAME_HOOKS {
    * a file of its own, fetched on use. True when the symbol can now be loaded.
    */
   ensureSymbol?(aLibId: LIB_ID): Promise<boolean>;
+  /** `aList->GetSize().x`: how wide the window drew the list, which SaveSettings records. */
+  getListWidth?(aList: WX_LISTBOX): number;
 }
 
 /** `wxString::IsNumber()`: an optional sign, then digits only; empty is not a number. */
@@ -828,10 +713,16 @@ export class SYMBOL_VIEWER_FRAME extends SCH_BASE_FRAME {
     }
   }
 
-  /** `SaveSettings( aCfg )` (:818). The list widths are the window's to measure; it passes them. */
+  /** `SaveSettings( aCfg )` (:818). The list widths are measured by the window that drew them. */
   override SaveSettings(_aCfg: APP_SETTINGS_BASE): void {
     const cfg = eeschemaKifaceSettings();
     super.SaveSettings(cfg);
+
+    const width = this.hooks.getListWidth;
+
+    if (this.m_libListWidth && width) this.m_libListWidth = width(this.m_libList);
+
+    if (width) this.m_symbolListWidth = width(this.m_symbolList);
 
     const renderSettings = this.GetRenderSettings();
 

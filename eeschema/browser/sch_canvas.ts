@@ -2,9 +2,9 @@
 // Copyright (C) 2026 ZiroEDA and contributors.
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
 /**
- * The schematic editor's and the symbol editor's canvas construction, as `SCH_EDIT_FRAME` and
- * `SYMBOL_EDIT_FRAME`'s constructors make it (`m_canvasType = loadCanvasTypeSetting();
- * ... CreateCanvas()` on an SCH_DRAW_PANEL), and
+ * The schematic editor's, the symbol editor's and the symbol browser's canvas construction, as
+ * `SCH_EDIT_FRAME`, `SYMBOL_EDIT_FRAME` and `SYMBOL_VIEWER_FRAME`'s constructors make it
+ * (`m_canvasType = loadCanvasTypeSetting(); ... CreateCanvas()` on an SCH_DRAW_PANEL), and
  * `SCH_EDIT_FRAME::DisplayCurrentSheet`'s hand-over of the current screen to the view. The
  * window supplies the element; this is the frame's side, as pcb_canvas.ts is for pcbnew.
  */
@@ -13,6 +13,7 @@ import { GAL_TYPE } from '@ziroeda/common/draw_panel_gal.js';
 import { SCH_DRAW_PANEL } from '../sch_draw_panel.js';
 import type { SCH_EDIT_FRAME } from '../sch_edit_frame.js';
 import type { SYMBOL_EDIT_FRAME } from '../symbol_editor/symbol_edit_frame.js';
+import type { SYMBOL_VIEWER_FRAME } from '../symbol_viewer_frame.js';
 
 /**
  * The panel on the element, adopted by the frame as its canvas.
@@ -21,7 +22,7 @@ import type { SYMBOL_EDIT_FRAME } from '../symbol_editor/symbol_edit_frame.js';
  *         the window keeps its own drawing for that).
  */
 export function createSchDrawPanel(
-  aFrame: SCH_EDIT_FRAME | SYMBOL_EDIT_FRAME,
+  aFrame: SCH_EDIT_FRAME | SYMBOL_EDIT_FRAME | SYMBOL_VIEWER_FRAME,
   aCanvas: HTMLCanvasElement,
   aFontImage: ImageBitmap,
 ): SCH_DRAW_PANEL | null {
