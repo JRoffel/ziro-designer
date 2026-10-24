@@ -64,6 +64,89 @@ export function EditClearSymbolic(): JSX.Element {
   );
 }
 
+/**
+ * `wxSearchCtrl` as a model the frame reads and writes: the text, the descriptive text and tooltip
+ * the frame sets, and the focus. The page draws it with {@link WxSearchCtrl}; typing is the page
+ * calling SetValue, which upstream follows with the EVT_TEXT the frame binds.
+ */
+export class wxSearchCtrl {
+  private m_value = '';
+  private m_descriptiveText = '';
+  private m_toolTip = '';
+  private m_hasFocus = false;
+  private m_focusRequested = false;
+  private m_onChange: (() => void) | null = null;
+  private m_onText: (() => void) | null = null;
+
+  /** The page's repaint hook. */
+  SetChangeListener(aListener: (() => void) | null): void {
+    this.m_onChange = aListener;
+  }
+
+  /** `Bind( wxEVT_TEXT, ... )`: what the frame runs when the text changes. */
+  BindText(aHandler: (() => void) | null): void {
+    this.m_onText = aHandler;
+  }
+
+  GetValue(): string {
+    return this.m_value;
+  }
+
+  /** `SetValue( s )`: the text, and the wxEVT_TEXT that follows it. */
+  SetValue(aValue: string): void {
+    this.m_value = aValue;
+    this.m_onChange?.();
+    this.m_onText?.();
+  }
+
+  /** `ChangeValue( s )`: the text, with no event. */
+  ChangeValue(aValue: string): void {
+    this.m_value = aValue;
+    this.m_onChange?.();
+  }
+
+  SetDescriptiveText(aText: string): void {
+    this.m_descriptiveText = aText;
+    this.m_onChange?.();
+  }
+
+  GetDescriptiveText(): string {
+    return this.m_descriptiveText;
+  }
+
+  SetToolTip(aTip: string): void {
+    this.m_toolTip = aTip;
+    this.m_onChange?.();
+  }
+
+  GetToolTip(): string {
+    return this.m_toolTip;
+  }
+
+  HasFocus(): boolean {
+    return this.m_hasFocus;
+  }
+
+  /** `SetFocus()`: the page moves the keyboard focus here on its next paint. */
+  SetFocus(): void {
+    this.m_hasFocus = true;
+    this.m_focusRequested = true;
+    this.m_onChange?.();
+  }
+
+  /** The page's answer: the entry gained or lost the keyboard focus. */
+  SetHasFocus(aFocus: boolean): void {
+    this.m_hasFocus = aFocus;
+  }
+
+  /** The page's question: did the frame ask for the focus since the last paint? Clears it. */
+  TakeFocusRequest(): boolean {
+    const requested = this.m_focusRequested;
+    this.m_focusRequested = false;
+    return requested;
+  }
+}
+
 export interface WxSearchCtrlProps {
   value: string;
   /** `EVT_TEXT`: every edit, not only Enter. */

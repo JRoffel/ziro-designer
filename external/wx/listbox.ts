@@ -17,6 +17,9 @@ export class wxListBox {
   /** The selected rows, ascending. */
   private m_selections: number[] = [];
   private m_onChange: (() => void) | null = null;
+  private m_ensureVisible = wxNOT_FOUND;
+  private m_hasFocus = false;
+  private m_focusRequested = false;
 
   /** @param aMultiple `wxLB_MULTIPLE`. */
   constructor(readonly m_multiple = false) {}
@@ -82,11 +85,84 @@ export class wxListBox {
     this.changed();
   }
 
+  /** `IsEmpty()`. */
+  IsEmpty(): boolean {
+    return this.GetCount() === 0;
+  }
+
   /**
-   * `SetSelection( n )`: wxNOT_FOUND clears every selection; otherwise a single-selection box
-   * moves to \a n, and a wxLB_MULTIPLE one adds \a n to what is selected.
+   * `FindString( s, bCase )` (wxItemContainerImmutable): the first row that `IsSameAs( s, bCase )`,
+   * a whole-string compare, case-folded unless \a bCase; wxNOT_FOUND when none is.
    */
-  SetSelection(n: number): void {
+  FindString(s: string, bCase = false): number {
+    const want = bCase ? s : s.toLowerCase();
+
+    return this.m_strings.findIndex((item) => (bCase ? item : item.toLowerCase()) === want);
+  }
+
+  /** `GetStringSelection()`: the selected row's text, or "" with none selected. */
+  GetStringSelection(): string {
+    const sel = this.GetSelection();
+
+    return sel === wxNOT_FOUND ? '' : this.GetString(sel);
+  }
+
+  /** `SetStringSelection( s, select )`: select (or deselect) the row FindString finds. */
+  SetStringSelection(s: string, select = true): boolean {
+    const sel = this.FindString(s);
+
+    if (sel === wxNOT_FOUND) return false;
+
+    this.SetSelection(sel, select);
+    return true;
+  }
+
+  /** `EnsureVisible( n )`: the row the page scrolls into view. */
+  EnsureVisible(n: number): void {
+    this.m_ensureVisible = n;
+    this.changed();
+  }
+
+  /** The row EnsureVisible last asked for, for the page. */
+  GetEnsureVisible(): number {
+    return this.m_ensureVisible;
+  }
+
+  /** `HasFocus()`: the page reports focus in and out through SetHasFocus. */
+  HasFocus(): boolean {
+    return this.m_hasFocus;
+  }
+
+  /** `SetFocus()`: the page moves the keyboard focus here on its next paint. */
+  SetFocus(): void {
+    this.m_hasFocus = true;
+    this.m_focusRequested = true;
+    this.changed();
+  }
+
+  /** The page's answer: the list gained or lost the keyboard focus. */
+  SetHasFocus(aFocus: boolean): void {
+    this.m_hasFocus = aFocus;
+  }
+
+  /** The page's question: did the frame ask for the focus since the last paint? Clears it. */
+  TakeFocusRequest(): boolean {
+    const requested = this.m_focusRequested;
+    this.m_focusRequested = false;
+    return requested;
+  }
+
+  /**
+   * `SetSelection( n, select )`: wxNOT_FOUND clears every selection; otherwise a single-selection
+   * box moves to \a n, and a wxLB_MULTIPLE one adds \a n to what is selected. With \a aSelect
+   * false, \a n is deselected instead.
+   */
+  SetSelection(n: number, aSelect = true): void {
+    if (!aSelect) {
+      this.Deselect(n);
+      return;
+    }
+
     if (n === wxNOT_FOUND) this.m_selections = [];
     else if (n >= 0 && n < this.m_strings.length) {
       if (!this.m_multiple) this.m_selections = [n];

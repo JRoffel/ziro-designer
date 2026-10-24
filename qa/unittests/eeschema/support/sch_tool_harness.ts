@@ -97,6 +97,7 @@ export function schToolHarness(aFrame: SCH_EDIT_FRAME = schFrame()): SCH_HARNESS
     },
     ForceRefresh: () => {},
     Refresh: () => {},
+    SetStealsFocus: () => {},
     StartDrawing: () => {},
     StopDrawing: () => {},
     Destroy: () => {},

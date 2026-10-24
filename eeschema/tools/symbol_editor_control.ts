@@ -6,10 +6,8 @@
  * view toggles, unit stepping, flattening a derived symbol, and the library fields table.
  *
  * Still to come, with the library tree and what they call: Init's tree context menu, DdAddLibrary
- * (a file dropped from the desktop), AddSymbolToSchematic's symbol
- * viewer branch (SYMBOL_VIEWER_FRAME is not a live frame yet),
- * AddSymbolToSchematic, OpenWithTextEditor and OpenDirectory. PreviousSymbol / NextSymbol are
- * SYMBOL_VIEWER_FRAME's and come with its tools. Their actions are not bound until they are.
+ * (a file dropped from the desktop), OpenWithTextEditor and OpenDirectory. Their actions are not
+ * bound until they are.
  */
 import { FRAME_T } from '@ziroeda/common/frame_type.js';
 import type { COROUTINE_BODY } from '@ziroeda/common/tool/coroutine.js';
@@ -33,6 +31,7 @@ import {
   updateSymbolEditorSettings,
 } from '../symbol_editor/symbol_editor_settings.js';
 import type { SYMBOL_EDIT_FRAME } from '../symbol_editor/symbol_edit_frame.js';
+import type { SYMBOL_VIEWER_FRAME } from '../symbol_viewer_frame.js';
 import { type PLACE_SYMBOL_PARAMS, SCH_ACTIONS } from './sch_actions.js';
 import type { SCH_EDIT_FRAME } from '../sch_edit_frame.js';
 import { SCH_SYMBOL } from '../sch_symbol.js';
@@ -420,8 +419,15 @@ export class SYMBOL_EDITOR_CONTROL extends SCH_TOOL_BASE<SCH_BASE_FRAME> {
       bodyStyle = editFrame.GetBodyStyle();
 
       if (libSymbol) libId = libSymbol.GetLibId();
+    } else {
+      const viewerFrame = this.m_frame as unknown as SYMBOL_VIEWER_FRAME;
+
+      libSymbol = viewerFrame.GetSelectedSymbol();
+      unit = viewerFrame.GetUnit();
+      bodyStyle = viewerFrame.GetBodyStyle();
+
+      if (libSymbol) libId = libSymbol.GetLibId();
     }
-    // else: SYMBOL_VIEWER_FRAME's GetSelectedSymbol / GetUnit / GetBodyStyle, with the viewer.
 
     if (libSymbol) {
       const schframe = this.m_frame!.Kiway()?.GetPlayerFrame(
@@ -602,6 +608,25 @@ export class SYMBOL_EDITOR_CONTROL extends SCH_TOOL_BASE<SCH_BASE_FRAME> {
     return 0;
   }
 
+  /**
+   * `PreviousSymbol( aEvent )`. Upstream static_casts the tool holder to SYMBOL_VIEWER_FRAME
+   * whatever it is; only the browser binds the action, so here that frame is checked for.
+   */
+  PreviousSymbol(_aEvent: TOOL_EVENT): number {
+    if (this.m_frame!.IsType(FRAME_T.FRAME_SCH_VIEWER))
+      (this.m_frame as unknown as SYMBOL_VIEWER_FRAME).SelectPreviousSymbol();
+
+    return 0;
+  }
+
+  /** `NextSymbol( aEvent )`; see PreviousSymbol. */
+  NextSymbol(_aEvent: TOOL_EVENT): number {
+    if (this.m_frame!.IsType(FRAME_T.FRAME_SCH_VIEWER))
+      (this.m_frame as unknown as SYMBOL_VIEWER_FRAME).SelectNextSymbol();
+
+    return 0;
+  }
+
   *ShowLibraryTable(aEvent: TOOL_EVENT): COROUTINE_BODY<number> {
     let scope = DIALOG_LIB_FIELDS_TABLE_SCOPE.SCOPE_LIBRARY;
 
@@ -658,5 +683,8 @@ export class SYMBOL_EDITOR_CONTROL extends SCH_TOOL_BASE<SCH_BASE_FRAME> {
 
     this.Go(SYNC_HANDLER(this.ChangeUnit), SCH_ACTIONS.previousUnit.MakeEvent());
     this.Go(SYNC_HANDLER(this.ChangeUnit), SCH_ACTIONS.nextUnit.MakeEvent());
+
+    this.Go(SYNC_HANDLER(this.PreviousSymbol), SCH_ACTIONS.previousSymbol.MakeEvent());
+    this.Go(SYNC_HANDLER(this.NextSymbol), SCH_ACTIONS.nextSymbol.MakeEvent());
   }
 }

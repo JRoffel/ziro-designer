@@ -24,6 +24,7 @@
  */
 import { type JSX, type KeyboardEvent, type MouseEvent, useEffect, useRef, useState } from 'react';
 import { PINNING_SYMBOL } from '../lib_tree_model_adapter.js';
+import { wxListBox } from '@ziroeda/wx/listbox.js';
 import './wx_listbox.css';
 
 /** `wxNOT_FOUND`. */
@@ -70,6 +71,30 @@ export function listBoxFindString(aItems: readonly string[], s: string, bCase = 
 /** `WX_LISTBOX::GetStringSelection()`: the selected row, pin stripped, or "". */
 export function listBoxGetStringSelection(aItems: readonly string[], aSelection: number): string {
   return aSelection < 0 ? '' : listBoxGetBaseString(aItems, aSelection);
+}
+
+/**
+ * `class WX_LISTBOX : public wxListBox` as a model the frame fills and reads; the page draws it
+ * with {@link WxListBox}. Its four string accessors look past the pinning mark.
+ */
+export class WX_LISTBOX extends wxListBox {
+  override GetStringSelection(): string {
+    return listBoxGetStringSelection(this.GetStrings(), this.GetSelection());
+  }
+
+  override SetStringSelection(s: string, select = true): boolean {
+    if (super.SetStringSelection(PINNING_SYMBOL + s, select)) return true;
+
+    return super.SetStringSelection(s, select);
+  }
+
+  GetBaseString(n: number): string {
+    return listBoxGetBaseString(this.GetStrings(), n);
+  }
+
+  override FindString(s: string, bCase = false): number {
+    return listBoxFindString(this.GetStrings(), s, bCase);
+  }
 }
 
 export interface WxListBoxProps {
