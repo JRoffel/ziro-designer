@@ -178,18 +178,15 @@ describe('the Symbol Editor menu bar', () => {
   });
 
   /**
-   * Edit Library Symbol is `ENABLE( isSymbolFromSchematicCond )` (:535), and
-   * ours is greyed either way — a deliberate deviation, recorded here rather
-   * than left implicit. Nothing in this port opens the LIBRARY copy of a
-   * symbol borrowed from the schematic, so lighting the row up when the
-   * condition turns true (which it now does, unlike when this test was
-   * written) would offer a click that does nothing. `sym_ui_conditions.test.ts`
-   * pins the condition itself, which is live and is what makes Save All above
-   * disappear; this pins the row.
+   * Edit Library Symbol is `ENABLE( isSymbolFromSchematicCond )` (:535): live on a symbol
+   * borrowed from a schematic, where SYMBOL_EDITOR_CONTROL::EditLibrarySymbol opens the
+   * library's own copy. It used to be greyed either way, while that handler was not ported.
    */
-  it('greys Edit Library Symbol whichever way the condition goes, unlike upstream', () => {
+  it('lights Edit Library Symbol only for a symbol from a schematic', () => {
     expect(find(sym(), 'Edit Library Symbol...')?.disabled).toBe(true);
-    expect(find(sym({ symbolFromSchematic: true }), 'Edit Library Symbol...')?.disabled).toBe(true);
+    expect(find(sym({ symbolFromSchematic: true }), 'Edit Library Symbol...')?.disabled).toBe(
+      false,
+    );
   });
 
   /** :95-116. Ours was six entries against upstream's eighteen. */

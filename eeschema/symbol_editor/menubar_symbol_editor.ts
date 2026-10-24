@@ -168,24 +168,21 @@ export function symbolEditorMenus(
       items: [
         act('New Library...', 'newLibrary'),
         act('Add Library...', 'addLibrary'),
-        // SCH_ACTIONS::saveLibraryAs (sch_actions.cpp:178), Ctrl+Shift+S.
+        // SCH_ACTIONS::saveLibraryAs (sch_actions.cpp:178), Ctrl+Shift+S. Still greyed: it asks
+        // for a new library file through a wxFD_SAVE picker, which has no counterpart yet.
         stub('Save Library As...', 'saveLibraryAs', { shortcut: 'Ctrl+Shift+S' }),
         act('New Symbol...', 'newSymbol', { shortcut: browserSafeKey('Ctrl+N') }),
         // ENABLE( isSymbolFromSchematicCond ) (:535) — live only when this
-        // frame was opened on a symbol that lives in a schematic, which now
-        // does happen (the schematic hands one over). The row stays a `stub`
-        // all the same: nothing here opens the LIBRARY copy of a borrowed
-        // symbol yet, and a row that lights up and does nothing is worse than
-        // one that stays greyed. `symbolFromSchematic` is not idle — it is
-        // what makes Save All below disappear, exactly as upstream does — so
-        // the condition is wired even though this row cannot use it.
-        stub('Edit Library Symbol...', 'editLibSymbolWithLibEdit', {
+        // frame was opened on a symbol that lives in a schematic.
+        // SYMBOL_EDITOR_CONTROL::EditLibrarySymbol then loads the library's
+        // own copy of it.
+        act('Edit Library Symbol...', 'editLibSymbolWithLibEdit', {
           shortcut: 'Ctrl+Shift+E',
         }),
         SEP,
         act('Save', 'save', { shortcut: 'Ctrl+S' }),
-        stub('Save As...', 'saveSymbolAs'),
-        stub('Save Copy As...', 'saveSymbolCopyAs'),
+        act('Save As...', 'saveSymbolAs'),
+        act('Save Copy As...', 'saveSymbolCopyAs'),
         // `if( !IsSymbolFromSchematic() ) fileMenu->Add( ACTIONS::saveAll );`
         // The row DISAPPEARS; it is not greyed.
         ...(conds.symbolFromSchematic ? [] : [act('Save All', 'saveAll')]),
@@ -234,16 +231,16 @@ export function symbolEditorMenus(
         // `#else` this build takes is Ctrl+Y.
         act('Redo', 'redo', { shortcut: 'Ctrl+Y' }),
         SEP,
-        stub('Cut', 'cut', { shortcut: 'Ctrl+X' }),
-        stub('Copy', 'copy', { shortcut: 'Ctrl+C' }),
-        stub('Copy as Text', 'copyAsText', { shortcut: 'Ctrl+Shift+C' }),
-        stub('Paste', 'paste', { shortcut: 'Ctrl+V' }),
+        act('Cut', 'cut', { shortcut: 'Ctrl+X' }),
+        act('Copy', 'copy', { shortcut: 'Ctrl+C' }),
+        act('Copy as Text', 'copyAsText', { shortcut: 'Ctrl+Shift+C' }),
+        act('Paste', 'paste', { shortcut: 'Ctrl+V' }),
         // actions.cpp:399 — WXK_BACK is the Mac branch, WXK_DELETE is ours.
         act('Delete', 'doDelete', { shortcut: 'Delete' }),
-        stub('Duplicate', 'duplicate', { shortcut: 'Ctrl+D' }),
+        act('Duplicate', 'duplicate', { shortcut: 'Ctrl+D' }),
         SEP,
-        stub('Select All', 'selectAll', { shortcut: 'Ctrl+A' }),
-        stub('Unselect All', 'unselectAll', { shortcut: 'Ctrl+Shift+A' }),
+        act('Select All', 'selectAll', { shortcut: 'Ctrl+A' }),
+        act('Unselect All', 'unselectAll', { shortcut: 'Ctrl+Shift+A' }),
         SEP,
         // `ACTIONS::find` and `ACTIONS::findAndReplace`, neither of which
         // `setupUIConditions` names — so both are `ShowAlways`, live even on a
@@ -263,7 +260,7 @@ export function symbolEditorMenus(
         // ENABLE( isEditableCond && haveSymbolCond ) (:636) — `isEditableCond`
         // excludes an alias, so Pin Table is dead on a derived symbol.
         act('Pin Table...', 'pinTable'),
-        stub('Update Symbol Fields...', 'updateSymbolFields'),
+        act('Update Symbol Fields...', 'updateSymbolFields'),
       ],
     },
     {
@@ -276,6 +273,8 @@ export function symbolEditorMenus(
           submenu: [chk('Properties', 'showProperties'), chk('Library Tree', 'showLibraryTree')],
         },
         SEP,
+        // ACTIONS::showSymbolBrowser is COMMON_CONTROL::ShowPlayer( FRAME_SCH_VIEWER ), and the
+        // symbol browser is not a KIWAY player yet: lit, the row would do nothing.
         stub('Symbol Library Browser', 'showSymbolBrowser'),
         SEP,
         act('Zoom In', 'zoomInCenter'),
@@ -318,11 +317,11 @@ export function symbolEditorMenus(
         // invented; `placeSymbolText` declares none.
         tool('Draw Pins', 'placePin', { shortcut: 'P' }),
         tool('Draw Text', 'placeText'),
-        stub('Draw Text Boxes', 'drawSymbolTextBox'),
+        tool('Draw Text Boxes', 'drawSymbolTextBox'),
         tool('Draw Rectangles', 'drawRectangle'),
         tool('Draw Circles', 'drawCircle'),
         tool('Draw Arcs', 'drawArc'),
-        stub('Draw Bezier Curve', 'bezier'),
+        tool('Draw Bezier Curve', 'bezier'),
         tool('Draw Lines', 'drawSymbolLines'),
         tool('Draw Polygons', 'drawPolygon'),
       ],

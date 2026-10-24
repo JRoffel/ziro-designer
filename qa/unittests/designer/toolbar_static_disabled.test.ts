@@ -109,8 +109,9 @@ const UNBUILT: Readonly<Record<string, readonly string[]>> = {
   // `widgets/dialog_sch_find.tsx` and `findMatchesInSymbol`.
   'symbol top': [],
   'symbol left': [],
-  // `SCH_ACTIONS::drawSymbolTextBox` and `drawBezier`: no tool behind either.
-  'symbol right': ['drawSymbolTextBox', 'bezier'],
+  // `drawSymbolTextBox` and `drawBezier` came off when the live frame's
+  // SYMBOL_EDITOR_DRAWING_TOOLS (DrawSymbolTextBox, DrawShape) were reachable from the bar.
+  'symbol right': [],
   'pcb top': [],
   // `autoTrackWidth` came off this list when it was built: the toggle is
   // `BOARD_DESIGN_SETTINGS::m_UseConnectedTrackWidth` and the width rule behind

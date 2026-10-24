@@ -732,6 +732,22 @@ describe('the menu bar reads the table', () => {
     ['Draw Arcs', 'isEditable'],
     ['Draw Lines', 'isEditable'],
     ['Draw Polygons', 'isEditable'],
+    // :97-105 and :646-656 - stubs until the frame's tools were live.
+    ['Cut', 'isEditable'],
+    ['Copy', 'haveSymbol'],
+    ['Copy as Text', 'haveSymbol'],
+    ['Paste', 'isEditable'],
+    ['Paste', 'idle'],
+    ['Paste', 'noActiveTool'],
+    ['Duplicate', 'isEditable'],
+    ['Select All', 'haveSymbol'],
+    ['Unselect All', 'haveSymbol'],
+    ['Update Symbol Fields...', 'canUpdateFields'],
+    ['Save As...', 'saveSymbolAs'],
+    ['Save Copy As...', 'saveSymbolAs'],
+    ['Edit Library Symbol...', 'symbolFromSchematic'],
+    ['Draw Text Boxes', 'isEditable'],
+    ['Draw Bezier Curve', 'isEditable'],
   ] as [string, keyof SymbolConditions][])('%s is greyed when %s is false', (label, key) => {
     expect(greyed(menus({ [key]: true }), label)).toBe(false);
     expect(greyed(menus({ [key]: false }), label)).toBe(true);
@@ -873,6 +889,18 @@ describe('the toolbars read the same table', () => {
   it('greys nothing on the left bar, on a cold frame or any other', () => {
     expect([...symbolToolbarDisabledIds(SYM_LEFT_TOOLBAR, NONE)]).toEqual([]);
     expect([...symbolToolbarDisabledIds(SYM_LEFT_TOOLBAR, ALL)]).toEqual([]);
+  });
+
+  /**
+   * A static `disabled` greys a button whatever the conditions say. Every tool on the right bar
+   * is built - Draw Text Boxes and Draw Bezier Curve were the last two carrying one - so the
+   * table alone decides.
+   */
+  it('greys no right-bar button by a static flag', () => {
+    const fixed = SYM_RIGHT_TOOLBAR.filter(
+      (e) => e !== 'sep' && !('spacer' in e) && !('control' in e) && 'disabled' in e && e.disabled,
+    );
+    expect(fixed).toEqual([]);
   });
 
   /** The right bar is `EDIT_TOOL( … )` end to end except the selection tool,

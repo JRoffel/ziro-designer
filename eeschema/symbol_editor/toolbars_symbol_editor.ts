@@ -11,11 +11,7 @@
  * A tool we have not built yet is `disabled` in its upstream POSITION rather
  * than left out, which is what the layer widget's context menu already does:
  * a bar that is two buttons short is a different bar, while a greyed button is
- * the same bar with one tool not yet working. The previous note here said
- * drawSymbolTextBox and drawBezier were absent because "the document model does
- * not yet represent text boxes or bezier body items" — half of that is stale,
- * `kind: 'bezier'` is in `eeschema/types.ts:196` — but neither has a tool,
- * so both are greyed rather than dropped.
+ * the same bar with one tool not yet working.
  */
 
 import type { ToolEntry } from '@ziroeda/common/tool/action_toolbar_types.js';
@@ -254,11 +250,11 @@ export const SYM_RIGHT_TOOLBAR: ToolEntry[] = [
   // and `drawSymbolTextBox` are DIFFERENT actions from the schematic's
   // `drawLines` / `drawTextBox` and keep their own, even though upstream gives
   // both members of each pair the same FriendlyName.
-  { id: 'drawSymbolTextBox', icon: 'drawSymbolTextBox', title: 'Draw Text Boxes', disabled: true },
+  { id: 'drawSymbolTextBox', icon: 'drawSymbolTextBox', title: 'Draw Text Boxes' },
   { id: 'drawRectangle', icon: 'rectangle', title: 'Add a rectangle' },
   { id: 'drawCircle', icon: 'circle', title: 'Add a circle' },
   { id: 'drawArc', icon: 'arc', title: 'Add an arc' },
-  { id: 'bezier', icon: 'drawBezier', title: 'Draw Bezier Curve', disabled: true },
+  { id: 'bezier', icon: 'drawBezier', title: 'Draw Bezier Curve' },
   { id: 'drawSymbolLines', icon: 'lines', title: 'Draw Lines' },
   { id: 'drawPolygon', icon: 'polygon', title: 'Add a polygon' },
   { id: 'placeAnchor', icon: 'placeAnchor', title: 'Move the symbol anchor' },
