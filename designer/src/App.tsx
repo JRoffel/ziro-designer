@@ -64,6 +64,7 @@ import { Infobar, ReadOnlyNotice } from '@ziroeda/common/widgets/wx_infobar.js';
 import { applyUpdate, subscribeUpdate, updateWaiting, watchForUpdate } from './sw_update.js';
 import { installCommonAppearance } from './ui/common_appearance.js';
 import { projectStoreFileSystem } from './fs/project_store_fs.js';
+import { mountUserSymbolsFolder } from './fs/user_symbols_mount.js';
 import { warmLibraryIndexes } from './libraryHosts.js';
 import '@ziroeda/common/widgets/shell.css';
 import { isBinaryBytes } from './home/files.js';
@@ -433,6 +434,26 @@ export function App(): JSX.Element {
   useEffect(() => {
     userIdRef.current = userId;
     reportSignedIn(!!userId);
+  }, [userId]);
+
+  // The account's Symbols folder, where a symbol library saved or dropped into the account lives
+  // and a table row names it from any project: one mount for the app, read again for each account.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the account is the trigger; the store follows it
+  useEffect(() => {
+    let unmount: (() => void) | null = null;
+    let cancelled = false;
+
+    mountUserSymbolsFolder(projectStoreFileSystem())
+      .then((u) => {
+        if (cancelled) u();
+        else unmount = u;
+      })
+      .catch((e: unknown) => console.warn('Symbols folder not mounted:', e));
+
+    return () => {
+      cancelled = true;
+      unmount?.();
+    };
   }, [userId]);
 
   // Preferences follow the account, so signing in on another device restores
