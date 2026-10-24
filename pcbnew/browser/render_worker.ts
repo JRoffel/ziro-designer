@@ -27,13 +27,11 @@ import type { Color4d } from '@ziroeda/common/gal/color4d.js';
 import { GAL_DISPLAY_OPTIONS } from '@ziroeda/common/gal/gal_display_options.js';
 import { loadBitmapFontImage } from '@ziroeda/common/gal/gal_window.js';
 import type { DRAW_PANEL_GAL_WINDOW } from '@ziroeda/common/draw_panel_gal.js';
-import { DS_PROXY_VIEW_ITEM } from '@ziroeda/common/drawing_sheet/ds_proxy_view_item.js';
-import { pcbIUScale } from '@ziroeda/common/eda_units.js';
 import { LAYER_SELECT_OVERLAY } from '@ziroeda/common/layer_id.js';
 import type { VIEW_ITEM } from '@ziroeda/common/view/view_item.js';
 import type { Vec2 } from '@ziroeda/kimath/src/math/vector2.js';
 import type { BOARD } from '../board.js';
-import { PCB_DRAW_PANEL_GAL } from '../pcb_draw_panel_gal.js';
+import { boardDrawingSheet, PCB_DRAW_PANEL_GAL } from '../pcb_draw_panel_gal.js';
 import type { PCB_PAINTER } from '../pcb_painter.js';
 import { PCBNEW_SETTINGS } from '../pcbnew_settings.js';
 import { ApplyProjectToBoard, type DRC_JOB_REQUEST, loadBoardForDrc } from './drc_job.js';
@@ -258,18 +256,10 @@ if (g.WorkerGlobalScope !== undefined) {
 
     panel.DisplayBoard(board);
 
-    // The drawing sheet, as the DRC job builds it: from the board's page and title block. After
-    // DisplayBoard, which clears the view (SetBoard's order).
-    const sheet = new DS_PROXY_VIEW_ITEM(
-      pcbIUScale,
-      board.GetPageSettings(),
-      { GetDrawingSheet: () => null },
-      board.GetTitleBlock(),
-      board.GetProperties(),
-    );
-    sheet.SetSheetName(board.GetFileName());
-    sheet.SetFileName(board.GetFileName());
-    panel.SetDrawingSheet(sheet);
+    // The window's drawing sheet, built the same way (PCB_EDIT_FRAME::SetPageSettings). After
+    // DisplayBoard, which clears the view (SetBoard's order). The worker has no frame: the
+    // screen descriptions are EDA_DRAW_FRAME's empty ones, and the page is the first.
+    panel.SetDrawingSheet(boardDrawingSheet(board, '', '', null));
 
     const view = panel.GetView();
     const painter = view.GetPainter() as PCB_PAINTER;

@@ -17,9 +17,7 @@
  */
 
 import type { DRAW_PANEL_GAL_WINDOW, EDA_DRAW_PANEL_GAL } from '@ziroeda/common/draw_panel_gal.js';
-import { DS_PROXY_VIEW_ITEM } from '@ziroeda/common/drawing_sheet/ds_proxy_view_item.js';
 import { VIEW_UPDATE_FLAGS } from '@ziroeda/common/view/view_item.js';
-import type { WksSheet } from '@ziroeda/common/drawing_sheet/types.js';
 import { pcbIUScale } from '@ziroeda/common/eda_units.js';
 import { KICURSOR } from '@ziroeda/common/gal/cursors.js';
 import type { GAL_LAYER_ID, PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
@@ -29,7 +27,7 @@ import type { BOARD_ITEM } from '../board_item.js';
 import { PCB_SELECTION } from '../tools/pcb_selection.js';
 import { RECURSE_MODE } from '@ziroeda/common/eda_item.js';
 import type { VIEW } from '@ziroeda/common/view/view.js';
-import { PCB_DRAW_PANEL_GAL } from '../pcb_draw_panel_gal.js';
+import { boardDrawingSheet, PCB_DRAW_PANEL_GAL } from '../pcb_draw_panel_gal.js';
 import type { PCB_DISPLAY_OPTIONS } from '../pcb_painter.js';
 import type { PCB_EDIT_FRAME } from '../pcb_edit_frame.js';
 import type { PCB_BASE_FRAME } from '../pcb_base_frame.js';
@@ -105,16 +103,9 @@ export function attachBoardToPanel(
 
   if (screen) screen.InitDataPoints(aBoard.GetPageSettings().GetSizeIU(pcbIUScale.IU_PER_MILS));
 
-  const drawingSheet = new DS_PROXY_VIEW_ITEM(
-    pcbIUScale,
-    aBoard.GetPageSettings(),
-    { GetDrawingSheet: (): WksSheet | null => null },
-    aBoard.GetTitleBlock(),
-    aBoard.GetProperties(),
+  aPanel.SetDrawingSheet(
+    boardDrawingSheet(aBoard, aFrame.GetScreenDesc(), aFrame.GetFullScreenDesc(), screen),
   );
-  drawingSheet.SetSheetName(aBoard.GetFileName());
-  drawingSheet.SetFileName(aBoard.GetFileName());
-  aPanel.SetDrawingSheet(drawingSheet);
 }
 
 /** The BOARD_ITEMs behind the editor's item ids (`kind:index[:sub]`). */

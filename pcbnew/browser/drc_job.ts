@@ -227,6 +227,10 @@ export function loadBoardForDrc(
 ): BOARD {
   const board = ParseBoard(aRequest.boardText, aRequest.boardPath);
 
+  // PCB_IO_KICAD_SEXPR::LoadBoard: `if( !aAppendToMe ) m_board->SetFileName( aFileName )` - what
+  // the drawing sheet's ${FILENAME}, the reports and the plot names read.
+  board.SetFileName(aRequest.boardPath);
+
   board.m_Uuid = aRequest.boardUuid;
 
   board.BuildListOfNets();

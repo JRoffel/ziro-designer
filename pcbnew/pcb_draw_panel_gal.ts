@@ -14,7 +14,8 @@ import {
   EDA_DRAW_PANEL_GAL,
   GAL_TYPE,
 } from '@ziroeda/common/draw_panel_gal.js';
-import type { DS_PROXY_VIEW_ITEM } from '@ziroeda/common/drawing_sheet/ds_proxy_view_item.js';
+import { DS_PROXY_VIEW_ITEM } from '@ziroeda/common/drawing_sheet/ds_proxy_view_item.js';
+import { pcbIUScale } from '@ziroeda/common/eda_units.js';
 import type { EDA_DRAW_FRAME } from '@ziroeda/common/eda_draw_frame.js';
 import { FRAME_T } from '@ziroeda/common/frame_type.js';
 import { RENDER_TARGET } from '@ziroeda/common/gal/definitions.js';
@@ -973,4 +974,47 @@ export class PCB_DRAW_PANEL_GAL extends EDA_DRAW_PANEL_GAL {
   override GetView(): PCB_VIEW {
     return this.m_view as PCB_VIEW;
   }
+}
+
+/**
+ * The drawing sheet `PCB_EDIT_FRAME::SetPageSettings` (pcb_edit_frame.cpp:887-922) gives a board:
+ * its page, title block and properties; the sheet name and path from the frame's
+ * `GetScreenDesc()` / `GetFullScreenDesc()` - EDA_DRAW_FRAME's empty strings in pcbnew, a board
+ * having no sheets; the first page; the screen's page number and count; and the board's file name
+ * and current variant. One builder for the window and the render worker, which draw the same
+ * sheet.
+ */
+export function boardDrawingSheet(
+  aBoard: BOARD,
+  aScreenDesc: string,
+  aFullScreenDesc: string,
+  aScreen: { GetPageNumber(): string; GetPageCount(): number } | null,
+): DS_PROXY_VIEW_ITEM {
+  // Prepare drawing-sheet template
+  const drawingSheet = new DS_PROXY_VIEW_ITEM(
+    pcbIUScale,
+    aBoard.GetPageSettings(),
+    { GetDrawingSheet: () => null },
+    aBoard.GetTitleBlock(),
+    aBoard.GetProperties(),
+  );
+
+  drawingSheet.SetSheetName(aScreenDesc);
+  drawingSheet.SetSheetPath(aFullScreenDesc);
+
+  // A board is not like a schematic having a main page and sub sheets.
+  // So for the drawing sheet, use only the first page option to display items
+  drawingSheet.SetIsFirstPage(true);
+
+  if (aScreen) {
+    drawingSheet.SetPageNumber(aScreen.GetPageNumber());
+    drawingSheet.SetSheetCount(aScreen.GetPageCount());
+  }
+
+  drawingSheet.SetFileName(aBoard.GetFileName());
+  const currentVariant = aBoard.GetCurrentVariant();
+  drawingSheet.SetVariantName(currentVariant);
+  drawingSheet.SetVariantDesc(aBoard.GetVariantDescription(currentVariant));
+
+  return drawingSheet;
 }
