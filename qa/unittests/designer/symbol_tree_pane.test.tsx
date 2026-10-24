@@ -372,6 +372,11 @@ describe('the row faces reach the DOM', () => {
         request={{ library: { libId: 'Device:R', unit: 1, bodyStyle: 1 }, nonce: 1 }}
       />,
     );
+    // The frame's tools - and its setupUIConditions - come with the canvas: until then no row is
+    // conditioned, Rotate included.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
     await waitFor(() => expect(rotateLive(container)).toBe(true));
     const cell = (name: string): { text: string; style: string; marked: boolean } => {
       const row = rows(container).find((r) => itemText(r).startsWith(name))!;

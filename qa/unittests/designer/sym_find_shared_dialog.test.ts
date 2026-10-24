@@ -62,15 +62,18 @@
  * The two selectors are `AppendControl` slots, not buttons, and are absent
  * from both lists for that reason.
  */
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  symbolConditions,
-  symbolToolbarDisabledIds,
-  type SymbolFrameState,
-} from '@ziroeda/eeschema/symbol_editor/conditions.js';
-import { SYM_TOP_TOOLBAR } from '@ziroeda/eeschema/symbol_editor/toolbars_symbol_editor.js';
+  SYM_TOP_TOOLBAR,
+  symbolEditorDisabledIds,
+  symbolEditorIdEnabled,
+} from '@ziroeda/eeschema/symbol_editor/toolbars_symbol_editor.js';
+import {
+  type SYMBOL_EDIT_HARNESS,
+  symbolEditHarness,
+} from '../eeschema/support/symbol_edit_harness.js';
 import { TOP_TOOLBAR } from '@ziroeda/eeschema/toolbars_sch_editor.js';
 import {
   toolbarButtonDisabled,
@@ -85,21 +88,14 @@ import {
 import type { Menu, MenuItem } from '@ziroeda/wx/menu.js';
 
 /** A SYMBOL_EDIT_FRAME the moment it opens: no symbol, no library row, empty
- *  undo/redo stacks, the selection tool running. */
-const COLD: SymbolFrameState = {
-  symbol: null,
-  fromLegacyLibrary: false,
-  fromSchematic: false,
-  libraryTreeShown: true,
-  treeLibId: { nickname: '', item: '' },
-  symbolLibId: { nickname: '', item: '' },
-  undoCount: 0,
-  redoCount: 0,
-  idle: true,
-  activeTool: 'select',
-  isSymbolModified: () => false,
-  symbolExists: () => false,
-};
+ *  undo/redo stacks, the selection tool running, the library tree shown. */
+let cold: SYMBOL_EDIT_HARNESS;
+
+beforeAll(() => {
+  cold = symbolEditHarness(undefined, { isLibraryTreeShown: () => true });
+});
+
+afterAll(() => cold.dispose());
 
 const buttons = (entries: readonly ToolEntry[]): ToolButton[] =>
   entries.flatMap((e) =>
@@ -107,7 +103,7 @@ const buttons = (entries: readonly ToolEntry[]): ToolButton[] =>
   );
 
 const coldDisabledIds = (): ReadonlySet<string> =>
-  symbolToolbarDisabledIds(SYM_TOP_TOOLBAR, symbolConditions(COLD));
+  symbolEditorDisabledIds(cold.frame, SYM_TOP_TOOLBAR);
 
 // ---------------------------------------------------------------------------
 // 1. The whole bar, as rendered, on a cold frame
@@ -237,7 +233,7 @@ describe('Edit > Find and Edit > Find and Replace', () => {
         showLibraryTree: true,
         showProperties: true,
       },
-      symbolConditions(COLD),
+      (id) => symbolEditorIdEnabled(cold.frame, id),
     );
     const edit = menus.find((m) => m.label === 'Edit');
     expect(edit).toBeDefined();

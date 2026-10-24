@@ -8,7 +8,15 @@
  * reaches them through {@link SYMBOL_EDIT_FRAME_HOOKS}.
  */
 import type { LIB_SYMBOL } from '../lib_symbol.js';
+import { ACTION_CONDITIONS } from '@ziroeda/common/tool/action_manager.js';
+import type { TOOL_ACTION } from '@ziroeda/common/tool/tool_action.js';
 import { ACTIONS } from '@ziroeda/common/tool/actions.js';
+import { EDITOR_CONDITIONS } from '@ziroeda/common/tool/editor_conditions.js';
+import type { SELECTION } from '@ziroeda/common/tool/selection.js';
+import {
+  type SELECTION_CONDITION,
+  SELECTION_CONDITIONS,
+} from '@ziroeda/common/tool/selection_conditions.js';
 import { COMMON_CONTROL } from '@ziroeda/common/tool/common_control.js';
 import { COMMON_TOOLS } from '@ziroeda/common/tool/common_tools.js';
 import { EMBED_TOOL } from '@ziroeda/common/tool/embed_tool.js';
@@ -144,6 +152,8 @@ export interface SYMBOL_EDIT_FRAME_HOOKS {
   thawLibraryTree?(): void;
   /** `IsLibraryTreeShown()`. */
   isLibraryTreeShown?(): boolean;
+  /** `m_auimgr.GetPane( PropertiesPaneName() ).IsShown()`. */
+  isPropertiesShown?(): boolean;
   /** `ToggleLibraryTree()`. */
   toggleLibraryTree?(): void;
   /** `FocusOnLibId( aLibID )`: the library tree selects and shows it. */
@@ -873,6 +883,167 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
     this.m_toolManager.InvokeTool('common.InteractiveSelection');
 
     canvas.SetEventDispatcher(this.m_toolDispatcher);
+
+    // The constructor's next line (symbol_edit_frame.cpp:180): the tools exist only now.
+    this.setupUIConditions();
+  }
+
+  /**
+   * `setupUIConditions()` (symbol_edit_frame.cpp:448-660): which rows and buttons are live and
+   * which are checked, asked of the frame through `ProcessUpdateUI` as wx asks before it draws.
+   */
+  protected override setupUIConditions(): void {
+    super.setupUIConditions();
+
+    const mgr = this.m_toolManager!.GetActionManager();
+    const cond = new EDITOR_CONDITIONS(this);
+
+    const ENABLE = (x: SELECTION_CONDITION): ACTION_CONDITIONS => new ACTION_CONDITIONS().Enable(x);
+    const CHECK = (x: SELECTION_CONDITION): ACTION_CONDITIONS => new ACTION_CONDITIONS().Check(x);
+    const { And, Or, ShowAlways, Idle } = {
+      And: SELECTION_CONDITIONS.And,
+      Or: SELECTION_CONDITIONS.Or,
+      ShowAlways: SELECTION_CONDITIONS.ShowAlways,
+      Idle: SELECTION_CONDITIONS.Idle,
+    };
+
+    const haveSymbolCond = (_aSel: SELECTION): boolean => this.m_symbol !== null;
+
+    const isEditableCond = (_aSel: SELECTION): boolean =>
+      // Only root symbols from the new s-expression libraries or the schematic are editable.
+      this.IsSymbolEditable() && !this.IsSymbolAlias();
+
+    const isEditableInAliasCond = (_aSel: SELECTION): boolean =>
+      // Less restrictive than isEditableCond: the fields of root symbols and aliases.
+      this.IsSymbolEditable();
+
+    const canUpdateFieldsCond = (_aSel: SELECTION): boolean =>
+      this.IsSymbolEditable() && !!this.m_symbol && this.m_symbol.CanUpdateFieldsFromParent();
+
+    const symbolModifiedCondition = (_aSel: SELECTION): boolean =>
+      !!this.m_libMgr &&
+      this.m_libMgr.IsSymbolModified(
+        this.GetTargetLibId().GetLibItemName(),
+        this.GetTargetLibId().GetLibNickname(),
+      );
+
+    const libSelectedCondition = (_aSel: SELECTION): boolean =>
+      this.GetTargetLibId().GetLibNickname() !== '';
+
+    const canEditProperties = (_aSel: SELECTION): boolean =>
+      !!this.m_symbol && (!this.IsSymbolFromLegacyLibrary() || this.IsSymbolFromSchematic());
+
+    const symbolSelectedInTreeCondition = (_aSel: SELECTION): boolean => {
+      const targetLibId = this.GetTargetLibId();
+      return targetLibId.GetLibNickname() !== '' && targetLibId.GetLibItemName() !== '';
+    };
+
+    const saveSymbolAsCondition = (_aSel: SELECTION): boolean => this.getTargetSymbol() !== null;
+
+    const isSymbolFromSchematicCond = (_aSel: SELECTION): boolean => this.IsSymbolFromSchematic();
+
+    mgr.SetConditions(ACTIONS.saveAll, ENABLE(ShowAlways));
+    mgr.SetConditions(ACTIONS.save, ENABLE(ShowAlways));
+    mgr.SetConditions(SCH_ACTIONS.saveLibraryAs, ENABLE(libSelectedCondition));
+    mgr.SetConditions(SCH_ACTIONS.saveSymbolAs, ENABLE(saveSymbolAsCondition));
+    mgr.SetConditions(SCH_ACTIONS.saveSymbolCopyAs, ENABLE(saveSymbolAsCondition));
+    mgr.SetConditions(SCH_ACTIONS.newSymbol, ENABLE(ShowAlways));
+    mgr.SetConditions(SCH_ACTIONS.importSymbol, ENABLE(ShowAlways));
+    mgr.SetConditions(SCH_ACTIONS.editLibSymbolWithLibEdit, ENABLE(isSymbolFromSchematicCond));
+
+    mgr.SetConditions(ACTIONS.undo, ENABLE(And(haveSymbolCond, cond.UndoAvailable())));
+    mgr.SetConditions(ACTIONS.redo, ENABLE(And(haveSymbolCond, cond.RedoAvailable())));
+    mgr.SetConditions(ACTIONS.revert, ENABLE(symbolModifiedCondition));
+
+    mgr.SetConditions(ACTIONS.toggleGrid, CHECK(cond.GridVisible()));
+    mgr.SetConditions(ACTIONS.toggleGridOverrides, CHECK(cond.GridOverrides()));
+
+    mgr.SetConditions(ACTIONS.cut, ENABLE(isEditableCond));
+    mgr.SetConditions(ACTIONS.copy, ENABLE(haveSymbolCond));
+    mgr.SetConditions(ACTIONS.copyAsText, ENABLE(haveSymbolCond));
+    mgr.SetConditions(ACTIONS.paste, ENABLE(And(And(isEditableCond, Idle), cond.NoActiveTool())));
+    mgr.SetConditions(ACTIONS.doDelete, ENABLE(isEditableCond));
+    mgr.SetConditions(ACTIONS.duplicate, ENABLE(isEditableCond));
+    mgr.SetConditions(ACTIONS.selectAll, ENABLE(haveSymbolCond));
+    mgr.SetConditions(ACTIONS.unselectAll, ENABLE(haveSymbolCond));
+
+    // These actions in symbol editor when editing alias field rotations are allowed.
+    mgr.SetConditions(SCH_ACTIONS.rotateCW, ENABLE(isEditableInAliasCond));
+    mgr.SetConditions(SCH_ACTIONS.rotateCCW, ENABLE(isEditableInAliasCond));
+
+    mgr.SetConditions(SCH_ACTIONS.mirrorH, ENABLE(isEditableCond));
+    mgr.SetConditions(SCH_ACTIONS.mirrorV, ENABLE(isEditableCond));
+
+    mgr.SetConditions(ACTIONS.zoomTool, CHECK(cond.CurrentTool(ACTIONS.zoomTool)));
+    mgr.SetConditions(ACTIONS.selectionTool, CHECK(cond.CurrentTool(ACTIONS.selectionTool)));
+
+    const pinTypeCond = (_aSel: SELECTION): boolean =>
+      !!this.libeditconfig()?.show_pin_electrical_type;
+
+    const hiddenPinCond = (_aSel: SELECTION): boolean =>
+      !!this.libeditconfig()?.show_hidden_lib_pins;
+
+    const hiddenFieldCond = (_aSel: SELECTION): boolean =>
+      !!this.libeditconfig()?.show_hidden_lib_fields;
+
+    const showPinAltIconsCond = (_aSel: SELECTION): boolean =>
+      !!this.libeditconfig()?.show_pin_alt_icons;
+
+    const showLibraryTreeCond = (_aSel: SELECTION): boolean => this.IsLibraryTreeShown();
+
+    // `m_auimgr.GetPane( PropertiesPaneName() ).IsShown()`: the pane is the window's.
+    const propertiesCond = (_aSel: SELECTION): boolean => !!this.hooks.isPropertiesShown?.();
+
+    mgr.SetConditions(SCH_ACTIONS.showElectricalTypes, CHECK(pinTypeCond));
+    mgr.SetConditions(ACTIONS.toggleBoundingBoxes, CHECK(cond.BoundingBoxes()));
+    mgr.SetConditions(ACTIONS.showLibraryTree, CHECK(showLibraryTreeCond));
+    mgr.SetConditions(ACTIONS.showProperties, CHECK(propertiesCond));
+    mgr.SetConditions(SCH_ACTIONS.showHiddenPins, CHECK(hiddenPinCond));
+    mgr.SetConditions(SCH_ACTIONS.showHiddenFields, CHECK(hiddenFieldCond));
+    mgr.SetConditions(SCH_ACTIONS.togglePinAltIcons, CHECK(showPinAltIconsCond));
+
+    const multiUnitModeCond = (_aSel: SELECTION): boolean =>
+      !!this.m_symbol && this.m_symbol.IsMultiUnit() && !this.m_symbol.UnitsLocked();
+
+    const multiBodyStyleModeCond = (_aSel: SELECTION): boolean =>
+      !!this.m_symbol && this.m_symbol.IsMultiBodyStyle();
+
+    const syncedPinsModeCond = (_aSel: SELECTION): boolean => this.m_SyncPinEdit;
+
+    const haveDatasheetCond = (_aSel: SELECTION): boolean =>
+      !!this.m_symbol && this.m_symbol.GetDatasheetField().GetText() !== '';
+
+    mgr.SetConditions(ACTIONS.showDatasheet, ENABLE(haveDatasheetCond));
+    mgr.SetConditions(
+      SCH_ACTIONS.symbolProperties,
+      ENABLE(Or(symbolSelectedInTreeCondition, And(canEditProperties, haveSymbolCond))),
+    );
+    mgr.SetConditions(SCH_ACTIONS.runERC, ENABLE(haveSymbolCond));
+    mgr.SetConditions(SCH_ACTIONS.pinTable, ENABLE(And(isEditableCond, haveSymbolCond)));
+    mgr.SetConditions(SCH_ACTIONS.updateSymbolFields, ENABLE(canUpdateFieldsCond));
+    mgr.SetConditions(SCH_ACTIONS.cycleBodyStyle, ENABLE(multiBodyStyleModeCond));
+
+    mgr.SetConditions(
+      SCH_ACTIONS.toggleSyncedPinsMode,
+      new ACTION_CONDITIONS().Enable(multiUnitModeCond).Check(syncedPinsModeCond),
+    );
+
+    // Only enable a tool if the symbol is edtable
+    const EDIT_TOOL = (tool: TOOL_ACTION): ACTION_CONDITIONS =>
+      new ACTION_CONDITIONS().Enable(isEditableCond).Check(cond.CurrentTool(tool));
+
+    mgr.SetConditions(ACTIONS.deleteTool, EDIT_TOOL(ACTIONS.deleteTool));
+    mgr.SetConditions(SCH_ACTIONS.placeSymbolPin, EDIT_TOOL(SCH_ACTIONS.placeSymbolPin));
+    mgr.SetConditions(SCH_ACTIONS.placeSymbolText, EDIT_TOOL(SCH_ACTIONS.placeSymbolText));
+    mgr.SetConditions(SCH_ACTIONS.drawSymbolTextBox, EDIT_TOOL(SCH_ACTIONS.drawSymbolTextBox));
+    mgr.SetConditions(SCH_ACTIONS.drawRectangle, EDIT_TOOL(SCH_ACTIONS.drawRectangle));
+    mgr.SetConditions(SCH_ACTIONS.drawCircle, EDIT_TOOL(SCH_ACTIONS.drawCircle));
+    mgr.SetConditions(SCH_ACTIONS.drawArc, EDIT_TOOL(SCH_ACTIONS.drawArc));
+    mgr.SetConditions(SCH_ACTIONS.drawBezier, EDIT_TOOL(SCH_ACTIONS.drawBezier));
+    mgr.SetConditions(SCH_ACTIONS.drawSymbolLines, EDIT_TOOL(SCH_ACTIONS.drawSymbolLines));
+    mgr.SetConditions(SCH_ACTIONS.drawSymbolPolygon, EDIT_TOOL(SCH_ACTIONS.drawSymbolPolygon));
+    mgr.SetConditions(SCH_ACTIONS.placeSymbolAnchor, EDIT_TOOL(SCH_ACTIONS.placeSymbolAnchor));
+    mgr.SetConditions(SCH_ACTIONS.importGraphics, EDIT_TOOL(SCH_ACTIONS.importGraphics));
   }
 
   /** `GetCurLib()` (symbol_edit_frame.cpp:909): the project's current library, if it still exists. */

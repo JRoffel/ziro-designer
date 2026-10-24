@@ -661,32 +661,14 @@ const MENU_BUILDER: Readonly<Record<string, () => Menu[]>> = {
         tool: noop,
         toggle: noop,
         language: 'Default',
+        isSymbolFromSchematic: false,
         onSelectLanguage: noop,
         showHotkeys: noop,
         showAbout: noop,
       },
       {},
-      {
-        // Every ENABLE() condition true, so a greyed row here is greyed on its
-        // own merits (an unbuilt feature), not on a condition.
-        haveSymbol: true,
-        isEditable: true,
-        isEditableInAlias: true,
-        canUpdateFields: true,
-        symbolModified: true,
-        libSelected: true,
-        canEditProperties: true,
-        symbolSelectedInTree: true,
-        saveSymbolAs: true,
-        symbolFromSchematic: false,
-        undoAvailable: true,
-        redoAvailable: true,
-        idle: true,
-        noActiveTool: true,
-        multiUnitMode: true,
-        multiBodyStyle: true,
-        haveDatasheet: true,
-      },
+      // Every row live, so a greyed row here is greyed on its own merits.
+      () => true,
     ),
   '../../pcbnew/footprint_edit_frame_ui.tsx': () =>
     footprintEditorMenus(

@@ -134,6 +134,8 @@ afterEach(() => {
 describe('a cold SYMBOL_EDIT_FRAME', () => {
   it('greys what upstream greys with no symbol loaded', async () => {
     const { container, unmount } = render(<SymbolEditor onExitToHome={() => {}} />);
+    // The frame's tools - and with them its setupUIConditions - come with the canvas.
+    await toolsReady();
     const b = buttons(container);
     unmount();
 
@@ -209,6 +211,8 @@ const openOn = async (
       request={{ library: { libId: `Device:${name}`, unit: 1, bodyStyle: 1 }, nonce: 1 }}
     />,
   );
+  // The frame's tools - and with them its setupUIConditions - come with the canvas.
+  await toolsReady();
   // The load is async (the manager resolves the library first), so the first
   // paint is still the cold frame. Rotate is live for a root symbol and for an
   // alias alike, which makes it the one signal that says "loaded" for both.
@@ -505,8 +509,10 @@ describe('the whole top bar, against a captured KiCad', () => {
    * `false` is an action `setupUIConditions` (`symbol_edit_frame.cpp:448-660`)
    * either never names or names as `ENABLE( ShowAlways )`.
    */
-  it('greys exactly what a cold KiCad greys', () => {
+  it('greys exactly what a cold KiCad greys', async () => {
     const { container, unmount } = render(<SymbolEditor onExitToHome={() => {}} />);
+    // The frame's tools - and with them its setupUIConditions - come with the canvas.
+    await toolsReady();
     const b = topBar(container);
     unmount();
     expect(b).toEqual({
@@ -650,8 +656,10 @@ describe('m_SyncPinEdit', () => {
    * plain toolbar face rgb(55,55,55); ours was the checked fill rgb(68,48,41).
    * Enabled-ness alone cannot see this, which is why it is `aria-pressed`.
    */
-  it('is off, and unlit, on a cold frame', () => {
+  it('is off, and unlit, on a cold frame', async () => {
     const { container, unmount } = render(<SymbolEditor onExitToHome={() => {}} />);
+    // The frame's tools - and with them its setupUIConditions - come with the canvas.
+    await toolsReady();
     const state = { pressed: pressed(container, SYNC), disabled: topBar(container)[SYNC] };
     unmount();
     expect(state).toEqual({ pressed: 'false', disabled: true });

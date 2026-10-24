@@ -14,7 +14,12 @@
  * the same bar with one tool not yet working.
  */
 
+import type { EDA_BASE_FRAME } from '@ziroeda/common/eda_base_frame.js';
 import type { ToolEntry } from '@ziroeda/common/tool/action_toolbar_types.js';
+import { ACTIONS } from '@ziroeda/common/tool/actions.js';
+import type { TOOL_ACTION } from '@ziroeda/common/tool/tool_action.js';
+import { wxUpdateUIEvent } from '@ziroeda/wx/wx_event.js';
+import { SCH_ACTIONS } from '../tools/sch_actions.js';
 import type { ToolbarDefaults } from '@ziroeda/common/tool/ui/toolbar_configuration.js';
 
 const sep: ToolEntry = 'sep';
@@ -279,3 +284,78 @@ export const SYM_DEFAULT_TOOLBARS: ToolbarDefaults = {
   RIGHT: SYM_RIGHT_TOOLBAR,
   TOP_MAIN: SYM_TOP_TOOLBAR,
 };
+
+/**
+ * The toolbar and menu ids this window's bars carry that are not the TOOL_ACTION's own name.
+ * Every other id is `SCH_ACTIONS[id]` or `ACTIONS[id]`.
+ */
+const ACTION_ALIASES: Readonly<Record<string, TOOL_ACTION>> = {
+  placePin: SCH_ACTIONS.placeSymbolPin,
+  placeText: SCH_ACTIONS.placeSymbolText,
+  drawPolygon: SCH_ACTIONS.drawSymbolPolygon,
+  placeAnchor: SCH_ACTIONS.placeSymbolAnchor,
+  bezier: SCH_ACTIONS.drawBezier,
+  select: ACTIONS.selectionTool,
+  findReplace: ACTIONS.findAndReplace,
+  zoomFit: ACTIONS.zoomFitScreen,
+  unitsInches: ACTIONS.inchesUnits,
+  unitsMils: ACTIONS.milsUnits,
+  unitsMm: ACTIONS.millimetersUnits,
+  crosshairSmall: ACTIONS.cursorSmallCrosshairs,
+  crosshairFull: ACTIONS.cursorFullCrosshairs,
+  crosshair45: ACTIONS.cursor45Crosshairs,
+};
+
+/** The TOOL_ACTION a toolbar or menu id runs, or null for a window-only row. */
+export function actionForId(aId: string): TOOL_ACTION | null {
+  const alias = ACTION_ALIASES[aId];
+  if (alias) return alias;
+
+  const sch = (SCH_ACTIONS as unknown as Record<string, unknown>)[aId];
+  if (sch && typeof sch === 'object' && 'MakeEvent' in sch) return sch as TOOL_ACTION;
+
+  const common = (ACTIONS as unknown as Record<string, unknown>)[aId];
+  if (common && typeof common === 'object' && 'MakeEvent' in common) return common as TOOL_ACTION;
+
+  return null;
+}
+
+/**
+ * `wxEVT_UPDATE_UI` for the action behind \a aId: whether SYMBOL_EDIT_FRAME::setupUIConditions
+ * leaves it enabled, as wx asks before it draws the row or the button. An id with no action, or an
+ * action with no condition registered, is enabled.
+ *
+ * Upstream's frame has its tools from the constructor; ours gets them with its canvas, a moment
+ * after the window first draws. Until then no action can run, so none is offered.
+ */
+export function symbolEditorIdEnabled(aFrame: EDA_BASE_FRAME, aId: string): boolean {
+  const action = actionForId(aId);
+
+  if (!action) return true;
+
+  if (!aFrame.GetToolManager()) return false;
+
+  const event = new wxUpdateUIEvent(action.GetUIId());
+
+  return !aFrame.ProcessUpdateUI(event) || event.GetEnabled();
+}
+
+/** The ids of \a aEntries' buttons the frame's conditions leave disabled. */
+export function symbolEditorDisabledIds(
+  aFrame: EDA_BASE_FRAME,
+  aEntries: readonly ToolEntry[],
+): Set<string> {
+  const out = new Set<string>();
+  const check = (aId: string): void => {
+    if (!symbolEditorIdEnabled(aFrame, aId)) out.add(aId);
+  };
+
+  for (const e of aEntries) {
+    if (e === 'sep' || 'spacer' in e || 'control' in e) continue;
+
+    if ('group' in e) for (const a of e.actions) check(a.id);
+    else check(e.id);
+  }
+
+  return out;
+}

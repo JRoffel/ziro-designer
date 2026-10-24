@@ -22,7 +22,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   symbolEditorMenus,
-  type SymbolMenuConditions,
   type SymbolMenuHandlers,
 } from '@ziroeda/eeschema/symbol_editor/menubar_symbol_editor.js';
 import {
@@ -41,31 +40,12 @@ const handlers = (): SymbolMenuHandlers & FootprintMenuHandlers => ({
   tool: noop,
   toggle: noop,
   language: 'Default',
+  isSymbolFromSchematic: false,
   onSelectLanguage: noop,
   showHotkeys: noop,
   showAbout: noop,
 });
 
-/** Every ENABLE() condition true, so a greyed row is greyed on its own merits. */
-const SYM_ON: SymbolMenuConditions = {
-  haveSymbol: true,
-  isEditable: true,
-  isEditableInAlias: true,
-  canUpdateFields: true,
-  symbolModified: true,
-  libSelected: true,
-  canEditProperties: true,
-  symbolSelectedInTree: true,
-  saveSymbolAs: true,
-  symbolFromSchematic: false,
-  undoAvailable: true,
-  redoAvailable: true,
-  idle: true,
-  noActiveTool: true,
-  multiUnitMode: true,
-  multiBodyStyle: true,
-  haveDatasheet: true,
-};
 const FP_ON: FootprintMenuConditions = {
   haveFootprint: true,
   targetLib: true,
@@ -77,10 +57,20 @@ const FP_ON: FootprintMenuConditions = {
   redoAvailable: true,
 };
 
+/**
+ * The Symbol Editor's bar as the frame would have it built: \a aDisabled the ids its
+ * setupUIConditions greys (none: a greyed row is greyed on its own merits), and whether the symbol
+ * came from a schematic, which the bar asks as it builds File.
+ */
 const sym = (
-  conds: Partial<SymbolMenuConditions> = {},
+  aFrame: { disabled?: readonly string[]; fromSchematic?: boolean } = {},
   checks: Record<string, boolean> = {},
-): Menu[] => symbolEditorMenus(handlers(), checks, { ...SYM_ON, ...conds });
+): Menu[] =>
+  symbolEditorMenus(
+    { ...handlers(), isSymbolFromSchematic: !!aFrame.fromSchematic },
+    checks,
+    (id) => !aFrame.disabled?.includes(id),
+  );
 const fp = (
   conds: Partial<FootprintMenuConditions> = {},
   checks: Record<string, boolean> = {},
@@ -170,11 +160,9 @@ describe('the Symbol Editor menu bar', () => {
    */
   it('drops Save All when the symbol came from a schematic', () => {
     expect(rows(sym(), 'File')).toContain('Save All');
-    expect(rows(sym({ symbolFromSchematic: true }), 'File')).not.toContain('Save All');
+    expect(rows(sym({ fromSchematic: true }), 'File')).not.toContain('Save All');
     // …and nothing else moves with it.
-    expect(rows(sym({ symbolFromSchematic: true }), 'File')).toHaveLength(
-      rows(sym(), 'File').length - 1,
-    );
+    expect(rows(sym({ fromSchematic: true }), 'File')).toHaveLength(rows(sym(), 'File').length - 1);
   });
 
   /**
@@ -182,11 +170,11 @@ describe('the Symbol Editor menu bar', () => {
    * borrowed from a schematic, where SYMBOL_EDITOR_CONTROL::EditLibrarySymbol opens the
    * library's own copy. It used to be greyed either way, while that handler was not ported.
    */
-  it('lights Edit Library Symbol only for a symbol from a schematic', () => {
-    expect(find(sym(), 'Edit Library Symbol...')?.disabled).toBe(true);
-    expect(find(sym({ symbolFromSchematic: true }), 'Edit Library Symbol...')?.disabled).toBe(
-      false,
-    );
+  it('greys Edit Library Symbol as the frame greys its action', () => {
+    expect(
+      find(sym({ disabled: ['editLibSymbolWithLibEdit'] }), 'Edit Library Symbol...')?.disabled,
+    ).toBe(true);
+    expect(find(sym(), 'Edit Library Symbol...')?.disabled).toBe(false);
   });
 
   /**
@@ -195,7 +183,7 @@ describe('the Symbol Editor menu bar', () => {
    */
   it('lights Save Library As only with a library selected', () => {
     expect(find(sym(), 'Save Library As...')?.disabled).toBe(false);
-    expect(find(sym({ libSelected: false }), 'Save Library As...')?.disabled).toBe(true);
+    expect(find(sym({ disabled: ['saveLibraryAs'] }), 'Save Library As...')?.disabled).toBe(true);
   });
 
   /** :95-116. Ours was six entries against upstream's eighteen. */

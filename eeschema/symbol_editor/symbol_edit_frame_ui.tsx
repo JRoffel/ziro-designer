@@ -21,6 +21,7 @@
  *
  * What it reaches into `designer/` for arrives as {@link SYMBOL_EDIT_FRAME_APP}.
  */
+import type { ToolEntry } from '@ziroeda/common/tool/action_toolbar_types.js';
 import {
   type JSX,
   type ReactNode,
@@ -148,7 +149,6 @@ import type { SCH_SYMBOL } from '../sch_symbol.js';
 import type { SCH_TEXT } from '../sch_text.js';
 import type { SCH_TEXTBOX } from '../sch_textbox.js';
 import { SymbolTreeSynchronizingAdapter } from '../symbol_tree_synchronizing_adapter.js';
-import { SCH_ACTIONS } from '../tools/sch_actions.js';
 import {
   defaultSelectionFilter,
   type SelectionFilterOptions,
@@ -158,7 +158,6 @@ import type { IMPORT_GFX_RESULT } from '../tools/symbol_editor_drawing_tools.js'
 import { symSelectionFilterShown } from '../widgets/panel_sch_selection_filter.js';
 import { SelectionFilterPanel } from '../widgets/panel_sch_selection_filter_ui.js';
 import { LiveSchPropertiesPanel } from '../widgets/sch_properties_panel_ui.js';
-import { type SymbolConditions, symbolConditions, symbolToolbarDisabledIds } from './conditions.js';
 import { symbolEditorMenus } from './menubar_symbol_editor.js';
 import { DEMORGAN_ALT, DEMORGAN_STD, SYMBOL_EDIT_FRAME } from './symbol_edit_frame.js';
 import type { SYMBOL_EDIT_FRAME_APP } from './symbol_edit_frame_app.js';
@@ -170,12 +169,15 @@ import {
 import { SaveSymbolAsDialog } from './symbol_editor_ui.js';
 import { applyToggle, mergeSymbolToggles, persistSymbolToggle } from './toggles.js';
 import {
+  actionForId,
   LISTBOX_WIDTH,
   SYM_CONTROL,
   SYM_DEFAULT_TOOLBARS,
   SYM_LEFT_TOOLBAR,
   SYM_RIGHT_TOOLBAR,
   SYM_TOP_TOOLBAR,
+  symbolEditorDisabledIds,
+  symbolEditorIdEnabled,
 } from './toolbars_symbol_editor.js';
 import '@ziroeda/common/widgets/shell.css';
 
@@ -196,41 +198,6 @@ function customizeHookControls(aHook: wxFileDialogCustomizeHook): JSX.Element | 
     return <FileDlgHookNewLibraryControls hook={aHook as FILEDLG_HOOK_NEW_LIBRARY} />;
 
   return undefined;
-}
-
-/**
- * The toolbar and menu ids this window's bars carry that are not the TOOL_ACTION's own name.
- * Every other id is `SCH_ACTIONS[id]` or `ACTIONS[id]`.
- */
-const ACTION_ALIASES: Readonly<Record<string, TOOL_ACTION>> = {
-  placePin: SCH_ACTIONS.placeSymbolPin,
-  placeText: SCH_ACTIONS.placeSymbolText,
-  drawPolygon: SCH_ACTIONS.drawSymbolPolygon,
-  placeAnchor: SCH_ACTIONS.placeSymbolAnchor,
-  bezier: SCH_ACTIONS.drawBezier,
-  select: ACTIONS.selectionTool,
-  findReplace: ACTIONS.findAndReplace,
-  zoomFit: ACTIONS.zoomFitScreen,
-  unitsInches: ACTIONS.inchesUnits,
-  unitsMils: ACTIONS.milsUnits,
-  unitsMm: ACTIONS.millimetersUnits,
-  crosshairSmall: ACTIONS.cursorSmallCrosshairs,
-  crosshairFull: ACTIONS.cursorFullCrosshairs,
-  crosshair45: ACTIONS.cursor45Crosshairs,
-};
-
-/** The TOOL_ACTION a toolbar or menu id runs, or null for a window-only row. */
-function actionForId(aId: string): TOOL_ACTION | null {
-  const alias = ACTION_ALIASES[aId];
-  if (alias) return alias;
-
-  const sch = (SCH_ACTIONS as unknown as Record<string, unknown>)[aId];
-  if (sch && typeof sch === 'object' && 'MakeEvent' in sch) return sch as TOOL_ACTION;
-
-  const common = (ACTIONS as unknown as Record<string, unknown>)[aId];
-  if (common && typeof common === 'object' && 'MakeEvent' in common) return common as TOOL_ACTION;
-
-  return null;
 }
 
 /**
@@ -680,6 +647,7 @@ export function SymbolEditor({
         reCreateMenuBar: () => repaint(),
         recreateToolbars: () => repaint(),
         isLibraryTreeShown: () => sessionRef.current.has('showLibraryTree'),
+        isPropertiesShown: () => sessionRef.current.has('showProperties'),
         toggleLibraryTree: () => setSession((s) => applyToggle(s, 'showLibraryTree')),
         focusOnLibId: (aLibId) => {
           setSelectLibId(aLibId.Format());
@@ -1230,27 +1198,15 @@ export function SymbolEditor({
   );
 
   const libManager = frame.GetLibManager();
-  const conds: SymbolConditions = symbolConditions({
-    symbol,
-    fromLegacyLibrary: frame.IsSymbolFromLegacyLibrary(),
-    fromSchematic: frame.IsSymbolFromSchematic(),
-    libraryTreeShown: session.has('showLibraryTree'),
-    treeLibId: { nickname: treeSel?.lib ?? '', item: treeSel?.name ?? '' },
-    symbolLibId: {
-      nickname: symbol?.GetLibId().GetLibNickname() ?? '',
-      item: symbol?.GetLibId().GetLibItemName() ?? '',
-    },
-    undoCount: frame.GetUndoCommandCount(),
-    redoCount: frame.GetRedoCommandCount(),
-    idle: true,
-    activeTool,
-    isSymbolModified: (nickname, item) => libManager.IsSymbolModified(item, nickname),
-    symbolExists: (nickname, item) => libManager.SymbolExists(item, nickname),
-  });
 
-  const topDisabled = symbolToolbarDisabledIds(SYM_TOP_TOOLBAR, conds);
-  const leftDisabled = symbolToolbarDisabledIds(SYM_LEFT_TOOLBAR, conds);
-  const rightDisabled = symbolToolbarDisabledIds(SYM_RIGHT_TOOLBAR, conds);
+  // `wxEVT_UPDATE_UI` for each row and button: the frame's setupUIConditions decides.
+  const isEnabled = (aId: string): boolean => symbolEditorIdEnabled(frame, aId);
+  const disabledIds = (aEntries: readonly ToolEntry[]): Set<string> =>
+    symbolEditorDisabledIds(frame, aEntries);
+
+  const topDisabled = disabledIds(SYM_TOP_TOOLBAR);
+  const leftDisabled = disabledIds(SYM_LEFT_TOOLBAR);
+  const rightDisabled = disabledIds(SYM_RIGHT_TOOLBAR);
 
   const menus: Menu[] = symbolEditorMenus(
     {
@@ -1258,12 +1214,13 @@ export function SymbolEditor({
       tool: onAction,
       toggle: onToggle,
       language: common.system.language,
+      isSymbolFromSchematic: frame.IsSymbolFromSchematic(),
       onSelectLanguage: () => {},
       showHotkeys: showHotkeyList,
       showAbout: () => setAboutOpen(true),
     },
     Object.fromEntries([...toggles].map((t) => [t, true])),
-    conds,
+    isEnabled,
   );
   const menusRef = useRef<Menu[]>(menus);
   menusRef.current = menus;

@@ -60,7 +60,6 @@ import { addClose } from '@ziroeda/common/tool/action_menu.js';
 import { browserSafeKey } from '@ziroeda/common/browser_reserved.js';
 import { standardHelpMenu } from '@ziroeda/common/eda_base_frame_help_menu.js';
 import { setLanguageMenuItem } from '@ziroeda/common/eda_base_frame_language_menu.js';
-import { type SymbolConditions, symbolActionEnabled } from './conditions.js';
 
 const SEP: MenuItem = { sep: true };
 
@@ -73,6 +72,8 @@ export interface SymbolMenuHandlers {
   toggle: (id: string) => void;
   /** `COMMON_SETTINGS.system.language`, the row Set Language ticks. */
   language: string;
+  /** `IsSymbolFromSchematic()`, which `doReCreateMenuBar` asks as it builds File. */
+  isSymbolFromSchematic: boolean;
   /** `EDA_BASE_FRAME::OnLanguageSelectionEvent`. */
   onSelectLanguage: (label: string) => void;
   /** `ACTIONS::listHotKeys`, through the shared Help menu. */
@@ -85,21 +86,11 @@ export interface SymbolMenuHandlers {
 export type SymbolMenuChecks = Readonly<Record<string, boolean>>;
 
 /**
- * The `ENABLE( … )` conditions of `SYMBOL_EDIT_FRAME::setupUIConditions`
- * (`symbol_edit_frame.cpp:448-660`) that this menu bar reads.
- *
- * It used to be four booleans invented here — `haveSymbol`, `revert`,
- * `targetSymbol`, `symbolFromSchematic` — and three of the four were the wrong
- * question: `revert` was "a symbol is open" where upstream asks the library
- * manager whether the target symbol is dirty, `targetSymbol` gated File >
- * Export which upstream never gates at all, and `haveSymbol` stood in for
- * `isEditableCond`, `haveDatasheetCond` and `symbolSelectedInTreeCondition`
- * alike. It is now `SymbolConditions` — one field per upstream lambda,
- * computed by `conditions.ts` from the frame's state — and the rows below read
- * it through `symbolActionEnabled`, the same table the toolbars read, so a row
- * and its toolbar button cannot disagree.
+ * Whether the frame leaves `id`'s action enabled: `SYMBOL_EDIT_FRAME::setupUIConditions`
+ * (symbol_edit_frame.cpp:448-660), asked through the frame's `wxEVT_UPDATE_UI` as wx asks before
+ * it draws a row. A row with no condition registered is enabled.
  */
-export type SymbolMenuConditions = SymbolConditions;
+export type SymbolMenuEnabled = (id: string) => boolean;
 
 /**
  * The whole bar, in `menuBar->Append` order
@@ -109,7 +100,7 @@ export type SymbolMenuConditions = SymbolConditions;
 export function symbolEditorMenus(
   h: SymbolMenuHandlers,
   checks: SymbolMenuChecks,
-  conds: SymbolMenuConditions,
+  isEnabled: SymbolMenuEnabled,
 ): Menu[] {
   /**
    * `ACTION_MANAGER`'s verdict for `id`, which is what greys a row.
@@ -119,7 +110,7 @@ export function symbolEditorMenus(
    * the row and the toolbar button for the same action drift apart — which is
    * how File > Export came to be gated on a condition upstream never gave it.
    */
-  const enabled = (id: string): boolean => symbolActionEnabled(id, conds);
+  const enabled = (id: string): boolean => isEnabled(id);
 
   /** `menu->Add( ACTION )` — label, accelerator and id all from the action. */
   const act = (label: string, id: string, extra: Partial<MenuItem> = {}): MenuItem => ({
@@ -184,7 +175,7 @@ export function symbolEditorMenus(
         act('Save Copy As...', 'saveSymbolCopyAs'),
         // `if( !IsSymbolFromSchematic() ) fileMenu->Add( ACTIONS::saveAll );`
         // The row DISAPPEARS; it is not greyed.
-        ...(conds.symbolFromSchematic ? [] : [act('Save All', 'saveAll')]),
+        ...(h.isSymbolFromSchematic ? [] : [act('Save All', 'saveAll')]),
         // ENABLE( symbolModifiedCondition ) (:539). Not "a symbol is open":
         // upstream asks the library manager whether the TARGET symbol — the
         // tree's row when the tree is shown, else the loaded one — is dirty,
