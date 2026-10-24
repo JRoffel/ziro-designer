@@ -74,6 +74,32 @@ import {
 
 const MM = 10000; // IU per mm (matches the renderer)
 
+/**
+ * `SCH_PLOT_OPTS` (sch_plotter.h:54-93): what every `SCH_ITEM::Plot` is handed. The items read
+ * none of it themselves; the symbol editor's SVG export plots with the defaults.
+ */
+export class SCH_PLOT_OPTS {
+  m_plotAll = true;
+  m_plotDrawingSheet = true;
+  m_plotPages: string[] = [];
+
+  m_plotHopOver = false;
+  m_blackAndWhite = false;
+  m_pageSizeSelect = 0;
+  m_useBackgroundColor = true;
+  m_PDFPropertyPopups = false;
+  m_PDFHierarchicalLinks = false;
+  m_PDFMetadata = false;
+  m_theme = '';
+
+  m_outputDirectory = '';
+  m_outputFile = '';
+  m_variant = '';
+
+  // has meaning only with DXF plotter: set DXF units in DXF file
+  m_DXF_File_Unit: DXF_UNITS = DXF_UNITS.INCH;
+}
+
 /** Print/Plot options shared by the dialogs (SCH_PLOT_OPTS subset). */
 export interface PlotOpts {
   /** Colour output (false = black and white, KiCad's m_blackAndWhite). */

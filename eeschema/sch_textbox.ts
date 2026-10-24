@@ -6,7 +6,7 @@
  * that wraps text (`class SCH_TEXTBOX : public SCH_SHAPE, public EDA_TEXT`, the EDA_TEXT
  * half mixed in). Also the base of `SCH_TABLECELL`.
  *
- * Not here: `Plot`, `Print`, `GetMenuImage`, `DoHypertextAction`,
+ * Not here: `Print`, `GetMenuImage`, `DoHypertextAction`,
  * `Serialize`/`Deserialize`, `SCH_TEXTBOX_DESC`.
  */
 
@@ -26,7 +26,11 @@ import { EDA_TEXT } from '@ziroeda/common/eda_text.js';
 import { schIUScale } from '@ziroeda/common/eda_units.js';
 import { FONT } from '@ziroeda/common/font/font.js';
 import type { METRICS } from '@ziroeda/common/font/font_metrics.js';
-import { GR_TEXT_H_ALIGN_T, GR_TEXT_V_ALIGN_T } from '@ziroeda/common/font/text_attributes.js';
+import {
+  GR_TEXT_H_ALIGN_T,
+  GR_TEXT_V_ALIGN_T,
+  type TEXT_ATTRIBUTES,
+} from '@ziroeda/common/font/text_attributes.js';
 import { SCH_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import type { RENDER_SETTINGS } from '@ziroeda/common/render_settings.js';
 import type { UNITS_PROVIDER } from '@ziroeda/common/units_provider.js';
@@ -45,6 +49,18 @@ import { KiROUND } from '@ziroeda/kimath/src/math/util.js';
 import type { VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
 import { SCH_ITEM } from './sch_item.js';
 import { SCH_SHAPE } from './sch_shape.js';
+import type { SCH_PLOT_OPTS } from './sch_plotter.js';
+import { type PLOTTER, plotterFont } from '@ziroeda/common/plotters/plotter.js';
+import {
+  COLOR4D_UNSPECIFIED,
+  COLOR4D_WHITE,
+  type Color4d,
+  color4dEquals,
+  desaturate,
+  mix,
+} from '@ziroeda/common/gal/color4d.js';
+import { wxStringSplit } from '@ziroeda/common/string_utils.js';
+import { TRANSFORM } from '@ziroeda/kimath/src/transform.js';
 import type { SCH_SHEET_PATH } from './sch_sheet_path.js';
 import { MSG_PANEL_ITEM } from '@ziroeda/common/widgets/msgpanel.js';
 import type { EDA_DRAW_FRAME_LIKE } from '@ziroeda/common/eda_item.js';
@@ -114,6 +130,92 @@ export class SCH_TEXTBOX extends SCH_SHAPE {
 
   override GetClass(): string {
     return 'SCH_TEXTBOX';
+  }
+
+  override Plot(
+    aPlotter: PLOTTER,
+    aBackground: boolean,
+    aPlotOpts: SCH_PLOT_OPTS,
+    aUnit: number,
+    aBodyStyle: number,
+    aOffset: VECTOR2I,
+    aDimmed: boolean,
+  ): void {
+    if (this.IsPrivate()) return;
+
+    super.Plot(aPlotter, aBackground, aPlotOpts, aUnit, aBodyStyle, aOffset, aDimmed);
+
+    if (aBackground) return;
+
+    const sheet = this.Schematic()?.CurrentSheet() ?? null;
+    const renderSettings = this.getRenderSettings(aPlotter);
+    let penWidth: number;
+    let color: Color4d;
+    let bg = renderSettings.GetBackgroundColor();
+
+    const font = plotterFont(this.GetDrawFont(renderSettings), this.GetFontMetrics());
+
+    color = this.GetTextColor();
+
+    if (!aPlotter.GetColorMode() || color4dEquals(color, COLOR4D_UNSPECIFIED))
+      color = renderSettings.GetLayerColor(this.m_layer);
+
+    if (color4dEquals(bg, COLOR4D_UNSPECIFIED) || !aPlotter.GetColorMode()) bg = COLOR4D_WHITE;
+
+    // `if( color.m_text && Schematic() )`: a colour held as a text variable is not carried by our
+    // COLOR4D (color4d.ts), so there is nothing to resolve.
+
+    if (aDimmed) {
+      color = desaturate(color);
+      color = mix(color, bg, 0.5);
+    }
+
+    penWidth = this.GetEffectiveTextPenWidth(renderSettings.GetDefaultPenWidth());
+    penWidth = Math.max(penWidth, renderSettings.GetMinPenWidth());
+    aPlotter.SetCurrentLineWidth(penWidth);
+
+    let attrs: TEXT_ATTRIBUTES;
+    const positions: VECTOR2I[] = [];
+
+    const strings_list = wxStringSplit(this.GetShownText(renderSettings, sheet, true), '\n');
+
+    if (!renderSettings.m_Transform.equals(new TRANSFORM()) || aOffset.x !== 0 || aOffset.y !== 0) {
+      // `SCH_TEXTBOX temp( *this )`
+      const temp = SCH_TEXTBOX.copyTextBox(new SCH_TEXTBOX(), this);
+
+      if (renderSettings.m_Transform.y1) {
+        temp.SetTextAngle(
+          temp.GetTextAngle().equals(ANGLE_HORIZONTAL) ? ANGLE_VERTICAL : ANGLE_HORIZONTAL,
+        );
+      }
+
+      const start = renderSettings.TransformCoordinate(this.m_start);
+      const end = renderSettings.TransformCoordinate(this.m_end);
+      temp.SetStart({ x: start.x + aOffset.x, y: start.y + aOffset.y });
+      temp.SetEnd({ x: end.x + aOffset.x, y: end.y + aOffset.y });
+
+      attrs = temp.GetAttributes().clone();
+      temp.GetLinePositions(renderSettings, positions, strings_list.length);
+    } else {
+      attrs = this.GetAttributes().clone();
+      this.GetLinePositions(renderSettings, positions, strings_list.length);
+    }
+
+    attrs.m_StrokeWidth = penWidth;
+    attrs.m_Multiline = false;
+
+    for (let ii = 0; ii < strings_list.length; ii++) {
+      aPlotter.PlotText(
+        positions[ii]!,
+        color,
+        strings_list[ii]!,
+        attrs,
+        font,
+        this.GetFontMetrics(),
+      );
+    }
+
+    if (this.HasHyperlink()) aPlotter.HyperlinkBox(this.GetBoundingBox(), this.GetHyperlink());
   }
 
   /** `GetMsgPanelInfo( aFrame, aList )` (sch_textbox.cpp). */

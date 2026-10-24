@@ -214,7 +214,7 @@ export function symbolEditorMenus(
             // `getTargetSymbol()` is null. Ours used to grey it.
             act('Symbol...', 'exportSymbol'),
             stub('View as PNG...', 'exportSymbolView'),
-            stub('Symbol as SVG...', 'exportSymbolAsSVG'),
+            act('Symbol as SVG...', 'exportSymbolAsSVG'),
           ],
         },
         SEP,

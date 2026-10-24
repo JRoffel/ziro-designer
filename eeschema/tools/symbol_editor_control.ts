@@ -6,7 +6,7 @@
  * view toggles, unit stepping, flattening a derived symbol, and the library fields table.
  *
  * Still to come, with the library tree and what they call: Init's tree context menu, DdAddLibrary
- * (a file dropped from the desktop), ExportView, ExportSymbolAsSVG, AddSymbolToSchematic's symbol
+ * (a file dropped from the desktop), ExportView, AddSymbolToSchematic's symbol
  * viewer branch (SYMBOL_VIEWER_FRAME is not a live frame yet),
  * AddSymbolToSchematic, OpenWithTextEditor and OpenDirectory. PreviousSymbol / NextSymbol are
  * SYMBOL_VIEWER_FRAME's and come with its tools. Their actions are not bound until they are.
@@ -22,6 +22,9 @@ import { LIB_ID } from '@ziroeda/common/lib_id.js';
 import { LIBRARY_EDITOR_CONTROL } from '@ziroeda/common/tool/library_editor_control.js';
 import { LIB_SYMBOL } from '../lib_symbol.js';
 import { wxBell } from '@ziroeda/wx/utils.js';
+import { schIUScale } from '@ziroeda/common/eda_units.js';
+import { PAGE_INFO } from '@ziroeda/common/page_info.js';
+import { SVGFileExtension } from '@ziroeda/common/wildcards_and_files_ext.js';
 import { wxICON_ERROR, wxOK } from '@ziroeda/wx/defs.js';
 import type { SCH_BASE_FRAME } from '../sch_base_frame.js';
 import {
@@ -458,6 +461,56 @@ export class SYMBOL_EDITOR_CONTROL extends SCH_TOOL_BASE<SCH_BASE_FRAME> {
     return 0;
   }
 
+  *ExportSymbolAsSVG(_aEvent: TOOL_EVENT): COROUTINE_BODY<number> {
+    if (!this.m_isSymbolEditor) return 0;
+
+    const editFrame = this.editFrame();
+    const symbol = editFrame.GetCurSymbol();
+
+    if (!symbol) {
+      yield* this.RunMainStackModal(() => editFrame.wxMessageBox('No symbol to export'));
+      return 0;
+    }
+
+    // `wxFileName fn( symbol->GetName() ); fn.SetExt( FILEEXT::SVGFileExtension );`
+    const fn = `${symbol.GetName()}.${SVGFileExtension}`;
+
+    // `wxFileSelector( _( "SVG File Name" ), pro_dir, fn.GetFullName(), ..., wxFD_SAVE )`: a
+    // generated output is downloaded, never written into the project, so there is no folder to
+    // pick and the file keeps the name the selector would have offered.
+    const fullFileName = fn;
+
+    if (fullFileName !== '') {
+      const pageSave = editFrame.GetScreen()!.GetPageSettings();
+      const pageTemp = PAGE_INFO.copyOf(pageSave);
+
+      const symbolBBox = symbol.GetUnitBoundingBox(
+        editFrame.GetUnit(),
+        editFrame.GetBodyStyle(),
+        false,
+      );
+
+      // Add a small margin (10% of size)to the plot bounding box
+      // (BOX2I::Inflate takes coord_type, so the double margins truncate.)
+      symbolBBox.Inflate(
+        Math.trunc(symbolBBox.GetSize().x * 0.1),
+        Math.trunc(symbolBBox.GetSize().y * 0.1),
+      );
+
+      pageTemp.SetWidthMils(schIUScale.iuToMils(symbolBBox.GetSize().x));
+      pageTemp.SetHeightMils(schIUScale.iuToMils(symbolBBox.GetSize().y));
+
+      // Add an offet to plot the symbol centered on the page.
+      const plot_offset = symbolBBox.GetOrigin();
+
+      editFrame.GetScreen()!.SetPageSettings(pageTemp);
+      editFrame.SVGPlotSymbol(fullFileName, { x: -plot_offset.x, y: -plot_offset.y });
+      editFrame.GetScreen()!.SetPageSettings(pageSave);
+    }
+
+    return 0;
+  }
+
   *FlattenSymbol(_aEvent: TOOL_EVENT): COROUTINE_BODY<number> {
     if (!this.m_isSymbolEditor) return 0;
 
@@ -557,6 +610,7 @@ export class SYMBOL_EDITOR_CONTROL extends SCH_TOOL_BASE<SCH_BASE_FRAME> {
     this.Go(this.CutCopyDelete, SCH_ACTIONS.copySymbol.MakeEvent());
     this.Go(this.DuplicateSymbol, SCH_ACTIONS.pasteSymbol.MakeEvent());
     this.Go(this.ExportSymbol, SCH_ACTIONS.exportSymbol.MakeEvent());
+    this.Go(this.ExportSymbolAsSVG, SCH_ACTIONS.exportSymbolAsSVG.MakeEvent());
     this.Go(SYNC_HANDLER(this.AddSymbolToSchematic), SCH_ACTIONS.addSymbolToSchematic.MakeEvent());
 
     this.Go(this.FlattenSymbol, SCH_ACTIONS.flattenSymbol.MakeEvent());

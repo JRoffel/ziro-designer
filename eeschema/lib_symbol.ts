@@ -40,6 +40,15 @@ import { schIUScale } from '@ziroeda/common/eda_units.js';
 import { EMBEDDED_FILE, EMBEDDED_FILES } from '@ziroeda/common/embedded_files.js';
 import { type SearchTerm, searchTerm } from '@ziroeda/common/eda_pattern_match.js';
 import { SCH_LAYER_ID } from '@ziroeda/common/layer_id.js';
+import type { PLOTTER } from '@ziroeda/common/plotters/plotter.js';
+import {
+  COLOR4D_UNSPECIFIED,
+  COLOR4D_WHITE,
+  color4dEquals,
+  desaturate,
+  mix,
+} from '@ziroeda/common/gal/color4d.js';
+import type { SCH_PLOT_OPTS } from './sch_plotter.js';
 import { LIB_ID } from '@ziroeda/common/lib_id.js';
 import {
   FIELD_T,
@@ -288,7 +297,7 @@ export function GetUnitPinInfo(sym: LibSymbol): UNIT_PIN_INFO[] {
 // `LIB_SYMBOL` itself: the live-model class (eeschema stage E3). The record model's
 // operations above are left untouched.
 //
-// Not here: `Plot`/`PlotFields`, `GetMsgPanelInfo`, `Serialize`/`Deserialize`,
+// Not here: `GetMsgPanelInfo`, `Serialize`/`Deserialize`,
 // `LIB_SYMBOL_DESC`, `GetFonts`/`EmbedFonts` (no outline font embedding here), and the
 // `LEGACY_SYMBOL_LIB` pointer (legacy .lib caches are the record model's).
 // Naming: `std::weak_ptr<LIB_SYMBOL> m_parent` and its `GetParent()`/`SetParent()` would
@@ -1900,6 +1909,97 @@ export class LIB_SYMBOL extends SYMBOL {
    */
   GetDrawItems(): LIB_ITEMS_CONTAINER {
     return this.m_drawings;
+  }
+
+  /**
+   * Plot the symbol's draw items (not its fields; a schematic symbol plots its own) for unit
+   * \a aUnit and body style \a aBodyStyle (0 for every one), moved by \a aOffset.
+   */
+  override Plot(
+    aPlotter: PLOTTER,
+    aBackground: boolean,
+    aPlotOpts: SCH_PLOT_OPTS,
+    aUnit: number,
+    aBodyStyle: number,
+    aOffset: VECTOR2I,
+    aDimmed: boolean,
+  ): void {
+    // wxASSERT( aPlotter != nullptr )
+
+    const renderSettings = this.getRenderSettings(aPlotter);
+    let color = renderSettings.GetLayerColor(SCH_LAYER_ID.LAYER_DEVICE);
+    let bg = renderSettings.GetBackgroundColor();
+
+    if (color4dEquals(bg, COLOR4D_UNSPECIFIED) || !aPlotter.GetColorMode()) bg = COLOR4D_WHITE;
+
+    // `if( color.m_text && Schematic() )`: a colour held as a text variable is not carried by our
+    // COLOR4D (color4d.ts), so there is nothing to resolve.
+
+    if (aDimmed) {
+      color = desaturate(color);
+      color = mix(color, bg, 0.5);
+    }
+
+    aPlotter.SetColor(color);
+
+    for (const item of this.m_drawings) {
+      // Do not plot private items
+      if (item.IsPrivate()) continue;
+
+      // LIB_FIELDs are not plotted here, because this plot function is used to plot schematic
+      // items which have their own SCH_FIELDs
+      if (item.Type() === KICAD_T.SCH_FIELD_T) continue;
+
+      if (aUnit && item.GetUnit() && item.GetUnit() !== aUnit) continue;
+
+      if (aBodyStyle && item.GetBodyStyle() && item.GetBodyStyle() !== aBodyStyle) continue;
+
+      item.Plot(aPlotter, aBackground, aPlotOpts, aUnit, aBodyStyle, aOffset, aDimmed);
+    }
+  }
+
+  /**
+   * Plot the symbol's fields, the reference with its unit letter (`GetFullText( aUnit )`); a
+   * hidden one only when the render settings show hidden fields.
+   */
+  PlotFields(
+    aPlotter: PLOTTER,
+    aBackground: boolean,
+    aPlotOpts: SCH_PLOT_OPTS,
+    aUnit: number,
+    aBodyStyle: number,
+    aOffset: VECTOR2I,
+    aDimmed: boolean,
+  ): void {
+    // wxASSERT( aPlotter != nullptr )
+
+    const renderSettings = this.getRenderSettings(aPlotter);
+    let color = renderSettings.GetLayerColor(SCH_LAYER_ID.LAYER_FIELDS);
+    let bg = renderSettings.GetBackgroundColor();
+
+    if (color4dEquals(bg, COLOR4D_UNSPECIFIED) || !aPlotter.GetColorMode()) bg = COLOR4D_WHITE;
+
+    if (aDimmed) {
+      color = desaturate(color);
+      color = mix(color, bg, 0.5);
+    }
+
+    aPlotter.SetColor(color);
+
+    for (const item of this.m_drawings.items(KICAD_T.SCH_FIELD_T)) {
+      const field = item as SCH_FIELD;
+
+      if (!renderSettings.m_ShowHiddenFields && !field.IsVisible()) continue;
+
+      // The reference is a special case: we should change the basic text
+      // to add '?' and the part id
+      const tmp = field.GetText();
+
+      field.SetText(field.GetFullText(aUnit));
+      item.Plot(aPlotter, aBackground, aPlotOpts, aUnit, aBodyStyle, aOffset, aDimmed);
+
+      field.SetText(tmp);
+    }
   }
 
   /**

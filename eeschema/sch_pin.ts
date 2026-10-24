@@ -36,8 +36,23 @@ import { EDA_ITEM as EDA_ITEM_CLASS } from '@ziroeda/common/eda_item.js';
 import { SHOW_ELEC_TYPE, SKIP_STRUCT, STRUCT_DELETED } from '@ziroeda/common/eda_item_flags.js';
 import { type EDA_SEARCH_DATA, SCH_SEARCH_DATA } from '@ziroeda/common/eda_search_data.js';
 import { schIUScale } from '@ziroeda/common/eda_units.js';
-import type { FONT } from '@ziroeda/common/font/font.js';
+import { FONT } from '@ziroeda/common/font/font.js';
 import type { METRICS } from '@ziroeda/common/font/font_metrics.js';
+import {
+  GR_TEXT_H_ALIGN_T,
+  GR_TEXT_V_ALIGN_T,
+  TEXT_ATTRIBUTES,
+} from '@ziroeda/common/font/text_attributes.js';
+import {
+  COLOR4D_UNSPECIFIED,
+  COLOR4D_WHITE,
+  type Color4d,
+  color4dEquals,
+  desaturate,
+  mix,
+} from '@ziroeda/common/gal/color4d.js';
+import { FILL_T } from '@ziroeda/common/eda_shape.js';
+import { type PLOTTER, plotterFont } from '@ziroeda/common/plotters/plotter.js';
 import { GetPenSizeForNormal } from '@ziroeda/common/gr_text.js';
 import { wxStringSplit } from '@ziroeda/common/string_utils.js';
 import type { KIID } from '@ziroeda/common/kiid.js';
@@ -60,7 +75,13 @@ import { FIELD_T } from '@ziroeda/common/template_fieldnames.js';
 import type { UNITS_PROVIDER } from '@ziroeda/common/units_provider.js';
 import { wxCmp } from '@ziroeda/wx/wxstring.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
-import { ANGLE_90 } from '@ziroeda/kimath/src/geometry/eda_angle.js';
+import {
+  ANGLE_90,
+  ANGLE_HORIZONTAL,
+  ANGLE_VERTICAL,
+  type EDA_ANGLE,
+} from '@ziroeda/kimath/src/geometry/eda_angle.js';
+import { KiROUND } from '@ziroeda/kimath/src/math/util.js';
 import type { SHAPE_LINE_CHAIN } from '@ziroeda/kimath/src/geometry/shape_line_chain.js';
 import type { BOX2I } from '@ziroeda/kimath/src/math/box2.js';
 import type { VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
@@ -68,6 +89,8 @@ import type { TRANSFORM } from '@ziroeda/kimath/src/transform.js';
 import { RotatePoint } from '@ziroeda/kimath/src/trigo.js';
 import { DEFAULT_PIN_LENGTH, DEFAULT_PINNAME_SIZE, DEFAULT_PINNUM_SIZE } from './default_values.js';
 import { PIN_LAYOUT_CACHE } from './pin_layout_cache.js';
+import type { SCH_PLOT_OPTS } from './sch_plotter.js';
+import type { SCH_RENDER_SETTINGS } from './sch_render_settings.js';
 import { ElectricalPinTypeGetText, PinOrientationName, PinShapeGetText } from './pin_type.js';
 import { SCH_ITEM } from './sch_item.js';
 import type { SCH_SHEET_PATH } from './sch_sheet_path.js';
@@ -135,14 +158,38 @@ export function getEffectivePadNumber(
 // `SCH_PIN` itself: the live-model class (eeschema stage E3). The record model's pad
 // resolution above is left untouched.
 //
-// Not here: `Plot`, `PlotPinTexts`, `PlotPinType`, `GetMsgPanelInfo`, `GetMenuImage`,
-// `Serialize`/`Deserialize`, `SCH_PIN_DESC`, and `PIN_LAYOUT_CACHE`
-// (pin_layout_cache.cpp), which `GetBoundingBox`/`ViewBBox`/`HitTest` read: pending, they
-// throw until it is ported. `m_netmap_mutex` has no counterpart (single thread).
+// Not here: `GetMenuImage`, `Serialize`/`Deserialize`. `m_netmap_mutex` has no
+// counterpart (single thread).
 // ---------------------------------------------------------------------------
 
 /** `TARGET_PIN_RADIUS`: circle diameter drawn at the active end of pins. */
 export const TARGET_PIN_RADIUS = schIUScale.milsToIU(15);
+
+// small margin in internal units between the pin text and the pin line
+const PIN_TEXT_MARGIN = 4;
+
+/// Utility for getting the size of the 'internal' pin decorators (as a radius)
+/// i.e. the clock symbols (falling clock is actually external but is of
+/// the same kind)
+function internalPinDecoSize(aSettings: SCH_RENDER_SETTINGS | null, aPin: SCH_PIN): number {
+  if (aSettings?.m_PinSymbolSize) return aSettings.m_PinSymbolSize;
+
+  return aPin.GetNameTextSize() !== 0
+    ? Math.trunc(aPin.GetNameTextSize() / 2)
+    : Math.trunc(aPin.GetNumberTextSize() / 2);
+}
+
+/// Utility for getting the size of the 'external' pin decorators (as a radius)
+/// i.e. the negation circle, the polarity 'slopes' and the nonlogic
+/// marker
+function externalPinDecoSize(aSettings: SCH_RENDER_SETTINGS | null, aPin: SCH_PIN): number {
+  if (aSettings?.m_PinSymbolSize) return aSettings.m_PinSymbolSize;
+
+  return Math.trunc(aPin.GetNumberTextSize() / 2);
+}
+
+/** `wxString::Trim( true ).Trim( false )`: wxIsspace runs off both ends. */
+const wxTrimBoth = (s: string): string => s.replace(/^[ \t\r\n\f\v]+|[ \t\r\n\f\v]+$/g, '');
 
 const samePt = (a: VECTOR2I, b: VECTOR2I): boolean => a.x === b.x && a.y === b.y;
 
@@ -410,6 +457,38 @@ export class SCH_PIN extends SCH_ITEM {
 
   override GetClass(): string {
     return 'SCH_PIN';
+  }
+
+  override Plot(
+    aPlotter: PLOTTER,
+    aBackground: boolean,
+    _aPlotOpts: SCH_PLOT_OPTS,
+    _aUnit: number,
+    _aBodyStyle: number,
+    aOffset: VECTOR2I,
+    aDimmed: boolean,
+  ): void {
+    if (aBackground) return;
+
+    const renderSettings = this.getRenderSettings(aPlotter);
+
+    if (!this.IsVisible() && !renderSettings.m_ShowHiddenPins) return;
+
+    const part = this.GetParentSymbol()!;
+    const orient = this.PinDrawOrient(renderSettings.m_Transform);
+    const tpos = renderSettings.TransformCoordinate(this.m_position);
+    const pos = { x: tpos.x + aOffset.x, y: tpos.y + aOffset.y };
+
+    this.PlotPinType(aPlotter, pos, orient, aDimmed);
+    this.PlotPinTexts(
+      aPlotter,
+      pos,
+      orient,
+      part.GetPinNameOffset(),
+      part.GetShowPinNumbers(),
+      part.GetShowPinNames(),
+      aDimmed,
+    );
   }
 
   /** `GetMsgPanelInfo( aFrame, aList )` (sch_pin.cpp). */
@@ -767,6 +846,626 @@ export class SCH_PIN extends SCH_ITEM {
     }
 
     this.m_alt = aAlt;
+  }
+
+  /**
+   * Plot the pin shape (line, inversion circle, clock and IEEE decorations, the N.C. cross) with
+   * \a aPosition the pin's connection point and \a aOrientation its drawn orientation.
+   */
+  PlotPinType(
+    aPlotter: PLOTTER,
+    aPosition: VECTOR2I,
+    aOrientation: PIN_ORIENTATION,
+    aDimmed: boolean,
+  ): void {
+    let MapX1: number;
+    let MapY1: number;
+    let x1: number;
+    let y1: number;
+    const renderSettings = this.getRenderSettings(aPlotter);
+    let color = renderSettings.GetLayerColor(SCH_LAYER_ID.LAYER_PIN);
+    let bg = renderSettings.GetBackgroundColor();
+    const penWidth = this.GetEffectivePenWidth(renderSettings);
+    const pinLength = this.GetLength();
+
+    if (color4dEquals(bg, COLOR4D_UNSPECIFIED) || !aPlotter.GetColorMode()) bg = COLOR4D_WHITE;
+
+    // `if( color.m_text && Schematic() )`: a colour held as a text variable is not carried by our
+    // COLOR4D (color4d.ts), so there is nothing to resolve.
+
+    if (aDimmed) {
+      color = desaturate(color);
+      color = mix(color, bg, 0.5);
+    }
+
+    aPlotter.SetColor(color);
+    aPlotter.SetCurrentLineWidth(penWidth);
+
+    MapX1 = MapY1 = 0;
+    x1 = aPosition.x;
+    y1 = aPosition.y;
+
+    switch (aOrientation) {
+      case PIN_ORIENTATION.PIN_UP:
+        y1 = aPosition.y - pinLength;
+        MapY1 = 1;
+        break;
+      case PIN_ORIENTATION.PIN_DOWN:
+        y1 = aPosition.y + pinLength;
+        MapY1 = -1;
+        break;
+      case PIN_ORIENTATION.PIN_LEFT:
+        x1 = aPosition.x - pinLength;
+        MapX1 = 1;
+        break;
+      case PIN_ORIENTATION.PIN_RIGHT:
+        x1 = aPosition.x + pinLength;
+        MapX1 = -1;
+        break;
+      case PIN_ORIENTATION.INHERIT:
+        // wxFAIL_MSG( wxS( "aOrientation must be resolved!" ) )
+        break;
+    }
+
+    if (
+      this.m_shape === GRAPHIC_PINSHAPE.INVERTED ||
+      this.m_shape === GRAPHIC_PINSHAPE.INVERTED_CLOCK
+    ) {
+      const radius = externalPinDecoSize(renderSettings, this);
+      aPlotter.Circle(
+        { x: MapX1 * radius + x1, y: MapY1 * radius + y1 },
+        radius * 2,
+        FILL_T.NO_FILL,
+        penWidth,
+      );
+
+      aPlotter.MoveTo({ x: MapX1 * radius * 2 + x1, y: MapY1 * radius * 2 + y1 });
+      aPlotter.FinishTo(aPosition);
+    } else if (this.m_shape === GRAPHIC_PINSHAPE.FALLING_EDGE_CLOCK) {
+      const deco_size = internalPinDecoSize(renderSettings, this);
+      if (MapY1 === 0) {
+        /* MapX1 = +- 1 */
+        aPlotter.MoveTo({ x: x1, y: y1 + deco_size });
+        aPlotter.LineTo({ x: x1 + MapX1 * deco_size * 2, y: y1 });
+        aPlotter.FinishTo({ x: x1, y: y1 - deco_size });
+      } /* MapX1 = 0 */ else {
+        aPlotter.MoveTo({ x: x1 + deco_size, y: y1 });
+        aPlotter.LineTo({ x: x1, y: y1 + MapY1 * deco_size * 2 });
+        aPlotter.FinishTo({ x: x1 - deco_size, y: y1 });
+      }
+
+      aPlotter.MoveTo({ x: MapX1 * deco_size * 2 + x1, y: MapY1 * deco_size * 2 + y1 });
+      aPlotter.FinishTo(aPosition);
+    } else {
+      aPlotter.MoveTo({ x: x1, y: y1 });
+      aPlotter.FinishTo(aPosition);
+    }
+
+    if (
+      this.m_shape === GRAPHIC_PINSHAPE.CLOCK ||
+      this.m_shape === GRAPHIC_PINSHAPE.INVERTED_CLOCK ||
+      this.m_shape === GRAPHIC_PINSHAPE.CLOCK_LOW
+    ) {
+      const deco_size = internalPinDecoSize(renderSettings, this);
+
+      if (MapY1 === 0) {
+        /* MapX1 = +- 1 */
+        aPlotter.MoveTo({ x: x1, y: y1 + deco_size });
+        aPlotter.LineTo({ x: x1 - MapX1 * deco_size * 2, y: y1 });
+        aPlotter.FinishTo({ x: x1, y: y1 - deco_size });
+      } /* MapX1 = 0 */ else {
+        aPlotter.MoveTo({ x: x1 + deco_size, y: y1 });
+        aPlotter.LineTo({ x: x1, y: y1 - MapY1 * deco_size * 2 });
+        aPlotter.FinishTo({ x: x1 - deco_size, y: y1 });
+      }
+    }
+
+    if (
+      this.m_shape === GRAPHIC_PINSHAPE.INPUT_LOW ||
+      this.m_shape === GRAPHIC_PINSHAPE.CLOCK_LOW
+    ) {
+      /* IEEE symbol "Active Low Input" */
+      const deco_size = externalPinDecoSize(renderSettings, this);
+
+      if (MapY1 === 0) {
+        /* MapX1 = +- 1 */
+        aPlotter.MoveTo({ x: x1 + MapX1 * deco_size * 2, y: y1 });
+        aPlotter.LineTo({ x: x1 + MapX1 * deco_size * 2, y: y1 - deco_size * 2 });
+        aPlotter.FinishTo({ x: x1, y: y1 });
+      } /* MapX1 = 0 */ else {
+        aPlotter.MoveTo({ x: x1, y: y1 + MapY1 * deco_size * 2 });
+        aPlotter.LineTo({ x: x1 - deco_size * 2, y: y1 + MapY1 * deco_size * 2 });
+        aPlotter.FinishTo({ x: x1, y: y1 });
+      }
+    }
+
+    if (this.m_shape === GRAPHIC_PINSHAPE.OUTPUT_LOW) {
+      /* IEEE symbol "Active Low Output" */
+      const symbol_size = externalPinDecoSize(renderSettings, this);
+
+      if (MapY1 === 0) {
+        /* MapX1 = +- 1 */
+        aPlotter.MoveTo({ x: x1, y: y1 - symbol_size * 2 });
+        aPlotter.FinishTo({ x: x1 + MapX1 * symbol_size * 2, y: y1 });
+      } /* MapX1 = 0 */ else {
+        aPlotter.MoveTo({ x: x1 - symbol_size * 2, y: y1 });
+        aPlotter.FinishTo({ x: x1, y: y1 + MapY1 * symbol_size * 2 });
+      }
+    } else if (this.m_shape === GRAPHIC_PINSHAPE.NONLOGIC) {
+      /* NonLogic pin symbol */
+      const deco_size = externalPinDecoSize(renderSettings, this);
+      aPlotter.MoveTo({
+        x: x1 - (MapX1 + MapY1) * deco_size,
+        y: y1 - (MapY1 - MapX1) * deco_size,
+      });
+      aPlotter.FinishTo({
+        x: x1 + (MapX1 + MapY1) * deco_size,
+        y: y1 + (MapY1 - MapX1) * deco_size,
+      });
+      aPlotter.MoveTo({
+        x: x1 - (MapX1 - MapY1) * deco_size,
+        y: y1 - (MapY1 + MapX1) * deco_size,
+      });
+      aPlotter.FinishTo({
+        x: x1 + (MapX1 - MapY1) * deco_size,
+        y: y1 + (MapY1 + MapX1) * deco_size,
+      });
+    }
+
+    if (this.GetType() === ELECTRICAL_PINTYPE.PT_NC) {
+      // Draw a N.C. symbol
+      const deco_size = TARGET_PIN_RADIUS;
+      const ex1 = aPosition.x;
+      const ey1 = aPosition.y;
+      aPlotter.MoveTo({ x: ex1 - deco_size, y: ey1 - deco_size });
+      aPlotter.FinishTo({ x: ex1 + deco_size, y: ey1 + deco_size });
+      aPlotter.MoveTo({ x: ex1 + deco_size, y: ey1 - deco_size });
+      aPlotter.FinishTo({ x: ex1 - deco_size, y: ey1 + deco_size });
+    }
+  }
+
+  /**
+   * Plot the pin name and number. \a aTextInside is the parent's pin name offset: non-zero puts
+   * the name inside the body; \a aDrawPinNum / \a aDrawPinName are the parent's show flags.
+   */
+  PlotPinTexts(
+    aPlotter: PLOTTER,
+    aPinPos: VECTOR2I,
+    aPinOrient: PIN_ORIENTATION,
+    aTextInside: number,
+    aDrawPinNum: boolean,
+    aDrawPinName: boolean,
+    aDimmed: boolean,
+  ): void {
+    const settings = this.getRenderSettings(aPlotter);
+    const font = FONT.GetFont(settings.GetDefaultFont(), false, false);
+    const plotFont = plotterFont(font, this.GetFontMetrics());
+    const name = this.GetShownName();
+    let number = this.GetShownNumber();
+
+    // Apply stacked pin display formatting (reuse helper from pin_layout_cache)
+    if (aDrawPinNum && number !== '') {
+      const metrics = this.GetFontMetrics();
+      number = FormatStackedPinForDisplay(
+        number,
+        this.GetLength(),
+        this.GetNumberTextSize(),
+        font,
+        metrics,
+      );
+    }
+
+    if (name === '' || this.m_nameTextSize === 0) aDrawPinName = false;
+
+    if (number === '' || this.m_numTextSize === 0) aDrawPinNum = false;
+
+    if (!aDrawPinNum && !aDrawPinName) return;
+
+    const namePenWidth = settings.GetDefaultPenWidth();
+    const numPenWidth = settings.GetDefaultPenWidth();
+
+    // Include the painter's clearance (PIN_LAYOUT_CACHE::getPinTextOffset()) so plotted pin text
+    // sits where it's drawn on screen, not a few mils closer to the pin.
+    const pinTextOffset = schIUScale.milsToIU(KiROUND(24 * settings.m_TextOffsetRatio));
+    const name_offset = pinTextOffset + schIUScale.milsToIU(PIN_TEXT_MARGIN) + namePenWidth;
+    const num_offset = pinTextOffset + schIUScale.milsToIU(PIN_TEXT_MARGIN) + numPenWidth;
+
+    let nameColor = settings.GetLayerColor(SCH_LAYER_ID.LAYER_PINNAM);
+    let numColor = settings.GetLayerColor(SCH_LAYER_ID.LAYER_PINNUM);
+    let bg = settings.GetBackgroundColor();
+
+    if (color4dEquals(bg, COLOR4D_UNSPECIFIED) || !aPlotter.GetColorMode()) bg = COLOR4D_WHITE;
+
+    // `if( nameColor.m_text && Schematic() )` / `numColor.m_text`: a colour held as a text
+    // variable is not carried by our COLOR4D (color4d.ts), so there is nothing to resolve.
+
+    if (aDimmed) {
+      nameColor = desaturate(nameColor);
+      numColor = desaturate(numColor);
+      nameColor = mix(nameColor, bg, 0.5);
+      numColor = mix(numColor, bg, 0.5);
+    }
+
+    let x1 = aPinPos.x;
+    let y1 = aPinPos.y;
+
+    switch (aPinOrient) {
+      case PIN_ORIENTATION.PIN_UP:
+        y1 -= this.GetLength();
+        break;
+      case PIN_ORIENTATION.PIN_DOWN:
+        y1 += this.GetLength();
+        break;
+      case PIN_ORIENTATION.PIN_LEFT:
+        x1 -= this.GetLength();
+        break;
+      case PIN_ORIENTATION.PIN_RIGHT:
+        x1 += this.GetLength();
+        break;
+      default:
+        break;
+    }
+
+    // Keep a multi-line stacked block on the authored side of a mirrored symbol (issue 24894)
+    const flipStacked = number.includes('\n') && this.StackedTextSideFlipped(settings.m_Transform);
+
+    const plotSimpleText = (
+      x: number,
+      y: number,
+      angle: EDA_ANGLE,
+      hJustify: GR_TEXT_H_ALIGN_T,
+      vJustify: GR_TEXT_V_ALIGN_T,
+      txt: string,
+      size: number,
+      penWidth: number,
+      col: Color4d,
+    ): void => {
+      const attrs = new TEXT_ATTRIBUTES();
+      attrs.m_StrokeWidth = penWidth;
+      attrs.m_Angle = angle;
+      attrs.m_Size = { x: size, y: size };
+      attrs.m_Halign = hJustify;
+      attrs.m_Valign = vJustify;
+      attrs.m_Multiline = false; // we'll manage multi-line manually
+      aPlotter.PlotText({ x, y }, col, txt, attrs, plotFont, this.GetFontMetrics());
+    };
+
+    const plotMultiLineWithBraces = (
+      anchorX: number,
+      anchorY: number,
+      angle: EDA_ANGLE,
+      vAlign: GR_TEXT_V_ALIGN_T,
+      aAllowFlip: boolean,
+    ): void => {
+      // If not multi-line formatted, just plot single line centered.
+      if (!number.startsWith('[') || !number.endsWith(']') || !number.includes('\n')) {
+        plotSimpleText(
+          anchorX,
+          anchorY,
+          angle,
+          GR_TEXT_H_ALIGN_T.GR_TEXT_H_ALIGN_CENTER,
+          vAlign,
+          number,
+          this.GetNumberTextSize(),
+          numPenWidth,
+          numColor,
+        );
+        return;
+      }
+
+      const content = number.slice(1, number.length - 1);
+      const lines = wxStringSplit(content, '\n');
+
+      if (lines.length <= 1) {
+        plotSimpleText(
+          anchorX,
+          anchorY,
+          angle,
+          GR_TEXT_H_ALIGN_T.GR_TEXT_H_ALIGN_CENTER,
+          vAlign,
+          content,
+          this.GetNumberTextSize(),
+          numPenWidth,
+          numColor,
+        );
+        return;
+      }
+
+      const textSize = this.GetNumberTextSize();
+      const lineSpacing = KiROUND(textSize * 1.3);
+      const numLines = lines.length;
+      const verticalText = angle.equals(ANGLE_VERTICAL);
+      const metrics = this.GetFontMetrics();
+
+      if (aAllowFlip && flipStacked) {
+        // Reflect the anchor about the pin line
+        if (verticalText) anchorX = 2 * aPinPos.x - anchorX;
+        else anchorY = 2 * aPinPos.y - anchorY;
+
+        if (vAlign === GR_TEXT_V_ALIGN_T.GR_TEXT_V_ALIGN_BOTTOM)
+          vAlign = GR_TEXT_V_ALIGN_T.GR_TEXT_V_ALIGN_TOP;
+        else if (vAlign === GR_TEXT_V_ALIGN_T.GR_TEXT_V_ALIGN_TOP)
+          vAlign = GR_TEXT_V_ALIGN_T.GR_TEXT_V_ALIGN_BOTTOM;
+      }
+
+      // Centre each line and align the stacked block's edge to the anchor, matching the
+      // on-screen painter (PIN_LAYOUT_CACHE) so stacked numbers plot where they're drawn.
+      let firstLineCentre: number;
+
+      switch (vAlign) {
+        case GR_TEXT_V_ALIGN_T.GR_TEXT_V_ALIGN_BOTTOM:
+          firstLineCentre = Math.trunc((-(2 * numLines - 1) * lineSpacing) / 2);
+          break;
+        case GR_TEXT_V_ALIGN_T.GR_TEXT_V_ALIGN_TOP:
+          firstLineCentre = Math.trunc(lineSpacing / 2);
+          break;
+        default: // GR_TEXT_V_ALIGN_CENTER
+          firstLineCentre = Math.trunc((-(numLines - 1) * lineSpacing) / 2);
+          break;
+      }
+
+      firstLineCentre += verticalText ? anchorX : anchorY;
+
+      // Plot each line centred; track the widest for brace spacing.
+      let maxLineWidth = 0;
+
+      for (let i = 0; i < numLines; ++i) {
+        const l = wxTrimBoth(lines[i]!);
+
+        const ext = font.StringBoundaryLimits(
+          l,
+          { x: textSize, y: textSize },
+          GetPenSizeForNormal(textSize),
+          false,
+          false,
+          metrics,
+        );
+        maxLineWidth = Math.max(maxLineWidth, ext.x);
+
+        const stack = firstLineCentre + i * lineSpacing;
+        const lx = verticalText ? stack : anchorX;
+        const ly = verticalText ? anchorY : stack;
+        plotSimpleText(
+          lx,
+          ly,
+          angle,
+          GR_TEXT_H_ALIGN_T.GR_TEXT_H_ALIGN_CENTER,
+          GR_TEXT_V_ALIGN_T.GR_TEXT_V_ALIGN_CENTER,
+          l,
+          textSize,
+          numPenWidth,
+          numColor,
+        );
+      }
+
+      // Now draw braces emulating SCH_PAINTER brace geometry
+      const plotBrace = (
+        top: VECTOR2I,
+        bottom: VECTOR2I,
+        leftOrTop: boolean,
+        isVerticalText: boolean,
+      ): void => {
+        // Build 4 small segments approximating curly brace
+        const mid = {
+          x: Math.trunc((top.x + bottom.x) / 2),
+          y: Math.trunc((top.y + bottom.y) / 2),
+        };
+        const braceWidth = Math.trunc(textSize / 3); // same scale as painter
+        const p1 = { ...top };
+        const p5 = { ...bottom };
+        const p2 = { ...top };
+        const p3 = { ...mid };
+        const p4 = { ...bottom };
+        const offset = leftOrTop ? -braceWidth : braceWidth;
+
+        if (isVerticalText) {
+          // Text vertical => brace extends in Y (horizontal brace lines across X axis set)
+          // For vertical orientation we offset Y for p2/p3/p4
+          p2.y += Math.trunc(offset / 2);
+          p3.y += offset;
+          p4.y += Math.trunc(offset / 2);
+        } else {
+          // Horizontal text => brace extends in X
+          p2.x += Math.trunc(offset / 2);
+          p3.x += offset;
+          p4.x += Math.trunc(offset / 2);
+        }
+
+        aPlotter.MoveTo(p1);
+        aPlotter.FinishTo(p2);
+        aPlotter.MoveTo(p2);
+        aPlotter.FinishTo(p3);
+        aPlotter.MoveTo(p3);
+        aPlotter.FinishTo(p4);
+        aPlotter.MoveTo(p4);
+        aPlotter.FinishTo(p5);
+      };
+
+      aPlotter.SetCurrentLineWidth(numPenWidth);
+
+      const braceWidth = Math.trunc(textSize / 3);
+      const extraHeight = Math.trunc(textSize / 3); // extend beyond text block
+      const braceSpacing = Math.trunc(maxLineWidth / 2) + braceWidth;
+      const blockSpan = (numLines - 1) * lineSpacing;
+
+      if (verticalText) {
+        const braceStart = { x: firstLineCentre - 2 * extraHeight, y: anchorY };
+        const braceEnd = { x: firstLineCentre + blockSpan, y: anchorY };
+
+        const topStart = { ...braceStart };
+        topStart.y -= braceSpacing;
+        const topEnd = { ...braceEnd };
+        topEnd.y -= braceSpacing;
+        const bottomStart = { ...braceStart };
+        bottomStart.y += braceSpacing;
+        const bottomEnd = { ...braceEnd };
+        bottomEnd.y += braceSpacing;
+
+        plotBrace(topStart, topEnd, true, true); // leftOrTop=true
+        plotBrace(bottomStart, bottomEnd, false, true);
+      } else {
+        const braceStart = { x: anchorX, y: firstLineCentre - 2 * extraHeight };
+        const braceEnd = { x: anchorX, y: firstLineCentre + blockSpan };
+
+        const leftTop = { ...braceStart };
+        leftTop.x -= braceSpacing;
+        const leftBot = { ...braceEnd };
+        leftBot.x -= braceSpacing;
+        const rightTop = { ...braceStart };
+        rightTop.x += braceSpacing;
+        const rightBot = { ...braceEnd };
+        rightBot.x += braceSpacing;
+
+        plotBrace(leftTop, leftBot, true, false);
+        plotBrace(rightTop, rightBot, false, false);
+      }
+    };
+
+    const H_LEFT = GR_TEXT_H_ALIGN_T.GR_TEXT_H_ALIGN_LEFT;
+    const H_CENTER = GR_TEXT_H_ALIGN_T.GR_TEXT_H_ALIGN_CENTER;
+    const H_RIGHT = GR_TEXT_H_ALIGN_T.GR_TEXT_H_ALIGN_RIGHT;
+    const V_CENTER = GR_TEXT_V_ALIGN_T.GR_TEXT_V_ALIGN_CENTER;
+    const V_BOTTOM = GR_TEXT_V_ALIGN_T.GR_TEXT_V_ALIGN_BOTTOM;
+    const V_TOP = GR_TEXT_V_ALIGN_T.GR_TEXT_V_ALIGN_TOP;
+    const nameSize = this.GetNameTextSize();
+    const midX = Math.trunc((x1 + aPinPos.x) / 2);
+    const midY = Math.trunc((y1 + aPinPos.y) / 2);
+
+    // Logic largely mirrors original single-line placement but calls multi-line path for numbers
+    if (aTextInside) {
+      if (aPinOrient === PIN_ORIENTATION.PIN_LEFT || aPinOrient === PIN_ORIENTATION.PIN_RIGHT) {
+        if (aDrawPinName) {
+          if (aPinOrient === PIN_ORIENTATION.PIN_RIGHT) {
+            plotSimpleText(
+              x1 + aTextInside,
+              y1,
+              ANGLE_HORIZONTAL,
+              H_LEFT,
+              V_CENTER,
+              name,
+              nameSize,
+              namePenWidth,
+              nameColor,
+            );
+          } else {
+            plotSimpleText(
+              x1 - aTextInside,
+              y1,
+              ANGLE_HORIZONTAL,
+              H_RIGHT,
+              V_CENTER,
+              name,
+              nameSize,
+              namePenWidth,
+              nameColor,
+            );
+          }
+        }
+
+        if (aDrawPinNum) {
+          plotMultiLineWithBraces(midX, y1 - num_offset, ANGLE_HORIZONTAL, V_BOTTOM, true);
+        }
+      } else {
+        if (aPinOrient === PIN_ORIENTATION.PIN_DOWN) {
+          if (aDrawPinName) {
+            plotSimpleText(
+              x1,
+              y1 + aTextInside,
+              ANGLE_VERTICAL,
+              H_RIGHT,
+              V_CENTER,
+              name,
+              nameSize,
+              namePenWidth,
+              nameColor,
+            );
+          }
+
+          if (aDrawPinNum) {
+            plotMultiLineWithBraces(x1 - num_offset, midY, ANGLE_VERTICAL, V_BOTTOM, true);
+          }
+        } else {
+          // PIN_UP
+          if (aDrawPinName) {
+            plotSimpleText(
+              x1,
+              y1 - aTextInside,
+              ANGLE_VERTICAL,
+              H_LEFT,
+              V_CENTER,
+              name,
+              nameSize,
+              namePenWidth,
+              nameColor,
+            );
+          }
+
+          if (aDrawPinNum) {
+            plotMultiLineWithBraces(x1 - num_offset, midY, ANGLE_VERTICAL, V_BOTTOM, true);
+          }
+        }
+      }
+    } else {
+      if (aPinOrient === PIN_ORIENTATION.PIN_LEFT || aPinOrient === PIN_ORIENTATION.PIN_RIGHT) {
+        if (aDrawPinName && aDrawPinNum) {
+          plotSimpleText(
+            midX,
+            y1 - name_offset,
+            ANGLE_HORIZONTAL,
+            H_CENTER,
+            V_BOTTOM,
+            name,
+            nameSize,
+            namePenWidth,
+            nameColor,
+          );
+          plotMultiLineWithBraces(midX, y1 + num_offset, ANGLE_HORIZONTAL, V_TOP, false);
+        } else if (aDrawPinName) {
+          plotSimpleText(
+            midX,
+            y1 - name_offset,
+            ANGLE_HORIZONTAL,
+            H_CENTER,
+            V_BOTTOM,
+            name,
+            nameSize,
+            namePenWidth,
+            nameColor,
+          );
+        } else if (aDrawPinNum) {
+          plotMultiLineWithBraces(midX, y1 - name_offset, ANGLE_HORIZONTAL, V_BOTTOM, true);
+        }
+      } else {
+        if (aDrawPinName && aDrawPinNum) {
+          plotSimpleText(
+            x1 - name_offset,
+            midY,
+            ANGLE_VERTICAL,
+            H_CENTER,
+            V_BOTTOM,
+            name,
+            nameSize,
+            namePenWidth,
+            nameColor,
+          );
+          plotMultiLineWithBraces(x1 + num_offset, midY, ANGLE_VERTICAL, V_TOP, false);
+        } else if (aDrawPinName) {
+          plotSimpleText(
+            x1 - name_offset,
+            midY,
+            ANGLE_VERTICAL,
+            H_CENTER,
+            V_BOTTOM,
+            name,
+            nameSize,
+            namePenWidth,
+            nameColor,
+          );
+        } else if (aDrawPinNum) {
+          plotMultiLineWithBraces(x1 - num_offset, midY, ANGLE_VERTICAL, V_BOTTOM, true);
+        }
+      }
+    }
   }
 
   /**

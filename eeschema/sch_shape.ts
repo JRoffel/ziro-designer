@@ -6,7 +6,7 @@
  * schematic or a symbol (`class SCH_SHAPE : public SCH_ITEM, public EDA_SHAPE`, the
  * EDA_SHAPE half mixed in).
  *
- * Not here: `Plot`, `Print`, `GetMenuImage`, `Serialize` /
+ * Not here: `Print`, `GetMenuImage`, `Serialize` /
  * `Deserialize`, `SCH_SHAPE_DESC`.
  */
 
@@ -35,6 +35,15 @@ import { BOX2I } from '@ziroeda/kimath/src/math/box2.js';
 import type { VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
 import { DEFAULT_LINE_WIDTH_MILS } from './default_values.js';
 import { SCH_ITEM } from './sch_item.js';
+import type { SCH_PLOT_OPTS } from './sch_plotter.js';
+import type { PLOTTER } from '@ziroeda/common/plotters/plotter.js';
+import {
+  COLOR4D_UNSPECIFIED,
+  COLOR4D_WHITE,
+  color4dEquals,
+  desaturate,
+  mix,
+} from '@ziroeda/common/gal/color4d.js';
 import { MSG_PANEL_ITEM } from '@ziroeda/common/widgets/msgpanel.js';
 import type { EDA_DRAW_FRAME_LIKE } from '@ziroeda/common/eda_item.js';
 
@@ -171,6 +180,146 @@ export class SCH_SHAPE extends SCH_ITEM {
 
   override SetStroke(aStroke: STROKE_PARAMS): void {
     this.m_stroke = aStroke.clone();
+  }
+
+  override Plot(
+    aPlotter: PLOTTER,
+    aBackground: boolean,
+    _aPlotOpts: SCH_PLOT_OPTS,
+    _aUnit: number,
+    aBodyStyle: number,
+    aOffset: VECTOR2I,
+    aDimmed: boolean,
+  ): void {
+    if (this.IsPrivate()) return;
+
+    // note: if aBodyStyle == -1 the outline shape is not plotted. Only the filled area
+    // is plotted (used to plot cells for SCH_TABLE items
+
+    const renderSettings = this.getRenderSettings(aPlotter);
+    let pen_size = this.GetEffectivePenWidth(renderSettings);
+
+    const ptList: VECTOR2I[] = [];
+    const offset = (aPt: VECTOR2I): VECTOR2I => {
+      const pt = renderSettings.TransformCoordinate(aPt);
+      return { x: pt.x + aOffset.x, y: pt.y + aOffset.y };
+    };
+
+    if (this.GetShape() === SHAPE_T.POLY) {
+      for (const pt of this.GetPolyShape().Outline(0).CPoints()) ptList.push(offset(pt));
+    } else if (this.GetShape() === SHAPE_T.BEZIER) {
+      for (const pt of this.m_bezierPoints) ptList.push(offset(pt));
+    }
+
+    let color = this.GetStroke().GetColor();
+    let bg = renderSettings.GetBackgroundColor();
+    let lineStyle = this.GetStroke().GetLineStyle();
+    let fill = this.m_fill;
+
+    if (aBackground) {
+      switch (this.m_fill) {
+        case FILL_T.FILLED_SHAPE:
+          // Fill in the foreground layer
+          return;
+
+        case FILL_T.HATCH:
+        case FILL_T.REVERSE_HATCH:
+        case FILL_T.CROSS_HATCH:
+          if (!aPlotter.GetColorMode() || color4dEquals(color, COLOR4D_UNSPECIFIED))
+            color = renderSettings.GetLayerColor(this.m_layer);
+
+          color = { ...color, a: color.a * 0.4 };
+          break;
+
+        case FILL_T.FILLED_WITH_COLOR:
+          // drop separate fills in B&W mode
+          if (!aPlotter.GetColorMode() && pen_size > 0) return;
+
+          color = this.GetFillColor();
+
+          if (color4dEquals(color, COLOR4D_UNSPECIFIED))
+            color = renderSettings.GetLayerColor(this.m_layer);
+
+          break;
+
+        case FILL_T.FILLED_WITH_BG_BODYCOLOR:
+          // drop fill in B&W mode
+          if (!aPlotter.GetColorMode()) return;
+
+          color = renderSettings.GetLayerColor(SCH_LAYER_ID.LAYER_DEVICE_BACKGROUND);
+          break;
+
+        default:
+          return;
+      }
+
+      pen_size = 0;
+      lineStyle = LINE_STYLE.SOLID;
+    } /* if( aForeground ) */ else {
+      if (!aPlotter.GetColorMode() || color4dEquals(color, COLOR4D_UNSPECIFIED))
+        color = renderSettings.GetLayerColor(this.m_layer);
+
+      if (lineStyle === LINE_STYLE.DEFAULT) lineStyle = LINE_STYLE.SOLID;
+
+      if (this.m_fill === FILL_T.FILLED_SHAPE) fill = this.m_fill;
+      else fill = FILL_T.NO_FILL;
+
+      pen_size = aBodyStyle === -1 ? 0 : this.GetEffectivePenWidth(renderSettings);
+    }
+
+    if (color4dEquals(bg, COLOR4D_UNSPECIFIED) || !aPlotter.GetColorMode()) bg = COLOR4D_WHITE;
+
+    // `if( color.m_text && Schematic() )`: a colour held as a text variable is not carried by our
+    // COLOR4D (color4d.ts), so there is nothing to resolve.
+
+    if (aDimmed) {
+      color = desaturate(color);
+      color = mix(color, bg, 0.5);
+    }
+
+    aPlotter.SetColor(color);
+
+    if (aBackground && this.IsHatchedFill()) {
+      for (let ii = 0; ii < this.GetHatching().OutlineCount(); ++ii)
+        aPlotter.PlotPolyLineChain(this.GetHatching().COutline(ii), FILL_T.FILLED_SHAPE, 0, null);
+
+      return;
+    }
+
+    aPlotter.SetCurrentLineWidth(pen_size);
+    aPlotter.SetDash(pen_size, lineStyle);
+
+    const start = offset(this.m_start);
+    const end = offset(this.m_end);
+
+    switch (this.GetShape()) {
+      case SHAPE_T.ARC: {
+        const mid = offset(this.GetArcMid());
+        aPlotter.ArcThroughPoints(start, mid, end, fill, pen_size);
+        break;
+      }
+
+      case SHAPE_T.CIRCLE: {
+        const center = offset(this.getCenter());
+        aPlotter.Circle(center, this.GetRadius() * 2, fill, pen_size);
+        break;
+      }
+
+      case SHAPE_T.RECTANGLE:
+        aPlotter.Rect(start, end, fill, pen_size, this.GetCornerRadius());
+        break;
+
+      case SHAPE_T.POLY:
+      case SHAPE_T.BEZIER:
+        aPlotter.PlotPoly(ptList, fill, pen_size, null);
+        break;
+
+      default:
+        // UNIMPLEMENTED_FOR( SHAPE_T_asString() )
+        break;
+    }
+
+    aPlotter.SetDash(pen_size, LINE_STYLE.SOLID);
   }
 
   GetEffectiveWidth(): number {

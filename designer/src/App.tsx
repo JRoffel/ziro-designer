@@ -2009,6 +2009,7 @@ export function App(): JSX.Element {
                 kiway={kiway}
                 request={symbolEditorRequest}
                 onWriteProjectFiles={projectFiles ? writeProjectFiles : undefined}
+                onOutputFile={onOutputFile}
                 /* `SYMBOL_EDIT_FRAME::ShowInfoBarMessages` puts up "Library is
                  read-only.  Changes cannot be saved to this library." with a
                  "Create an editable copy" link. When a demo project is what

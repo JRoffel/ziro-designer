@@ -261,6 +261,7 @@ export function SymbolEditor({
   request,
   readOnlyNotice,
   onWriteProjectFiles,
+  onOutputFile,
 }: {
   /** What the program gives this window (`symbol_edit_frame_app.ts`). */
   app: SYMBOL_EDIT_FRAME_APP;
@@ -279,11 +280,15 @@ export function SymbolEditor({
   readOnlyNotice?: ReactNode;
   /** Write files into the open project: a `.kicad_sym` and the `sym-lib-table`. */
   onWriteProjectFiles?: ((files: { name: string; text: string }[]) => void) | undefined;
+  /** A generated output (Export > Symbol as SVG): the program downloads it. */
+  onOutputFile?: ((name: string, bytes: Uint8Array, mime: string) => void) | undefined;
 }): JSX.Element {
   const projectRef = useRef(initialProject);
   projectRef.current = initialProject;
   const writeRef = useRef(onWriteProjectFiles);
   writeRef.current = onWriteProjectFiles;
+  const outputRef = useRef(onOutputFile);
+  outputRef.current = onOutputFile;
   const symCfg = app.useSymbolEditorSettings();
   const common = app.useCommonSettings();
   // `GetColorSettings()` follows the theme; a change re-reads it (UpdateColors).
@@ -671,6 +676,7 @@ export function SymbolEditor({
         },
         updateLibraryTree: () => bumpTree(),
         toggleProperties: () => setSession((s) => applyToggle(s, 'showProperties')),
+        writeOutputFile: (aPath, aBytes, aMime) => outputRef.current?.(aPath, aBytes, aMime),
       }),
   );
   frameRef.current = frame;

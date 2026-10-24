@@ -15,7 +15,7 @@
  * `sch_connection.ts` sets when it loads (a value import of it here would be a module
  * cycle: it needs `SCH_SHEET_PATH`, whose module extends `SCH_ITEM`).
  *
- * Not here (pending, marked in place): `GetMsgPanelInfo`, `Plot`, the `SCH_ITEM_DESC` property registration and
+ * Not here (pending, marked in place): `GetMsgPanelInfo`, the `SCH_ITEM_DESC` property registration and
  * `EESCHEMA_SETTINGS`' default font (the render settings' font or
  * `KICAD_FONT_NAME` is used).
  */
@@ -54,7 +54,10 @@ import type { STROKE_PARAMS } from '@ziroeda/common/stroke_params.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { ARC_LOW_DEF_MM } from '@ziroeda/kimath/src/base_units.js';
 import type { VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
+import type { PLOTTER } from '@ziroeda/common/plotters/plotter.js';
 import type { SCH_CONNECTION, SCH_CONNECTION_GRAPH } from './sch_connection.js';
+import type { SCH_PLOT_OPTS } from './sch_plotter.js';
+import type { SCH_RENDER_SETTINGS } from './sch_render_settings.js';
 import type { SCH_RULE_AREA } from './sch_rule_area.js';
 import type { SCH_SHEET_PATH } from './sch_sheet_path.js';
 import type { SCHEMATIC } from './schematic.js';
@@ -874,6 +877,33 @@ export abstract class SCH_ITEM extends EDA_ITEM {
   /** Rotate the item around \a aCenter 90 degrees in the clockwise direction. */
   Rotate(_aCenter: VECTOR2I, _aRotateCCW: boolean): void {
     // wxCHECK_MSG( false, "Rotate not implemented in " + GetClass() )
+  }
+
+  /**
+   * Plot the item to \a aPlotter.
+   *
+   * @param aBackground a poor-man's Z-order.  The routine will get called twice, first with
+   *                    aBackground true and then with aBackground false.
+   * @param aUnit - which unit to print.
+   * @param aBodyStyle - which body style to print.
+   * @param aOffset relative offset.
+   * @param aDimmed reduce brightness of item.
+   */
+  Plot(
+    _aPlotter: PLOTTER,
+    _aBackground: boolean,
+    _aPlotOpts: SCH_PLOT_OPTS,
+    _aUnit: number,
+    _aBodyStyle: number,
+    _aOffset: VECTOR2I,
+    _aDimmed: boolean,
+  ): void {
+    // wxCHECK_MSG( false, /*void*/, "Plot not implemented in " + GetClass() )
+  }
+
+  /** `getRenderSettings( aPlotter )` (sch_item.h:727): the plotter's settings, as eeschema's. */
+  protected getRenderSettings(aPlotter: PLOTTER): SCH_RENDER_SETTINGS {
+    return aPlotter.RenderSettings() as unknown as SCH_RENDER_SETTINGS;
   }
 
   /** Begin drawing a symbol library draw item at \a aPosition. */

@@ -6,7 +6,7 @@
  * base of every label (`class SCH_TEXT : public SCH_ITEM, public EDA_TEXT`, the
  * EDA_TEXT half mixed in).
  *
- * Not here: `Plot`, `GetMenuImage`, `DoHypertextAction` (needs the
+ * Not here: `GetMenuImage`, `DoHypertextAction` (needs the
  * navigate tool), `ShowSyntaxHelp` (a dialog), `SCH_TEXT_DESC`.
  */
 
@@ -51,6 +51,16 @@ import type { VECTOR2I } from '@ziroeda/kimath/src/math/vector2.js';
 import { RotatePoint } from '@ziroeda/kimath/src/trigo.js';
 import { DEFAULT_TEXT_OFFSET_RATIO } from './default_values.js';
 import { SCH_ITEM } from './sch_item.js';
+import type { SCH_PLOT_OPTS } from './sch_plotter.js';
+import { type PLOTTER, plotterFont } from '@ziroeda/common/plotters/plotter.js';
+import {
+  COLOR4D_UNSPECIFIED,
+  COLOR4D_WHITE,
+  color4dEquals,
+  desaturate,
+  mix,
+} from '@ziroeda/common/gal/color4d.js';
+import { wxStringSplit } from '@ziroeda/common/string_utils.js';
 import type { SCH_SHEET_PATH } from './sch_sheet_path.js';
 import { MSG_PANEL_ITEM } from '@ziroeda/common/widgets/msgpanel.js';
 import type { EDA_DRAW_FRAME_LIKE } from '@ziroeda/common/eda_item.js';
@@ -122,6 +132,141 @@ export class SCH_TEXT extends SCH_ITEM {
 
   override GetClass(): string {
     return 'SCH_TEXT';
+  }
+
+  override Plot(
+    aPlotter: PLOTTER,
+    aBackground: boolean,
+    _aPlotOpts: SCH_PLOT_OPTS,
+    _aUnit: number,
+    _aBodyStyle: number,
+    aOffset: VECTOR2I,
+    aDimmed: boolean,
+  ): void {
+    if (aBackground || this.IsPrivate()) return;
+
+    const renderSettings = this.getRenderSettings(aPlotter);
+    let color = this.GetTextColor();
+    let bg = renderSettings.GetBackgroundColor();
+
+    if (!aPlotter.GetColorMode() || color4dEquals(color, COLOR4D_UNSPECIFIED)) {
+      const connection = this.Connection();
+
+      if (connection?.IsBus()) color = renderSettings.GetLayerColor(SCH_LAYER_ID.LAYER_BUS);
+      else color = renderSettings.GetLayerColor(this.m_layer);
+    }
+
+    if (!this.IsVisible()) bg = renderSettings.GetLayerColor(SCH_LAYER_ID.LAYER_HIDDEN);
+    else if (color4dEquals(bg, COLOR4D_UNSPECIFIED) || !aPlotter.GetColorMode()) bg = COLOR4D_WHITE;
+
+    // `if( color.m_text && Schematic() )`: a colour held as a text variable is not carried by our
+    // COLOR4D (color4d.ts), so there is nothing to resolve.
+
+    if (aDimmed) {
+      color = desaturate(color);
+      color = mix(color, bg, 0.5);
+    }
+
+    let penWidth = this.GetEffectiveTextPenWidth(renderSettings.GetDefaultPenWidth());
+    penWidth = Math.max(penWidth, renderSettings.GetMinPenWidth());
+    aPlotter.SetCurrentLineWidth(penWidth);
+
+    const font = plotterFont(this.GetDrawFont(renderSettings), this.GetFontMetrics());
+    const attrs = this.GetAttributes().clone();
+    attrs.m_StrokeWidth = penWidth;
+
+    if (this.m_layer === SCH_LAYER_ID.LAYER_DEVICE) {
+      const t = renderSettings.m_Transform;
+
+      // The text orientation may need to be flipped if the transformation matrix causes xy
+      // axes to be flipped.
+      if ((t.x1 !== 0) !== !this.GetTextAngle().equals(ANGLE_HORIZONTAL))
+        attrs.m_Angle = ANGLE_HORIZONTAL;
+      else attrs.m_Angle = ANGLE_VERTICAL;
+
+      const origHoriz = this.GetTextAngle().equals(ANGLE_HORIZONTAL);
+      const screenHoriz = attrs.m_Angle.equals(ANGLE_HORIZONTAL);
+
+      // Check if the text reading direction is reversed by the transform
+      // Flip H alignment when reversed
+      let flipH: boolean;
+
+      if (origHoriz) flipH = screenHoriz ? t.x1 < 0 : t.x2 > 0;
+      else flipH = screenHoriz ? t.y1 > 0 : t.y2 < 0;
+
+      if (flipH) {
+        if (attrs.m_Halign === GR_TEXT_H_ALIGN_T.GR_TEXT_H_ALIGN_LEFT)
+          attrs.m_Halign = GR_TEXT_H_ALIGN_T.GR_TEXT_H_ALIGN_RIGHT;
+        else if (attrs.m_Halign === GR_TEXT_H_ALIGN_T.GR_TEXT_H_ALIGN_RIGHT)
+          attrs.m_Halign = GR_TEXT_H_ALIGN_T.GR_TEXT_H_ALIGN_LEFT;
+      }
+
+      // For mirrored transforms (det < 0), the multiline stacking direction may be reversed
+      // Flip V alignment to keep lines in the correct visual order
+      const det = t.x1 * t.y2 - t.x2 * t.y1;
+
+      if (det < 0 && origHoriz === t.x1 > 0) {
+        if (attrs.m_Valign === GR_TEXT_V_ALIGN_T.GR_TEXT_V_ALIGN_TOP)
+          attrs.m_Valign = GR_TEXT_V_ALIGN_T.GR_TEXT_V_ALIGN_BOTTOM;
+        else if (attrs.m_Valign === GR_TEXT_V_ALIGN_T.GR_TEXT_V_ALIGN_BOTTOM)
+          attrs.m_Valign = GR_TEXT_V_ALIGN_T.GR_TEXT_V_ALIGN_TOP;
+      }
+
+      // Compute line positions
+      const strings_list = wxStringSplit(this.GetShownText(null, true), '\n');
+
+      const lineCount = strings_list.length;
+
+      const drawPos = renderSettings.TransformCoordinate(this.GetDrawPos());
+      const linePos = { x: drawPos.x + aOffset.x, y: drawPos.y + aOffset.y };
+      const interline = this.GetInterline(renderSettings);
+
+      if (lineCount > 1) {
+        let blockShift = 0;
+
+        if (attrs.m_Valign === GR_TEXT_V_ALIGN_T.GR_TEXT_V_ALIGN_CENTER)
+          blockShift = Math.trunc(((lineCount - 1) * interline) / 2);
+        else if (attrs.m_Valign === GR_TEXT_V_ALIGN_T.GR_TEXT_V_ALIGN_BOTTOM)
+          blockShift = (lineCount - 1) * interline;
+
+        if (screenHoriz) linePos.y -= blockShift;
+        else linePos.x -= blockShift;
+      }
+
+      // Set to false since each line is plotted separately with its own position
+      attrs.m_Multiline = false;
+
+      for (const line of strings_list) {
+        aPlotter.PlotText({ ...linePos }, color, line, attrs, font, this.GetFontMetrics());
+
+        if (screenHoriz) linePos.y += interline;
+        else linePos.x += interline;
+      }
+    } else {
+      const sheet = this.Schematic()?.CurrentSheet() ?? null;
+      const text_offset = { ...this.GetSchematicTextOffset(renderSettings) };
+      const fieldOffset = this.GetOffsetToMatchSCH_FIELD(renderSettings);
+      text_offset.x += fieldOffset.x;
+      text_offset.y += fieldOffset.y;
+
+      const positions: VECTOR2I[] = [];
+      const strings_list = wxStringSplit(this.GetShownText(sheet, true), '\n');
+
+      this.GetLinePositions(renderSettings, positions, strings_list.length);
+
+      attrs.m_Multiline = false;
+
+      for (let ii = 0; ii < strings_list.length; ii++) {
+        const textpos = {
+          x: positions[ii]!.x + text_offset.x,
+          y: positions[ii]!.y + text_offset.y,
+        };
+        const txt = strings_list[ii]!;
+        aPlotter.PlotText(textpos, color, txt, attrs, font, this.GetFontMetrics());
+      }
+
+      if (this.HasHyperlink()) aPlotter.HyperlinkBox(this.GetBoundingBox(), this.GetHyperlink());
+    }
   }
 
   /** `GetMsgPanelInfo( aFrame, aList )` (sch_text.cpp). */

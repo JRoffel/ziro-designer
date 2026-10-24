@@ -283,6 +283,9 @@ export const KiCadSchematicFileExtension = 'kicad_sch';
 /** `FILEEXT::KiCadSymbolLibFileExtension`. [data] */
 export const KiCadSymbolLibFileExtension = 'kicad_sym';
 
+/** `FILEEXT::SVGFileExtension` (:174). [data] */
+export const SVGFileExtension = 'svg';
+
 /** `FILEEXT::LegacySymbolLibFileExtension`. [data] */
 export const LegacySymbolLibFileExtension = 'lib';
 /** `FILEEXT::KiCadPcbFileExtension`. [data] */

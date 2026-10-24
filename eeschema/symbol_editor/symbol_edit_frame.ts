@@ -75,6 +75,7 @@ import type { SYMBOL_LIBRARY_SAVE_AS_FILEDLG_HOOK } from '../widgets/symbol_libr
 import { SYMBOL_EDITOR_UNDO_REDO_MIXIN } from './symbol_editor_undo_redo.js';
 import { SYMBOL_EDITOR_FILES_MIXIN, SYMBOL_EDITOR_MIXIN } from './symbol_editor.js';
 import { SYMBOL_EDITOR_IMPORT_EXPORT_MIXIN } from './symbol_editor_import_export.js';
+import { SYMBOL_EDITOR_PLOTTER_MIXIN } from './symbol_editor_plotter.js';
 import { applyMixins } from '@ziroeda/core/mixins.js';
 import { LIB_ID } from '@ziroeda/common/lib_id.js';
 import type { SCH_SYMBOL } from '../sch_symbol.js';
@@ -168,6 +169,11 @@ export interface SYMBOL_EDIT_FRAME_HOOKS {
   updateLibraryTree?(aLibId: LIB_ID, aSymbol: LIB_SYMBOL): void;
   /** `ToggleProperties()`: the properties pane shown or hidden, its width remembered. */
   toggleProperties?(): void;
+  /**
+   * A generated output (SVGPlotSymbol's file): downloaded, like every plot, instead of written
+   * where a wxFD_SAVE picker would have put it.
+   */
+  writeOutputFile?(aPath: string, aBytes: Uint8Array, aMime: string): void;
 }
 
 /** `UNITS_ALL` / `DEMORGAN_ALL` (symbol_edit_frame.h:45-46): the pin table's "every unit / style". */
@@ -182,7 +188,8 @@ export interface SYMBOL_EDIT_FRAME
   extends SYMBOL_EDITOR_UNDO_REDO_MIXIN,
     SYMBOL_EDITOR_MIXIN,
     SYMBOL_EDITOR_FILES_MIXIN,
-    SYMBOL_EDITOR_IMPORT_EXPORT_MIXIN {}
+    SYMBOL_EDITOR_IMPORT_EXPORT_MIXIN,
+    SYMBOL_EDITOR_PLOTTER_MIXIN {}
 
 // biome-ignore lint/suspicious/noUnsafeDeclarationMerging: TS multiple inheritance (see libs/core/mixins.ts)
 export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
@@ -428,6 +435,11 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
       typeof aWildcard === 'string' ? [] : aWildcard,
       aStyle,
     );
+  }
+
+  /** A generated output, handed to the window to download. */
+  WriteOutputFile(aPath: string, aBytes: Uint8Array, aMime: string): void {
+    this.hooks.writeOutputFile?.(aPath, aBytes, aMime);
   }
 
   /** `wxFileDialog( ... ).ShowModal()` then `GetPath()`: the window's; null is Cancel. */
@@ -1333,4 +1345,5 @@ applyMixins(SYMBOL_EDIT_FRAME, [
   SYMBOL_EDITOR_MIXIN,
   SYMBOL_EDITOR_FILES_MIXIN,
   SYMBOL_EDITOR_IMPORT_EXPORT_MIXIN,
+  SYMBOL_EDITOR_PLOTTER_MIXIN,
 ]);

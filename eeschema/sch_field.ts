@@ -32,7 +32,16 @@ import { schIUScale } from '@ziroeda/common/eda_units.js';
 import { FONT } from '@ziroeda/common/font/font.js';
 import type { METRICS } from '@ziroeda/common/font/font_metrics.js';
 import { GR_TEXT_H_ALIGN_T, GR_TEXT_V_ALIGN_T } from '@ziroeda/common/font/text_attributes.js';
-import { COLOR4D_UNSPECIFIED, type Color4d, color4dEquals } from '@ziroeda/common/gal/color4d.js';
+import {
+  COLOR4D_UNSPECIFIED,
+  COLOR4D_WHITE,
+  type Color4d,
+  color4dEquals,
+  desaturate,
+  mix,
+} from '@ziroeda/common/gal/color4d.js';
+import { type PLOTTER, plotterFont } from '@ziroeda/common/plotters/plotter.js';
+import type { SCH_PLOT_OPTS } from './sch_plotter.js';
 import { SCH_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import type { RENDER_SETTINGS } from '@ziroeda/common/render_settings.js';
 import { IsURL, unescapeString } from '@ziroeda/common/string_utils.js';
@@ -121,7 +130,7 @@ export function isNetclassFieldName(name: string): boolean {
 // record model's helpers, which it leaves untouched.
 //
 // Not here: `Serialize`/`Deserialize`, `OnScintillaCharAdded` (the editor's autocomplete),
-// `DoHypertextAction` (needs SCH_NAVIGATE_TOOL on the live frame), `Plot`,
+// `DoHypertextAction` (needs SCH_NAVIGATE_TOOL on the live frame),
 // `GetMsgPanelInfo`, `GetMenuImage`, `SCH_FIELD_DESC`, and the outline-font render cache
 // (`GetRenderCache`), which the painter supplies.
 // ---------------------------------------------------------------------------
@@ -170,6 +179,8 @@ interface FIELD_PARENT_LABEL {
   GetNextFieldOrdinal(): number;
   IsConnectivityDirty(): boolean;
   GetSchematicTextOffset(aSettings: RENDER_SETTINGS | null): VECTOR2I;
+  GetIntersheetRefs(aPath: SCH_SHEET_PATH | null, pages: [string, string][]): void;
+  GetEffectiveNetClass(): { GetSchematicColor(): Color4d } | null | undefined;
 }
 
 /** `SCH_LABEL_BASE::GetDefaultFieldName` without the import cycle: sch_label.ts registers it. */
@@ -1076,6 +1087,139 @@ export class SCH_FIELD extends SCH_ITEM {
     }
 
     return this.GetTextPos();
+  }
+
+  override Plot(
+    aPlotter: PLOTTER,
+    aBackground: boolean,
+    _aPlotOpts: SCH_PLOT_OPTS,
+    _aUnit: number,
+    _aBodyStyle: number,
+    aOffset: VECTOR2I,
+    aDimmed: boolean,
+  ): void {
+    let text: string;
+    const schematic = this.Schematic();
+
+    if (schematic)
+      text = this.GetShownText(schematic.CurrentSheet(), true, 0, schematic.GetCurrentVariant());
+    else text = this.GetShownText(true);
+
+    if ((!this.IsVisible() && !this.IsForceVisible()) || text === '' || aBackground) return;
+
+    const renderSettings = this.getRenderSettings(aPlotter);
+    let color = renderSettings.GetLayerColor(this.GetLayer());
+    let penWidth = this.GetEffectiveTextPenWidth(renderSettings.GetDefaultPenWidth());
+
+    let bg = renderSettings.GetBackgroundColor();
+
+    if (color4dEquals(bg, COLOR4D_UNSPECIFIED) || !aPlotter.GetColorMode()) bg = COLOR4D_WHITE;
+
+    if (aPlotter.GetColorMode() && !color4dEquals(this.GetTextColor(), COLOR4D_UNSPECIFIED))
+      color = this.GetTextColor();
+
+    // `if( color.m_text && Schematic() )`: a colour held as a text variable is not carried by our
+    // COLOR4D (color4d.ts), so there is nothing to resolve.
+
+    if (aDimmed) {
+      color = desaturate(color);
+      color = mix(color, bg, 0.5);
+    }
+
+    penWidth = Math.max(penWidth, renderSettings.GetMinPenWidth());
+
+    // clamp the pen width to be sure the text is readable
+    penWidth = Math.min(
+      penWidth,
+      Math.trunc(Math.min(this.GetTextSize().x, this.GetTextSize().y) / 4),
+    );
+
+    if (!this.IsVisible() && !renderSettings.m_ShowHiddenFields) return;
+
+    // Calculate the text orientation, according to the symbol orientation/mirror
+    let orient = this.GetTextAngle();
+    let textpos = this.GetTextPos();
+    let hjustify = this.GetHorizJustify();
+    let vjustify = this.GetVertJustify();
+
+    if (renderSettings.m_Transform.y1) {
+      // Rotate symbol 90 deg.
+      if (orient.IsHorizontal()) orient = ANGLE_VERTICAL;
+      else orient = ANGLE_HORIZONTAL;
+    }
+
+    const parent = this.GetParent();
+
+    if (parent && parent.Type() === KICAD_T.SCH_SYMBOL_T) {
+      /*
+       * Calculate the text justification, according to the symbol orientation/mirror.  This is
+       * a bit complicated due to cumulative calculations:
+       *  - numerous cases (mirrored or not, rotation)
+       *  - the plotter's Text() function will also recalculate H and V justifications according
+       *    to the text orientation
+       *  - when a symbol is mirrored the text is not, and justifications become a nightmare
+       *
+       *  So the easier way is to use no justifications (centered text) and use GetBoundingBox
+       *  to know the text coordinate considered as centered.
+       */
+      hjustify = GR_TEXT_H_ALIGN_T.GR_TEXT_H_ALIGN_CENTER;
+      vjustify = GR_TEXT_V_ALIGN_T.GR_TEXT_V_ALIGN_CENTER;
+      textpos = this.GetBoundingBox().Centre();
+    } else if (parent && parent.Type() === KICAD_T.LIB_SYMBOL_T) {
+      // Library-symbol exports (CLI/symbol editor) provide an item offset in the same coordinate
+      // frame as body graphics/pins.  Apply the same transform+offset pipeline to field text.
+      const pos = renderSettings.TransformCoordinate(textpos);
+      textpos = { x: pos.x + aOffset.x, y: pos.y + aOffset.y };
+    } else if (parent && parent.Type() === KICAD_T.SCH_GLOBAL_LABEL_T) {
+      const label = parent as unknown as FIELD_PARENT_LABEL;
+      const offset = label.GetSchematicTextOffset(renderSettings);
+      textpos = { x: textpos.x + offset.x, y: textpos.y + offset.y };
+    } else if (parent && parent.Type() === KICAD_T.SCH_DIRECTIVE_LABEL_T) {
+      const label = parent as unknown as FIELD_PARENT_LABEL;
+      const nc = label.GetEffectiveNetClass();
+
+      if (
+        nc &&
+        !color4dEquals(nc.GetSchematicColor(), COLOR4D_UNSPECIFIED) &&
+        aPlotter.GetColorMode()
+      )
+        color = nc.GetSchematicColor();
+    }
+
+    const font = this.GetDrawFont(renderSettings);
+    const attrs = this.GetAttributes().clone();
+    attrs.m_StrokeWidth = penWidth;
+    attrs.m_Halign = hjustify;
+    attrs.m_Valign = vjustify;
+    attrs.m_Angle = orient;
+    attrs.m_Multiline = false;
+
+    aPlotter.PlotText(
+      textpos,
+      color,
+      text,
+      attrs,
+      plotterFont(font, this.GetFontMetrics()),
+      this.GetFontMetrics(),
+    );
+
+    if (this.m_id === FIELD_T.INTERSHEET_REFS && schematic) {
+      // `dynamic_cast<SCH_LABEL_BASE*>( m_parent )`
+      if (parent?.IsType(labelTypes)) {
+        const label = parent as unknown as FIELD_PARENT_LABEL;
+        const pages: [string, string][] = [];
+        const pageHrefs: string[] = [];
+
+        label.GetIntersheetRefs(schematic.CurrentSheet(), pages);
+
+        for (const [pageNumber] of pages) pageHrefs.push(`#${pageNumber}`);
+
+        const bbox = this.GetBoundingBox();
+        bbox.Offset(label.GetSchematicTextOffset(renderSettings));
+
+        aPlotter.HyperlinkMenu(bbox, pageHrefs);
+      }
+    }
   }
 
   override SetPosition(aPosition: VECTOR2I): void {
