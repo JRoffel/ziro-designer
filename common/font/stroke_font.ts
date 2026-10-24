@@ -49,7 +49,8 @@ interface Glyph {
   strokes: Vec2[][];
 }
 
-let decoded: Glyph[] | null = null;
+/** The newstroke table, decoded one glyph at a time as text first uses it. */
+const decoded: (Glyph | undefined)[] = [];
 
 /** Decode one Hershey glyph string (loadNewStrokeFont's inner loop). */
 function decodeGlyph(s: string): Glyph {
@@ -82,18 +83,21 @@ function decodeGlyph(s: string): Glyph {
   return { advance, strokes };
 }
 
-function glyphs(): Glyph[] {
-  if (!decoded) decoded = NEWSTROKE_GLYPHS.map(decodeGlyph);
-  return decoded;
-}
+/** Glyph \a aIndex of the newstroke table: decoded the first time it is drawn, then kept. */
+function glyphAt(aIndex: number): Glyph {
+  let glyph = decoded[aIndex];
 
-/** The decoded newstroke table, `STROKE_FONT::m_glyphs`, for a faithful layout. */
-export const strokeGlyphs = (): readonly Glyph[] => glyphs();
-export type { Glyph as StrokeGlyph };
+  if (!glyph) {
+    glyph = decodeGlyph(NEWSTROKE_GLYPHS[aIndex]!);
+    decoded[aIndex] = glyph;
+  }
+
+  return glyph;
+}
 
 /** Advance width of the space glyph (index 0), in em units. */
 function spaceAdvance(): number {
-  return glyphs()[0]!.advance;
+  return glyphAt(0).advance;
 }
 
 // ----- KiCad text markup (font.cpp MARKUP_NODE) --------------------------------
@@ -164,7 +168,6 @@ export function parseMarkup(line: string): MarkupRun[] {
 
 /** Advance one run's glyphs from `cursorX`; collect strokes when `out` given. */
 function layoutRun(run: MarkupRun, size: number, cursorX: number, out?: Vec2[][]): number {
-  const gl = glyphs();
   const glyphSize =
     run.style === 'sub' || run.style === 'super' ? size * SUPER_SUB_SIZE_MULTIPLIER : size;
   const dy =
@@ -180,8 +183,8 @@ function layoutRun(run: MarkupRun, size: number, cursorX: number, out?: Vec2[][]
       continue;
     }
     let dd = ch.codePointAt(0)! - 0x20;
-    if (dd < 0 || dd >= gl.length) dd = '?'.charCodeAt(0) - 0x20; // non-printable -> '?'
-    const g = gl[dd]!;
+    if (dd < 0 || dd >= NEWSTROKE_GLYPHS.length) dd = '?'.charCodeAt(0) - 0x20; // non-printable -> '?'
+    const g = glyphAt(dd);
     if (out) {
       const x0 = cursorX;
       out.push(
@@ -424,8 +427,15 @@ import { type GLYPH_LIKE, STROKE_GLYPH } from './glyph.js';
 // (`STROKE_FONT_SCALE` and `FONT_OFFSET` are declared at the top of this file)
 
 let g_defaultFontInitialized = false;
-const g_defaultFontGlyphs: STROKE_GLYPH[] = [];
-let g_defaultFontGlyphBoundingBoxes: BOX2D[] | null = null;
+/**
+ * The default font's table, and its glyphs and their boxes as each is decoded. Upstream decodes all
+ * of them in loadNewStrokeFont; the table here runs to U+2FFF, 12k glyphs and ~80 ms of main thread
+ * that no text has asked for yet, so each is decoded the first time it is drawn instead. The loop
+ * body below is upstream's, unchanged, run per glyph.
+ */
+let g_defaultFontSource: readonly string[] = [];
+const g_defaultFontGlyphs: (STROKE_GLYPH | undefined)[] = [];
+const g_defaultFontGlyphBoundingBoxes: (BOX2D | undefined)[] = [];
 
 function buildGlyphBoundingBox(aGlyph: STROKE_GLYPH, aGlyphWidth: number): void {
   const min = { x: 0, y: 0 };
@@ -441,9 +451,61 @@ function buildGlyphBoundingBox(aGlyph: STROKE_GLYPH, aGlyphWidth: number): void 
   aGlyph.SetBoundingBox(new BOX2D(min, { x: max.x - min.x, y: max.y - min.y }));
 }
 
+/** Glyph \a j of the default font, decoded: loadNewStrokeFont's loop body (stroke_font.cpp). */
+function decodeDefaultGlyph(j: number): void {
+  const glyph = new STROKE_GLYPH();
+  const src = g_defaultFontSource[j]!;
+
+  let glyphStartX = 0.0;
+  let glyphEndX = 0.0;
+  let glyphWidth = 0.0;
+  let i = 0;
+
+  while (i < src.length) {
+    const coordinate = [src.charCodeAt(i), src.charCodeAt(i + 1)];
+    const R = 'R'.charCodeAt(0);
+
+    if (i < 2) {
+      // The first two values contain the width of the char
+      glyphStartX = (coordinate[0]! - R) * STROKE_FONT_SCALE;
+      glyphEndX = (coordinate[1]! - R) * STROKE_FONT_SCALE;
+      glyphWidth = glyphEndX - glyphStartX;
+    } else if (src[i] === ' ' && src[i + 1] === 'R') {
+      glyph.RaisePen();
+    } else {
+      // In stroke font, coordinates values are coded as <value> + 'R', where
+      // <value> is an ASCII char.
+      // therefore every coordinate description of the Hershey format has an offset,
+      // it has to be subtracted
+      // Note:
+      //  * the stroke coordinates are stored in reduced form (-1.0 to +1.0),
+      //    and the actual size is stroke coordinate * glyph size
+      //  * a few shapes have a height slightly bigger than 1.0 ( like '{' '[' )
+      const point = { x: 0.0, y: 0.0 };
+      point.x = (coordinate[0]! - R) * STROKE_FONT_SCALE - glyphStartX;
+
+      // FONT_OFFSET is here for historical reasons, due to the way the stroke font
+      // was built. It allows shapes coordinates like W M ... to be >= 0
+      // Only shapes like j y have coordinates < 0
+      point.y = (coordinate[1]! - R + FONT_OFFSET) * STROKE_FONT_SCALE;
+
+      glyph.AddPoint(point);
+    }
+
+    i += 2;
+  }
+
+  glyph.Finalize();
+
+  // Compute the bounding box of the glyph
+  buildGlyphBoundingBox(glyph, glyphWidth);
+  g_defaultFontGlyphBoundingBoxes[j] = glyph.BoundingBox();
+  g_defaultFontGlyphs[j] = glyph;
+}
+
 export class STROKE_FONT extends FONT {
-  private m_glyphs: readonly STROKE_GLYPH[] | null = null;
-  private m_glyphBoundingBoxes: readonly BOX2D[] | null = null;
+  /** How many glyphs `m_glyphs` holds; each is decoded by {@link glyph} when first asked for. */
+  private m_glyphCount = 0;
   private m_maxGlyphWidth = 0.0;
 
   override IsStroke(): boolean {
@@ -467,65 +529,20 @@ export class STROKE_FONT extends FONT {
 
   private loadNewStrokeFont(aNewStrokeFont: readonly string[], aNewStrokeFontSize: number): void {
     if (!g_defaultFontInitialized) {
-      g_defaultFontGlyphBoundingBoxes = [];
+      g_defaultFontSource = aNewStrokeFont.slice(0, aNewStrokeFontSize);
 
-      for (let j = 0; j < aNewStrokeFontSize; j++) {
-        const glyph = new STROKE_GLYPH();
-        const src = aNewStrokeFont[j]!;
+      // m_maxGlyphWidth over every glyph, from each one's first pair - the width the loop measured.
+      const R = 'R'.charCodeAt(0);
 
-        let glyphStartX = 0.0;
-        let glyphEndX = 0.0;
-        let glyphWidth = 0.0;
-        let i = 0;
-
-        while (i < src.length) {
-          const coordinate = [src.charCodeAt(i), src.charCodeAt(i + 1)];
-          const R = 'R'.charCodeAt(0);
-
-          if (i < 2) {
-            // The first two values contain the width of the char
-            glyphStartX = (coordinate[0]! - R) * STROKE_FONT_SCALE;
-            glyphEndX = (coordinate[1]! - R) * STROKE_FONT_SCALE;
-            glyphWidth = glyphEndX - glyphStartX;
-          } else if (src[i] === ' ' && src[i + 1] === 'R') {
-            glyph.RaisePen();
-          } else {
-            // In stroke font, coordinates values are coded as <value> + 'R', where
-            // <value> is an ASCII char.
-            // therefore every coordinate description of the Hershey format has an offset,
-            // it has to be subtracted
-            // Note:
-            //  * the stroke coordinates are stored in reduced form (-1.0 to +1.0),
-            //    and the actual size is stroke coordinate * glyph size
-            //  * a few shapes have a height slightly bigger than 1.0 ( like '{' '[' )
-            const point = { x: 0.0, y: 0.0 };
-            point.x = (coordinate[0]! - R) * STROKE_FONT_SCALE - glyphStartX;
-
-            // FONT_OFFSET is here for historical reasons, due to the way the stroke font
-            // was built. It allows shapes coordinates like W M ... to be >= 0
-            // Only shapes like j y have coordinates < 0
-            point.y = (coordinate[1]! - R + FONT_OFFSET) * STROKE_FONT_SCALE;
-
-            glyph.AddPoint(point);
-          }
-
-          i += 2;
-        }
-
-        glyph.Finalize();
-
-        // Compute the bounding box of the glyph
-        buildGlyphBoundingBox(glyph, glyphWidth);
-        g_defaultFontGlyphBoundingBoxes.push(glyph.BoundingBox());
-        g_defaultFontGlyphs.push(glyph);
+      for (const src of g_defaultFontSource) {
+        const glyphWidth = (src.charCodeAt(1) - R - (src.charCodeAt(0) - R)) * STROKE_FONT_SCALE;
         this.m_maxGlyphWidth = Math.max(this.m_maxGlyphWidth, glyphWidth);
       }
 
       g_defaultFontInitialized = true;
     }
 
-    this.m_glyphs = g_defaultFontGlyphs;
-    this.m_glyphBoundingBoxes = g_defaultFontGlyphBoundingBoxes;
+    this.m_glyphCount = g_defaultFontSource.length;
     this.m_fontName = FONT_KICAD_FONT_NAME;
     this.m_fontFileName = '';
   }
@@ -556,7 +573,7 @@ export class STROKE_FONT extends FONT {
     const cursor = { x: aPosition.x, y: aPosition.y };
     let glyphSize = { x: aSize.x, y: aSize.y };
     const tilt = aTextStyle & TEXT_STYLE.ITALIC ? FONT_ITALIC_TILT : 0.0;
-    const space_width = this.m_glyphBoundingBoxes![0]!.GetWidth(); // First char is space
+    const space_width = this.glyphBoundingBox(0).GetWidth(); // First char is space
     let char_count = 0;
 
     if (aTextStyle & TEXT_STYLE.SUBSCRIPT || aTextStyle & TEXT_STYLE.SUPERSCRIPT) {
@@ -593,12 +610,12 @@ export class STROKE_FONT extends FONT {
         let dd = c.codePointAt(0)! - 0x20;
 
         // Filtering non existing glyphs and non printable chars
-        if (dd < 0 || dd >= this.m_glyphBoundingBoxes!.length) {
+        if (dd < 0 || dd >= this.m_glyphCount) {
           c = '?';
           dd = c.codePointAt(0)! - 0x20;
         }
 
-        const source = this.m_glyphs![dd]!;
+        const source = this.glyph(dd);
 
         if (aGlyphs) {
           aGlyphs.push(source.Transform(glyphSize, cursor, tilt, aAngle, aMirror, aOrigin));
@@ -624,21 +641,34 @@ export class STROKE_FONT extends FONT {
     return { x: cursor.x, y: aPosition.y };
   }
 
+  /** `m_glyphs[aIndex]`, decoded on first use. */
+  private glyph(aIndex: number): STROKE_GLYPH {
+    if (!g_defaultFontGlyphs[aIndex]) decodeDefaultGlyph(aIndex);
+
+    return g_defaultFontGlyphs[aIndex]!;
+  }
+
+  /** `m_glyphBoundingBoxes[aIndex]`, decoded on first use. */
+  private glyphBoundingBox(aIndex: number): BOX2D {
+    if (!g_defaultFontGlyphBoundingBoxes[aIndex]) decodeDefaultGlyph(aIndex);
+
+    return g_defaultFontGlyphBoundingBoxes[aIndex]!;
+  }
+
   GetGlyphCount(): number {
-    return this.m_glyphs ? this.m_glyphs.length : 0;
+    return this.m_glyphCount;
   }
 
   GetGlyph(aIndex: number): STROKE_GLYPH | null {
-    if (!this.m_glyphs || aIndex >= this.m_glyphs.length) return null;
+    if (aIndex >= this.m_glyphCount) return null;
 
-    return this.m_glyphs[aIndex]!;
+    return this.glyph(aIndex);
   }
 
   GetGlyphBoundingBox(aIndex: number): BOX2D {
-    if (!this.m_glyphBoundingBoxes || aIndex >= this.m_glyphBoundingBoxes.length)
-      return new BOX2D();
+    if (aIndex >= this.m_glyphCount) return new BOX2D();
 
-    return this.m_glyphBoundingBoxes[aIndex]!;
+    return this.glyphBoundingBox(aIndex);
   }
 }
 

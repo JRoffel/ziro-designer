@@ -88,9 +88,6 @@ function plotSymbol(
   return plotter.text();
 }
 
-/** Goldens whose text needs a stroke-font glyph our newstroke table does not carry. */
-const BEYOND_LATIN1_TEXT = new Set(['Ohmmeter_unit1.svg']);
-
 /** `<title>... date 2026-10-24T06:37:12 </title>` as the local time SVG_PLOTTER printed. */
 function goldenDate(aSvg: string): Date {
   const m = /date (\d+)-(\d+)-(\d+)T(\d+):(\d+):(\d+)/.exec(aSvg)!;
@@ -103,12 +100,9 @@ for (const [folder, hidden] of [
 ] as const) {
   describe(`${folder}: kicad-cli sym export svg`, () => {
     for (const file of readdirSync(`${DIR}${folder}`).sort()) {
-      // Ohmmeter's text item is "Ω" (U+03A9). Its placement and size match; its strokes do not,
-      // because newstroke_font.ts carries only U+0020..U+00FF of KiCad's table and the glyph
-      // falls back. Expected to fail until the font does: then drop this and keep the golden.
-      const known = BEYOND_LATIN1_TEXT.has(file);
-
-      (known ? it.fails : it)(file, () => {
+      // Ohmmeter's text item is "Ω" (U+03A9), which newstroke_font.ts carries since it took every
+      // block before CJK: its strokes are KiCad's, not the '?' they fell back to.
+      it(file, () => {
         const m = /^(.+)_unit(\d+)(_demorgan)?\.svg$/.exec(file)!;
         const symbol = symbols.get(m[1]!)!;
         const golden = readFileSync(`${DIR}${folder}/${file}`, 'utf8');
