@@ -9,6 +9,7 @@
 import type { BOX2I } from '@ziroeda/kimath/src/math/box2.js';
 // `class VIEW_ITEM_DATA;` is forward-declared in the header; view.cpp defines it.
 import type { VIEW, VIEW_ITEM_DATA } from './view.js';
+import { ptrOrdinal } from '@ziroeda/core/kicad_algo.js';
 import { INSPECTABLE } from '../inspectable.js';
 
 /** Define the how severely the appearance of the item has been changed. */
@@ -58,6 +59,11 @@ export abstract class VIEW_ITEM extends INSPECTABLE {
 
   constructor(isSCH_ITEM = false, isBOARD_ITEM = false) {
     super();
+    // `operator new`: an item's address is fixed when it is made, and in the order things are
+    // made - a board's pads and tracks in file order. The C++ that orders by pointer (DRC's
+    // `track > other` / `pad > other` pair filters, ptr_cmp's tie-break) sees that order, so the
+    // item is numbered now, not the first time something happens to compare it.
+    ptrOrdinal(this);
     this.m_isSCH_ITEM = isSCH_ITEM;
     this.m_isBOARD_ITEM = isBOARD_ITEM;
     this.m_viewPrivData = null;
