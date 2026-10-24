@@ -329,7 +329,6 @@ export function SymbolViewerFrame({
       .then((idx) => {
         if (cancelled) return;
 
-
         setIndexLoaded(true);
         rebuild();
 

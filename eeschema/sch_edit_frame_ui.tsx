@@ -238,9 +238,7 @@ import {
 } from '@ziroeda/common/libraries/library_table.js';
 import { jsonFileWildcard, reportFileWildcard } from '@ziroeda/common/wildcards_and_files_ext.js';
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
-import {
-  fetchHostedSymbolFile,
-} from './libraries/symbol_library_adapter.js';
+import { fetchHostedSymbolFile } from './libraries/symbol_library_adapter.js';
 import { type SchErcLine, schErcLines } from './sch_script_api.js';
 import { INFO_CAPTION } from '@ziroeda/common/confirm_types.js';
 import { dispatchMenuHotkey, focusBlocksHotkey } from '@ziroeda/common/tool/action_menu_hotkeys.js';

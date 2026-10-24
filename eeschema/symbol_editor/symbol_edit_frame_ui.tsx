@@ -134,9 +134,7 @@ import {
 import { DialogImportGfx } from '../import_gfx/dialog_import_gfx_sch.js';
 import { GRAPHICS_IMPORTER_LIB_SYMBOL } from '../import_gfx/graphics_importer_lib_symbol.js';
 import type { LIB_SYMBOL } from '../lib_symbol.js';
-import {
-  fetchHostedSymbolFile,
-} from '../libraries/symbol_library_adapter.js';
+import { fetchHostedSymbolFile } from '../libraries/symbol_library_adapter.js';
 import { SymbolLibAdapter } from '../project_sch.js';
 import { projectSymLibTablePath } from '../project_sym_lib_table.js';
 import type { EDA_LIST_DIALOG_ARG } from '../sch_base_frame.js';
