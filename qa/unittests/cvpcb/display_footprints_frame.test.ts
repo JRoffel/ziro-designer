@@ -7,8 +7,10 @@
  * `InitDisplay` shows, titles, reports and writes in status pane 0.
  */
 import { describe, expect, it } from 'vitest';
+import { PGM_BASE, Pgm, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
 import { DISPLAY_FOOTPRINTS_FRAME } from '@ziroeda/cvpcb/display_footprints_frame.js';
 import { BOARD_USE } from '@ziroeda/pcbnew/board.js';
+import { fpEditKifaceSettings } from '@ziroeda/pcbnew/footprint_editor_settings.js';
 import { FOOTPRINT_LIBRARY_STORE } from '@ziroeda/pcbnew/footprint_library_adapter.js';
 import { PCB_VIEWER_TOOLS } from '@ziroeda/pcbnew/tools/pcb_viewer_tools.js';
 import { MAGNETIC_OPTIONS } from '@ziroeda/pcbnew/pcbnew_settings.js';
@@ -46,6 +48,23 @@ function displayFrame(): {
   frame.SetFootprintLibAdapter(store);
   return { frame, title, infobar, pane0 };
 }
+
+describe('GetColorSettings', () => {
+  it("answers with the Footprint Editor's theme rather than PCB_BASE_FRAME's throw", () => {
+    // display_footprints_frame.cpp:453 - without it, the canvas's first UpdateColors raised
+    // "Color settings requested for a PCB_BASE_FRAME that does not override!" and View Selected
+    // Footprint took the whole app down with it.
+    SetPgm(new PGM_BASE(null, new SETTINGS_MANAGER()));
+    try {
+      const { frame } = displayFrame();
+      fpEditKifaceSettings().m_ColorTheme = 'fpedit_theme';
+      Pgm().GetSettingsManager().AddNewColorSettings('fpedit_theme');
+      expect(frame.GetColorSettings().GetFilename()).toBe('fpedit_theme');
+    } finally {
+      SetPgm(null);
+    }
+  });
+});
 
 describe('InitDisplay', () => {
   it('titles itself Footprint: <fpid>, writes pane 0 as Lib: <nickname>, shows it at the origin', async () => {

@@ -11,7 +11,8 @@
 import { FRAME_T } from '@ziroeda/common/frame_type.js';
 import { LIB_ID } from '@ziroeda/common/lib_id.js';
 import type { MSG_PANEL_ITEM } from '@ziroeda/common/widgets/msgpanel.js';
-import { PgmOrNull } from '@ziroeda/common/pgm_base.js';
+import { DEFAULT_THEME, GetColorSettings, PgmOrNull } from '@ziroeda/common/pgm_base.js';
+import type { COLOR_SETTINGS } from '@ziroeda/common/settings/color_settings.js';
 import type { WINDOW_SETTINGS, APP_SETTINGS_BASE } from '@ziroeda/common/settings/app_settings.js';
 import { ACTIONS } from '@ziroeda/common/tool/actions.js';
 import { COMMON_TOOLS } from '@ziroeda/common/tool/common_tools.js';
@@ -23,6 +24,7 @@ import { BOARD, BOARD_USE } from '@ziroeda/pcbnew/board.js';
 import type { BOARD_ITEM_CONTAINER } from '@ziroeda/pcbnew/board_item_container.js';
 import type { FOOTPRINT } from '@ziroeda/pcbnew/footprint.js';
 import type { FOOTPRINT_LIBRARY_ADAPTER } from '@ziroeda/pcbnew/footprint_library_adapter.js';
+import { fpEditKifaceSettings } from '@ziroeda/pcbnew/footprint_editor_settings.js';
 import { PCB_BASE_FRAME } from '@ziroeda/pcbnew/pcb_base_frame.js';
 import { PCB_SCREEN } from '@ziroeda/pcbnew/pcb_screen.js';
 import {
@@ -163,6 +165,15 @@ export class DISPLAY_FOOTPRINTS_FRAME extends PCB_BASE_FRAME {
     if (!this.m_fallbackPcbnew) this.m_fallbackPcbnew = new PCBNEW_SETTINGS();
 
     return this.m_fallbackPcbnew;
+  }
+
+  /**
+   * `GetColorSettings( aForceRefresh )` (display_footprints_frame.cpp:453): the Footprint Editor's
+   * theme. PCB_BASE_FRAME's own throws for a frame that does not override it, and this one draws.
+   */
+  override GetColorSettings(_aForceRefresh = false): COLOR_SETTINGS {
+    const cfg = fpEditKifaceSettings();
+    return GetColorSettings(cfg ? cfg.m_ColorTheme : DEFAULT_THEME);
   }
 
   /** `GetModel()` (`:460-463`). */
