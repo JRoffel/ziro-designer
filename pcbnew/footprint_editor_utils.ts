@@ -77,10 +77,17 @@ export class FOOTPRINT_EDITOR_UTILS_MIXIN {
 
     if (footprint.Value().GetText() === '') footprint.SetValue('Val**');
 
+    // Without WebGL there is no canvas to zoom (KiCad's frame always has one).
+    if (this.GetCanvas()) this.Zoom_Automatique(false);
+
+    this.Update3DView(true, true);
+
     this.GetScreen()?.SetContentModified(false);
 
-    // Zoom_Automatique, Update3DView, the tree's ExpandLibId and the idle
-    // CenterLibId: the window's.
+    this.UpdateView();
+    this.GetCanvas()?.Refresh();
+
+    // The tree's ExpandLibId and the idle CenterLibId: the window's.
     this.hooks.onFootprintLoaded?.(aFPID);
   }
 

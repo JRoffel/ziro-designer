@@ -37,7 +37,9 @@ function setUp() {
   mails = [];
   libEdits = [];
   SetErrorPresenter((aText) => errors.push(aText));
-  t = symbolEditHarness(undefined, { libEdit: (aUri) => libEdits.push(aUri) });
+  t = symbolEditHarness(undefined, {
+    libTreeSelectLibId: (aLibId) => libEdits.push(aLibId.Format()),
+  });
   const kiway = new KIWAY({
     OnKiCadExit: () => {},
     Player: () => true,
@@ -79,7 +81,9 @@ describe('a library dropped on the Symbol Editor', () => {
       [FRAME_T.FRAME_SCH_SYMBOL_EDITOR, MAIL_T.MAIL_RELOAD_LIB, '/libs/dropped.kicad_sym'],
       [FRAME_T.FRAME_SCH_SYMBOL_EDITOR, MAIL_T.MAIL_LIB_EDIT, '/libs/dropped.kicad_sym'],
     ]);
-    expect(libEdits).toEqual(['/libs/dropped.kicad_sym']);
+    // MAIL_LIB_EDIT found the new row: the library is current and selected in the tree.
+    expect(t.frame.GetCurLib()).toBe('dropped');
+    expect(libEdits).toEqual(['dropped:']);
   });
 
   it('takes only the extensions the frame accepts', async () => {

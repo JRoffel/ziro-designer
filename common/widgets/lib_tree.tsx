@@ -431,9 +431,21 @@ export function LibTree({
   const findByLibId = useCallback(
     (libId: string): LibTreeNode | null => {
       if (!libId) return null;
+      // `LIB_TREE_MODEL_ADAPTER::FindItem( aLibId )`: the library by nickname, then - unless no
+      // item is named ("lib:", or a bare nickname) - the item in it.
+      const colon = libId.indexOf(':');
+      const nickname = colon < 0 ? libId : libId.slice(0, colon);
+      const itemName = colon < 0 ? '' : libId.slice(colon + 1);
+
       for (const lib of adapter.tree.children) {
-        if (lib.name === libId) return lib;
+        if (lib.name !== nickname) continue;
+
+        // if part name is not specified, return the library node
+        if (itemName === '') return lib;
+
         for (const item of lib.children) if (item.libId === libId) return item;
+
+        break; // could not find the part in the requested library
       }
       return null;
     },

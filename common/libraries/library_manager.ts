@@ -22,6 +22,7 @@ import {
   MEMORY_FILESYSTEM,
   wxFileExists,
   wxMountFileSystem,
+  wxNormalizePath,
   wxReadFileSync,
   wxWriteFileSync,
 } from '@ziroeda/wx/filefn.js';
@@ -391,6 +392,22 @@ export class LIBRARY_MANAGER {
     return this.Rows(aType, aScope, true).find((r) => r.Nickname() === aNickname) ?? null;
   }
 
+  /**
+   * `FindRowByURI( aType, aUri, aScope )` (:861-872): the row, invalid ones included, whose
+   * substituted URI names the same library as \a aUri.
+   */
+  FindRowByURI(
+    aType: LIBRARY_TABLE_TYPE,
+    aUri: string,
+    aScope: LIBRARY_TABLE_SCOPE = LIBRARY_TABLE_SCOPE.BOTH,
+  ): LIBRARY_TABLE_ROW | null {
+    for (const row of this.Rows(aType, aScope, true)) {
+      if (LIBRARY_MANAGER.UrisAreEquivalent(this.GetFullURI(row, true), aUri)) return row;
+    }
+
+    return null;
+  }
+
   /** `ExpandURI( aShortURI, aProject )` (:972-979): variables expanded against the project. */
   static ExpandURI(aShortURI: string, aProject: PROJECT | null): string {
     return ExpandEnvVarSubstitutions(
@@ -424,6 +441,21 @@ export class LIBRARY_MANAGER {
     if (!aSubstituted) return aRow.URI();
 
     return LIBRARY_MANAGER.ExpandURI(aRow.URI(), PgmOrNull()?.GetSettingsManager().Prj() ?? null);
+  }
+
+  /**
+   * `UrisAreEquivalent( aURI1, aURI2 )` (:1058-1078): a URL compared as text, a file name as
+   * `wxFileName ==` compares one - both normalized against the working directory.
+   */
+  static UrisAreEquivalent(aURI1: string, aURI2: string): boolean {
+    // Avoid comparing filenames as wxURIs
+    if (aURI1.includes('://')) {
+      // found as full path
+      return aURI1 === aURI2;
+    }
+
+    // found as full path and file name
+    return wxNormalizePath(aURI1) === wxNormalizePath(aURI2);
   }
 }
 
@@ -627,6 +659,17 @@ export abstract class LIBRARY_MANAGER_ADAPTER {
     }
 
     return ret.sort((a, b) => strNumCmp(a, b, true));
+  }
+
+  /**
+   * `FindRowByURI( aUri, aScope )` (:1376-1381): LIBRARY_MANAGER::FindRowByURI filtered to this
+   * adapter's type.
+   */
+  FindRowByURI(
+    aUri: string,
+    aScope: LIBRARY_TABLE_SCOPE = LIBRARY_TABLE_SCOPE.BOTH,
+  ): LIBRARY_TABLE_ROW | null {
+    return this.m_manager?.FindRowByURI(this.Type(), aUri, aScope) ?? null;
   }
 
   /** `HasLibrary( aNickname, aCheckEnabled )` (:1317-1325). */

@@ -26,7 +26,7 @@ it('shows the frame of its own type through the program', () => {
     ShowProjectManager: () => {},
     CreateKiWindow: () => false,
   });
-  const frame = new SYMBOL_EDIT_FRAME({ libEdit: () => {} });
+  const frame = new SYMBOL_EDIT_FRAME({});
   frame.SetKiway(kiway);
 
   frame.Raise();
@@ -35,5 +35,5 @@ it('shows the frame of its own type through the program', () => {
 });
 
 it('does nothing on a frame no program owns', () => {
-  expect(() => new SYMBOL_EDIT_FRAME({ libEdit: () => {} }).Raise()).not.toThrow();
+  expect(() => new SYMBOL_EDIT_FRAME({}).Raise()).not.toThrow();
 });

@@ -273,6 +273,21 @@ describe('the library round trip (footprint_editor_utils.cpp, footprint_librarie
     expect(loaded).toEqual(['Lib:R']);
   });
 
+  it('puts every footprint it loads in the view (UpdateView), not only the first', async () => {
+    const view = frame.GetCanvas()!.GetView();
+
+    await load('R');
+    const r = frame.GetBoard()!.GetFirstFootprint()!;
+    expect(view.HasItem(r)).toBe(true);
+
+    // Clear_Pcb's SetBoard shows the empty board; the footprint is added to it after.
+    await load('C');
+    const c = frame.GetBoard()!.GetFirstFootprint()!;
+    expect(c.GetFPID().Format()).toBe('Lib:C');
+    expect(view.HasItem(c)).toBe(true);
+    expect(view.HasItem(r)).toBe(false);
+  });
+
   it('a hosted footprint is fetched before it is loaded', async () => {
     await load('H', 'Hosted');
 
@@ -390,9 +405,13 @@ describe('the library round trip (footprint_editor_utils.cpp, footprint_librarie
     await frame.LoadFootprintFromLibrary(new LIB_ID('Hosted', 'H'));
     frame.UpdateTitle();
 
+    // LoadFootprintFromLibrary's UpdateView() ends in UpdateTitle() (footprint_edit_frame.cpp:1142-1149),
+    // so each load titles the frame before the explicit calls do.
     expect(titles).toEqual([
       '[no footprint loaded] — Footprint Editor',
+      'Lib:R — Footprint Editor',
       '*Lib:R — Footprint Editor',
+      'Hosted:H [Read Only] — Footprint Editor',
       'Hosted:H [Read Only] — Footprint Editor',
     ]);
   });

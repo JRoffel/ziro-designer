@@ -505,9 +505,7 @@ export function FootprintEditFrame({
       askUnsavedChanges: (aMessage) =>
         new Promise((resolve) => setUnsaved({ message: aMessage, done: resolve })),
       onFootprintLoaded: (aFPID) => {
-        // Zoom_Automatique, then the tree: ExpandLibId and CenterLibId. Without
-        // WebGL there is no canvas to zoom (KiCad's frame always has one).
-        if (frameRef.current?.GetCanvas()) frameRef.current.Zoom_Automatique(false);
+        // The tree: ExpandLibId and CenterLibId.
         setCenterLibId(aFPID.Format());
         repaint();
       },
@@ -596,17 +594,6 @@ export function FootprintEditFrame({
   useEffect(() => {
     frame.LoadFootprintEditorDesignSettings(fpCfg.design_settings);
   }, [frame, fpCfg.design_settings]);
-
-  // `KIWAY::Player()` stores the frame as FRAME_FOOTPRINT_EDITOR's player.
-  useEffect(() => {
-    if (!kiway) return;
-    frame.SetKiway(kiway);
-    kiway.SetPlayerFrame(FRAME_T.FRAME_FOOTPRINT_EDITOR, frame);
-    return () => {
-      kiway.PlayerDidClose(FRAME_T.FRAME_FOOTPRINT_EDITOR, frame);
-      frame.SetKiway(null);
-    };
-  }, [kiway, frame]);
 
   // The frame's status bar, message panel and toolbar selection.
   const statusRefs = useRef<Record<string, HTMLSpanElement | null>>({});
@@ -792,6 +779,19 @@ export function FootprintEditFrame({
 
     frame.SyncLibraryTree(true);
   }, [projectLibsKey, store, frame]);
+
+  // `KIWAY::Player()` stores the frame as FRAME_FOOTPRINT_EDITOR's player. After the project's
+  // libraries are registered, above: Player() hands back a frame that is built, and the mail
+  // KIWAY held for it while it mounted (MAIL_FP_EDIT from the project manager) is delivered here.
+  useEffect(() => {
+    if (!kiway) return;
+    frame.SetKiway(kiway);
+    kiway.SetPlayerFrame(FRAME_T.FRAME_FOOTPRINT_EDITOR, frame);
+    return () => {
+      kiway.PlayerDidClose(FRAME_T.FRAME_FOOTPRINT_EDITOR, frame);
+      frame.SetKiway(null);
+    };
+  }, [kiway, frame]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: the base URL is the trigger; the store and frame are stable
   useEffect(() => {

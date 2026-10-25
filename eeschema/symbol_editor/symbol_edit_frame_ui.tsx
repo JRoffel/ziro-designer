@@ -309,6 +309,7 @@ export function SymbolEditor({
   const [selectLibId, setSelectLibId] = useState('');
   const [unselectNonce, setUnselectNonce] = useState(0);
   const [expandLibId, setExpandLibId] = useState('');
+  const [centerLibId, setCenterLibId] = useState('');
   const [aboutOpen, setAboutOpen] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [selFilter, setSelFilter] = useState<SelectionFilterOptions>(defaultSelectionFilter);
@@ -605,14 +606,6 @@ export function SymbolEditor({
   const [frame] = useState(
     () =>
       new SYMBOL_EDIT_FRAME({
-        // `MAIL_LIB_EDIT`: the library's file, opened in the tree.
-        libEdit: (aUri) => {
-          const lib = Pgm()
-            .GetLibraryManager()
-            .Rows(LIBRARY_TABLE_TYPE.SYMBOL)
-            .find((r) => r.URI() === aUri);
-          if (lib) setExpandLibId(lib.Nickname());
-        },
         showLibraryTreePane: (aShow) =>
           setSession((s) => {
             const next = new Set(s);
@@ -659,6 +652,8 @@ export function SymbolEditor({
           setSelectLibId(aLibId.Format());
           setTreeSel({ lib: aLibId.GetLibNickname(), name: aLibId.GetLibItemName() || null });
         },
+        libTreeExpandLibId: (aLibId) => setExpandLibId(aLibId.Format()),
+        libTreeCenterLibId: (aLibId) => setCenterLibId(aLibId.Format()),
         libTreeUnselect: () => {
           setSelectLibId('');
           setUnselectNonce((n) => n + 1);
@@ -678,17 +673,6 @@ export function SymbolEditor({
       }),
   );
   frameRef.current = frame;
-
-  // `KIWAY::Player()` stores the frame as FRAME_SCH_SYMBOL_EDITOR's player.
-  useEffect(() => {
-    if (!kiway) return;
-    frame.SetKiway(kiway);
-    kiway.SetPlayerFrame(FRAME_T.FRAME_SCH_SYMBOL_EDITOR, frame);
-    return () => {
-      kiway.PlayerDidClose(FRAME_T.FRAME_SCH_SYMBOL_EDITOR, frame);
-      frame.SetKiway(null);
-    };
-  }, [kiway, frame]);
 
   // `WX_INFOBAR`: the frame and its tools post into it (SetCurSymbol's notices, ShowInfoBarMsg).
   useEffect(() => {
@@ -821,6 +805,19 @@ export function SymbolEditor({
 
     return () => unmount?.();
   }, [projectKey, projectName, frame]);
+
+  // `KIWAY::Player()` stores the frame as FRAME_SCH_SYMBOL_EDITOR's player. After the project's
+  // table is installed, above: Player() hands back a frame that is built, and the mail KIWAY held
+  // for it while it mounted (MAIL_LIB_EDIT from the project manager) is delivered here.
+  useEffect(() => {
+    if (!kiway) return;
+    frame.SetKiway(kiway);
+    kiway.SetPlayerFrame(FRAME_T.FRAME_SCH_SYMBOL_EDITOR, frame);
+    return () => {
+      kiway.PlayerDidClose(FRAME_T.FRAME_SCH_SYMBOL_EDITOR, frame);
+      frame.SetKiway(null);
+    };
+  }, [kiway, frame]);
 
   // The hosted index, once it is in - loading it installs the global tables (loadIndex).
   // biome-ignore lint/correctness/useExhaustiveDependencies: the index loader is the trigger
@@ -1372,6 +1369,7 @@ export function SymbolEditor({
                     selectLibId={selectLibId}
                     unselectNonce={unselectNonce}
                     expandLibId={expandLibId}
+                    centerLibId={centerLibId}
                     onSelect={onTreeSelect}
                     onChoose={onTreeChoose}
                     hasExternalDetails

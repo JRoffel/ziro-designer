@@ -85,7 +85,7 @@ export function symbolEditHarness(
 
   for (const nickname of Object.keys(aExtraLibs)) SymbolLibAdapter(null).LoadOne(nickname);
 
-  const frame = new SYMBOL_EDIT_FRAME({ libEdit: () => {}, ...aHooks });
+  const frame = new SYMBOL_EDIT_FRAME({ ...aHooks });
   const harness = schToolHarness(frame as unknown as SCH_EDIT_FRAME);
 
   return {

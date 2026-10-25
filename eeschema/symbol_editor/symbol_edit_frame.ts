@@ -107,12 +107,6 @@ import { SCH_BASE_FRAME } from '../sch_base_frame.js';
 
 export interface SYMBOL_EDIT_FRAME_HOOKS {
   /**
-   * `MAIL_LIB_EDIT`'s body: resolve the library URI through the symbol
-   * library table (refusing one no row names, or a disabled one, with
-   * upstream's messages), make it the current library and show it.
-   */
-  libEdit(aUri: string): void;
-  /**
    * `m_auimgr.GetPane( m_treePane ).Show( aShow ); m_auimgr.Update()`: the tree pane shown or
    * hidden directly, not as a user toggle (LoadSymbolFromSchematic's auto-hide).
    */
@@ -161,6 +155,10 @@ export interface SYMBOL_EDIT_FRAME_HOOKS {
   focusOnLibId?(aLibId: LIB_ID): void;
   /** `GetLibTree()->SelectLibId( aLibId )`: the tree selects it, its library expanded. */
   libTreeSelectLibId?(aLibId: LIB_ID): void;
+  /** `GetLibTree()->ExpandLibId( aLibId )`: the node itself expanded. */
+  libTreeExpandLibId?(aLibId: LIB_ID): void;
+  /** `GetLibTree()->CenterLibId( aLibId )`: the node scrolled to the middle of the tree. */
+  libTreeCenterLibId?(aLibId: LIB_ID): void;
   /** `GetLibTree()->Unselect()`. */
   libTreeUnselect?(): void;
   /** `RebuildSymbolUnitAndBodyStyleLists()`: the unit and body style choosers. */
@@ -1633,7 +1631,38 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
 
     switch (mail.Command()) {
       case MAIL_T.MAIL_LIB_EDIT:
-        if (payload !== '') this.hooks.libEdit(payload);
+        if (payload !== '') {
+          const uri = payload;
+          let libNickname: string;
+          let msg: string;
+
+          const adapter = SymbolLibAdapter(this.Prj());
+          const libTableRow = adapter.FindRowByURI(uri);
+
+          if (!libTableRow) {
+            msg = `The current configuration does not include the symbol library '${uri}'.`;
+            msg += '\nUse Manage Symbol Libraries to edit the configuration.';
+            DisplayErrorMessage('Library not found in symbol library table.', msg);
+            break;
+          }
+
+          libNickname = libTableRow.Nickname();
+
+          if (!adapter.HasLibrary(libNickname, true)) {
+            msg = `The symbol library '${unescapeString(libNickname)}' is not enabled in the current configuration.`;
+            msg += '\nUse Manage Symbol Libraries to edit the configuration.';
+            DisplayErrorMessage('Symbol library not enabled.', msg);
+            break;
+          }
+
+          this.SetCurLib(libNickname);
+
+          // `if( m_treePane )`: the window's tree.
+          const id = new LIB_ID(libNickname, '');
+          this.hooks.libTreeSelectLibId?.(id);
+          this.hooks.libTreeExpandLibId?.(id);
+          this.hooks.libTreeCenterLibId?.(id);
+        }
 
         break;
 

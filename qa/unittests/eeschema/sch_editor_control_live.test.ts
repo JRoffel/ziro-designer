@@ -396,7 +396,6 @@ describe('SCH_EDITOR_CONTROL', () => {
     });
     h.frame.SetKiway(kiway);
     const symEditor = new SYMBOL_EDIT_FRAME({
-      libEdit: () => {},
       isLibraryTreeShown: () => false,
       toggleLibraryTree: () => calls.push(['toggleTree']),
     });

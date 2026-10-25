@@ -379,7 +379,7 @@ describe('the checked toggles', () => {
 describe('the bars', () => {
   it('offer no action before the frame has its tools', () => {
     setUp();
-    const toolless = new SYMBOL_EDIT_FRAME({ libEdit: () => {} });
+    const toolless = new SYMBOL_EDIT_FRAME({});
 
     expect(symbolEditorIdEnabled(toolless, 'newSymbol')).toBe(false);
     expect(symbolEditorIdEnabled(t.frame, 'newSymbol')).toBe(true);
@@ -448,9 +448,7 @@ describe('the bars', () => {
 
     // No action behind the id, or no frame tools yet: unchecked.
     expect(symbolEditorIdChecked(t.frame, 'noSuchAction')).toBe(false);
-    expect(
-      symbolEditorIdChecked(new SYMBOL_EDIT_FRAME({ libEdit: () => {} }), 'showHiddenFields'),
-    ).toBe(false);
+    expect(symbolEditorIdChecked(new SYMBOL_EDIT_FRAME({}), 'showHiddenFields')).toBe(false);
   });
 });
 

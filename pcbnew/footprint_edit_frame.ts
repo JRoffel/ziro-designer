@@ -20,7 +20,7 @@ import {
   type PCB_BASE_EDIT_FRAME_DIALOG_HOOKS,
 } from './pcb_base_edit_frame.js';
 import { niluuid } from '@ziroeda/common/kiid.js';
-import { type UnsavedChangesResult } from '@ziroeda/common/confirm.js';
+import type { UnsavedChangesResult } from '@ziroeda/common/confirm.js';
 import { PCB_ACTIONS } from './tools/pcb_actions.js';
 import { CLEARANCE_LAYER_FOR, IsCopperLayer, type PCB_LAYER_ID } from '@ziroeda/common/layer_id.js';
 import { BOARD, BOARD_USE } from './board.js';
@@ -112,7 +112,7 @@ export interface FOOTPRINT_EDIT_FRAME_HOOKS extends PCB_BASE_EDIT_FRAME_DIALOG_H
    * Cancel. Without a window there is nobody to ask, and nothing is saved.
    */
   askUnsavedChanges?(aMessage: string): Promise<UnsavedChangesResult>;
-  /** The window's half of LoadFootprintFromLibrary: zoom to fit, the 3D view, the tree. */
+  /** The window's half of LoadFootprintFromLibrary: the tree's ExpandLibId and idle CenterLibId. */
   onFootprintLoaded?(aFPID: LIB_ID): void;
   /**
    * `SyncLibraryTree`'s middle: `adapter->Sync( footprints )` and

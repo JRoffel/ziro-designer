@@ -155,7 +155,7 @@ const wire = (): SCH_LINE => {
 describe('the item bookkeeping', () => {
   it('both editors are SCH_BASE_FRAMEs and draw frames', () => {
     const { frame } = setup();
-    const sym = new SYMBOL_EDIT_FRAME({ libEdit: () => {} });
+    const sym = new SYMBOL_EDIT_FRAME({});
     for (const f of [frame, sym]) {
       expect(f).toBeInstanceOf(SCH_BASE_FRAME);
       expect(f).toBeInstanceOf(EDA_DRAW_FRAME);
