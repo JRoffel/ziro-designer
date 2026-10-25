@@ -397,3 +397,53 @@ describe('the bars', () => {
     ]).toEqual(['placePin', 'drawRectangle']);
   });
 });
+
+/**
+ * SYMBOL_EDIT_FRAME::FocusOnItem (symbol_edit_frame.cpp:1691), which the pin table's cross-probe
+ * asks on a row selection: the pin brightened, the last one dimmed, its unit shown.
+ */
+describe('FocusOnItem', () => {
+  it('brightens the pin, shows its unit, and dims the one before', () => {
+    setUp();
+    const symbol = t.open('U');
+    const pin = (n: string) => symbol.GetGraphicalPins(0, 0).find((p) => p.GetNumber() === n)!;
+    const pin1 = pin('1');
+    const pin2 = pin('2');
+
+    t.frame.FocusOnItem(pin2);
+    expect([pin2.IsBrightened(), t.frame.GetUnit()]).toEqual([true, 2]);
+
+    t.frame.FocusOnItem(pin1);
+    expect([pin1.IsBrightened(), pin2.IsBrightened(), t.frame.GetUnit()]).toEqual([true, false, 1]);
+
+    t.frame.FocusOnItem(null);
+    expect(pin1.IsBrightened()).toBe(false);
+  });
+
+  it('dims a field it brightened, as it does a pin', () => {
+    setUp();
+    const symbol = t.open('U');
+    const value = symbol.GetValueField();
+    const pin = symbol.GetGraphicalPins(0, 0)[0]!;
+
+    t.frame.FocusOnItem(value);
+    expect(value.IsBrightened()).toBe(true);
+
+    t.frame.FocusOnItem(pin);
+    expect([value.IsBrightened(), pin.IsBrightened()]).toEqual([false, true]);
+  });
+
+  it('moves the view to the item', () => {
+    setUp();
+    const symbol = t.open('U');
+    const pin = symbol.GetGraphicalPins(0, 0).find((p) => p.GetNumber() === '1')!;
+    const view = t.frame.GetCanvas()!.GetView();
+    view.SetCenter({ x: 1e8, y: 1e8 });
+
+    t.frame.FocusOnItem(pin);
+
+    const c = view.GetCenter();
+    const f = pin.GetFocusPosition();
+    expect([Math.round(c.x), Math.round(c.y)]).toEqual([f.x, f.y]);
+  });
+});

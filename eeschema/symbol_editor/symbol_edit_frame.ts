@@ -88,6 +88,7 @@ import { applyMixins } from '@ziroeda/core/mixins.js';
 import { LIB_ID } from '@ziroeda/common/lib_id.js';
 import type { SCH_SYMBOL } from '../sch_symbol.js';
 import { SCH_FIELD } from '../sch_field.js';
+import type { SCH_ITEM } from '../sch_item.js';
 import { SYMBOL_ORIENTATION_T } from '../symbol.js';
 import {
   currentSymbolEditorSettings,
@@ -192,6 +193,9 @@ export const DEMORGAN_ALL = 'ALL';
 /** `DEMORGAN_STD` / `DEMORGAN_ALT` (symbol_edit_frame.h:47-48). */
 export const DEMORGAN_STD = 'Standard';
 export const DEMORGAN_ALT = 'Alternate';
+
+/** `FocusOnItem`'s `static KIID lastBrightenedItemID`: the item it brightened last. */
+let s_lastBrightenedItemID: KIID = niluuid;
 
 // biome-ignore lint/suspicious/noUnsafeDeclarationMerging: TS multiple inheritance (see libs/core/mixins.ts)
 export interface SYMBOL_EDIT_FRAME
@@ -836,6 +840,62 @@ export class SYMBOL_EDIT_FRAME extends SCH_BASE_FRAME {
   /** `GetLibManager()`. */
   GetLibManager(): LIB_SYMBOL_LIBRARY_MANAGER {
     return this.m_libMgr;
+  }
+
+  /**
+   * `FocusOnItem( aItem, aAllowScroll )` (symbol_edit_frame.cpp:1691): the item brightened - and the
+   * one brightened before it, a pin or a field of the symbol, dimmed again - its unit and body
+   * style shown, and the view moved to it. Null clears the focus. The pin table's cross-probe asks
+   * this when a row is selected.
+   */
+  override FocusOnItem(aItem: EDA_ITEM | null, aAllowScroll = true): void {
+    let lastItem: SCH_ITEM | null = null;
+
+    // nullptr will clear the current focus
+    if (aItem !== null && !aItem.IsSCH_ITEM()) return;
+
+    if (this.m_symbol) {
+      for (const pin of this.m_symbol.GetGraphicalPins(0, 0)) {
+        if (pin.m_Uuid === s_lastBrightenedItemID) lastItem = pin;
+      }
+
+      const fields: SCH_FIELD[] = [];
+      this.m_symbol.GetFields(fields);
+
+      for (const field of fields) {
+        if (field.m_Uuid === s_lastBrightenedItemID) lastItem = field;
+      }
+    }
+
+    if (lastItem && lastItem !== aItem) {
+      lastItem.ClearBrightened();
+
+      this.UpdateItem(lastItem);
+      s_lastBrightenedItemID = niluuid;
+    }
+
+    if (aItem) {
+      if (aItem.IsSCH_ITEM()) {
+        const item = aItem as SCH_ITEM;
+        const unit = item.GetUnit();
+
+        if (unit) this.SetUnit(unit);
+
+        const bodyStyle = item.GetBodyStyle();
+
+        if (bodyStyle) this.SetBodyStyle(bodyStyle);
+      }
+
+      if (!aItem.IsBrightened()) {
+        aItem.SetBrightened();
+
+        this.UpdateItem(aItem);
+        s_lastBrightenedItemID = aItem.m_Uuid;
+      }
+
+      const pos = aItem.GetFocusPosition();
+      this.FocusOnLocation({ x: pos.x, y: pos.y }, aAllowScroll);
+    }
   }
 
   /** `HasLibModifications()` (symbol_edit_frame.cpp:1912): a buffered library or symbol is dirty. */

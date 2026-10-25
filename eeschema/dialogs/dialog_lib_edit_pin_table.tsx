@@ -8,8 +8,7 @@
  * and import, then the dialog and its window.
  *
  * Not here: adjustGridColumns() (AutoSizeColumn and the scroll-bar width are not ported: the Number
- * column takes the slack instead), and FocusOnItem's highlight (the frame's FocusOnItem is the base
- * class's no-op until the window switch).
+ * column takes the slack instead).
  */
 import { type JSX, useState } from 'react';
 import { CANDIDATE } from '@ziroeda/common/eda_item_flags.js';
