@@ -5020,6 +5020,16 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
   background: var(--panel-bg);
   overflow: auto;
 }
+/* A report-mode wxListCtrl's best size is 400 x 180 whatever it holds - empty, 13 rows or 300
+   (qa/probes/listctrl_best_size_probe.cpp, asked of wx on GTK): its rows never size the dialog,
+   they scroll inside the slot. DRC's Ignored Tests list gained its 13 rows when a run started, and
+   the dialog grew 49px with them - or, held at a stated size, pushed its status bar out of the
+   frame. A SetMinSize() the base states replaces either axis (ListCtrl's `minSize`). The list a
+   wrapper already contains - EDA_LIST_DIALOG's - fills that wrapper instead. */
+.ze-listctrl:not(.ze-dataview-window > .ze-listctrl) {
+  contain: size;
+  contain-intrinsic-size: 400px 180px; /* [measured] listctrl_best_size_probe.cpp */
+}
 .ze-listctrl-row {
   display: grid;
   padding: 3px 5px; /* [px] the Local History wxListCtrl's cell: "Title" ink 5px in from the frame */
@@ -5339,6 +5349,10 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
   appearance: none;
   box-sizing: border-box;
   display: block;
+  /* <progress> keeps the user agent's 10em (160px) width even as a block, so a gauge added with
+     wxEXPAND - DRC's and ERC's m_gauge, the progress dialog's - sat at 147px in a 685px slot. A
+     wxGauge has no width of its own; its sizer gives it the slot's. */
+  width: auto;
   /* [px] the probe: 4 rows, which is also the best height wx reports (gauge_probe.cpp). */
   height: 4px; /* [px] progress_bar_probe.py */
   border: none;
