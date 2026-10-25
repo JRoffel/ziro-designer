@@ -201,9 +201,7 @@ describe('net highlighting', () => {
     h.mgr.RunAction(SCH_ACTIONS.findNetInInspector);
 
     expect(panes).toEqual(['NetNavigator']);
-    expect(h.frame.GetNetNavigatorFilter().GetValue()).toBe(
-      h.onNet[0]!.Connection()!.GetNetName(),
-    );
+    expect(h.frame.GetNetNavigatorFilter().GetValue()).toBe(h.onNet[0]!.Connection()!.GetNetName());
     expect(h.frame.GetHighlightedConnection()).toBe('');
   });
 
