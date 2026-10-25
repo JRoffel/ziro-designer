@@ -399,34 +399,6 @@ class UnionFind {
   }
 }
 
-/**
- * The connection name carried by a node id, SCH_ITEM::Connection()->Name().
- * Wire-graph nodes answer with their net; a bus line/label/entry answers with
- * the bus's name. An unnamed bus has no connection name, like upstream's empty
- * SCH_CONNECTION.
- */
-export function connectionName(netlist: Netlist, nodeId: string): string | null {
-  const code = netlist.netByItem.get(nodeId);
-  if (code !== undefined) return netlist.nets.find((n) => n.code === code)?.name ?? null;
-  const bus = netlist.buses.find((b) => b.items.includes(nodeId));
-  return bus?.name ? bus.name : null;
-}
-
-/**
- * CONNECTION_GRAPH::GetEquivalentBusNames: the other names the same bus
- * subgraph answers to, so `{MIXED_BUS}` and its expansion `{FOO BAR}`
- * highlight together.
- */
-export function equivalentBusNames(netlist: Netlist, name: string): string[] {
-  const out: string[] = [];
-  for (const b of netlist.buses) {
-    if (b.name !== name && !b.labels.some((l) => l.text === name)) continue;
-    if (b.name && b.name !== name) out.push(b.name);
-    for (const l of b.labels) if (l.text !== name) out.push(l.text);
-  }
-  return out;
-}
-
 /** Compute the single-sheet netlist for a schematic. */
 export function computeNetlist(
   sch: Schematic,

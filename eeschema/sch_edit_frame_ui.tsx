@@ -336,8 +336,6 @@ import { computeNetClassOverrides } from './net_overrides.js';
 import {
   REFDES_TRACKER,
   buildPageRefsMap,
-  connectionName,
-  equivalentBusNames,
   intersheetRefsText,
   type IntersheetRefsConfig,
   type IntersheetSheet,
@@ -1039,13 +1037,6 @@ export function SchematicEditor({
    */
   const selectionRef = useRef<ReadonlySet<string>>(selection);
   selectionRef.current = selection;
-  // The item whose net is highlighted by the Highlight-Net tool (KiCad's
-  // m_highlightedConn). Distinct from selection: plain selection is never a net
-  // highlight in KiCad; it's the explicit highlight action that brightens a net.
-  const [highlightItem, setHighlightItem] = useState<string | null>(null);
-  // SCH_EDITOR_CONTROL::m_highlightBusMembers: re-clicking an already-highlighted
-  // net toggles the members of the bus it rides on into the highlight.
-  const [highlightBusMembers, setHighlightBusMembers] = useState(false);
   const history = useRef(new ProjectHistory());
   const [activeTool, setActiveTool] = useState('select');
   /** The current tool, for callbacks that must not re-run when it changes. */
@@ -1969,41 +1960,6 @@ export function SchematicEditor({
     () => (hasBoard && kiway ? () => schFrameRef.current!.OnUpdatePCB() : undefined),
     [hasBoard, kiway],
   );
-  const { highlightName } = useMemo(() => {
-    const items = new Set<string>();
-    let name: string | null = null;
-    if (netlist && highlightItem !== null) {
-      name = connectionName(netlist, highlightItem);
-      if (name !== null) {
-        // UpdateNetHighlighting's connNames set: the net itself, the other
-        // label forms of the same bus (GetEquivalentBusNames), the bus members
-        // when that toggle is on, and every bus carrying the net (GetBusParents)
-        // so a highlighted member lights the bus it rides on too.
-        const connNames = new Set<string>([name]);
-        for (const eq of equivalentBusNames(netlist, name)) connNames.add(eq);
-        if (highlightBusMembers) {
-          for (const b of netlist.buses)
-            if (b.name && connNames.has(b.name)) for (const m of b.members) connNames.add(m);
-        }
-        for (const b of netlist.buses)
-          if (b.name && b.members.some((m) => connNames.has(m))) connNames.add(b.name);
-
-        for (const net of netlist.nets)
-          if (connNames.has(net.name)) for (const item of net.items) items.add(item);
-        for (const b of netlist.buses)
-          if (b.name && connNames.has(b.name)) for (const item of b.items) items.add(item);
-      }
-    }
-    return { highlightWires: items, highlightName: name };
-  }, [netlist, highlightItem, highlightBusMembers]);
-
-  // Cross-probe the highlight to the PCB editor.
-  useEffect(() => {
-    const frame = schFrameRef.current!;
-    if (highlightName === null) frame.SendCrossProbeClearHighlight();
-    else frame.SendCrossProbeNetName(highlightName);
-  }, [highlightName]);
-
   // The live document for stable callbacks is `docRef`, kept by `setDoc`.
   // Which file that document is, for the same reason: an undo step is applied
   // inside a `setDoc` updater, where the state value of `currentFile` may be a
@@ -2053,19 +2009,10 @@ export function SchematicEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // SCH_EDITOR_CONTROL::ClearHighlight, the net and the bus-member mode drop
-  // together (`~`, Esc, or a click on empty space).
-  const clearHighlight = useCallback(() => {
-    setHighlightItem(null);
-    setHighlightBusMembers(false);
-  }, []);
-
   // Live values for the highlight callback, kept in refs so the canvas prop
   // stays stable across renders.
   const netlistRef = useRef(netlist);
   netlistRef.current = netlist;
-  const highlightConnRef = useRef<string | null>(null);
-  highlightConnRef.current = highlightName;
 
   /** A live TOOL_ACTION run on the frame's TOOL_MANAGER, for a hotkey the canvas did not take. */
   const runLiveAction = useCallback((aAction: TOOL_ACTION) => {
@@ -3609,8 +3556,6 @@ export function SchematicEditor({
   // clear transient state, and fit the view. Embedded lib_symbols render as-is.
   const resetTransient = useCallback(() => {
     setSelection(new Set());
-    setHighlightItem(null);
-    setHighlightBusMembers(false);
     setPendingLabel(null);
     setActiveTool('select');
     setPlaceLib(null);
@@ -5415,8 +5360,10 @@ export function SchematicEditor({
           // selection, and only when there was nothing to clear does the
           // Escape fall through to the net highlight.
           if (selection.size > 0) setSelection(new Set());
-          // "<ESC> clears net highlighting" (eeschema input.esc_clears_net_highlight).
-          else if (app.settings.eeschema.input.esc_clears_net_highlight) clearHighlight();
+          // "<ESC> clears net highlighting" (eeschema input.esc_clears_net_highlight): the
+          // live editor control's, as the canvas's own Escape reaches it.
+          else if (app.settings.eeschema.input.esc_clears_net_highlight)
+            runLiveAction(SCH_ACTIONS.clearHighlight);
         }
       } else if (!e.ctrlKey && !e.metaKey && !e.altKey) {
         // KiCad single-key tool hotkeys (A=symbol, W=wire, …). Skip while
@@ -5447,16 +5394,16 @@ export function SchematicEditor({
           onTopAction(txKey);
           return;
         }
-        // ` = Highlight Net tool, ~ = clear highlighting
-        // (SCH_ACTIONS::highlightNet / clearHighlight).
+        // ` = Highlight Net (the net under the cursor, not the click tool), ~ = clear
+        // highlighting: SCH_ACTIONS::highlightNet / clearHighlight, on the live frame.
         if (e.key === '`') {
           e.preventDefault();
-          setActiveTool('highlightNet');
+          runLiveAction(SCH_ACTIONS.highlightNet);
           return;
         }
         if (e.key === '~') {
           e.preventDefault();
-          clearHighlight();
+          runLiveAction(SCH_ACTIONS.clearHighlight);
           return;
         }
         // Shift+Space, cycle the wire/bus line mode free → 90° → 45°
@@ -6565,7 +6512,7 @@ export function SchematicEditor({
       <KiStatusBar
         testIds={{ message: 'sch-status-msg', tool: 'sch-tool-msg' }}
         fields={{
-          message: highlightName ? `Highlighted net: ${highlightName}` : statusText,
+          message: statusText,
           zoom: (
             <span
               ref={(el) => {
