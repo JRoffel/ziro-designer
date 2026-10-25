@@ -2,181 +2,189 @@
 // Copyright (C) 2026 ZiroEDA and contributors.
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
 /**
- * The Net Navigator panel. Counterpart: `SCH_EDIT_FRAME::RefreshNetNavigator`
- * and `MakeNetNavigatorNode` (eeschema/net_navigator.cpp).
+ * The Net Navigator pane: what `SCH_EDIT_FRAME::createHighlightedNetNavigator` builds
+ * (sch_edit_frame.cpp:2519) - the "Filter nets" search box with the gear button beside it, and
+ * under them `m_netNavigator`, a wxGenericTreeCtrl.
  *
- * The shape is upstream's, and it is not a flat list:
- *
- *  - with no net highlighted the root is **"Nets"**, expanded, with one node per
- *    net and the items under it;
- *  - with a net highlighted the root **is** that net, and nothing else is shown
- *    (`m_netNavigator->AddRoot( UnescapeString( m_highlightedConn ) )`);
- *  - a filter box sits above the tree and is disabled while a net is
- *    highlighted (`m_netNavigatorFilter->Enable( m_highlightedConn.IsEmpty() )`).
- *    Its default mode is wildcard: a pattern with no `*` or `?` is wrapped in
- *    both, and matching is case-insensitive.
- *
- * Net names are shown through `UnescapeString`, and a net node carries no item
- * count — upstream appends the name and nothing else.
- *
- * The tree and the item text live in `net_navigator.ts`, so the behaviour is
- * tested there and this only renders and reports clicks.
+ * Everything in it is the frame's: the tree model and the filter model are SCH_EDIT_FRAME's
+ * members, filled by its net_navigator.cpp methods (eeschema/net_navigator.ts) from the live
+ * connection graph. This only draws them and hands the events back - a row click is
+ * `wxEVT_TREE_SEL_CHANGED` (`onNetNavigatorSelection`), a right click `wxEVT_TREE_ITEM_MENU` or,
+ * off any row, `wxEVT_CONTEXT_MENU`, a key in the filter or the tree `onNetNavigatorKey`, and the
+ * gear its `wxEVT_LEFT_DOWN` menu.
  */
 
-import { useMemo, useState, type JSX } from 'react';
-import { buildNetNavigator, type NetNavigatorNet } from '../index.js';
-import { unescapeString } from '@ziroeda/common/string_utils.js';
-import type { LibSymbol, Schematic } from '../index.js';
-
-/**
- * `WildCompareString( pattern, text, false )`: `*` and `?`, case-insensitive.
- * A pattern with neither is wrapped in `*` on both sides, which is what
- * RefreshNetNavigator does before calling it.
- */
-function wildMatch(pattern: string, text: string): boolean {
-  const p = /[*?]/.test(pattern) ? pattern : `*${pattern}*`;
-  const rx = new RegExp(
-    `^${p
-      .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-      .replace(/\*/g, '.*')
-      .replace(/\?/g, '.')}$`,
-    'i',
-  );
-  return rx.test(text);
-}
+import {
+  type JSX,
+  type MouseEvent,
+  useEffect,
+  useLayoutEffect,
+  useReducer,
+  useRef,
+  useState,
+} from 'react';
+import { BitmapButton } from '@ziroeda/common/widgets/bitmap_button.js';
+import type { MenuItem } from '@ziroeda/wx/menu.js';
+import { ContextMenu, wxMenuContextItems } from '@ziroeda/wx/menu_ui.js';
+import { type wxGenericTreeItem, wxTreeItemId } from '@ziroeda/wx/treectrl.js';
+import { WxSearchCtrl } from '@ziroeda/wx/wx_search_ctrl.js';
+import type { SCH_EDIT_FRAME } from '../sch_edit_frame.js';
 
 interface Props {
-  doc: Schematic;
-  libById: Map<string, LibSymbol>;
-  /** Formats an internal-unit distance for display. */
-  fmt: (iu: number) => string;
-  /** The selected item, so the tree can mark the row that names it. */
-  selectedId?: string;
-  /** The highlighted net, if any: it becomes the root and the filter goes away. */
-  highlightedNet?: string | null;
-  /**
-   * The label of the sheet the items sit on — the root sheet's name, or its file
-   * name when it has none. `MakeNetNavigatorNode` always appends a sheet node,
-   * even for a single-sheet schematic, so the tree is Nets > net > sheet > item.
-   */
-  sheetLabel?: string;
-  /**
-   * The tree, already built across the hierarchy. The frame builds it because
-   * only the frame can see every sheet; without one this falls back to the open
-   * sheet alone, which is the single-sheet case upstream also produces.
-   */
-  prebuilt?: NetNavigatorNet[];
-  onSelect: (id: string) => void;
+  frame: SCH_EDIT_FRAME;
 }
 
-export function NetNavigatorPanel({
-  doc,
-  libById,
-  fmt,
-  selectedId,
-  highlightedNet,
-  sheetLabel = '',
-  prebuilt,
-  onSelect,
-}: Props): JSX.Element {
-  const tree: NetNavigatorNet[] = useMemo(
-    () => prebuilt ?? buildNetNavigator(doc, libById, fmt, sheetLabel),
-    [prebuilt, doc, libById, fmt, sheetLabel],
-  );
-  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
-  const [filter, setFilter] = useState('');
-  const toggle = (name: string): void =>
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      if (!next.delete(name)) next.add(name);
-      return next;
-    });
+export function NetNavigatorPanel({ frame }: Props): JSX.Element {
+  const navigator = frame.GetNetNavigator();
+  const filter = frame.GetNetNavigatorFilter();
+  const [, repaint] = useReducer((n: number) => n + 1, 0);
+  const [menu, setMenu] = useState<{ items: MenuItem[]; x: number; y: number } | null>(null);
+  const pointer = useRef({ x: 0, y: 0 });
+  const rows = useRef(new Map<wxGenericTreeItem, HTMLDivElement>());
 
-  // A highlighted net is the whole tree; otherwise the filter narrows the list.
-  const shown = useMemo(() => {
-    if (highlightedNet) return tree.filter((n) => n.name === highlightedNet);
-    if (!filter.trim()) return tree;
-    return tree.filter((n) => wildMatch(filter.trim(), unescapeString(n.name)));
-  }, [tree, filter, highlightedNet]);
+  useLayoutEffect(() => {
+    navigator.SetChangeListener(repaint);
+    filter.SetChangeListener(repaint);
+    navigator.SetPopupMenuPresenter((aMenu, aOnSelect) =>
+      setMenu({
+        items: wxMenuContextItems(aMenu, (aId) => {
+          setMenu(null);
+          aOnSelect(aId);
+        }),
+        x: pointer.current.x,
+        y: pointer.current.y,
+      }),
+    );
+    return () => {
+      navigator.SetChangeListener(null);
+      filter.SetChangeListener(null);
+      navigator.SetPopupMenuPresenter(null);
+    };
+  }, [navigator, filter]);
 
-  /** A net node, its sheet nodes, and the items under each. */
-  const netNode = (net: NetNavigatorNet, indent: number): JSX.Element => {
-    const netOpen = !collapsed.has(net.name);
+  // `EnsureVisible`'s scroll half: the row the frame asked for, once it is drawn.
+  useEffect(() => {
+    const id = navigator.TakeEnsureVisible();
+
+    if (id.m_item) rows.current.get(id.m_item)?.scrollIntoView({ block: 'nearest' });
+  });
+
+  const selected = navigator.GetSelection().m_item;
+
+  const at = (e: MouseEvent): void => {
+    pointer.current = { x: e.clientX, y: e.clientY };
+  };
+
+  const renderItem = (aItem: wxGenericTreeItem, aLevel: number): JSX.Element => {
+    const id = new wxTreeItemId(aItem);
+    const hasChildren = aItem.m_children.length > 0;
+
     return (
-      <div key={net.name}>
+      <div key={rowKey(aItem)}>
         <div
-          className="ze-tree-item"
-          style={{ cursor: 'default', paddingLeft: indent }}
-          onClick={() => toggle(net.name)}
+          ref={(el) => {
+            if (el) rows.current.set(aItem, el);
+            else rows.current.delete(aItem);
+          }}
+          className={`ze-tree-item${aItem === selected ? ' active' : ''}`}
+          // [data] wxGenericTreeCtrl's m_indent, 15 a level (qa/probes/hierarchy_tree_probe.cpp)
+          style={{ cursor: 'default', paddingLeft: aLevel * 15 }}
+          onClick={() => {
+            // wxEVT_TREE_SEL_CHANGING, then the selection, then wxEVT_TREE_SEL_CHANGED.
+            if (navigator.IsFrozen()) return;
+
+            navigator.SelectItem(id);
+            frame.onNetNavigatorSelection(id);
+          }}
+          onDoubleClick={() => navigator.Toggle(id)}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            at(e);
+            frame.onNetNavigatorItemMenu(id);
+          }}
         >
-          <span className={`twisty expandable${netOpen ? ' open' : ''}`} />
-          {unescapeString(net.name)}
+          {hasChildren ? (
+            <span
+              className={`twisty expandable${aItem.m_isExpanded ? ' open' : ''}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                navigator.Toggle(id);
+              }}
+            />
+          ) : (
+            <span className="twisty" />
+          )}
+          {aItem.m_text}
         </div>
-        {netOpen &&
-          net.sheets.map((sheet) => {
-            const key = `${net.name}\u0000${sheet.label}`;
-            const sheetOpen = !collapsed.has(key);
-            return (
-              <div key={key}>
-                <div
-                  className="ze-tree-item"
-                  style={{ cursor: 'default', paddingLeft: indent + 14 }}
-                  onClick={() => toggle(key)}
-                >
-                  <span className={`twisty expandable${sheetOpen ? ' open' : ''}`} />
-                  {sheet.label}
-                </div>
-                {sheetOpen &&
-                  sheet.items.map((item) => (
-                    <div
-                      key={item.id}
-                      className={`ze-tree-item ${selectedId === item.id ? 'active' : ''}`}
-                      style={{ cursor: 'default', paddingLeft: indent + 42 }}
-                      onClick={() => onSelect(item.id)}
-                    >
-                      {item.text}
-                    </div>
-                  ))}
-              </div>
-            );
-          })}
+        {aItem.m_isExpanded && aItem.m_children.map((c) => renderItem(c, aLevel + 1))}
       </div>
     );
   };
 
+  const root = navigator.GetRootItem().m_item;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-      {/* Disabled while a net is highlighted, exactly as
-          `m_netNavigatorFilter->Enable( m_highlightedConn.IsEmpty() )` does. */}
-      <input
-        value={filter}
-        disabled={!!highlightedNet}
-        placeholder="Filter nets..."
-        onChange={(e) => setFilter(e.target.value)}
-        style={{ margin: '4px 6px', minWidth: 0 }}
-      />
-      <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
-        {tree.length === 0 ? (
-          <div className="ze-muted" style={{ padding: 8 }}>
-            No nets
-          </div>
-        ) : highlightedNet ? (
-          // The highlighted net *is* the root; there is no "Nets" wrapper.
-          shown.map((net) => netNode(net, 4))
-        ) : (
-          <>
-            <div
-              className="ze-tree-item"
-              style={{ cursor: 'default' }}
-              onClick={() => toggle('\u0000root')}
-            >
-              <span className={`twisty expandable${collapsed.has('\u0000root') ? '' : ' open'}`} />
-              Nets
-            </div>
-            {!collapsed.has('\u0000root') && shown.map((net) => netNode(net, 14))}
-          </>
-        )}
+      {/* searchSizer: the filter (proportion 1, wxRIGHT 2) and the gear, inside wxALL 2. */}
+      {/* [data] sizer->Add( searchSizer, 0, wxEXPAND | wxALL, FromDIP( 2 ) ) */}
+      <div style={{ display: 'flex', alignItems: 'center', margin: 2 }}>
+        {/* [data] searchSizer->Add( m_netNavigatorFilter, 1, wxEXPAND | wxRIGHT, FromDIP( 2 ) ) */}
+        <div style={{ flex: 1, marginRight: 2 }}>
+          <WxSearchCtrl
+            value={filter.GetValue()}
+            onChange={(v) => filter.SetValue(v)}
+            descriptiveText={filter.GetDescriptiveText()}
+            disabled={!filter.IsEnabled()}
+            onKeyDown={(e) => {
+              if (frame.onNetNavigatorKey(e.key)) e.preventDefault();
+            }}
+          />
+        </div>
+        <span
+          onMouseDown={(e) => {
+            // `m_netNavigatorMenuButton->Bind( wxEVT_LEFT_DOWN, ... )`: the menu on the press.
+            if (e.button !== 0) return;
+            at(e);
+            frame.showNetNavigatorSearchMenu();
+          }}
+        >
+          <BitmapButton bitmap="config" tooltip="" onClick={() => {}} />
+        </span>
       </div>
+      <div
+        // [data] sizer->Add( m_netNavigator, 1, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, FromDIP( 2 ) )
+        style={{ flex: 1, minHeight: 0, overflow: 'auto', margin: '0 2px 2px' }}
+        tabIndex={-1}
+        onKeyDown={(e) => {
+          if (frame.onNetNavigatorKey(e.key)) e.preventDefault();
+        }}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          at(e);
+          frame.onNetNavigatorContextMenu(new wxTreeItemId());
+        }}
+      >
+        {root && renderItem(root, 0)}
+      </div>
+      {menu && (
+        <ContextMenu items={menu.items} x={menu.x} y={menu.y} onClose={() => setMenu(null)} />
+      )}
     </div>
   );
+}
+
+/** A React key for a tree item: a number given to each item the first time it is drawn. */
+const keys = new WeakMap<wxGenericTreeItem, string>();
+let s_nextKey = 0;
+
+function rowKey(aItem: wxGenericTreeItem): string {
+  let key = keys.get(aItem);
+
+  if (!key) {
+    key = String(s_nextKey++);
+    keys.set(aItem, key);
+  }
+
+  return key;
 }

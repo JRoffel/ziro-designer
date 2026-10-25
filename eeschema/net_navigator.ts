@@ -2,347 +2,689 @@
 // Copyright (C) 2026 ZiroEDA and contributors.
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
 /**
- * The Net Navigator's tree. Counterparts: `GetNetNavigatorItemText` and
- * `SCH_EDIT_FRAME::MakeNetNavigatorNode` (eeschema/net_navigator.cpp), plus
- * `SelectNextPrevNetNavigatorItem` behind Tab / Shift+Tab.
+ * eeschema/net_navigator.cpp: SCH_EDIT_FRAME's Net Navigator, mixed into the frame by
+ * sch_edit_frame.ts (the pattern of schematic_undo_redo.ts).
  *
- * A net becomes a node and everything connected to it becomes a leaf, each
- * described in words rather than by shape — "Symbol 'R1' pin '2'", "Wire from
- * (a, b) to (c, d)". The tree is how you walk a net without hunting the canvas,
- * and clicking a leaf selects the item it names.
- *
- * Upstream groups the leaves by sheet path under each net, so the tree is
- * Nets > net > sheet > item. {@link buildNetNavigatorHierarchy} builds that
- * across the whole hierarchy; {@link buildNetNavigator} is the single-sheet
- * case, which still emits the sheet level so both feed the same renderer.
- *
- * Two behaviours are worth stating because they differ from their neighbours:
- *
- *  - **Tab and Shift+Tab wrap.** `SelectNextPrevNetNavigatorItem` walks past the
- *    end to the beginning and vice versa, unlike the ERC marker stepping, which
- *    deliberately stops. Both are in this codebase now; they are not the same.
- *  - **A graphic line says so.** A line that is neither wire nor bus resolves to
- *    "Graphic line not connectable" rather than being left out, so a tree that
- *    somehow contains one explains itself.
+ * The tree is `m_netNavigator`, a wxGenericTreeCtrl the frame owns (external/wx/treectrl.ts); the
+ * window draws it (widgets/net_navigator_panel.tsx) and reports clicks back. It is built from the
+ * live CONNECTION_GRAPH: every net under "Nets", or - while a net is highlighted - that net alone
+ * as the root, its sheets beneath it and what it reaches beneath them, the item under the cursor
+ * selected. Wires, junctions and bus entries carry a net but are not listed.
  */
 
-import type { LibSymbol, Schematic } from './types.js';
-import { computeNetlist, enumeratePins, type NetlistOptions } from './connectivity/nets.js';
-import { computeHierarchyNetlist, type HierSheet } from './connectivity/hierarchy.js';
-import { refId } from './tools/hittest.js';
+import { FIELD_T } from '@ziroeda/common/template_fieldnames.js';
+import { SCH_LAYER_ID } from '@ziroeda/common/layer_id.js';
+import { unescapeString, wildCompareString } from '@ziroeda/common/string_utils.js';
+import type { UNITS_PROVIDER } from '@ziroeda/common/units_provider.js';
+import { KICAD_T } from '@ziroeda/core/typeinfo.js';
+import { wxTreeItemId, type wxTreeItemIdValue } from '@ziroeda/wx/treectrl.js';
+import type { CONNECTION_SUBGRAPH } from './connection_graph.js';
+import type { SCH_BUS_BUS_ENTRY, SCH_BUS_WIRE_ENTRY } from './sch_bus_entry.js';
+import type { SCH_EDIT_FRAME } from './sch_edit_frame.js';
+import type { SCH_ITEM } from './sch_item.js';
+import type { SCH_JUNCTION } from './sch_junction.js';
+import type { SCH_LABEL_BASE } from './sch_label.js';
+import type { SCH_LINE } from './sch_line.js';
+import type { SCH_NO_CONNECT } from './sch_no_connect.js';
+import type { SCH_PIN } from './sch_pin.js';
+import type { SCH_SHEET_PATH } from './sch_sheet_path.js';
+import type { SCH_SHEET_PIN } from './sch_sheet_pin.js';
+import { SCH_ACTIONS } from './tools/sch_actions.js';
+import { updateEeschemaSettings } from './eeschema_settings.js';
+import { wxID_HIGHEST, wxMenu } from '@ziroeda/wx/menu.js';
 
-/** One leaf: an item on the net, and the words that describe it. */
-export interface NetNavigatorItem {
-  /** The item's selection id, so a click can cross-probe to the canvas. */
-  id: string;
-  text: string;
-}
+/** `NET_NAVIGATOR_ITEM_DATA` (sch_edit_frame.h:91), here beside the frame methods that make it: a net navigator row's sheet and item. */
+export class NET_NAVIGATOR_ITEM_DATA {
+  constructor(
+    private m_sheetPath: SCH_SHEET_PATH | null = null,
+    private m_item: SCH_ITEM | null = null,
+  ) {}
 
-/**
- * A sheet node under a net: `MakeNetNavigatorNode` appends one per sheet path a
- * subgraph of the net lives on, and hangs the items beneath it.
- *
- * It exists even when the schematic has a single sheet — `aSingleSheetSchematic`
- * only decides which node gets auto-expanded, not whether the node is made — so
- * the tree is always Nets > net > sheet > item.
- */
-export interface NetNavigatorSheet {
-  /** The sheet's label: the root sheet's name (or its file name when it has
-   *  none), then one "/<name>" per level below it. */
-  label: string;
-  items: NetNavigatorItem[];
-}
-
-/** One net node and the sheets its items sit on. */
-export interface NetNavigatorNet {
-  name: string;
-  sheets: NetNavigatorSheet[];
-}
-
-/**
- * Formats an internal-unit distance the way the frame shows it.
- *
- * Not exported, and deliberately so: `search_handlers.ts` exports a type of the
- * same name, and `tools/index.ts` re-exports both modules with `export *` — two
- * identical-but-distinct `ValueFormatter`s make that ambiguous and the whole
- * package stops compiling. Neither branch can see it alone; a combined-merge
- * check found it.
- */
-type ValueFormatter = (iu: number) => string;
-
-const LABEL_TITLE: Record<string, string> = {
-  label: 'Label',
-  global_label: 'Global label',
-  hierarchical_label: 'Hierarchical label',
-};
-
-/**
- * Everything an item id can resolve to, indexed by id.
- *
- * Built once per tree. Resolving an id by scanning the document — which is the
- * obvious way to write `netNavigatorItemText` and is how it started — makes the
- * tree quadratic in the size of the sheet, and the panel rebuilds on **every**
- * document change. `enumeratePins` alone walks every symbol and allocates every
- * pin; doing that once per net item on a real board is tens of millions of
- * operations per keystroke.
- */
-export interface NetNavigatorIndex {
-  pins: Map<string, ReturnType<typeof enumeratePins>[number]>;
-  lines: Map<string, Schematic['lines'][number]>;
-  labels: Map<string, Schematic['labels'][number]>;
-  junctions: Map<string, Schematic['junctions'][number]>;
-  noConnects: Map<string, Schematic['noConnects'][number]>;
-  busEntries: Map<string, Schematic['busEntries'][number]>;
-  directives: Map<string, NonNullable<Schematic['directiveLabels']>[number]>;
-  sheets: Map<string, Schematic['sheets'][number]>;
-}
-
-/** One linear pass over the sheet. */
-export function netNavigatorIndex(
-  sch: Schematic,
-  libById: Map<string, LibSymbol>,
-): NetNavigatorIndex {
-  const index: NetNavigatorIndex = {
-    pins: new Map(enumeratePins(sch, libById).map((p) => [p.id, p])),
-    lines: new Map(sch.lines.map((l, i) => [refId('line', l.uuid, i), l])),
-    labels: new Map(sch.labels.map((l, i) => [refId('label', l.uuid, i), l])),
-    junctions: new Map(sch.junctions.map((j, i) => [refId('junction', j.uuid, i), j])),
-    noConnects: new Map(sch.noConnects.map((n, i) => [refId('noconnect', n.uuid, i), n])),
-    busEntries: new Map(sch.busEntries.map((b, i) => [refId('busentry', b.uuid, i), b])),
-    directives: new Map(
-      (sch.directiveLabels ?? []).map((d, i) => [refId('directive', d.uuid, i), d]),
-    ),
-    sheets: new Map(sch.sheets.map((sh, i) => [refId('sheet', sh.uuid, i), sh])),
-  };
-  return index;
-}
-
-/**
- * `GetNetNavigatorItemText` for one id, or null when the id names nothing on
- * this sheet. Exported so the panel and the tests describe items the same way.
- *
- * Pass `index` when resolving many ids: without it one is built per call, which
- * is fine for a single lookup and quadratic for a tree.
- */
-export function netNavigatorItemText(
-  sch: Schematic,
-  libById: Map<string, LibSymbol>,
-  id: string,
-  fmt: ValueFormatter,
-  index: NetNavigatorIndex = netNavigatorIndex(sch, libById),
-): string | null {
-  const at = (x: number, y: number): string => `(${fmt(x)}, ${fmt(y)})`;
-
-  // A sheet pin is "<sheetRefId>:sheetpin<k>" and must be tested first: it does
-  // not contain ":pin", but the reading order matters more than the fact does.
-  const sheetPinAt = id.lastIndexOf(':sheetpin');
-  if (sheetPinAt > 0) {
-    const shId = id.slice(0, sheetPinAt);
-    const k = Number(id.slice(sheetPinAt + ':sheetpin'.length));
-    const sheet = index.sheets.get(shId);
-    const pin = sheet?.pins[k];
-    if (!sheet || !pin) return null;
-    const name = sheet.fields.find((f) => f.key === 'Sheetname')?.value ?? '';
-    return `Sheet '${name}' pin '${pin.name}'`;
+  GetSheetPath(): SCH_SHEET_PATH | null {
+    return this.m_sheetPath;
   }
 
-  // A symbol pin is "<symbolRef>:pin<n>"; everything else is an item's own refId.
-  if (id.includes(':pin')) {
-    const pin = index.pins.get(id);
-    if (!pin) return null;
-    const name = pin.name && pin.name !== '~' ? ` (${pin.name})` : '';
-    return `Symbol '${pin.refWithUnit}' pin '${pin.number}'${name}`;
+  GetItem(): SCH_ITEM | null {
+    return this.m_item;
   }
 
-  const line = index.lines.get(id);
-  if (line) {
-    const span = `from ${at(line.start.x, line.start.y)} to ${at(line.end.x, line.end.y)}`;
-    if (line.kind === 'wire') return `Wire ${span}`;
-    if (line.kind === 'bus') return `Bus ${span}`;
-    // Neither wire nor bus: upstream names it rather than dropping it.
-    return 'Graphic line not connectable';
+  /** `operator==`. */
+  equals(aRhs: NET_NAVIGATOR_ITEM_DATA): boolean {
+    const sameSheet =
+      this.m_sheetPath === aRhs.m_sheetPath ||
+      (!!this.m_sheetPath && !!aRhs.m_sheetPath && this.m_sheetPath.equals(aRhs.m_sheetPath));
+
+    return sameSheet && this.m_item === aRhs.m_item;
   }
-
-  const label = index.labels.get(id);
-  if (label) {
-    const title = LABEL_TITLE[label.kind];
-    // Plain text is not connectable and has no arm upstream.
-    if (!title) return `Unhandled item type ${label.kind}`;
-    return `${title} '${label.text}' at ${at(label.at.x, label.at.y)}`;
-  }
-
-  const junction = index.junctions.get(id);
-  if (junction) return `Junction at ${at(junction.at.x, junction.at.y)}`;
-
-  const nc = index.noConnects.get(id);
-  if (nc) return `No-Connect at ${at(nc.at.x, nc.at.y)}`;
-
-  const entry = index.busEntries.get(id);
-  if (entry) {
-    const end = { x: entry.at.x + entry.size.x, y: entry.at.y + entry.size.y };
-    return `Bus to wire entry from ${at(entry.at.x, entry.at.y)} to ${at(end.x, end.y)}`;
-  }
-
-  const directive = index.directives.get(id);
-  if (directive) {
-    return `Netclass label '${directive.text ?? ''}' at ${at(directive.at.x, directive.at.y)}`;
-  }
-
-  return null;
 }
 
-/**
- * Whether an item gets a node in the tree.
- *
- * `MakeNetNavigatorNode` drops the connectivity itself before it appends
- * anything:
- *
- *     if( item->Type() == SCH_LINE_T || item->Type() == SCH_JUNCTION_T
- *             || item->Type() == SCH_BUS_WIRE_ENTRY_T
- *             || item->Type() == SCH_BUS_BUS_ENTRY_T )
- *         continue;
- *
- * so the navigator lists what a net *reaches* — pins, labels, sheet pins,
- * no-connects, netclass flags — and not the wires and junctions that carry it.
- * `GetNetNavigatorItemText` still has arms for all four, because it is called
- * from elsewhere; the filtering is the tree's, which is why it lives here and
- * not in {@link netNavigatorItemText}.
- */
-function listedInTree(id: string, index: NetNavigatorIndex): boolean {
-  if (index.lines.has(id)) return false;
-  if (index.junctions.has(id)) return false;
-  if (index.busEntries.has(id)) return false;
-  return true;
-}
+/** `GetNetNavigatorItemText( aItem, aSheetPath, aUnitsProvider )` (net_navigator.cpp:49). */
+export function GetNetNavigatorItemText(
+  aItem: SCH_ITEM,
+  aSheetPath: SCH_SHEET_PATH,
+  aUnitsProvider: UNITS_PROVIDER,
+): string {
+  const at = (aValue: number): string => aUnitsProvider.MessageTextFromValue(aValue);
 
-/**
- * The whole tree: every net with a name, each carrying the items connectivity
- * put on it. Nets are listed in name order, as the navigator's root children
- * are, and so are the items under each net.
- */
-export function buildNetNavigator(
-  sch: Schematic,
-  libById: Map<string, LibSymbol>,
-  fmt: ValueFormatter,
-  sheetLabel = '',
-): NetNavigatorNet[] {
-  const netlist = computeNetlist(sch, libById);
-  // One index for the whole tree. Resolving each id by scanning made this
-  // quadratic in the sheet, and the panel rebuilds on every document change.
-  const index = netNavigatorIndex(sch, libById);
-  const byName = (a: { text: string }, b: { text: string }): number =>
-    a.text < b.text ? -1 : a.text > b.text ? 1 : 0;
+  switch (aItem.Type()) {
+    case KICAD_T.SCH_LINE_T: {
+      const line = aItem as SCH_LINE;
+      const ends = `(${at(line.GetStartPoint().x)}, ${at(line.GetStartPoint().y)}) to (${at(line.GetEndPoint().x)}, ${at(line.GetEndPoint().y)})`;
 
-  const out: NetNavigatorNet[] = [];
-  for (const net of netlist.nets) {
-    const items: NetNavigatorItem[] = [];
-    for (const id of net.items) {
-      if (!listedInTree(id, index)) continue;
-      const text = netNavigatorItemText(sch, libById, id, fmt, index);
-      if (text !== null) items.push({ id, text });
+      if (aItem.GetLayer() === SCH_LAYER_ID.LAYER_WIRE) return `Wire from ${ends}`;
+
+      if (aItem.GetLayer() === SCH_LAYER_ID.LAYER_BUS) return `Bus from ${ends}`;
+
+      return 'Graphic line not connectable';
     }
-    // `m_netNavigator->SortChildren( sheetId )`: a wxTreeCtrl sorts its children
-    // by label, so the items under a net are alphabetical, not in document order.
-    items.sort(byName);
-    if (items.length) out.push({ name: net.name, sheets: [{ label: sheetLabel, items }] });
+
+    case KICAD_T.SCH_PIN_T: {
+      const pin = aItem as SCH_PIN;
+      const symbol = pin.GetParentSymbol();
+
+      if (!symbol) return '';
+
+      let retv = `Symbol '${symbol.GetRef(aSheetPath, true)}' pin '${unescapeString(pin.GetNumber())}'`;
+      const pinName = unescapeString(pin.GetShownName());
+
+      if (pinName !== '') retv += ` (${pinName})`;
+
+      return retv;
+    }
+
+    case KICAD_T.SCH_SHEET_PIN_T: {
+      const pin = aItem as SCH_SHEET_PIN;
+      const sheet = pin.GetParent();
+
+      return sheet ? `Sheet '${sheet.GetName()}' pin '${unescapeString(pin.GetText())}'` : '';
+    }
+
+    case KICAD_T.SCH_LABEL_T:
+    case KICAD_T.SCH_GLOBAL_LABEL_T:
+    case KICAD_T.SCH_HIER_LABEL_T:
+    case KICAD_T.SCH_DIRECTIVE_LABEL_T: {
+      const label = aItem as SCH_LABEL_BASE;
+      const kind =
+        aItem.Type() === KICAD_T.SCH_LABEL_T
+          ? 'Label'
+          : aItem.Type() === KICAD_T.SCH_GLOBAL_LABEL_T
+            ? 'Global label'
+            : aItem.Type() === KICAD_T.SCH_HIER_LABEL_T
+              ? 'Hierarchical label'
+              : 'Netclass label';
+
+      return `${kind} '${unescapeString(label.GetText())}' at (${at(label.GetPosition().x)}, ${at(label.GetPosition().y)})`;
+    }
+
+    case KICAD_T.SCH_JUNCTION_T: {
+      const junction = aItem as SCH_JUNCTION;
+      return `Junction at (${at(junction.GetPosition().x)}, ${at(junction.GetPosition().y)})`;
+    }
+
+    case KICAD_T.SCH_NO_CONNECT_T: {
+      const nc = aItem as SCH_NO_CONNECT;
+      return `No-Connect at (${at(nc.GetPosition().x)}, ${at(nc.GetPosition().y)})`;
+    }
+
+    case KICAD_T.SCH_BUS_WIRE_ENTRY_T:
+    case KICAD_T.SCH_BUS_BUS_ENTRY_T: {
+      const entry = aItem as SCH_BUS_WIRE_ENTRY | SCH_BUS_BUS_ENTRY;
+      const kind =
+        aItem.Type() === KICAD_T.SCH_BUS_WIRE_ENTRY_T ? 'Bus to wire entry' : 'Bus to bus entry';
+
+      return `${kind} from (${at(entry.GetPosition().x)}, ${at(entry.GetPosition().y)}) to (${at(entry.GetEnd().x)}, ${at(entry.GetEnd().y)})`;
+    }
+
+    default:
+      return `Unhandled item type ${aItem.Type()}`;
   }
-  return out.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 }
 
-/**
- * Tab / Shift+Tab: the next leaf of the tree, **wrapping** at either end.
- *
- * `order` is every leaf in tree order — upstream flattens the tree first, so
- * stepping crosses from one net's last item to the next net's first. An id that
- * is not in the tree moves nowhere, which is upstream's `find` failing.
- */
-export function stepNetItem(
-  order: readonly string[],
-  current: string | null,
-  forward: boolean,
-): string | null {
-  if (!order.length || current === null) return null;
-  const at = order.indexOf(current);
-  if (at < 0) return null;
-  const n = order.length;
-  return order[forward ? (at + 1) % n : (at - 1 + n) % n] ?? null;
+/** The tree's NET_NAVIGATOR_ITEM_DATA for \a aId, or null for a row with none (a net name). */
+function itemDataOf(aFrame: SCH_EDIT_FRAME, aId: wxTreeItemId): NET_NAVIGATOR_ITEM_DATA | null {
+  const data = aFrame.GetNetNavigator().GetItemData(aId);
+  return data instanceof NET_NAVIGATOR_ITEM_DATA ? data : null;
 }
 
-/** Every leaf id in tree order, which is what `stepNetItem` walks. */
-export const netNavigatorOrder = (tree: readonly NetNavigatorNet[]): string[] =>
-  tree.flatMap((n) => n.sheets.flatMap((sh) => sh.items.map((i) => i.id)));
+export class NET_NAVIGATOR_MIXIN {
+  /** `MakeNetNavigatorNode( aNetName, aParentId, aSelection, aSingleSheetSchematic )` (:205). */
+  MakeNetNavigatorNode(
+    this: SCH_EDIT_FRAME,
+    aNetName: string,
+    aParentId: wxTreeItemId,
+    aSelection: NET_NAVIGATOR_ITEM_DATA | null,
+    _aSingleSheetSchematic: boolean,
+  ): void {
+    if (aNetName === '') return; // wxCHECK
 
-/** The net a given item belongs to, for "Find in Net Navigator". */
-export const netOfItem = (tree: readonly NetNavigatorNet[], id: string): string | null =>
-  tree.find((n) => n.sheets.some((sh) => sh.items.some((i) => i.id === id)))?.name ?? null;
+    const navigator = this.GetNetNavigator();
+    const connectionGraph = this.Schematic().ConnectionGraph();
+    const subgraphs = new Set<CONNECTION_SUBGRAPH>(connectionGraph.GetAllSubgraphs(aNetName));
 
-/** One sheet instance for {@link buildNetNavigatorHierarchy} to walk. */
-export interface NetNavigatorSheetInput extends HierSheet {
-  /** The node's label: MakeNetNavigatorNode's root-sheet name (or file name)
-   *  followed by one "/<name>" per level below it. */
-  label: string;
-}
-
-/**
- * The tree across the whole hierarchy, which is what upstream shows.
- *
- * `MakeNetNavigatorNode` collects every subgraph of the net — over all sheets —
- * and appends a node per sheet path, with that sheet's items beneath it. A net
- * that crosses three sheets therefore has three sheet nodes, and the one-sheet
- * builder above is just the degenerate case of this.
- *
- * Nets are grouped by the name the hierarchy settled on, so the two halves of a
- * signal that a parent's label renamed end up under one node rather than two.
- */
-export function buildNetNavigatorHierarchy(
-  sheets: readonly NetNavigatorSheetInput[],
-  libsFor: (sheet: HierSheet) => Map<string, LibSymbol>,
-  fmt: ValueFormatter,
-  opts: NetlistOptions = {},
-): NetNavigatorNet[] {
-  if (sheets.length === 0) return [];
-  const { bySheet } = computeHierarchyNetlist(sheets, libsFor, opts);
-
-  const byText = (a: { text: string }, b: { text: string }): number =>
-    a.text < b.text ? -1 : a.text > b.text ? 1 : 0;
-  const byLabel = (a: { label: string }, b: { label: string }): number =>
-    a.label < b.label ? -1 : a.label > b.label ? 1 : 0;
-
-  /** net name -> sheet label -> items, keeping one node per sheet path. */
-  const nets = new Map<string, Map<string, NetNavigatorItem[]>>();
-
-  for (const sheet of sheets) {
-    const netlist = bySheet.get(sheet.path);
-    if (!netlist) continue;
-    const libById = libsFor(sheet);
-    const index = netNavigatorIndex(sheet.doc, libById);
-
-    for (const net of netlist.nets) {
-      for (const id of net.items) {
-        if (!listedInTree(id, index)) continue;
-        const text = netNavigatorItemText(sheet.doc, libById, id, fmt, index);
-        if (text === null) continue;
-        let bySheetLabel = nets.get(net.name);
-        if (!bySheetLabel) {
-          bySheetLabel = new Map();
-          nets.set(net.name, bySheetLabel);
-        }
-        const items = bySheetLabel.get(sheet.label);
-        if (items) items.push({ id, text });
-        else bySheetLabel.set(sheet.label, [{ id, text }]);
+    for (const sg of [...subgraphs]) {
+      for (const busSgs of sg.GetBusParents().values()) {
+        for (const busSg of busSgs)
+          for (const s of connectionGraph.GetAllSubgraphs(busSg.GetNetName())) subgraphs.add(s);
       }
     }
+
+    // Upstream also tracks an `expandId` (the sheet node, for a one-sheet schematic or the one
+    // holding the selection) and never reads it: only aParentId is expanded below. A selected
+    // row is reached by EnsureVisible instead.
+    const sheetIds = new Map<string, wxTreeItemId>();
+
+    for (const subGraph of subgraphs) {
+      const sheetPath = subGraph.GetSheet();
+
+      if (!sheetPath.Last()) continue; // wxCHECK2
+
+      if (subGraph.GetItems().size === 0) continue;
+
+      let itemData = new NET_NAVIGATOR_ITEM_DATA(sheetPath, null);
+
+      // Build path string for net navigator - include top-level sheet name to distinguish
+      // multiple top-level sheets
+      let txt: string;
+
+      if (!sheetPath.empty() && sheetPath.at(0).GetScreen()) {
+        // Get the top-level sheet name
+        txt = sheetPath.at(0).GetField(FIELD_T.SHEET_NAME)!.GetShownText(false);
+
+        if (txt === '') {
+          // wxFileName( ... ).GetName(): no directory, no extension.
+          const file = sheetPath.at(0).GetScreen()!.GetFileName();
+          txt = file.replace(/^.*[\\/]/, '').replace(/\.[^.]*$/, '');
+        }
+
+        // Add sub-sheet names
+        for (let i = 1; i < sheetPath.size(); i++)
+          txt += `/${sheetPath.at(i).GetField(FIELD_T.SHEET_NAME)!.GetShownText(false)}`;
+      } else {
+        txt = sheetPath.PathHumanReadable(true, true);
+      }
+
+      let sheetId = sheetIds.get(txt);
+
+      if (!sheetId) {
+        sheetId = navigator.AppendItem(aParentId, txt, -1, -1, itemData);
+        sheetIds.set(txt, sheetId);
+      }
+
+      if (aSelection?.equals(itemData)) navigator.SelectItem(sheetId);
+
+      for (const item of subGraph.GetItems()) {
+        if (
+          item.Type() === KICAD_T.SCH_LINE_T ||
+          item.Type() === KICAD_T.SCH_JUNCTION_T ||
+          item.Type() === KICAD_T.SCH_BUS_WIRE_ENTRY_T ||
+          item.Type() === KICAD_T.SCH_BUS_BUS_ENTRY_T
+        ) {
+          continue;
+        }
+
+        itemData = new NET_NAVIGATOR_ITEM_DATA(sheetPath, item);
+        const id = navigator.AppendItem(
+          sheetId,
+          GetNetNavigatorItemText(item, sheetPath, this.GetUnitsProvider()),
+          -1,
+          -1,
+          itemData,
+        );
+
+        if (aSelection?.equals(itemData)) {
+          navigator.EnsureVisible(id);
+          navigator.SelectItem(id);
+        }
+      }
+
+      navigator.SortChildren(sheetId);
+    }
+
+    // Sort the items in the tree control alphabetically
+    navigator.SortChildren(aParentId);
+    navigator.Expand(aParentId);
   }
 
-  const out: NetNavigatorNet[] = [];
-  for (const [name, bySheetLabel] of nets) {
-    const groups: NetNavigatorSheet[] = [];
-    for (const [label, items] of bySheetLabel) {
-      items.sort(byText); // SortChildren( sheetId )
-      groups.push({ label, items });
+  /** `RefreshNetNavigator( aSelection )` (:327). */
+  RefreshNetNavigator(
+    this: SCH_EDIT_FRAME,
+    aSelection: NET_NAVIGATOR_ITEM_DATA | null = null,
+  ): void {
+    const navigator = this.GetNetNavigator();
+    // wxCHECK( m_schematic ): the window sets it once the live schematic is built.
+    const schematic = this.Schematic() as ReturnType<SCH_EDIT_FRAME['Schematic']> | null;
+
+    if (!schematic || !this.IsNetNavigatorShownOnScreen() || !schematic.HasHierarchy()) return;
+
+    this.GetNetNavigatorFilter().Enable(this.m_highlightedConn === '');
+
+    const singleSheetSchematic = schematic.Hierarchy().length === 1;
+
+    // wxWindowUpdateLocker updateLock( m_netNavigator )
+    navigator.Freeze();
+
+    try {
+      const filter = this.m_highlightedConn === '' ? this.m_netNavigatorFilterValue : '';
+
+      // Determine search mode from settings
+      const cfg = this.eeconfig();
+      const useWildcard = cfg ? cfg.aui.net_nav_search_mode_wildcard : true;
+
+      // For wildcard mode, wrap filter with wildcards for substring matching by default
+      // unless user has already specified wildcards
+      let globFilter = '';
+      let regexFilter: RegExp | null = null;
+
+      if (filter !== '') {
+        if (useWildcard) {
+          globFilter = filter;
+          if (!globFilter.includes('*') && !globFilter.includes('?'))
+            globFilter = `*${globFilter}*`;
+        } else {
+          // Regex mode - compile the regex pattern (icase, ECMAScript)
+          try {
+            regexFilter = new RegExp(filter, 'i');
+          } catch {
+            // Invalid regex - no filtering
+            regexFilter = null;
+          }
+        }
+      }
+
+      if (this.m_highlightedConn === '') {
+        navigator.DeleteAllItems();
+
+        // Create a tree of all nets in the schematic.
+        const rootId = navigator.AddRoot('Nets', 0);
+
+        for (const [key] of schematic.ConnectionGraph().GetNetMap()) {
+          // Skip bus member subgraphs for the moment.
+          if (key.Name === '') continue;
+
+          const displayName = unescapeString(key.Name);
+
+          // Apply filter based on mode
+          if (filter !== '') {
+            let matches = false;
+
+            if (useWildcard && globFilter !== '')
+              matches = wildCompareString(globFilter, displayName, false);
+            else if (!useWildcard && regexFilter) matches = regexFilter.test(displayName);
+
+            if (!matches) continue;
+          }
+
+          const netId = navigator.AppendItem(rootId, displayName, -1, -1);
+          this.MakeNetNavigatorNode(key.Name, netId, aSelection, singleSheetSchematic);
+        }
+
+        navigator.Expand(rootId);
+      } else if (!navigator.IsEmpty()) {
+        const shownNetName = navigator.GetItemText(navigator.GetRootItem());
+
+        if (shownNetName !== this.m_highlightedConn) {
+          navigator.DeleteAllItems();
+
+          const rootId = navigator.AddRoot(unescapeString(this.m_highlightedConn));
+
+          this.MakeNetNavigatorNode(
+            this.m_highlightedConn,
+            rootId,
+            aSelection,
+            singleSheetSchematic,
+          );
+        } else {
+          const selection = navigator.GetSelection();
+          const itemData = selection.IsOk() ? itemDataOf(this, selection) : null;
+
+          navigator.DeleteAllItems();
+
+          const rootId = navigator.AddRoot(unescapeString(this.m_highlightedConn));
+
+          this.MakeNetNavigatorNode(this.m_highlightedConn, rootId, itemData, singleSheetSchematic);
+        }
+      } else {
+        const rootId = navigator.AddRoot(unescapeString(this.m_highlightedConn));
+
+        this.MakeNetNavigatorNode(this.m_highlightedConn, rootId, aSelection, singleSheetSchematic);
+      }
+    } finally {
+      navigator.Thaw();
     }
-    groups.sort(byLabel); // SortChildren( netId ): the sheet nodes too
-    out.push({ name, sheets: groups });
   }
-  return out.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+
+  /** `SelectNextPrevNetNavigatorItem( aNext )` (:475): Tab and Shift+Tab, wrapping. */
+  SelectNextPrevNetNavigatorItem(this: SCH_EDIT_FRAME, aNext: boolean): SCH_ITEM | null {
+    const navigator = this.GetNetNavigator();
+    const id = navigator.GetSelection();
+
+    if (!id.IsOk()) return null;
+
+    const netItems: wxTreeItemId[] = [];
+    const itemList: wxTreeItemId[] = [navigator.GetRootItem()];
+
+    while (itemList.length) {
+      const current = itemList.shift()!;
+      const cookie: wxTreeItemIdValue = { index: 0 };
+      let child = navigator.GetFirstChild(current, cookie);
+
+      while (child.IsOk()) {
+        if (navigator.ItemHasChildren(child)) itemList.push(child);
+        else netItems.push(child);
+
+        child = navigator.GetNextSibling(child);
+      }
+    }
+
+    // Locate current item and move forward or backward with wrap
+    let nextId = new wxTreeItemId();
+    const at = netItems.findIndex((i) => i.equals(id));
+
+    if (at >= 0) {
+      const n = netItems.length;
+      nextId = netItems[aNext ? (at + 1) % n : (at - 1 + n) % n]!;
+    }
+
+    if (nextId.IsOk()) {
+      if (!navigator.IsVisible(nextId)) {
+        navigator.CollapseAll();
+        navigator.EnsureVisible(nextId);
+      }
+
+      navigator.UnselectAll();
+      navigator.SelectItem(nextId);
+
+      const data = itemDataOf(this, nextId);
+
+      if (data?.GetItem()) return data.GetItem();
+    }
+
+    return null;
+  }
+
+  /** `SelectNetNavigatorItem( aSelection )` (:551). */
+  SelectNetNavigatorItem(this: SCH_EDIT_FRAME, aSelection: NET_NAVIGATOR_ITEM_DATA | null): void {
+    const navigator = this.GetNetNavigator();
+
+    if (navigator.IsFrozen()) return; // wxCHECK
+
+    // Maybe in the future we can do something like collapse the tree for an empty selection.
+    // For now, leave the tree selection in its current state.
+    if (!aSelection) return;
+
+    const rootId = navigator.GetRootItem();
+
+    if (!rootId.IsOk()) return;
+
+    const sheetCookie: wxTreeItemIdValue = { index: 0 };
+    let sheetId = navigator.GetFirstChild(rootId, sheetCookie);
+
+    while (sheetId.IsOk()) {
+      // Upstream advances to the next sheet only inside this `if`, so a row with no children
+      // would spin there; a sheet row is only ever made with items beneath it.
+      if (!navigator.ItemHasChildren(sheetId)) break;
+
+      const itemCookie: wxTreeItemIdValue = { index: 0 };
+      let itemId = navigator.GetFirstChild(sheetId, itemCookie);
+
+      while (itemId.IsOk()) {
+        const itemData = itemDataOf(this, itemId);
+
+        if (itemData?.equals(aSelection)) {
+          if (!navigator.IsVisible(itemId)) {
+            navigator.CollapseAll();
+            navigator.EnsureVisible(itemId);
+          }
+
+          navigator.SelectItem(itemId);
+          return;
+        }
+
+        itemId = navigator.GetNextSibling(itemId);
+      }
+
+      sheetId = navigator.GetNextSibling(sheetId);
+    }
+  }
+
+  /** `GetSelectedNetNavigatorItem()` (:604). */
+  GetSelectedNetNavigatorItem(this: SCH_EDIT_FRAME): SCH_ITEM | null {
+    const navigator = this.GetNetNavigator();
+
+    if (navigator.IsFrozen()) return null;
+
+    const id = navigator.GetSelection();
+
+    if (!id.IsOk() || id.equals(navigator.GetRootItem())) return null;
+
+    return itemDataOf(this, id)?.GetItem() ?? null;
+  }
+
+  /** `onNetNavigatorSelection( aEvent )` (:622): wxEVT_TREE_SEL_CHANGED, the row clicked. */
+  onNetNavigatorSelection(this: SCH_EDIT_FRAME, aId: wxTreeItemId): void {
+    const navigator = this.GetNetNavigator();
+
+    if (navigator.IsFrozen()) return;
+
+    // Clicking on the root item (net name ) does nothing.
+    if (aId.equals(navigator.GetRootItem())) return;
+
+    const itemData = itemDataOf(this, aId);
+
+    // Just a net name when we have all nets displayed.
+    if (!itemData) return;
+
+    const sheetPath = itemData.GetSheetPath();
+
+    if (sheetPath && !this.GetCurrentSheet().equals(sheetPath))
+      this.GetToolManager()?.RunAction(SCH_ACTIONS.changeSheet, sheetPath);
+
+    // Do not focus on item when a sheet tree node is selected.
+    const item = itemData.GetItem();
+
+    if (!navigator.GetItemParent(aId).equals(navigator.GetRootItem()) && item) {
+      // Make sure we didn't remove the item and/or the screen it resides on before we access it.
+      // Don't search for child items in screen r-tree.
+      const owner =
+        item.Type() === KICAD_T.SCH_SHEET_PIN_T || item.Type() === KICAD_T.SCH_PIN_T
+          ? (item.GetParent() as SCH_ITEM | null)
+          : item;
+      const screen = sheetPath?.LastScreen() ?? null;
+
+      if (!screen || !owner || !screen.Items().contains(owner, true)) return; // wxCHECK
+
+      this.FocusOnLocation(item.GetBoundingBox().Centre());
+    }
+
+    this.GetCanvas()?.Refresh();
+  }
+
+  /** `onNetNavigatorFilterChanged( aEvent )` (sch_edit_frame.cpp:2623): wxEVT_TEXT. */
+  onNetNavigatorFilterChanged(this: SCH_EDIT_FRAME): void {
+    const newFilter = this.GetNetNavigatorFilter().GetValue();
+
+    if (newFilter === this.m_netNavigatorFilterValue) return;
+
+    this.m_netNavigatorFilterValue = newFilter;
+
+    const selection = this.GetNetNavigator().GetSelection();
+    const selectionPtr = selection.IsOk() ? itemDataOf(this, selection) : null;
+
+    this.RefreshNetNavigator(selectionPtr);
+  }
+
+  /** `onNetNavigatorKey( aEvent )` (sch_edit_frame.cpp:2656): Escape clears the filter. */
+  onNetNavigatorKey(this: SCH_EDIT_FRAME, aKey: string): boolean {
+    if (aKey !== 'Escape') return false;
+
+    // Clear the search string and refresh
+    this.GetNetNavigatorFilter().SetValue('');
+    this.m_netNavigatorFilterValue = '';
+
+    this.RefreshNetNavigator();
+
+    // Don't skip the event - we handled it
+    return true;
+  }
+
+  /** `FindNetInInspector( aNetName )` (:729). */
+  FindNetInInspector(this: SCH_EDIT_FRAME, aNetName: string): void {
+    if (aNetName === '') return;
+
+    // Ensure the net navigator is shown
+    if (!this.IsNetNavigatorShownOnScreen()) this.ToggleNetNavigator();
+
+    // Clear any net highlights
+    this.m_highlightedConn = '';
+    this.GetToolManager()?.RunAction(SCH_ACTIONS.updateNetHighlighting);
+
+    // Set the search text to the aNetName
+    this.GetNetNavigatorFilter().SetValue(aNetName);
+    this.m_netNavigatorFilterValue = aNetName;
+
+    // Refresh the tree
+    this.RefreshNetNavigator();
+  }
+
+  /** `onNetNavigatorItemMenu( aEvent )` (sch_edit_frame.cpp:2677): wxEVT_TREE_ITEM_MENU. */
+  onNetNavigatorItemMenu(this: SCH_EDIT_FRAME, aItem: wxTreeItemId): void {
+    this.showNetNavigatorMenu(aItem);
+  }
+
+  /**
+   * `onNetNavigatorContextMenu( aEvent )` (sch_edit_frame.cpp:2683): wxEVT_CONTEXT_MENU, the menu
+   * for the row under the pointer - the page hit-tests, so \a aItem is that row or none.
+   */
+  onNetNavigatorContextMenu(this: SCH_EDIT_FRAME, aItem: wxTreeItemId): void {
+    this.showNetNavigatorMenu(aItem);
+  }
+
+  /** `showNetNavigatorMenu( aItem )` (sch_edit_frame.cpp:2700). */
+  showNetNavigatorMenu(this: SCH_EDIT_FRAME, aItem: wxTreeItemId): void {
+    const navigator = this.GetNetNavigator();
+    const menu = new wxMenu();
+
+    menu.Append(ID_NET_NAVIGATOR.EXPAND_ALL, 'Expand All');
+    menu.Append(ID_NET_NAVIGATOR.COLLAPSE_ALL, 'Collapse All');
+
+    const findInInspector = menu.Append(
+      ID_NET_NAVIGATOR.FIND_IN_INSPECTOR,
+      'Find in Net Inspector',
+    );
+
+    // A row's wxStringClientData, which only a net row could carry - and RefreshNetNavigator
+    // appends net rows with no data at all, so upstream finds a name here only for the
+    // highlighted net's root.
+    const stringData = (aId: wxTreeItemId): string | null => {
+      const data = navigator.GetItemData(aId);
+      return data instanceof wxStringClientData ? data.GetData() : null;
+    };
+
+    let netName = '';
+
+    if (aItem.IsOk()) {
+      let netItem = aItem;
+
+      if (!navigator.GetItemParent(netItem).equals(navigator.GetRootItem())) {
+        let parent = navigator.GetItemParent(netItem);
+
+        while (parent.IsOk() && !parent.equals(navigator.GetRootItem())) {
+          netItem = parent;
+          parent = navigator.GetItemParent(netItem);
+        }
+
+        if (parent.equals(navigator.GetRootItem())) netName = stringData(netItem) ?? '';
+      } else if (navigator.GetItemParent(netItem).equals(navigator.GetRootItem())) {
+        netName = stringData(netItem) ?? '';
+      } else if (this.m_highlightedConn !== '' && netItem.equals(navigator.GetRootItem())) {
+        netName = this.m_highlightedConn;
+      }
+    } else if (this.m_highlightedConn !== '' && navigator.GetRootItem().IsOk()) {
+      netName = this.m_highlightedConn;
+    }
+
+    if (netName === '') {
+      findInInspector.Enable(false);
+      this.m_netNavigatorMenuNetName = '';
+    } else {
+      this.m_netNavigatorMenuNetName = netName;
+    }
+
+    navigator.PopupMenu(menu, (aId) => this.onNetNavigatorMenuCommand(aId));
+  }
+
+  /**
+   * The gear button's menu (the `wxEVT_LEFT_DOWN` lambda, sch_edit_frame.cpp:2552): wildcard or
+   * regex search, the one in force checked.
+   */
+  showNetNavigatorSearchMenu(this: SCH_EDIT_FRAME): void {
+    const menu = new wxMenu();
+    const wildcardItem = menu.AppendRadioItem(ID_NET_NAVIGATOR.SEARCH_WILDCARD, 'Wildcard Search');
+    const regexItem = menu.AppendRadioItem(ID_NET_NAVIGATOR.SEARCH_REGEX, 'Regex Search');
+
+    const cfg = this.eeconfig();
+
+    if (cfg?.aui.net_nav_search_mode_wildcard) wildcardItem.Check();
+    else regexItem.Check();
+
+    this.GetNetNavigator().PopupMenu(menu, (aId) => this.onNetNavigatorMenuCommand(aId));
+  }
+
+  /** `onNetNavigatorMenuCommand( aEvent )` (sch_edit_frame.cpp:2771). */
+  onNetNavigatorMenuCommand(this: SCH_EDIT_FRAME, aId: number): void {
+    const navigator = this.GetNetNavigator();
+
+    switch (aId) {
+      case ID_NET_NAVIGATOR.EXPAND_ALL:
+        navigator.ExpandAll();
+        break;
+
+      case ID_NET_NAVIGATOR.COLLAPSE_ALL:
+        navigator.CollapseAll();
+
+        if (navigator.GetRootItem().IsOk()) navigator.Expand(navigator.GetRootItem());
+        break;
+
+      case ID_NET_NAVIGATOR.FIND_IN_INSPECTOR:
+        if (this.m_netNavigatorMenuNetName !== '')
+          this.FindNetInInspector(this.m_netNavigatorMenuNetName);
+        break;
+
+      case ID_NET_NAVIGATOR.SEARCH_WILDCARD:
+      case ID_NET_NAVIGATOR.SEARCH_REGEX:
+        if (this.eeconfig()) {
+          updateEeschemaSettings((cfg) => {
+            cfg.aui.net_nav_search_mode_wildcard = aId === ID_NET_NAVIGATOR.SEARCH_WILDCARD;
+          });
+
+          // Refresh the navigator with current filter
+          this.RefreshNetNavigator();
+        }
+
+        break;
+
+      default:
+        return;
+    }
+
+    this.m_netNavigatorMenuNetName = '';
+  }
 }
+
+/** `wxStringClientData`: a string hung on a tree row. */
+export class wxStringClientData {
+  constructor(private m_data = '') {}
+
+  GetData(): string {
+    return this.m_data;
+  }
+}
+
+/** The menu ids (sch_edit_frame.h:1053), `wxID_HIGHEST + 400` on. */
+export const ID_NET_NAVIGATOR = {
+  EXPAND_ALL: wxID_HIGHEST + 400,
+  COLLAPSE_ALL: wxID_HIGHEST + 401,
+  FIND_IN_INSPECTOR: wxID_HIGHEST + 402,
+  SEARCH_WILDCARD: wxID_HIGHEST + 403,
+  SEARCH_REGEX: wxID_HIGHEST + 404,
+} as const;

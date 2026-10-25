@@ -90,6 +90,10 @@ export class wxMenuItem {
     return this.m_kind === wxItemKind.wxITEM_SEPARATOR;
   }
 
+  IsRadio(): boolean {
+    return this.m_kind === wxItemKind.wxITEM_RADIO;
+  }
+
   IsCheckable(): boolean {
     return this.m_kind === wxItemKind.wxITEM_CHECK || this.m_kind === wxItemKind.wxITEM_RADIO;
   }
@@ -128,8 +132,29 @@ export class wxMenuItem {
     this.m_help = aHelp;
   }
 
+  /**
+   * `Check( check )`. A radio item takes its group with it: checking one unchecks the rest of the
+   * run of radio items it sits in, as a GTK radio group does (unchecking one alone is refused).
+   */
   Check(aCheck = true): void {
-    if (this.IsCheckable()) this.m_isChecked = aCheck;
+    if (!this.IsCheckable()) return;
+
+    if (this.m_kind !== wxItemKind.wxITEM_RADIO) {
+      this.m_isChecked = aCheck;
+      return;
+    }
+
+    if (!aCheck) return;
+
+    const items = this.m_parentMenu?.GetMenuItems() ?? [this];
+    const at = items.indexOf(this);
+    let first = at;
+    let last = at;
+
+    while (first > 0 && items[first - 1]!.m_kind === wxItemKind.wxITEM_RADIO) first--;
+    while (last < items.length - 1 && items[last + 1]!.m_kind === wxItemKind.wxITEM_RADIO) last++;
+
+    for (let i = first; i <= last; i++) items[i]!.m_isChecked = i === at;
   }
 
   IsChecked(): boolean {
@@ -281,6 +306,19 @@ export class wxMenu {
   /** `AppendCheckItem( id, text, help )`. */
   AppendCheckItem(aId: number, aText: string, aHelp = ''): wxMenuItem {
     return this.Append(aId, aText, aHelp, wxItemKind.wxITEM_CHECK);
+  }
+
+  /**
+   * `AppendRadioItem( id, text, help )`. The first item of a radio run starts checked, as wx
+   * starts a new group checked.
+   */
+  AppendRadioItem(aId: number, aText: string, aHelp = ''): wxMenuItem {
+    const previous = this.m_items.at(-1);
+    const item = this.Append(aId, aText, aHelp, wxItemKind.wxITEM_RADIO);
+
+    if (!previous?.IsRadio()) item.Check(true);
+
+    return item;
   }
 
   /** `Enable( id, enable )`. */

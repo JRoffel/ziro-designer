@@ -186,17 +186,13 @@ describe('net highlighting', () => {
 
   it('Find Net in Inspector shows the navigator filtered to the selected net and clears the highlight', () => {
     const panes: string[] = [];
-    const filters: string[] = [];
+    let shown = false;
     const h = setUp({
-      togglePane: (p) => panes.push(p),
-      netNavigator: () => ({
-        Refresh: () => {},
-        SelectItem: () => {},
-        GetSelectedItem: () => null,
-        IsFrozen: () => false,
-        IsShown: () => false,
-        SetFilter: (n) => filters.push(n),
-      }),
+      togglePane: (p) => {
+        panes.push(p);
+        shown = !shown;
+      },
+      isNetNavigatorShown: () => shown,
     });
     h.frame.ExecuteRemoteCommand(`$NET: "${h.netName}"`);
     const sel = h.mgr.GetTool(SCH_SELECTION_TOOL)!;
@@ -205,7 +201,9 @@ describe('net highlighting', () => {
     h.mgr.RunAction(SCH_ACTIONS.findNetInInspector);
 
     expect(panes).toEqual(['NetNavigator']);
-    expect(filters).toEqual([h.onNet[0]!.Connection()!.GetNetName()]);
+    expect(h.frame.GetNetNavigatorFilter().GetValue()).toBe(
+      h.onNet[0]!.Connection()!.GetNetName(),
+    );
     expect(h.frame.GetHighlightedConnection()).toBe('');
   });
 

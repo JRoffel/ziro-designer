@@ -115,6 +115,11 @@ import { EVENTS } from '@ziroeda/common/tool/tool_event.js';
 import { VIEW_UPDATE_FLAGS } from '@ziroeda/common/view/view_item.js';
 import { TOOL_MANAGER } from '@ziroeda/common/tool/tool_manager.js';
 import { applyMixins } from '@ziroeda/core/mixins.js';
+import { NET_NAVIGATOR_ITEM_DATA, NET_NAVIGATOR_MIXIN } from './net_navigator.js';
+import { wxGenericTreeCtrl } from '@ziroeda/wx/treectrl.js';
+import { wxSearchCtrl } from '@ziroeda/wx/wx_search_ctrl.js';
+
+export { NET_NAVIGATOR_ITEM_DATA };
 import { SCH_BASE_FRAME } from './sch_base_frame.js';
 import { SCH_COMMIT } from './sch_commit.js';
 import { AUTOPLACE_ALGO, type SCH_ITEM } from './sch_item.js';
@@ -172,51 +177,6 @@ export interface DIALOG_ERC {
 export enum SCH_SEARCH_T {
   HIGHLIGHT_PIN,
   HIGHLIGHT_SYMBOL,
-}
-
-/** `NET_NAVIGATOR_ITEM_DATA` (sch_edit_frame.h:91): a net navigator row's sheet and item. */
-export class NET_NAVIGATOR_ITEM_DATA {
-  constructor(
-    private m_sheetPath: SCH_SHEET_PATH | null = null,
-    private m_item: SCH_ITEM | null = null,
-  ) {}
-
-  GetSheetPath(): SCH_SHEET_PATH | null {
-    return this.m_sheetPath;
-  }
-
-  GetItem(): SCH_ITEM | null {
-    return this.m_item;
-  }
-
-  /** `operator==`. */
-  equals(aRhs: NET_NAVIGATOR_ITEM_DATA): boolean {
-    const sameSheet =
-      this.m_sheetPath === aRhs.m_sheetPath ||
-      (!!this.m_sheetPath && !!aRhs.m_sheetPath && this.m_sheetPath.equals(aRhs.m_sheetPath));
-
-    return sameSheet && this.m_item === aRhs.m_item;
-  }
-}
-
-/**
- * The net navigator (`m_netNavigator`, a wxGenericTreeCtrl, and its filter) as the frame drives
- * it: the window owns the tree. Upstream's tree walks in SelectNetNavigatorItem and
- * GetSelectedNetNavigatorItem are the window's.
- */
-export interface NET_NAVIGATOR {
-  /** `RefreshNetNavigator( aSelection )` (net_navigator.cpp). */
-  Refresh(aSelection: NET_NAVIGATOR_ITEM_DATA | null): void;
-  /** The row equal to \a aSelection made visible and selected; nothing when none is. */
-  SelectItem(aSelection: NET_NAVIGATOR_ITEM_DATA): void;
-  /** The selected row's item; null for none or the root. */
-  GetSelectedItem(): SCH_ITEM | null;
-  /** `IsFrozen()`. */
-  IsFrozen(): boolean;
-  /** Whether its pane (`NetNavigatorPaneName()`) is shown. */
-  IsShown(): boolean;
-  /** `m_netNavigatorFilter->SetValue( aNetName )`. */
-  SetFilter(aNetName: string): void;
 }
 
 /**
@@ -321,8 +281,11 @@ export interface SCH_EDIT_FRAME_HOOKS {
    * builds; GetSymbolFieldsTableDialog keeps it.
    */
   symbolFieldsTableDialog?(): DIALOG_SYMBOL_FIELDS_TABLE | null;
-  /** `m_netNavigator`: the window's net navigator, or null while it has none. */
-  netNavigator?(): NET_NAVIGATOR | null;
+  /**
+   * `m_netNavigator->IsShownOnScreen()`: whether the window shows the Net Navigator pane, which
+   * RefreshNetNavigator asks before it builds anything.
+   */
+  isNetNavigatorShown?(): boolean;
   /** `m_hierarchy->UpdateNetHighlight( aConnection )`: the window's HIERARCHY_PANE. */
   hierarchyUpdateNetHighlight?(aConnection: string): void;
   /** `m_hierarchy->GetCollapsedPaths()`: the window's HIERARCHY_PANE. */
@@ -370,6 +333,7 @@ export interface SCH_EDIT_FRAME_HOOKS {
 // biome-ignore lint/suspicious/noUnsafeDeclarationMerging: TS multiple inheritance (SCH_UNDO_REDO_MIXIN, see libs/core/mixins.ts)
 export interface SCH_EDIT_FRAME
   extends SCH_UNDO_REDO_MIXIN,
+    NET_NAVIGATOR_MIXIN,
     SCH_DESIGN_BLOCK_UTILS_MIXIN,
     SCH_FILES_IO_MIXIN,
     SCH_ANNOTATE_MIXIN,
@@ -402,14 +366,56 @@ export class SCH_EDIT_FRAME extends SCH_BASE_FRAME implements SCHEMATIC_HOLDER {
   /** `m_highlightedConn`: the name of the highlighted net, empty for none. */
   m_highlightedConn = '';
 
+  /**
+   * `m_netNavigator` (createHighlightedNetNavigator, sch_edit_frame.cpp:2540): the Net
+   * Navigator's tree, a wxGenericTreeCtrl the window draws (widgets/net_navigator_panel.tsx).
+   */
+  private readonly m_netNavigator = new wxGenericTreeCtrl();
+  /** `m_netNavigatorFilter`: the "Filter nets" search box above it. */
+  private readonly m_netNavigatorFilter = (() => {
+    const filter = new wxSearchCtrl();
+    filter.SetDescriptiveText('Filter nets');
+    filter.BindText(() => this.onNetNavigatorFilterChanged());
+    return filter;
+  })();
+  /** `m_netNavigatorFilterValue`: the filter text RefreshNetNavigator last applied. */
+  m_netNavigatorFilterValue = '';
+  /** `m_netNavigatorMenuNetName`: the net a navigator context menu was opened on. */
+  m_netNavigatorMenuNetName = '';
+
+  /** `GetNetNavigator()`. */
+  GetNetNavigator(): wxGenericTreeCtrl {
+    return this.m_netNavigator;
+  }
+
+  /** The filter box (`m_netNavigatorFilter`), for the window to draw. */
+  GetNetNavigatorFilter(): wxSearchCtrl {
+    return this.m_netNavigatorFilter;
+  }
+
+  /** `m_netNavigator->IsShownOnScreen()`. */
+  IsNetNavigatorShownOnScreen(): boolean {
+    return !!this.hooks.isNetNavigatorShown?.();
+  }
+
+  /**
+   * `ToggleNetNavigator()` (net_navigator.cpp:674): the pane (the window's AUI), then the tree
+   * rebuilt around its selection.
+   */
+  ToggleNetNavigator(): void {
+    this.hooks.togglePane?.('NetNavigator');
+
+    if (this.IsNetNavigatorShownOnScreen()) {
+      const selection = this.m_netNavigator.GetSelection();
+      const data = selection.IsOk() ? this.m_netNavigator.GetItemData(selection) : null;
+
+      this.RefreshNetNavigator(data instanceof NET_NAVIGATOR_ITEM_DATA ? data : null);
+    }
+  }
+
   /** `GetHighlightedConnection()` (sch_edit_frame.h). */
   GetHighlightedConnection(): string {
     return this.m_highlightedConn;
-  }
-
-  /** `RefreshNetNavigator( aSelection )` (net_navigator.cpp): the window's tree. */
-  RefreshNetNavigator(aSelection: NET_NAVIGATOR_ITEM_DATA | null = null): void {
-    this.hooks.netNavigator?.()?.Refresh(aSelection);
   }
 
   /** `SetHighlightedConnection( aConnection, aSelection )` (sch_edit_frame.cpp:2581). */
@@ -468,48 +474,6 @@ export class SCH_EDIT_FRAME extends SCH_BASE_FRAME implements SCHEMATIC_HOLDER {
       { value: packet },
       this,
     );
-  }
-
-  /** `SelectNetNavigatorItem( aSelection )` (net_navigator.cpp:551). */
-  SelectNetNavigatorItem(aSelection: NET_NAVIGATOR_ITEM_DATA | null): void {
-    const navigator = this.hooks.netNavigator?.() ?? null;
-
-    if (!navigator || navigator.IsFrozen()) return; // wxCHECK
-
-    // Maybe in the future we can do something like collapse the tree for an empty selection.
-    // For now, leave the tree selection in its current state.
-    if (!aSelection) return;
-
-    navigator.SelectItem(aSelection);
-  }
-
-  /** `GetSelectedNetNavigatorItem()` (net_navigator.cpp:604). */
-  GetSelectedNetNavigatorItem(): SCH_ITEM | null {
-    const navigator = this.hooks.netNavigator?.() ?? null;
-
-    if (!navigator || navigator.IsFrozen()) return null;
-
-    return navigator.GetSelectedItem();
-  }
-
-  /** `FindNetInInspector( aNetName )` (net_navigator.cpp:729). */
-  FindNetInInspector(aNetName: string): void {
-    const navigator = this.hooks.netNavigator?.() ?? null;
-
-    if (!navigator || aNetName === '') return;
-
-    // Ensure the net navigator is shown
-    if (!navigator.IsShown()) this.ToggleNetNavigator();
-
-    // Clear any net highlights
-    this.m_highlightedConn = '';
-    this.GetToolManager()?.RunAction(SCH_ACTIONS.updateNetHighlighting);
-
-    // Set the search text to the aNetName
-    navigator.SetFilter(aNetName);
-
-    // Refresh the tree
-    this.RefreshNetNavigator();
   }
 
   /** `DirtyHighlightedConnection()` (sch_edit_frame.h). */
@@ -1397,11 +1361,6 @@ export class SCH_EDIT_FRAME extends SCH_BASE_FRAME implements SCHEMATIC_HOLDER {
   /** `ToggleSchematicHierarchy()` (sch_edit_frame.cpp:2911). */
   ToggleSchematicHierarchy(): void {
     this.hooks.togglePane?.('SchematicHierarchy');
-  }
-
-  /** `ToggleNetNavigator()` (net_navigator.cpp:674). */
-  ToggleNetNavigator(): void {
-    this.hooks.togglePane?.('NetNavigator');
   }
 
   /** `ToggleProperties()` (sch_edit_frame.cpp:2885). */
@@ -2804,6 +2763,7 @@ export const SCH_BOTTOM_DOCK = {
 
 applyMixins(SCH_EDIT_FRAME, [
   SCH_UNDO_REDO_MIXIN,
+  NET_NAVIGATOR_MIXIN,
   SCH_DESIGN_BLOCK_UTILS_MIXIN,
   SCH_FILES_IO_MIXIN,
   SCH_ANNOTATE_MIXIN,

@@ -8,6 +8,9 @@ import { SYMBOL_FILTER } from './sch_sheet_path.js';
 import { PANEL_EMBEDDED_FILES } from '@ziroeda/common/dialogs/panel_embedded_files.js';
 import { EMBEDDED_FILES } from '@ziroeda/common/embedded_files.js';
 import { SCH_ACTIONS } from './tools/sch_actions.js';
+import { SCH_LAYER_ID } from '@ziroeda/common/layer_id.js';
+import { toCss } from '@ziroeda/common/gal/color4d.js';
+import { NET_NAVIGATOR_ITEM_DATA } from './net_navigator.js';
 import {
   GetClipboardText,
   SetClipboardFromPaste,
@@ -143,10 +146,6 @@ import {
   type LibPin,
   electricalPinTypeGetText,
   pinShapeGetText,
-  buildNetNavigator,
-  buildNetNavigatorHierarchy,
-  netNavigatorOrder,
-  stepNetItem,
   buildSheetTree,
   repairPageNumbersOnLoad,
   findRootFile,
@@ -1400,6 +1399,30 @@ export function SchematicEditor({
     if (es.annotation.automatic) t.add('annotateAuto');
     return t;
   }, [localToggles, es, frameUnits]);
+  const togglesRef = useRef(toggles);
+  togglesRef.current = toggles;
+  // ToggleNetNavigator's tail: once the pane is shown, the tree rebuilt around its selection - on
+  // the live schematic, which is built first if nothing has asked for it yet.
+  const netNavigatorShown = toggles.has('showNetNavigator');
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs when the pane opens; the frame and the sync are refs
+  useEffect(() => {
+    const frame = schFrameRef.current;
+
+    if (!netNavigatorShown || !frame) return;
+
+    syncLiveRef.current();
+
+    const navigator = frame.GetNetNavigator();
+    const selection = navigator.GetSelection();
+    const data = selection.IsOk() ? navigator.GetItemData(selection) : null;
+
+    frame.RefreshNetNavigator(data instanceof NET_NAVIGATOR_ITEM_DATA ? data : null);
+  }, [netNavigatorShown]);
+  /** HIERARCHY_PANE::UpdateNetHighlight's marks: the sheet paths carrying the net, and the colour. */
+  const [hierarchyNetMark, setHierarchyNetMark] = useState<{
+    paths: ReadonlySet<string>;
+    color: string;
+  }>({ paths: new Set(), color: '' });
   // Selection Filter (SCH_SELECTION_FILTER_OPTIONS): gates which item types,
   // and locked items, the selection accepts.
   const [selFilter, setSelFilter] = useState<SelectionFilterOptions>(defaultSelectionFilter);
@@ -1667,6 +1690,22 @@ export function SchematicEditor({
       // class. One not ported yet is cancelled, as with no window, and says so in the console.
       // The AUI half of ToggleSearch / ToggleSchematicHierarchy / ToggleNetNavigator /
       // ToggleProperties: the window's panes are its local toggles.
+      // `m_netNavigator->IsShownOnScreen()`.
+      isNetNavigatorShown: () => togglesRef.current.has('showNetNavigator'),
+      // HIERARCHY_PANE::UpdateNetHighlight( aNetName ) (hierarchy_pane.cpp:850): the sheets the
+      // net runs on, their rows drawn in LAYER_BRIGHTENED.
+      hierarchyUpdateNetHighlight: (aNetName) => {
+        const frame = schFrameRef.current!;
+        const sheetsWithNet = new Set<string>();
+
+        if (aNetName !== '') {
+          for (const sg of frame.Schematic().ConnectionGraph().GetAllSubgraphs(aNetName))
+            if (sg.GetSheet().Last()) sheetsWithNet.add(sg.GetSheet().PathAsString());
+        }
+
+        const color = frame.GetRenderSettings()?.GetLayerColor(SCH_LAYER_ID.LAYER_BRIGHTENED);
+        setHierarchyNetMark({ paths: sheetsWithNet, color: color ? toCss(color) : '' });
+      },
       togglePane: (aPane) => {
         const id = {
           Search: 'showSearch',
@@ -2263,52 +2302,6 @@ export function SchematicEditor({
     if (doc) docs.set(currentFile, doc);
     return docs;
   }, [doc, currentFile]);
-
-  /**
-   * The Net Navigator's tree, across the whole hierarchy.
-   *
-   * `MakeNetNavigatorNode` collects every subgraph of a net — over all sheets —
-   * and appends a node per sheet path with that sheet's items beneath it, so a
-   * signal crossing three sheets shows three sheet nodes.
-   *
-   * That needs a hierarchy-wide netlist, far too expensive to keep current on
-   * every keystroke, so it is built only while the pane is open. Upstream gates
-   * it the same way: `RefreshNetNavigator` returns early on
-   * `!m_netNavigator->IsShownOnScreen()`.
-   *
-   * Each label is upstream's: the root sheet's name — its file name when the
-   * field is empty — then one "/<name>" per level below it.
-   */
-  const netNavigatorTree = useMemo(() => {
-    if (!toggles.has('showNetNavigator') || !doc) return [];
-    const docs = liveDocs();
-    const base = (project.current.root ?? '').replace(/\.kicad_sch$/i, '');
-    const sheets = sheetInstanceRefs
-      .map((ref) => {
-        const sheetDoc = docs.get(ref.file);
-        if (!sheetDoc) return null;
-        const names = ref.namePath.split('/').filter(Boolean);
-        return { path: ref.path, file: ref.file, doc: sheetDoc, label: [base, ...names].join('/') };
-      })
-      .filter((x): x is NonNullable<typeof x> => x !== null);
-    if (sheets.length === 0) return [];
-    // The same formatter `fmt` is, built here from the unit toggles: `fmt`
-    // itself is a fresh closure every render, and depending on it would rebuild
-    // the hierarchy netlist on every one of them.
-    const u = toggles.has('unitsInches') ? 'in' : toggles.has('unitsMils') ? 'mils' : 'mm';
-    const format = (iu: number): string => {
-      const mm = iuToMM(iu);
-      if (u === 'mm') return `${mm.toFixed(4)}`;
-      if (u === 'mils') return `${(mm / 0.0254).toFixed(2)}`;
-      return `${(mm / 25.4).toFixed(4)}`;
-    };
-    return buildNetNavigatorHierarchy(
-      sheets,
-      (sheet) => new Map(sheet.doc.libSymbols.map((l) => [l.libId, l])),
-      format,
-      { busAliases },
-    );
-  }, [toggles, doc, liveDocs, sheetInstanceRefs, busAliases]);
 
   // ----- Choose Symbol dialog (DIALOG_SYMBOL_CHOOSER) ----------------------------
   /**
@@ -4116,6 +4109,8 @@ export function SchematicEditor({
       () => {
         ercDialogRef.current?.dialog.OnSchematicReplaced();
         fieldsTableRef.current?.dialog.OnSchematicReplaced();
+        // A new schematic is a load: files-io.cpp's RefreshNetNavigator() after it.
+        schFrameRef.current?.RefreshNetNavigator();
       },
     );
     return liveMirrorRef.current.get() !== null;
@@ -5323,21 +5318,10 @@ export function SchematicEditor({
           editSymbolInEditor(/^(.*):field\d+$/.exec(id)?.[1] ?? id);
         }
       } else if (e.key === 'Tab' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        // SCH_ACTIONS::nextNetItem / previousNetItem (Tab / Shift+Tab):
-        // SCH_SELECTION_TOOL::SelectNext walks the Net Navigator's flattened
-        // tree, so it needs exactly one selected item to start from, and it
-        // *wraps* — unlike Previous/Next Marker, which stops at the ends.
-        if (doc && selection.size === 1) {
-          // The same tree the pane shows, so Tab walks what you can see.
-          const order = netNavigatorOrder(
-            netNavigatorTree.length ? netNavigatorTree : buildNetNavigator(doc, libById, fmt),
-          );
-          const next = stepNetItem(order, [...selection][0]!, !e.shiftKey);
-          if (next !== null) {
-            e.preventDefault();
-            setSelection(new Set([next]));
-          }
-        }
+        // SCH_ACTIONS::nextNetItem / previousNetItem (Tab / Shift+Tab): SCH_SELECTION_TOOL's
+        // SelectNext / SelectPrevious step the frame's Net Navigator, wrapping.
+        e.preventDefault();
+        runLiveAction(e.shiftKey ? SCH_ACTIONS.previousNetItem : SCH_ACTIONS.nextNetItem);
       } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'g') {
         // ACTIONS::toggleGridOverrides (Ctrl+Shift+G).
         e.preventDefault();
@@ -5894,29 +5878,7 @@ export function SchematicEditor({
                               </button>
                             </div>
                             <div className="ze-panel-body">
-                              <NetNavigatorPanel
-                                doc={doc}
-                                libById={libById}
-                                fmt={fmt}
-                                selectedId={selection.size === 1 ? [...selection][0] : undefined}
-                                highlightedNet={highlightName}
-                                prebuilt={netNavigatorTree}
-                                onSelect={(id) => {
-                                  // onNetNavigatorSelection ends in
-                                  // `FocusOnLocation( item->GetBoundingBox().Centre() )`, so
-                                  // picking a leaf brings the item under the crosshair even
-                                  // though the pointer is still in the panel.
-                                  setSelection(new Set([id]));
-                                  const box = doc
-                                    ? selectionBBox(doc, new Set([id]), libById)
-                                    : emptyBBox();
-                                  if (!isEmpty(box))
-                                    schFrameRef.current!.FocusOnLocation({
-                                      x: (box.minX + box.maxX) / 2,
-                                      y: (box.minY + box.maxY) / 2,
-                                    });
-                                }}
-                              />
+                              <NetNavigatorPanel frame={schFrameRef.current!} />
                             </div>
                           </div>
                           {sashAfter('netNavigator')}
@@ -5953,6 +5915,7 @@ export function SchematicEditor({
                                   switchSheet,
                                   collapsedSheets,
                                   setCollapsedSheets,
+                                  hierarchyNetMark,
                                 )}
                             </div>
                           </div>
@@ -7121,6 +7084,7 @@ function renderSheetNode(
   onOpen: (path: string, file: string) => void,
   collapsedPaths: ReadonlySet<string>,
   setCollapsedPaths: (updater: (prev: Set<string>) => Set<string>) => void,
+  netMark: { paths: ReadonlySet<string>; color: string },
   isLast = true,
   isFirst = true,
 ): JSX.Element {
@@ -7155,7 +7119,13 @@ function renderSheetNode(
           />
         )}
         <span className={`ze-hier-icon${active ? ' sel' : ''}`} />
-        <span className={`ze-hier-label${active ? ' sel' : ''}`}>
+        <span
+          className={`ze-hier-label${active ? ' sel' : ''}`}
+          // `SetItemTextColour( id, mark ? markText : wxNullColour )`. wxGenericTreeCtrl's
+          // PaintItem draws a SELECTED row in wxSYS_COLOUR_HIGHLIGHTTEXT whatever its own colour,
+          // so the mark shows on every sheet but the current one.
+          style={!active && netMark.paths.has(node.path) ? { color: netMark.color } : undefined}
+        >
           {node.name}
           {node.page && ` (page ${node.page})`}
         </span>
@@ -7170,6 +7140,7 @@ function renderSheetNode(
               onOpen,
               collapsedPaths,
               setCollapsedPaths,
+              netMark,
               i === node.children.length - 1,
               i === 0,
             ),

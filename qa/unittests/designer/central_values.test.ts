@@ -452,7 +452,9 @@ const BASELINE: Record<string, { colours: number; metrics: number }> = {
   // popup went when plots started downloading.
   // metrics 37 -> 35 (10-24): the record Symbol Library Browser's inline styles, gone with the
   // modal when SYMBOL_VIEWER_FRAME became a window of its own.
-  'editors/schematic': { colours: 11, metrics: 35 },
+  // metrics 35 -> 34 (10-26): the Net Navigator pane redrawn over SCH_EDIT_FRAME's own tree; its
+  // invented row insets out, its sizer borders and tree indent in, each marked [data].
+  'editors/schematic': { colours: 11, metrics: 34 },
   // 166 -> 163 metrics on `editors/schematic`, moved here whole: cvpcb's
   // three windows left `editors/schematic/dialogs/` for the root `cvpcb/`
   // package (cvpcb/STRUCTURE.md's stage two). No colours moved (the five
@@ -1738,7 +1740,8 @@ describe('the scan totals, so the numbers in the PR stay true', () => {
     // 705 -> 701 (10-20): the editors/schematic row above.
     // 701 -> 686 (10-23): the editors/symbol row above.
     // 686 -> 681 (10-24): the editors/schematic and common/widgets rows above. Rescanned.
-    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(681);
+    // 681 -> 680 (10-26): the editors/schematic row above (the Net Navigator). Rescanned.
+    expect(SITES.filter((s) => s.kind === 'metrics').length).toBe(680);
   });
 
   it('and the two agree with the per-area table, which is where they come from', () => {

@@ -71,6 +71,7 @@ export function EditClearSymbolic(): JSX.Element {
  */
 export class wxSearchCtrl {
   private m_value = '';
+  private m_enabled = true;
   private m_descriptiveText = '';
   private m_toolTip = '';
   private m_hasFocus = false;
@@ -90,6 +91,18 @@ export class wxSearchCtrl {
 
   GetValue(): string {
     return this.m_value;
+  }
+
+  /** `Enable( enable )`: wxWindow's; a disabled entry takes no input and is drawn insensitive. */
+  Enable(aEnable = true): void {
+    if (this.m_enabled === aEnable) return;
+
+    this.m_enabled = aEnable;
+    this.m_onChange?.();
+  }
+
+  IsEnabled(): boolean {
+    return this.m_enabled;
   }
 
   /** `SetValue( s )`: the text, and the wxEVT_TEXT that follows it. */
@@ -168,6 +181,8 @@ export interface WxSearchCtrlProps {
    */
   onCancel?: () => void;
   ariaLabel?: string;
+  /** `Enable( false )`: the entry takes no input. */
+  disabled?: boolean;
 }
 
 /** One `wxSearchCtrl`: the magnifier in the primary slot, the entry after it. */
@@ -184,6 +199,7 @@ export function WxSearchCtrl({
   testId,
   onCancel,
   ariaLabel,
+  disabled,
 }: WxSearchCtrlProps): JSX.Element {
   return (
     <div className="ze-libtree-entry" title={toolTip}>
@@ -203,6 +219,7 @@ export function WxSearchCtrl({
         onFocus={onFocus}
         onBlur={onBlur}
         onKeyDown={onKeyDown}
+        disabled={disabled}
         aria-label={ariaLabel}
       />
       {onCancel && value !== '' && (

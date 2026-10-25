@@ -11,7 +11,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type JSX, type ReactNode 
 
 // The data types live with the wxMenu model (menu.ts); re-exported here so
 // every existing importer keeps working.
-import type { Menu, MenuItem } from './menu.js';
+import { type Menu, type MenuItem, type wxMenu, wxMenuItem } from './menu.js';
 import { useModalEscape } from './dialog.js';
 export type { Menu, MenuItem };
 
@@ -245,6 +245,24 @@ function MenuEntry({ item, close }: { item: MenuItem; close: () => void }): JSX.
       )}
     </div>
   );
+}
+
+/** A wxMenu's rows for the shared ContextMenu. */
+export function wxMenuContextItems(aMenu: wxMenu, aOnSelect: (aId: number) => void): MenuItem[] {
+  return aMenu.GetMenuItems().map((item): MenuItem => {
+    if (item.IsSeparator()) return { sep: true };
+
+    const shortcut = item.GetAccelString();
+
+    return {
+      label: wxMenuItem.GetLabelText(item.GetItemLabel()),
+      ...(shortcut ? { shortcut } : {}),
+      ...(item.GetHelp() ? { tooltip: item.GetHelp() } : {}),
+      ...(item.IsCheckable() ? { checked: item.IsChecked() } : {}),
+      disabled: !item.IsEnabled(),
+      action: () => aOnSelect(item.GetId()),
+    };
+  });
 }
 
 /** A cursor-positioned popup (KiCad's TOOL_MENU shown on right-click): the

@@ -39,6 +39,18 @@ export interface TemplateFieldName {
 }
 
 export interface EeschemaSettings {
+  /**
+   * The `aui.*` PARAMs (eeschema_settings.cpp:260-320). Only the Net Navigator's search mode is
+   * here: the pane sizes and shown flags are the window's AUI state, which it keeps itself.
+   */
+  aui: {
+    /**
+     * `aui.net_nav_search_mode_wildcard` (eeschema_settings.cpp:315, true): the Net Navigator
+     * filter matches `*`/`?` wildcards, or - false - a case-insensitive regular expression. The
+     * filter's gear menu sets it.
+     */
+    net_nav_search_mode_wildcard: boolean;
+  };
   appearance: {
     /** Active colour theme id: a built-in ('_builtin_default'), a stock theme ('stock:wdark') or 'user'. */
     color_theme: string;
@@ -406,6 +418,9 @@ function eeschemaWindowCursor(): EeschemaSettings['window']['cursor'] {
 }
 
 export const EESCHEMA_DEFAULTS: EeschemaSettings = {
+  aui: {
+    net_nav_search_mode_wildcard: true,
+  },
   appearance: {
     // Not upstream's DEFAULT_THEME: dark is our identity (DECIDED 2026-09-11), and KiCad ships no
     // dark schematic built-in, so every user starts on the stock wDark sheet.

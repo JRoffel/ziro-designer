@@ -28,7 +28,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { ContextMenu } from './menu_ui.js';
+import { ContextMenu, wxMenuContextItems } from './menu_ui.js';
 import type { MenuItem } from './menu.js';
 import { Combo } from './combobox.js';
 import { wxKeyEventFromDom } from './dom_events.js';
@@ -51,7 +51,6 @@ import {
   wxGridEvent,
   wxGridSelectionModes,
 } from './grid.js';
-import { type wxMenu, wxMenuItem } from './menu.js';
 import {
   wxEVT_KEY_DOWN,
   wxMOD_ALT,
@@ -89,24 +88,6 @@ const modifiersOf = (e: {
   (e.ctrlKey ? wxMOD_CONTROL : 0) |
   (e.altKey ? wxMOD_ALT : 0) |
   (e.metaKey ? wxMOD_META : 0);
-
-/** A wxMenu's rows for the shared ContextMenu. */
-function menuItems(aMenu: wxMenu, aOnSelect: (aId: number) => void): MenuItem[] {
-  return aMenu.GetMenuItems().map((item): MenuItem => {
-    if (item.IsSeparator()) return { sep: true };
-
-    const shortcut = item.GetAccelString();
-
-    return {
-      label: wxMenuItem.GetLabelText(item.GetItemLabel()),
-      ...(shortcut ? { shortcut } : {}),
-      ...(item.GetHelp() ? { tooltip: item.GetHelp() } : {}),
-      ...(item.IsCheckable() ? { checked: item.IsChecked() } : {}),
-      disabled: !item.IsEnabled(),
-      action: () => aOnSelect(item.GetId()),
-    };
-  });
-}
 
 export function WxGridView({
   grid,
@@ -174,7 +155,7 @@ export function WxGridView({
     grid.SetRefreshListener(bump);
     grid.SetPopupMenuPresenter((aMenu, aOnSelect) =>
       setMenu({
-        items: menuItems(aMenu, (id) => {
+        items: wxMenuContextItems(aMenu, (id) => {
           setMenu(null);
           aOnSelect(id);
           grid.ProcessEvent(new wxUpdateUIEvent(0));

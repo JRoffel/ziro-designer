@@ -88,7 +88,7 @@ const BASELINE: Record<(typeof AREAS)[number], Record<Kind, number>> = {
   // select 2 -> 0, frame 1 -> 0, entry 7 -> 5 (10-24): the record Symbol Library Browser - its unit
   // and body-style <select>s, its modal and its two filter <input>s - for SYMBOL_VIEWER_FRAME's
   // window on wxChoice / wxSearchCtrl.
-  eeschema: { button: 8, checkbox: 9, select: 0, frame: 0, radio: 1, entry: 5, sbox: 9 },
+  eeschema: { button: 8, checkbox: 9, select: 0, frame: 0, radio: 1, entry: 4, sbox: 9 },
   // checkbox 3 -> 2 (10-12): Print on DIALOG_PRINT_GENERIC_BASE.
   gerbview: { button: 3, checkbox: 2, select: 0, frame: 0, radio: 0, entry: 2, sbox: 2 },
   pagelayout_editor: { button: 4, checkbox: 0, select: 0, frame: 0, radio: 0, entry: 3, sbox: 1 },
