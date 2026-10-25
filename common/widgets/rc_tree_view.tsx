@@ -58,13 +58,13 @@ export function RcTreeView({
             className={`ze-erc-row${selection === node ? ' selected' : ''}`}
             style={rowStyle(node)}
             onClick={() => {
-              view.Select(node);
+              view.ClickItem(node);
               onSelect?.(node);
             }}
             onDoubleClick={() => onDoubleClick?.(node)}
             onContextMenu={(e) => {
               e.preventDefault();
-              view.Select(node);
+              view.ClickItem(node);
               onSelect?.(node);
               onContextMenu?.(e, node);
             }}
@@ -81,13 +81,13 @@ export function RcTreeView({
               }`}
               style={rowStyle(child)}
               onClick={() => {
-                view.Select(child);
+                view.ClickItem(child);
                 onSelect?.(child);
               }}
               onDoubleClick={() => onDoubleClick?.(child)}
               onContextMenu={(e) => {
                 e.preventDefault();
-                view.Select(child);
+                view.ClickItem(child);
                 onSelect?.(child);
                 onContextMenu?.(e, child);
               }}

@@ -8,7 +8,10 @@
  * controls reaching DIALOG_DRC's handlers.
  */
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { act } from '@testing-library/react';
+import { DRC_ITEM, PCB_DRC_CODE } from '@ziroeda/pcbnew/drc/drc_item.js';
+import { PCB_MARKER } from '@ziroeda/pcbnew/pcb_marker.js';
 import { PGM_BASE, SetPgm } from '@ziroeda/common/pgm_base.js';
 import type { BOX2D } from '@ziroeda/kimath/src/math/box2.js';
 import type { Vec2 } from '@ziroeda/kimath/src/math/vector2.js';
@@ -86,6 +89,29 @@ function show(aIsSingle: boolean) {
 const button = (aName: string) => screen.getByRole('button', { name: aName });
 
 describe('DIALOG_DRC window', () => {
+  // wxEVT_DATAVIEW_SELECTION_CHANGED is what a click on a row raises - and only a click: a
+  // programmatic Select() (SelectMarker, Next Marker) raises none.
+  it('runs OnDRCItemSelected for a row the user clicks', () => {
+    const { dialog } = show(false);
+    const board = dialog.m_frame.GetBoard()!;
+    const item = DRC_ITEM.Create(PCB_DRC_CODE.DRCE_SOLDERMASK_BRIDGE)!;
+    item.SetItems([board.m_Uuid]);
+    board.Add(new PCB_MARKER(item, { x: 0, y: 0 }));
+    const selected = vi.spyOn(dialog, 'OnDRCItemSelected');
+    act(() => dialog.UpdateData());
+
+    fireEvent.click(screen.getByText(/^Error: /));
+
+    expect(selected).toHaveBeenCalledTimes(1);
+    expect(selected.mock.calls[0]![0] === dialog.m_markerDataView.GetSelection()).toBe(true);
+
+    // The item rows under it: what a click usually lands on.
+    fireEvent.click(document.querySelector('.ze-erc-subrow')!);
+
+    expect(selected).toHaveBeenCalledTimes(2);
+    expect(dialog.m_markerDataView.GetSelection()?.m_Parent).not.toBeNull();
+  });
+
   it('is the base: options, the four result pages, the Show row and the button row', () => {
     const { root } = show(false);
 

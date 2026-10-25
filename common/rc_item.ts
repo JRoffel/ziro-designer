@@ -424,8 +424,18 @@ export interface RC_TREE_VIEW {
   /** `GetSelection()` / `GetCurrentItem()` as nodes. */
   GetSelection(): RC_TREE_NODE | null;
   GetCurrentItem(): RC_TREE_NODE | null;
-  /** `Select( item )`: selects and fires wxEVT_DATAVIEW_SELECTION_CHANGED. */
+  /**
+   * `Select( item )`: selects, and sends nothing - a programmatic selection raises no
+   * wxEVT_DATAVIEW_SELECTION_CHANGED on wxGTK (qa/probes/dataview_select_event_probe.cpp). So
+   * RC_TREE_MODEL::SelectMarker (a marker clicked on the canvas), NextMarker and PrevMarker move the
+   * row only, and the dialog's OnDRCItemSelected / OnERCItemSelected does not run for them.
+   */
   Select(aNode: RC_TREE_NODE): void;
+  /**
+   * A click on the row: the user's selection change, which wx does report - selects \a aNode and
+   * fires wxEVT_DATAVIEW_SELECTION_CHANGED.
+   */
+  ClickItem(aNode: RC_TREE_NODE): void;
   UnselectAll(): void;
   Expand(aNode: RC_TREE_NODE): void;
   IsExpanded(aNode: RC_TREE_NODE): boolean;
@@ -453,6 +463,9 @@ export class RC_TREE_VIEW_STATE implements RC_TREE_VIEW {
   }
   Select(aNode: RC_TREE_NODE): void {
     this.m_selection = aNode;
+  }
+  ClickItem(aNode: RC_TREE_NODE): void {
+    this.Select(aNode);
     this.onSelectionChanged?.(aNode);
   }
   UnselectAll(): void {
