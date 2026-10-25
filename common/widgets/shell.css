@@ -5905,11 +5905,13 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
   min-height: 0;
   display: flex;
   margin-bottom: 5px;
+  overflow: hidden;
 }
 .ze-chooser-fppreview {
   flex: 10;
   min-height: 0;
   display: flex;
+  overflow: hidden;
 }
 /* treeSizer->Add( m_tree, 1, wxALL | wxEXPAND, 5 ): 5px on ALL four sides, and
    the LIB_TREE itself is built wxNO_BORDER (lib_tree.cpp:56-57), so there is no
@@ -5922,11 +5924,15 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
 /* SYMBOL_PREVIEW_WIDGET and FOOTPRINT_PREVIEW_WIDGET are bare wxPanels
    (symbol_preview_widget.cpp:40, footprint_preview_widget.cpp:30-31) - style 0
    and wxFULL_REPAINT_ON_RESIZE|wxTAB_TRAVERSAL, neither of which draws a
-   border. The canvas meets the dialog face directly. The footprint selector is
-   a combo and keeps its own control border, which is the combo's, not ours. */
-.ze-chooser-right > div {
-  overflow: hidden;
-}
+   border. The canvas meets the dialog face directly, clipped to the panel - the
+   `overflow: hidden` on .ze-chooser-preview and .ze-chooser-fppreview above. The
+   footprint selector is a combo and keeps its own control border, which is the
+   combo's, not ours.
+
+   Those two by name, never `.ze-chooser-right > div`: the combo's popup list is a
+   direct child of this column too, and that rule at (0,1,1) beat the popup's own
+   `overflow-y: auto` at (0,1,0) - the footprint list opened 22 rows tall and
+   would not scroll. */
 
 /* LIB_TREE widget: filter row, column headers, tree rows, details pane. */
 .ze-libtree {

@@ -293,9 +293,19 @@ describe('and what upstream does not draw', () => {
     // The control: an absence read off a rule that does not exist, or off a
     // prop name decl() cannot see, is undefined for the wrong reason. One
     // declaration we know IS there proves the reader is pointed at the rule.
-    expect(decl('.ze-chooser-right > div', 'overflow')).toBe('hidden');
-    expect(decl('.ze-chooser-right > div', 'border')).toBeUndefined();
-    expect(decl('.ze-chooser-right > div', 'border-radius')).toBeUndefined();
+    for (const pane of ['.ze-chooser-preview', '.ze-chooser-fppreview']) {
+      expect(decl(pane, 'overflow')).toBe('hidden');
+      expect(decl(pane, 'border')).toBeUndefined();
+      expect(decl(pane, 'border-radius')).toBeUndefined();
+    }
+  });
+
+  it("leaves the footprint list's own overflow alone: the column clips its panes by name", () => {
+    // `.ze-chooser-right > div { overflow: hidden }` also matched the combo's popup, which
+    // is a direct child of the column, and at (0,1,1) it beat `.ze-odcombo-popup`'s
+    // `overflow-y: auto` at (0,1,0): the list could not scroll.
+    expect(() => rule('.ze-chooser-right > div')).toThrow();
+    expect(decl('.ze-odcombo-popup', 'overflow-y')).toBe('auto');
   });
 
   it('puts no padding and no rule on the search row', () => {
