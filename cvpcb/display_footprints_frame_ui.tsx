@@ -49,10 +49,7 @@ import { Toolbar } from '@ziroeda/common/tool/action_toolbar.js';
 import { ACTIONS } from '@ziroeda/common/tool/actions.js';
 import type { TOOL_ACTION } from '@ziroeda/common/tool/tool_action.js';
 import { KISTATUSBAR_FIELDS, KiStatusBar } from '@ziroeda/common/widgets/kistatusbar.js';
-import {
-  zoomFactorForScale,
-  type StatusUnits,
-} from '@ziroeda/common/widgets/kistatusbar_format.js';
+import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
 import { MsgPanel, type MsgPanelItem } from '@ziroeda/common/widgets/msgpanel_ui.js';
 import { Combo } from '@ziroeda/wx/combobox.js';
 import type { BOARD } from '@ziroeda/pcbnew/board.js';
@@ -284,8 +281,9 @@ export function DisplayFootprintsFrame({
     panel.Refresh();
   }, [frame, panel, gridIU]);
 
-  const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
-  const zoomFactor = zoomFactorForScale(panel?.GetView().GetScale() ?? 0, dpr, PCB_IU_PER_MM);
+  // `EDA_DRAW_FRAME::OnUpdateSelectZoom`: `GetCanvas()->GetGAL()->GetZoomFactor()`, the number
+  // the status bar's "Z" shows too. Read off the VIEW's scale it came out ~280000x too large.
+  const zoomFactor = panel?.GetGAL().GetZoomFactor() ?? 0;
   const zoom = useMemo(() => zoomChoices(zoomFactor, ZOOM_LIST[ZOOM_APP]), [zoomFactor]);
 
   const shown = frame.GetBoard()?.GetFirstFootprint() ?? null;
