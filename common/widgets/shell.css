@@ -3912,7 +3912,8 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
 /* DrawTreeItemButton's 9x9 rect. GTK renders its expander arrow into it:
    [px] a 9px-wide chevron, peak #B4B4B4 on the tree's ground, 4 rows deep with
    its point one row below y_mid. Collapsed, the same arrow points right. */
-.ze-hier-button {
+.ze-hier-button,
+.ze-gentree-button {
   position: absolute;
   left: calc(var(--x) - 4px);
   top: 8px;
@@ -3923,7 +3924,8 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 9 9'%3E%3Cpolyline points='0.5,2.5 4.5,6.5 8.5,2.5' fill='none' stroke='%23c0c0c0' stroke-width='1.5' stroke-linejoin='round' stroke-linecap='round'/%3E%3C/svg%3E")
     center / 9px 9px no-repeat;
 }
-.ze-hier-button:not(.open) {
+.ze-hier-button:not(.open),
+.ze-gentree-button:not(.open) {
   transform: rotate(-90deg);
 }
 /* [data] BITMAPS::tree_nosel / tree_sel, the dark set (resources/bitmaps_png/
@@ -3967,6 +3969,63 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
   background: var(--chrome-active);
   color: #fff;
   font-weight: 700;
+}
+
+/* The same wxGenericTreeCtrl with the Net Navigator's style word
+   (createHighlightedNetNavigator, sch_edit_frame.cpp:2540):
+   `wxTR_DEFAULT_STYLE | wxNO_BORDER` - buttons, no lines, the root SHOWN, no
+   frame - and no image list. The arithmetic is HIERARCHY_TREE's above; only the
+   flags move it. `qa/probes/net_navigator_probe.cpp` reads it back:
+
+     row height  22: char height 18 + 4, nothing taller than the text
+     first row   at y = 2
+     level L     (the root is level 0, and shown, so it costs an indent)
+                 x = 15(L + 1); item X = x + 18; the text at X - no image
+                 (root 33, level 1 48, level 2 63)
+     button      the 9x9 DrawTreeItemButton centred on (x, y_mid)
+     selection   the text's start - 3 to its end + 3, the full row
+     lines       none (wxTR_NO_LINES), and no frame (wxNO_BORDER), so the
+                 content box is the control's own origin */
+.ze-gentree {
+  /* [data] wx paints from y = 2 (treectlg.cpp:3052). */
+  padding-top: 2px;
+  background: var(--chrome-bg2);
+  overflow: auto;
+  position: relative;
+}
+.ze-gentree-node {
+  /* `--lvl` is set inline per node: 0 for the root. */
+  --x: calc((var(--lvl) + 1) * 15px);
+  --X: calc(var(--x) + 18px);
+}
+.ze-gentree-row {
+  position: relative;
+  /* [px] GetLineHeight(): 18 + 4, every row h=22 in qa/probes/net_navigator_probe.cpp. */
+  height: 22px;
+  white-space: nowrap;
+  cursor: default;
+}
+.ze-gentree-button {
+  /* [data] y_mid - 4 for the 9px button in a 22px row. */
+  top: 7px;
+}
+.ze-gentree-label {
+  display: inline-block;
+  /* [data] the band starts 3 before the text, which starts at X (treectlg.cpp:2632-2640). */
+  margin-left: calc(var(--X) - 3px);
+  /* [px] the row, as above. */
+  height: 22px;
+  /* [px] DrawText centres the text in the row. */
+  line-height: 22px;
+  /* [data] rect.x -= 1, width += 2 over the -2/+2 (treectlg.cpp:2632-2640). */
+  padding: 0 3px;
+  color: var(--view-fg);
+  vertical-align: top;
+}
+/* DrawItemSelectionRect: GTK's selected-row fill under HIGHLIGHTTEXT. */
+.ze-gentree-label.sel {
+  background: var(--selection-bg);
+  color: var(--selection-fg);
 }
 
 /* Right dock (LayersManager + SelectionFilter panes): at the window edge,

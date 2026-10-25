@@ -15,6 +15,7 @@
  */
 
 import {
+  type CSSProperties,
   type JSX,
   type MouseEvent,
   useEffect,
@@ -75,20 +76,26 @@ export function NetNavigatorPanel({ frame }: Props): JSX.Element {
     pointer.current = { x: e.clientX, y: e.clientY };
   };
 
+  /**
+   * One row and, while it is expanded, its subtree: `.ze-gentree-*`, wxGenericTreeCtrl's own
+   * arithmetic for this style word (shell.css; qa/probes/net_navigator_probe.cpp).
+   */
   const renderItem = (aItem: wxGenericTreeItem, aLevel: number): JSX.Element => {
     const id = new wxTreeItemId(aItem);
     const hasChildren = aItem.m_children.length > 0;
 
     return (
-      <div key={rowKey(aItem)}>
+      <div
+        key={rowKey(aItem)}
+        className="ze-gentree-node"
+        style={{ '--lvl': aLevel } as CSSProperties}
+      >
         <div
           ref={(el) => {
             if (el) rows.current.set(aItem, el);
             else rows.current.delete(aItem);
           }}
-          className={`ze-tree-item${aItem === selected ? ' active' : ''}`}
-          // [data] wxGenericTreeCtrl's m_indent, 15 a level (qa/probes/hierarchy_tree_probe.cpp)
-          style={{ cursor: 'default', paddingLeft: aLevel * 15 }}
+          className="ze-gentree-row"
           onClick={() => {
             // wxEVT_TREE_SEL_CHANGING, then the selection, then wxEVT_TREE_SEL_CHANGED.
             if (navigator.IsFrozen()) return;
@@ -104,18 +111,18 @@ export function NetNavigatorPanel({ frame }: Props): JSX.Element {
             frame.onNetNavigatorItemMenu(id);
           }}
         >
-          {hasChildren ? (
+          {hasChildren && (
             <span
-              className={`twisty expandable${aItem.m_isExpanded ? ' open' : ''}`}
+              className={`ze-gentree-button${aItem.m_isExpanded ? ' open' : ''}`}
               onClick={(e) => {
                 e.stopPropagation();
                 navigator.Toggle(id);
               }}
             />
-          ) : (
-            <span className="twisty" />
           )}
-          {aItem.m_text}
+          <span className={`ze-gentree-label${aItem === selected ? ' sel' : ''}`}>
+            {aItem.m_text}
+          </span>
         </div>
         {aItem.m_isExpanded && aItem.m_children.map((c) => renderItem(c, aLevel + 1))}
       </div>
@@ -153,8 +160,9 @@ export function NetNavigatorPanel({ frame }: Props): JSX.Element {
         </span>
       </div>
       <div
+        className="ze-gentree"
         // [data] sizer->Add( m_netNavigator, 1, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, FromDIP( 2 ) )
-        style={{ flex: 1, minHeight: 0, overflow: 'auto', margin: '0 2px 2px' }}
+        style={{ flex: 1, minHeight: 0, margin: '0 2px 2px' }}
         tabIndex={-1}
         onKeyDown={(e) => {
           if (frame.onNetNavigatorKey(e.key)) e.preventDefault();
