@@ -177,10 +177,11 @@ export class SCH_SCREEN extends BASE_SCREEN {
     this.InitDataPoints({ x: size.x, y: size.y });
   }
 
-  /** `~SCH_SCREEN()`. */
-  Destroy(): void {
+  /** `~SCH_SCREEN()`, then the base destructors. */
+  override Destroy(): void {
     this.clearLibSymbols();
     this.FreeDrawList();
+    super.Destroy();
   }
 
   Schematic(): SCHEMATIC | null {

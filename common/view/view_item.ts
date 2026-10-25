@@ -70,6 +70,20 @@ export abstract class VIEW_ITEM extends INSPECTABLE {
     this.m_forcedTransparency = 0.0;
   }
 
+  /**
+   * `~VIEW_ITEM()` (view_item.cpp:32): `VIEW::OnDestroy( this )`, so an item deleted while a view
+   * still holds it leaves that view. A destructor runs on every `delete` upstream; ours is called
+   * by the subclasses' own `Destroy()`, last, as the C++ destructor chain runs it. The body is
+   * `VIEW.OnDestroy`'s, written out because view.ts value-imports this module.
+   */
+  Destroy(): void {
+    if (this.m_viewPrivData) {
+      if (this.m_viewPrivData.m_view) this.m_viewPrivData.m_view.Remove(this);
+
+      this.m_viewPrivData = null;
+    }
+  }
+
   IsSCH_ITEM(): boolean {
     return this.m_isSCH_ITEM;
   }

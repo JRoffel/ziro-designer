@@ -285,7 +285,7 @@ export abstract class SCH_ITEM extends EDA_ITEM {
    * contain it and from the schematic's connection graph.  (`SCHEMATIC::m_IsSchematicExists`
    * guards a destructor running after the schematic's; a JS object outlives nothing.)
    */
-  Destroy(): void {
+  override Destroy(): void {
     this.m_connection_map.clear();
 
     // Remove this item from any rule areas that contain it
@@ -296,6 +296,9 @@ export abstract class SCH_ITEM extends EDA_ITEM {
     const sch = this.Schematic();
 
     if (sch !== null) sch.ConnectionGraph().RemoveItem(this);
+
+    // ~EDA_ITEM, then ~VIEW_ITEM: out of the view.
+    super.Destroy();
   }
 
   override GetClass(): string {
