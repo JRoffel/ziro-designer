@@ -33,6 +33,12 @@ import {
   type PCB_VIEWERS_SETTINGS_BASE,
 } from '@ziroeda/pcbnew/pcbnew_settings.js';
 import { PCB_ACTIONS } from '@ziroeda/pcbnew/tools/pcb_actions.js';
+import { PCB_EDITOR_CONDITIONS } from '@ziroeda/pcbnew/tools/pcb_editor_conditions.js';
+import { ACTION_CONDITIONS } from '@ziroeda/common/tool/action_manager.js';
+import {
+  type SELECTION_CONDITION,
+  SELECTION_CONDITIONS,
+} from '@ziroeda/common/tool/selection_conditions.js';
 import { PCB_VIEWER_TOOLS } from '@ziroeda/pcbnew/tools/pcb_viewer_tools.js';
 import { CVPCB_SETTINGS } from './cvpcb_settings.js';
 import { CVPCB_FOOTPRINT_VIEWER_SELECTION_TOOL } from './tools/cvpcb_fpviewer_selection_tool.js';
@@ -110,8 +116,35 @@ export class DISPLAY_FOOTPRINTS_FRAME extends PCB_BASE_FRAME {
 
     this.m_toolManager.InitTools();
 
+    this.setupUIConditions();
+
     // Run the control tool, it is supposed to be always active
     this.m_toolManager.InvokeTool('common.InteractiveSelection');
+  }
+
+  /**
+   * `setupUIConditions()` (display_footprints_frame.cpp:188-210): which buttons are lit - the
+   * running tool's, the grid, and the display toggles, each read off the frame as wx asks.
+   */
+  protected override setupUIConditions(): void {
+    super.setupUIConditions();
+
+    const mgr = this.m_toolManager!.GetActionManager();
+    const cond = new PCB_EDITOR_CONDITIONS(this);
+    const CHECK = (x: SELECTION_CONDITION): ACTION_CONDITIONS => new ACTION_CONDITIONS().Check(x);
+    const Not = SELECTION_CONDITIONS.Not;
+
+    mgr.SetConditions(ACTIONS.zoomTool, CHECK(cond.CurrentTool(ACTIONS.zoomTool)));
+    mgr.SetConditions(ACTIONS.selectionTool, CHECK(cond.CurrentTool(ACTIONS.selectionTool)));
+    mgr.SetConditions(ACTIONS.measureTool, CHECK(cond.CurrentTool(ACTIONS.measureTool)));
+
+    mgr.SetConditions(ACTIONS.toggleGrid, CHECK(cond.GridVisible()));
+
+    mgr.SetConditions(PCB_ACTIONS.showPadNumbers, CHECK(cond.PadNumbersDisplay()));
+    mgr.SetConditions(PCB_ACTIONS.padDisplayMode, CHECK(Not(cond.PadFillDisplay())));
+    mgr.SetConditions(PCB_ACTIONS.textOutlines, CHECK(Not(cond.TextFillDisplay())));
+    mgr.SetConditions(PCB_ACTIONS.graphicsOutlines, CHECK(Not(cond.GraphicsFillDisplay())));
+    mgr.SetConditions(PCB_ACTIONS.fpAutoZoom, CHECK(cond.FootprintViewerAutoZoom()));
   }
 
   GetName(): string {

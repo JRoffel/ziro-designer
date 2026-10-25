@@ -52,6 +52,8 @@ import { KISTATUSBAR_FIELDS, KiStatusBar } from '@ziroeda/common/widgets/kistatu
 import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
 import { MsgPanel, type MsgPanelItem } from '@ziroeda/common/widgets/msgpanel_ui.js';
 import { Combo } from '@ziroeda/wx/combobox.js';
+import { wxUpdateUIEvent } from '@ziroeda/wx/wx_event.js';
+import type { ToolEntry } from '@ziroeda/common/tool/action_toolbar_types.js';
 import type { BOARD } from '@ziroeda/pcbnew/board.js';
 import type { FOOTPRINT_LIBRARY_ADAPTER } from '@ziroeda/pcbnew/footprint_library_adapter.js';
 import { usePcbDrawPanel } from '@ziroeda/pcbnew/browser/pcb_draw_panel_gal_host.js';
@@ -152,6 +154,37 @@ export function displayFootprintsActionForId(aId: string): TOOL_ACTION | null {
   return null;
 }
 
+/**
+ * `wxEVT_UPDATE_UI` for every button on \a aEntries, group members included: the ids whose action
+ * the frame's setupUIConditions checks now (display_footprints_frame.cpp:188-210, and
+ * EDA_DRAW_FRAME's units rows). A button has no lit state of its own upstream; ACTION_TOOLBAR asks
+ * the condition on every idle.
+ */
+export function displayFootprintsCheckedIds(
+  aFrame: DISPLAY_FOOTPRINTS_FRAME,
+  aEntries: readonly ToolEntry[],
+): Set<string> {
+  const out = new Set<string>();
+  const check = (aId: string): void => {
+    const action = displayFootprintsActionForId(aId);
+
+    if (!action) return;
+
+    const event = new wxUpdateUIEvent(action.GetUIId());
+
+    if (aFrame.ProcessUpdateUI(event) && event.GetChecked()) out.add(aId);
+  };
+
+  for (const e of aEntries) {
+    if (e === 'sep' || 'spacer' in e || 'control' in e) continue;
+
+    if ('group' in e) for (const a of e.actions) check(a.id);
+    else check(e.id);
+  }
+
+  return out;
+}
+
 export function DisplayFootprintsFrame({
   app,
   footprint,
@@ -201,7 +234,6 @@ export function DisplayFootprintsFrame({
   // The frame's status bar and message panel.
   const statusRefs = useRef<Record<string, HTMLSpanElement | null>>({});
   const [msgItems, setMsgItems] = useState<MsgPanelItem[]>([]);
-  const [activeTool, setActiveTool] = useState('selectionTool');
   useEffect(() => {
     frame.SetStatusTextSink((aText, aField) => {
       const name = KISTATUSBAR_FIELDS[aField];
@@ -211,12 +243,9 @@ export function DisplayFootprintsFrame({
     frame.SetMsgPanelSink((aItems) =>
       setMsgItems(aItems.map((i) => ({ upper: i.GetUpperText(), lower: i.GetLowerText() }))),
     );
-    // `ACTION_TOOLBAR::SelectAction`: the button whose action the tool runs.
-    frame.SetSelectToolbarActionSink((aAction) => {
-      for (const id of ['selectionTool', 'measureTool', 'zoomTool']) {
-        if (displayFootprintsActionForId(id) === aAction) setActiveTool(id);
-      }
-    });
+    // `ACTION_TOOLBAR::SelectAction`: a tool pushed or popped, from the canvas as much as a
+    // button - repaint, and the CHECK conditions say which button is lit.
+    frame.SetSelectToolbarActionSink(() => repaint());
     return () => {
       frame.SetStatusTextSink(null);
       frame.SetMsgPanelSink(null);
@@ -248,7 +277,7 @@ export function DisplayFootprintsFrame({
    * above the Assign Footprints dialog that opened it.
    */
   useModalEscape(() => {
-    if (activeTool !== 'selectionTool') runAction(ACTIONS.selectionTool);
+    if (!frame.IsCurrentTool(ACTIONS.selectionTool)) runAction(ACTIONS.selectionTool);
     else onClose();
   });
 
@@ -287,7 +316,6 @@ export function DisplayFootprintsFrame({
   const zoom = useMemo(() => zoomChoices(zoomFactor, ZOOM_LIST[ZOOM_APP]), [zoomFactor]);
 
   const shown = frame.GetBoard()?.GetFirstFootprint() ?? null;
-  const autoZoom = frame.config().m_FootprintViewerAutoZoomOnSelect;
 
   const onTopAction = (id: string): void => {
     // `PCB_VIEWER_TOOLS::Show3DViewer` over `CreateAndShow3D_Frame()`.
@@ -320,13 +348,16 @@ export function DisplayFootprintsFrame({
     });
   };
 
-  /** `setupUIConditions` (`:188-210`): the CHECK conditions, lit. */
-  const lit = useMemo(() => {
-    const on = new Set(toggles);
-    on.add(activeTool);
-    if (autoZoom) on.add('fpAutoZoom');
-    return on;
-  }, [toggles, activeTool, autoZoom]);
+  /**
+   * `setupUIConditions` (`:188-210`): the CHECK conditions, asked of the frame on every render as
+   * ACTION_TOOLBAR asks them on every idle. The crosshair group has no condition upstream, so it
+   * shows the mode last picked.
+   */
+  const lit = displayFootprintsCheckedIds(frame, [
+    ...DISPLAY_FP_TOP_TOOLBAR,
+    ...DISPLAY_FP_LEFT_TOOLBAR,
+  ]);
+  for (const id of toggles) if (id.startsWith('crosshair')) lit.add(id);
 
   // ----- the frame is a window: drag it by its title bar ---------------------
   const frameRef = useRef<HTMLDivElement>(null);

@@ -9,6 +9,12 @@
 import { describe, expect, it } from 'vitest';
 import { PGM_BASE, Pgm, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
 import { DISPLAY_FOOTPRINTS_FRAME } from '@ziroeda/cvpcb/display_footprints_frame.js';
+import { ACTIONS } from '@ziroeda/common/tool/actions.js';
+import type { TOOL_ACTION } from '@ziroeda/common/tool/tool_action.js';
+import type { FOOTPRINT_EDIT_FRAME } from '@ziroeda/pcbnew/footprint_edit_frame.js';
+import { PCB_ACTIONS } from '@ziroeda/pcbnew/tools/pcb_actions.js';
+import { wxUpdateUIEvent } from '@ziroeda/wx/wx_event.js';
+import { attachFootprintFrameCanvas } from '../pcbnew/support/footprint_frame_canvas.js';
 import { BOARD_USE } from '@ziroeda/pcbnew/board.js';
 import { fpEditKifaceSettings } from '@ziroeda/pcbnew/footprint_editor_settings.js';
 import { FOOTPRINT_LIBRARY_STORE } from '@ziroeda/pcbnew/footprint_library_adapter.js';
@@ -169,5 +175,52 @@ describe('InitDisplay', () => {
     expect(panels.at(-1)).toBeGreaterThan(0);
     await frame.InitDisplay({ footprintName: '', libNickname: null });
     expect(panels.at(-1)).toBe(0);
+  });
+});
+
+describe('setupUIConditions (display_footprints_frame.cpp:188-210)', () => {
+  /** What wx asks before it draws a button: is \a aAction's item checked? */
+  const checked = (aFrame: DISPLAY_FOOTPRINTS_FRAME, aAction: TOOL_ACTION): boolean => {
+    const event = new wxUpdateUIEvent(aAction.GetUIId());
+    return aFrame.ProcessUpdateUI(event) && event.GetChecked();
+  };
+
+  it('lights the running tool: Select at rest, Measure while it runs, Select again after', async () => {
+    SetPgm(new PGM_BASE(null, new SETTINGS_MANAGER()));
+    const { frame } = displayFrame();
+    await frame.InitDisplay({
+      footprintName: 'Capacitor_THT:C_Radial_D8.0mm',
+      libNickname: 'Capacitor_THT',
+    });
+    attachFootprintFrameCanvas(frame as unknown as FOOTPRINT_EDIT_FRAME);
+    const lit = (): boolean[] =>
+      [ACTIONS.selectionTool, ACTIONS.measureTool, ACTIONS.zoomTool].map((a) => checked(frame, a));
+
+    expect(lit()).toEqual([true, false, false]);
+
+    frame.GetToolManager()!.RunAction(ACTIONS.measureTool);
+    expect(lit()).toEqual([false, true, false]);
+
+    // A second click on Measure leaves it running (pcb_viewer_tools.cpp:263).
+    frame.GetToolManager()!.RunAction(ACTIONS.measureTool);
+    expect(lit()).toEqual([false, true, false]);
+
+    frame.GetToolManager()!.RunAction(ACTIONS.selectionTool);
+    expect(lit()).toEqual([true, false, false]);
+    SetPgm(null);
+  });
+
+  it('lights the display toggles from the frame: outlines are the NOT of fill', () => {
+    const { frame } = displayFrame();
+    const opts = frame.GetViewerSettingsBase().m_ViewersDisplay;
+
+    opts.m_DisplayPadFill = false;
+    opts.m_DisplayTextFill = true;
+    opts.m_DisplayGraphicsFill = false;
+    expect(
+      [PCB_ACTIONS.padDisplayMode, PCB_ACTIONS.textOutlines, PCB_ACTIONS.graphicsOutlines].map(
+        (a) => checked(frame, a),
+      ),
+    ).toEqual([true, false, true]);
   });
 });
