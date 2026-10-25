@@ -141,6 +141,23 @@ describe('InitDisplay', () => {
     expect(cfg.m_FootprintViewer.grid.grids.length).toBeGreaterThan(0);
   });
 
+  it('frames the shown footprint for Zoom to Fit (PCB_BASE_FRAME::GetDocumentExtents)', async () => {
+    // EDA_DRAW_FRAME's empty box was all this frame had, so updateView's zoomFitScreen fell back
+    // to the canvas's default view and View Selected Footprint showed a speck.
+    const { frame } = displayFrame();
+    await frame.InitDisplay({
+      footprintName: 'Capacitor_THT:C_Radial_D8.0mm',
+      libNickname: 'Capacitor_THT',
+    });
+
+    const box = frame.GetDocumentExtents();
+
+    // The one 1.6 mm round pad, the footprint moved to the origin.
+    expect([box.Centre().x, box.Centre().y, box.GetWidth(), box.GetHeight()]).toEqual([
+      0, 0, 1_600_000, 1_600_000,
+    ]);
+  });
+
   it('the message panel is the shown footprint’s, and empty with none', async () => {
     const { frame } = displayFrame();
     const panels: number[] = [];

@@ -33,7 +33,7 @@ import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { ARC_LOW_DEF } from '@ziroeda/kimath/src/base_units.js';
 import { ERROR_LOC } from '@ziroeda/kimath/src/convert_basic_shapes_to_polygon.js';
 import { CornerStrategy, SHAPE_POLY_SET } from '@ziroeda/kimath/src/geometry/shape_poly_set.js';
-import { BOX2D } from '@ziroeda/kimath/src/math/box2.js';
+import { BOX2D, BOX2I } from '@ziroeda/kimath/src/math/box2.js';
 import { FOOTPRINT, FP_SMD } from './footprint.js';
 import { PCB_TEXT } from './pcb_text.js';
 import { LIB_ID } from '@ziroeda/common/lib_id.js';
@@ -312,6 +312,44 @@ export abstract class PCB_BASE_FRAME extends EDA_DRAW_FRAME {
 
   GetPageSettings(): PAGE_INFO {
     return this.m_pcb!.GetPageSettings();
+  }
+
+  /**
+   * `GetBoardBoundingBox( aBoardEdgesOnly )` (pcb_base_frame.cpp:595): the board's box, or -
+   * empty - the page's, at the origin while the drawing sheet is drawn and centred on it when not.
+   */
+  GetBoardBoundingBox(aBoardEdgesOnly = false): BOX2I {
+    const board = this.m_pcb!;
+    // A copy: ours can hand back a cached box, and the C++ returns one by value.
+    const area = (
+      aBoardEdgesOnly ? board.GetBoardEdgesBoundingBox() : board.GetBoundingBox()
+    ).Clone();
+
+    if (area.GetWidth() === 0 && area.GetHeight() === 0) {
+      const pageSize = this.GetPageSizeIU();
+
+      if (this.m_showBorderAndTitleBlock) {
+        area.SetOrigin(0, 0);
+        area.SetEnd(pageSize.x, pageSize.y);
+      } else {
+        area.SetOrigin(-pageSize.x / 2, -pageSize.y / 2);
+        area.SetEnd(pageSize.x / 2, pageSize.y / 2);
+      }
+    }
+
+    return area;
+  }
+
+  /**
+   * `GetDocumentExtents( aIncludeAllVisible )` (pcb_base_frame.cpp:619): "Zoom to Fit" asks with
+   * true and gets every item, never the page; false gets the board edges alone while Edge.Cuts
+   * is visible.
+   */
+  override GetDocumentExtents(aIncludeAllVisible = true): BOX2I {
+    if (aIncludeAllVisible || !this.m_pcb!.IsLayerVisible(PCB_LAYER_ID.Edge_Cuts))
+      return this.GetBoardBoundingBox(false);
+
+    return this.GetBoardBoundingBox(true);
   }
 
   GetPageSizeIU(): VECTOR2I {

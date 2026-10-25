@@ -107,6 +107,65 @@ describe('ReloadFootprint', () => {
   });
 });
 
+describe('GetDocumentExtents: what Zoom to Fit frames (footprint_edit_frame.cpp:895)', () => {
+  const mm = (n: number) => Math.round(n / 1000) / 1000;
+
+  it("is the footprint's box without its text: the one pad, at the origin", () => {
+    // Without the override the frame answered EDA_DRAW_FRAME's empty box, and Zoom to Fit
+    // fell back to the canvas's default view: the footprint a speck in the middle.
+    frame.ReloadFootprint(fpFromBoard());
+
+    const box = frame.GetDocumentExtents();
+
+    // FOOTPRINT::GetBoundingBox starts from the position inflated by 0.25 mm (footprint.cpp:1754),
+    // so the origin is in it too: x from -0.25 to the pad's right edge at 1.5, y the pad's +-0.5.
+    expect([mm(box.GetLeft()), mm(box.GetTop()), mm(box.GetRight()), mm(box.GetBottom())]).toEqual([
+      -0.25, -0.5, 1.5, 0.5,
+    ]);
+  });
+
+  it('is a 24 mm square on the origin for a footprint of nothing but text', () => {
+    const textOnly = ParseBoard(`(kicad_pcb (version 20241229) (generator "test")
+      (layers (0 "F.Cu" signal) (2 "B.Cu" signal) (5 "F.SilkS" user)) (setup) (net 0 "")
+      (footprint "Lib:T" (layer "F.Cu") (at 0 0) (uuid "${U(9)}")
+        (fp_text user "note" (at 5 5) (layer "F.SilkS") (uuid "${U(10)}") (effects (font (size 1 1))))))`).GetFirstFootprint()!;
+    frame.ReloadFootprint(textOnly);
+
+    const box = frame.GetDocumentExtents();
+
+    expect([mm(box.GetLeft()), mm(box.GetTop()), mm(box.GetRight()), mm(box.GetBottom())]).toEqual([
+      -12, -12, 12, 12,
+    ]);
+  });
+
+  it('is the box of a footprint drawn with lines alone, no pads', () => {
+    const lineOnly = ParseBoard(`(kicad_pcb (version 20241229) (generator "test")
+      (layers (0 "F.Cu" signal) (2 "B.Cu" signal) (5 "F.SilkS" user)) (setup) (net 0 "")
+      (footprint "Lib:L" (layer "F.Cu") (at 0 0) (uuid "${U(11)}")
+        (fp_line (start 0 0) (end 4 0) (stroke (width 0.2) (type solid)) (layer "F.SilkS") (uuid "${U(12)}"))))`).GetFirstFootprint()!;
+    frame.ReloadFootprint(lineOnly);
+
+    const box = frame.GetDocumentExtents();
+
+    // The line (and the 0.25 mm the position adds), not the 24 mm a text-only footprint gets.
+    expect(mm(box.GetWidth())).toBeLessThan(5);
+    expect(mm(box.GetRight())).toBeGreaterThan(3.9);
+  });
+
+  it("is the board's box (the page, empty) with no footprint", () => {
+    const box = frame.GetDocumentExtents();
+    const page = frame.GetPageSizeIU();
+
+    // The footprint editor draws no drawing sheet, so the page is centred on the origin.
+    expect([box.GetLeft(), box.GetTop(), box.GetWidth(), box.GetHeight()]).toEqual([
+      -page.x / 2,
+      -page.y / 2,
+      page.x,
+      page.y,
+    ]);
+  });
+});
+
 describe('the library round trip (footprint_editor_utils.cpp, footprint_libraries_utils.cpp)', () => {
   const FP_TEXT = (aName: string): string => `(footprint "${aName}" (layer "F.Cu") (uuid "${U(10)}")
   (property "Reference" "" (at 0 0 0) (layer "F.SilkS") (uuid "${U(11)}"))

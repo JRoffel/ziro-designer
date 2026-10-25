@@ -7,6 +7,8 @@
  * owns the library tree and canvas each command changes, so the frame
  * reaches them through {@link FOOTPRINT_EDIT_FRAME_HOOKS}.
  */
+import { BOX2I } from '@ziroeda/kimath/src/math/box2.js';
+import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { BITMAP_TYPE } from '@ziroeda/common/bitmap.js';
 import { DisplayErrorMessage } from '@ziroeda/common/confirm.js';
 import { pcbIUScale, PCB_IU_PER_MM } from '@ziroeda/common/eda_units.js';
@@ -282,6 +284,36 @@ export class FOOTPRINT_EDIT_FRAME extends PCB_BASE_EDIT_FRAME {
 
   GetName(): string {
     return FOOTPRINT_EDIT_FRAME_NAME;
+  }
+
+  /**
+   * `GetDocumentExtents( aIncludeAllVisible )` (footprint_edit_frame.cpp:895): the footprint's box
+   * without its text, unless it has nothing but text - then a 24 mm square on the origin; with
+   * no footprint, the board's.
+   */
+  override GetDocumentExtents(_aIncludeAllVisible = true): BOX2I {
+    const footprint = this.GetBoard()?.GetFirstFootprint() ?? null;
+
+    if (footprint) {
+      let hasGraphicalItem = footprint.Pads().length > 0 || footprint.Zones().length > 0;
+
+      if (!hasGraphicalItem) {
+        for (const item of footprint.GraphicalItems()) {
+          if (item.Type() === KICAD_T.PCB_TEXT_T || item.Type() === KICAD_T.PCB_TEXTBOX_T) continue;
+
+          hasGraphicalItem = true;
+          break;
+        }
+      }
+
+      if (hasGraphicalItem) return footprint.GetBoundingBox(false).Clone();
+
+      const newFootprintBB = new BOX2I({ x: 0, y: 0 }, { x: 0, y: 0 });
+      newFootprintBB.Inflate(pcbIUScale.mmToIU(12));
+      return newFootprintBB;
+    }
+
+    return this.GetBoardBoundingBox(false);
   }
 
   /** `GetModel()`: the footprint being edited. */
