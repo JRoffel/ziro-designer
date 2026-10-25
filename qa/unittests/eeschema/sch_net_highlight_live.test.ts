@@ -17,6 +17,18 @@ import type { SCH_SYMBOL } from '@ziroeda/eeschema/sch_symbol.js';
 import { SCH_ACTIONS } from '@ziroeda/eeschema/tools/sch_actions.js';
 import { SCH_EDITOR_CONTROL } from '@ziroeda/eeschema/tools/sch_editor_control.js';
 import { SCH_SELECTION_TOOL } from '@ziroeda/eeschema/tools/sch_selection_tool.js';
+import {
+  AS_GLOBAL,
+  TA_CANCEL_TOOL,
+  TC_COMMAND,
+  TOOL_EVENT,
+} from '@ziroeda/common/tool/tool_event.js';
+import {
+  EESCHEMA_DEFAULTS,
+  type EeschemaSettings,
+  setEeschemaSettingsProvider,
+} from '@ziroeda/eeschema/eeschema_settings.js';
+import { WXK } from '@ziroeda/wx/wx_keycodes.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { openProject, schFrame, schToolHarness } from './support/sch_tool_harness.js';
 
@@ -216,5 +228,59 @@ describe('net highlighting', () => {
     h.frame.SetCrossProbeConnection(null);
 
     expect(sent).toEqual([`net ${h.netName}`, 'clear']);
+  });
+});
+
+describe('Escape', () => {
+  /** What TOOL_DISPATCHER makes of the key (tool_dispatcher.cpp: WXK_ESCAPE -> cancelInteractive). */
+  const escapeEvent = () => new TOOL_EVENT(TC_COMMAND, TA_CANCEL_TOOL, WXK.WXK_ESCAPE, AS_GLOBAL);
+
+  async function highlighted() {
+    const h = setUp();
+    h.h.mouse = h.label.GetPosition();
+    h.mgr.RunAction(SCH_ACTIONS.highlightNet);
+    await flush();
+    expect(h.frame.GetHighlightedConnection()).toBe(h.netName);
+    return h;
+  }
+
+  it('with nothing selected, clears the net highlight (input.esc_clears_net_highlight)', async () => {
+    // SCH_SELECTION_TOOL::Main's cancel arm calls editor->ClearHighlight( *evt ). Ours is a
+    // coroutine handler, and calling it bare only made the generator: the highlight stayed.
+    const h = await highlighted();
+
+    h.mgr.ProcessEvent(escapeEvent());
+    await flush();
+
+    expect(h.frame.GetHighlightedConnection()).toBe('');
+    expect(h.onNet.some((w) => w.IsBrightened())).toBe(false);
+  });
+
+  it('with something selected, clears the selection first and leaves the highlight', async () => {
+    const h = await highlighted();
+    h.mgr.GetTool(SCH_SELECTION_TOOL)!.AddItemToSel(h.onNet[0]!, true);
+
+    h.mgr.ProcessEvent(escapeEvent());
+    await flush();
+
+    expect(h.mgr.GetTool(SCH_SELECTION_TOOL)!.GetSelection().Empty()).toBe(true);
+    expect(h.frame.GetHighlightedConnection()).toBe(h.netName);
+  });
+
+  it('leaves it with the preference off', async () => {
+    const off: EeschemaSettings = structuredClone(EESCHEMA_DEFAULTS);
+    off.input.esc_clears_net_highlight = false;
+    setEeschemaSettingsProvider(() => off);
+
+    try {
+      const h = await highlighted();
+
+      h.mgr.ProcessEvent(escapeEvent());
+      await flush();
+
+      expect(h.frame.GetHighlightedConnection()).toBe(h.netName);
+    } finally {
+      setEeschemaSettingsProvider(() => EESCHEMA_DEFAULTS);
+    }
   });
 });

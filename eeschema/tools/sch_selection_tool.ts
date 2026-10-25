@@ -50,6 +50,7 @@ import { SELECTION_AREA } from '@ziroeda/common/preview_items/selection_area.js'
 import { SCH_SELECTION_FILTER_OPTIONS } from '@ziroeda/common/project/project_local_settings.js';
 import { ACTIONS, type INCREMENT } from '@ziroeda/common/tool/actions.js';
 import type { COROUTINE_BODY } from '@ziroeda/common/tool/coroutine.js';
+import type { TOOL_BASE } from '@ziroeda/common/tool/tool_base.js';
 import { GRID_HELPER_GRIDS } from '@ziroeda/common/tool/grid_helper.js';
 import type { SELECTION } from '@ziroeda/common/tool/selection.js';
 import {
@@ -861,12 +862,20 @@ export class SCH_SELECTION_TOOL extends SELECTION_TOOL {
           if (this.m_enteredGroup) {
             this.ExitGroup();
           } else {
-            const editor = this.m_toolMgr!.FindTool('eeschema.EditorControl') as unknown as {
-              ClearHighlight?(aEvent: TOOL_EVENT): number;
-            } | null;
+            const editor = this.m_toolMgr!.FindTool('eeschema.EditorControl') as unknown as
+              | (TOOL_BASE & { ClearHighlight?(aEvent: TOOL_EVENT): COROUTINE_BODY<number> })
+              | null;
 
-            if (editor?.ClearHighlight && this.m_frame!.eeconfig()!.input.esc_clears_net_highlight)
-              editor.ClearHighlight(evt);
+            // `editor->ClearHighlight( *evt )`. Ours is a state handler (a coroutine, since
+            // highlightNet may wait on a dialog), so calling it would only make the generator:
+            // it runs as the editor's own handler, which is what the direct call is upstream.
+            if (
+              editor?.ClearHighlight &&
+              this.m_frame!.eeconfig()!.input.esc_clears_net_highlight
+            ) {
+              const clear = editor.ClearHighlight.bind(editor);
+              this.m_toolMgr!.RunCoroutine(editor, () => clear(evt));
+            }
           }
         }
       } else if (evt.Action() === TA_UNDO_REDO_PRE) {
