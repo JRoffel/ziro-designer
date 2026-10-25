@@ -172,7 +172,9 @@ function Text({ text, ariaLabel, title }: { text: TEXT; ariaLabel: string; title
 
 export function DIALOG_PLOT_BASE(p: DIALOG_PLOT_BASE_PROPS): JSX.Element {
   return (
-    <DialogShim title="Plot" onClose={p.onCancel}>
+    // SetPlotFormat ends `Layout(); m_MainSizer->SetSizeHints( this )`: each format's options
+    // re-fit the dialog.
+    <DialogShim title="Plot" onClose={p.onCancel} fitKey={p.m_plotFormatOpt.value}>
       {/* m_MainSizer */}
       <BoxSizer orient={wxVERTICAL}>
         <SizerItem flag={wxALL | wxEXPAND} border={5}>

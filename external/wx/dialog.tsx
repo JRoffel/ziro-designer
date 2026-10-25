@@ -21,12 +21,14 @@
  * the keys it sees first (`onCharHook`).
  */
 import {
+  createContext,
   type CSSProperties,
   type JSX,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent,
   type ReactNode,
   type Ref,
+  useContext,
   useEffect,
   useImperativeHandle,
   useLayoutEffect,
@@ -168,6 +170,17 @@ export interface DialogProps {
    * what a dialog does while an interactive tool picks on the canvas for it.
    */
   enabled?: boolean;
+  /**
+   * A handler's `Fit()` / `GetSizer()->SetSizeHints( this )`, declaratively: each time this
+   * changes after the window is shown, it is sized to its contents again and held there.
+   */
+  fitKey?: unknown;
+  /**
+   * `if( m_MainSizer->GetSize().y < m_MainSizer->GetMinSize().y ) m_MainSizer->SetSizeHints( this )`:
+   * each time this changes, the window is re-fitted only if it has become too short for its
+   * contents (DIALOG_PAD_PROPERTIES::onPadShapeSelection); a window large enough is left alone.
+   */
+  fitWhenTooShortKey?: unknown;
   /** `wxRESIZE_BORDER`: grips on every edge, the fitted size the floor. */
   resizable?: boolean;
   /** The dialog's own class on the window (its layout, never its chrome). */
@@ -191,12 +204,28 @@ export interface DialogProps {
 }
 
 /** `wxDialog`: the frame, its placement, moving and resizing, Escape and the default button. */
+/**
+ * `Fit()` on the dialog the caller sits in: the window sized to its contents again, and held
+ * there. A wx dialog is fitted once, at construction, and is never resized by what its controls do
+ * afterwards - only by a handler that asks: DIALOG_PLOT::SetPlotFormat's `SetSizeHints( this )`,
+ * DIALOG_PAD_PROPERTIES::onPadShapeSelection's, DIALOG_ITEMS_LIST::onCollapse's `Fit()`. Outside a
+ * Dialog it does nothing.
+ */
+const DialogFitContext = createContext<() => void>(() => {});
+
+/** The enclosing dialog's `Fit()` (see DialogFitContext). */
+export function useDialogFit(): () => void {
+  return useContext(DialogFitContext);
+}
+
 export function Dialog({
   title,
   onClose,
   modeless = false,
   enabled = true,
   resizable = true,
+  fitKey,
+  fitWhenTooShortKey,
   className,
   style,
   frameRef: outerFrameRef,
@@ -216,6 +245,8 @@ export function Dialog({
   // The window's size once the user (or a placement) has set one; null while it is the fitted
   // size. `minSize` is that fitted size, the floor a resize stops at.
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
+  // `Fit()` asked for: the size let go for one layout, measured, and held again.
+  const [fitRequest, setFitRequest] = useState(0);
   const minSize = useRef({ w: 0, h: 0 });
   const resize = useRef<{
     edge: string;
@@ -336,7 +367,74 @@ export function Dialog({
    * the hook runs in the capture phase - a control that stops a key's propagation (an entry, a
    * grid) cannot hide it. A key the hook consumes (preventDefault) goes no further.
    */
+  /**
+   * The size wx gave the window at Show() is the size it keeps: a wxDialog is never resized by its
+   * controls (a list filling, a label lengthening, a panel shown) - the sizer lays them out inside
+   * it. Here a window sizes to its content for as long as nothing states its size, so it is held
+   * from the user's first touch: until then its controls are still arriving (a page builds
+   * asynchronously what wx builds before Fit()), after it, nothing they do moves the frame. A
+   * restored or dragged size is already a stated one.
+   */
+  const holdFittedSize = (): void => {
+    const el = frameRef.current;
+
+    if (size || !el) return;
+
+    const r = el.getBoundingClientRect();
+
+    if (r.width > 0 && r.height > 0) setSize({ w: Math.ceil(r.width), h: Math.ceil(r.height) });
+  };
+
+  // Fit(): one layout at the content's size, then held there; the fitted size is the new floor.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the request is the trigger; the frame is read through its ref
+  useLayoutEffect(() => {
+    const el = frameRef.current;
+
+    if (fitRequest === 0 || !el) return;
+
+    const r = el.getBoundingClientRect();
+    const fitted = { w: Math.ceil(r.width), h: Math.ceil(r.height) };
+
+    minSize.current = fitted;
+    setSize(fitted);
+  }, [fitRequest]);
+
+  const fit = (): void => {
+    setSize(null);
+    setFitRequest((n) => n + 1);
+  };
+
+  // fitKey: a handler's Fit(), each time it changes after the first showing.
+  const shownFitKey = useRef(fitKey);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the key is the trigger; fit only sets state
+  useEffect(() => {
+    if (Object.is(shownFitKey.current, fitKey)) return;
+
+    shownFitKey.current = fitKey;
+    fit();
+  }, [fitKey]);
+
+  const shownTooShortKey = useRef(fitWhenTooShortKey);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the key is the trigger; the frame is read through its ref
+  useLayoutEffect(() => {
+    if (Object.is(shownTooShortKey.current, fitWhenTooShortKey)) return;
+
+    shownTooShortKey.current = fitWhenTooShortKey;
+
+    const el = frameRef.current;
+
+    // A window still at its content's size cannot be too short for it. The content is the frame's
+    // children but the resize grips, which straddle its edge by design.
+    if (!size || !el) return;
+
+    const bottom = el.getBoundingClientRect().bottom;
+    const content = [...el.children].filter((c) => !c.classList.contains('ze-shim-grip'));
+
+    if (content.some((c) => c.getBoundingClientRect().bottom > bottom + 0.5)) fit();
+  }, [fitWhenTooShortKey]);
+
   const onKeyDownCapture = (e: ReactKeyboardEvent<HTMLDivElement>): void => {
+    holdFittedSize();
     onCharHook?.(e);
 
     if (e.defaultPrevented) e.stopPropagation();
@@ -371,7 +469,15 @@ export function Dialog({
       // before it is placed.
       style={{
         ...style,
-        ...(size ? { width: size.w, height: size.h } : {}),
+        // A window clips what does not fit in it; the grips straddle the edge and stay whole.
+        ...(size
+          ? {
+              width: size.w,
+              height: size.h,
+              overflow: 'clip',
+              overflowClipMargin: 'calc(var(--resize-grip) / 2)',
+            }
+          : {}),
         ...(pos ? { left: pos.x, top: pos.y } : { visibility: 'hidden' }),
       }}
       role="dialog"
@@ -382,6 +488,7 @@ export function Dialog({
       aria-label={title}
       tabIndex={-1}
       onMouseDown={(e) => e.stopPropagation()}
+      onPointerDownCapture={holdFittedSize}
       onKeyDownCapture={onKeyDownCapture}
       onKeyDown={onKeyDown}
     >
@@ -396,7 +503,7 @@ export function Dialog({
           ✕
         </span>
       </div>
-      {children}
+      <DialogFitContext.Provider value={fit}>{children}</DialogFitContext.Provider>
       {resizable &&
         (['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'] as const).map((edge) => (
           <div

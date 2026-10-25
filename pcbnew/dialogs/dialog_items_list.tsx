@@ -52,7 +52,13 @@ export function DialogItemsList({
   const [collapsed, setCollapsed] = useState(true);
 
   return (
-    <DialogShim title={title} onClose={() => onResult(false)} className="ze-items-list">
+    // onCollapse: `Layout(); Fit()`.
+    <DialogShim
+      title={title}
+      onClose={() => onResult(false)}
+      className="ze-items-list"
+      fitKey={collapsed}
+    >
       <div className="ze-modal-body ze-items-list-body">
         <div className="ze-items-list-message">{message}</div>
         <div className="ze-items-list-pane">

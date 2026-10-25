@@ -215,6 +215,10 @@ export interface DialogShimProps {
    * false. The fitted size is the minimum (`SetSizeHints` from the best size).
    */
   resizable?: boolean;
+  /** A handler's `Fit()` / `SetSizeHints( this )`: see wxDialog's `fitKey`. */
+  fitKey?: unknown;
+  /** The same, only when the window has become too short: see wxDialog's `fitWhenTooShortKey`. */
+  fitWhenTooShortKey?: unknown;
   /**
    * A size the dialog states: `SetSize` / `SetMinSize` from its constructor's `aInitialSize`
    * (data from its `_base.cpp`, never chrome). Position is DialogShim's own.
@@ -254,6 +258,8 @@ export function DialogShim({
   initialFocus,
   hashKey,
   resizable = true,
+  fitKey,
+  fitWhenTooShortKey,
   style,
   frameRef,
   onCharHook,
@@ -269,6 +275,8 @@ export function DialogShim({
       modeless={modeless}
       enabled={enabled}
       resizable={resizable}
+      fitKey={fitKey}
+      fitWhenTooShortKey={fitWhenTooShortKey}
       className={className}
       style={style}
       frameRef={frameRef}

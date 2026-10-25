@@ -93,7 +93,13 @@ export function DIALOG_LIB_NEW_SYMBOL_BASE(p: DIALOG_LIB_NEW_SYMBOL_BASE_PROPS):
   );
 
   return (
-    <DialogShim title="New Symbol" onClose={p.onCancel} initialFocus={p.nameRef}>
+    // onParentSymbolSelect ends `Fit()`: "The banner changes the size of the dialog box".
+    <DialogShim
+      title="New Symbol"
+      onClose={p.onCancel}
+      initialFocus={p.nameRef}
+      fitKey={p.m_comboInheritanceSelect}
+    >
       {/* bSizerMain */}
       <BoxSizer orient={wxVERTICAL}>
         {p.infoBarMessage !== null && (

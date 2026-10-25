@@ -1576,7 +1576,12 @@ export function DIALOG_PAD_PROPERTIES_BASE(p: DIALOG_PAD_PROPERTIES_BASE_PROPS):
   const img = p.stackupImages;
 
   return (
-    <DialogShim title={p.title} onClose={p.onCancel}>
+    // onPadShapeSelection: "Resize the dialog if its height is too small to show all widgets".
+    <DialogShim
+      title={p.title}
+      onClose={p.onCancel}
+      fitWhenTooShortKey={p.m_PadShapeSelector.value}
+    >
       {/* m_MainSizer */}
       <BoxSizer orient={wxVERTICAL}>
         <SizerItem proportion={1} flag={wxEXPAND | wxLEFT} border={8}>
