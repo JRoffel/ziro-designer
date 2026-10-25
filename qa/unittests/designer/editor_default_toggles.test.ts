@@ -38,7 +38,6 @@ import {
 } from '@ziroeda/pcbnew/footprint_edit_frame.js';
 import {
   persistSymbolToggle,
-  SYMBOL_SETTING_TOGGLES,
   symbolTogglesFromSettings,
 } from '@ziroeda/eeschema/symbol_editor/toggles.js';
 import { SYMBOL_EDITOR_DEFAULTS } from '@ziroeda/eeschema/symbol_editor/symbol_editor_settings.js';
@@ -340,10 +339,11 @@ describe('editors/symbol/SymbolEditor.tsx seeds its toolbar from the settings fi
   const SYM = '../../eeschema/symbol_editor/symbol_edit_frame_ui.tsx';
 
   it('draws the file’s toggles over the session set, not a constant set', () => {
-    // The live window folds the stored settings in on every render
-    // (`mergeSymbolToggles`), which is a seed that cannot go stale.
+    // The live window asks the frame's CHECK conditions on every render
+    // (`symbolEditorCheckedIds`), which read the stored settings directly, as
+    // HandleUpdateUIEvent asks them on every idle: nothing to go stale.
     const s = src(SYM);
-    expect(s).toContain('mergeSymbolToggles(session, symCfg)');
+    expect(s).toContain('symbolEditorCheckedIds(frame, [...symTopBar, ...symLeftBar])');
     // The bug this replaces: a `new Set(DEFAULT_TOGGLES)` seed cannot show a
     // stored Show Grid or Grid Overrides at all.
     expect(s).not.toContain('useState<Set<string>>(new Set(DEFAULT_TOGGLES))');
@@ -360,62 +360,11 @@ describe('editors/symbol/SymbolEditor.tsx seeds its toolbar from the settings fi
     const set = s.slice(s.indexOf('const WINDOW_PERSISTED_TOGGLES'));
     const ids = [...set.slice(0, set.indexOf(']);')).matchAll(/'(\w+)'/g)].map((m) => m[1]!);
     expect(ids.length).toBeGreaterThan(0);
-    for (const id of ids) expect(SYMBOL_SETTING_TOGGLES.has(id), id).toBe(true);
     // The grid pair is COMMON_TOOLS' (SetGridVisibility / SetGridOverrides into
     // the settings object, stored by the frame's idle pass): writing it here
     // too flipped it straight back.
     expect(ids).not.toContain('toggleGrid');
     expect(ids).not.toContain('toggleGridOverrides');
-  });
-
-  it('folds exactly the toolbar ids whose lit state IS a stored setting', () => {
-    // From the module, not the source text. This list was two while the only
-    // settings-backed buttons wired up were the grid pair; Preferences >
-    // Symbol Editor > Display Options made the other six live, and every one
-    // of them is a PARAM in a KiCad settings file rather than session state:
-    //
-    //   toggleGrid            window.grid.show              app_settings.cpp:555
-    //   toggleGridOverrides   window.grid.overrides_enabled app_settings.cpp:497
-    //   showHiddenPins        show_hidden_lib_pins          symbol_editor_settings.cpp:90
-    //   showHiddenFields      show_hidden_lib_fields        symbol_editor_settings.cpp:87
-    //   showElectricalTypes   show_pin_electrical_type      symbol_editor_settings.cpp:81
-    //   togglePinAltIcons     show_pin_alt_icons            symbol_editor_settings.cpp:82
-    //   unitsMm/Inches/Mils   system.units                  app_settings.cpp:231
-    //   crosshairSmall/Full/45  window.cursor.cross_hair_mode  app_settings.cpp:567
-    //
-    // The three crosshair ids are ONE setting drawn as a radio group, which is
-    // why they arrive together. An id here that is not a PARAM upstream would
-    // be a control writing a file on every click; an id missing from here is
-    // one Preferences can move without the frame noticing.
-    //
-    // `togglePinAltIcons` is the odd one: it is the only id in this set with
-    // no toolbar BUTTON, because `toolbars_symbol_editor.cpp:85` leaves that
-    // commented out. It is still a stored setting flipped from the UI — the
-    // View row (`menubar_symbol_editor.cpp:142`) — so it must fold, or that
-    // row would toggle a value that never reaches the file. The set is "ids
-    // whose lit state is a stored setting", which is why the name of this test
-    // says toolbar and the membership rule does not.
-    //
-    // The three units ids are likewise ONE setting drawn as a group. They were
-    // SESSION state here, seeded from the app's default — which looked right
-    // because `symbol_editor`'s default is mils and the frame always opened
-    // there. `system.units` is a PARAM on every `APP_SETTINGS_BASE` (the
-    // `:228-238` branch picks its default, not whether it exists), so a real
-    // symbol editor remembers the unit and ours reverted on every reload.
-    expect([...SYMBOL_SETTING_TOGGLES].sort()).toEqual([
-      'crosshair45',
-      'crosshairFull',
-      'crosshairSmall',
-      'showElectricalTypes',
-      'showHiddenFields',
-      'showHiddenPins',
-      'toggleGrid',
-      'toggleGridOverrides',
-      'togglePinAltIcons',
-      'unitsInches',
-      'unitsMils',
-      'unitsMm',
-    ]);
   });
 
   it('the settings-backed id with no button is reachable from the View menu', () => {

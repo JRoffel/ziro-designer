@@ -530,6 +530,24 @@ describe('a CHECK row ticks in the gutter, not in its text', () => {
     expect(on?.label).toBe(label);
   });
 
+  it.each(CHECK_ROWS)('symbol %s asks the frame when handed its CHECK verdict', (id, label) => {
+    // The window passes `(aId) => symbolEditorIdChecked( frame, aId )`: each row asks the frame's
+    // condition for its own id, as wx asks each item's wxEVT_UPDATE_UI.
+    const asked: string[] = [];
+    const menus = symbolEditorMenus(
+      { ...handlers(), isSymbolFromSchematic: false },
+      (aId) => {
+        asked.push(aId);
+        return aId === id;
+      },
+      () => true,
+    );
+    expect(find(menus, label)?.checked).toBe(true);
+    expect(asked).toContain(id);
+    for (const [other, otherLabel] of CHECK_ROWS)
+      if (other !== id) expect(find(menus, otherLabel)?.checked).toBe(false);
+  });
+
   const FP_CHECK_ROWS: readonly [string, string][] = [
     ['showProperties', 'Properties'],
     ['showLibraryTree', 'Library Tree'],

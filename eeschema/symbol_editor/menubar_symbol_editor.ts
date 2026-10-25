@@ -83,7 +83,7 @@ export interface SymbolMenuHandlers {
 }
 
 /** `ACTION_MENU::CHECK` state, keyed by toggle id. */
-export type SymbolMenuChecks = Readonly<Record<string, boolean>>;
+export type SymbolMenuChecks = Readonly<Record<string, boolean>> | ((aId: string) => boolean);
 
 /**
  * Whether the frame leaves `id`'s action enabled: `SYMBOL_EDIT_FRAME::setupUIConditions`
@@ -111,6 +111,9 @@ export function symbolEditorMenus(
    * how File > Export came to be gated on a condition upstream never gave it.
    */
   const enabled = (id: string): boolean => isEnabled(id);
+  /** The frame's CHECK verdict for `id` (or a fixed table, for a caller with no frame). */
+  const checked = (id: string): boolean =>
+    typeof checks === 'function' ? checks(id) : !!checks[id];
 
   /** `menu->Add( ACTION )` — label, accelerator and id all from the action. */
   const act = (label: string, id: string, extra: Partial<MenuItem> = {}): MenuItem => ({
@@ -137,7 +140,7 @@ export function symbolEditorMenus(
   const chk = (label: string, id: string, extra: Partial<MenuItem> = {}): MenuItem => ({
     label,
     icon: id,
-    checked: !!checks[id],
+    checked: checked(id),
     disabled: !enabled(id),
     action: () => h.toggle(id),
     ...extra,

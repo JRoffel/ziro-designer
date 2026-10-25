@@ -167,7 +167,7 @@ import {
   updateSymbolEditorSettings,
 } from './symbol_editor_settings.js';
 import { SaveSymbolAsDialog } from './symbol_editor_ui.js';
-import { applyToggle, mergeSymbolToggles, persistSymbolToggle } from './toggles.js';
+import { applyToggle, crosshairToggleId, persistSymbolToggle } from './toggles.js';
 import {
   actionForId,
   LISTBOX_WIDTH,
@@ -176,7 +176,9 @@ import {
   SYM_LEFT_TOOLBAR,
   SYM_RIGHT_TOOLBAR,
   SYM_TOP_TOOLBAR,
+  symbolEditorCheckedIds,
   symbolEditorDisabledIds,
+  symbolEditorIdChecked,
   symbolEditorIdEnabled,
 } from './toolbars_symbol_editor.js';
 import '@ziroeda/common/widgets/shell.css';
@@ -1138,13 +1140,13 @@ export function SymbolEditor({
         return !!action && frame.IsCurrentTool(action);
       }) ?? 'select';
   const symbol = frame.GetCurSymbol();
-  const syncPinEdit = frame.m_SyncPinEdit;
-  const toggles = useMemo(() => {
-    const t = mergeSymbolToggles(session, symCfg);
-    // `syncedPinsModeCond`: `m_SyncPinEdit`.
-    if (syncPinEdit) t.add('toggleSyncedPinsMode');
-    return t;
-  }, [session, symCfg, syncPinEdit]);
+  // `HandleUpdateUIEvent` for every button on the two bars that draw a lit state: the frame's CHECK
+  // conditions, asked on each render as wx asks them on each idle - the settings-backed toggles,
+  // the units, the panes and synced pins alike. The crosshair group is the exception: upstream
+  // gives its members no CHECK condition, so the group shows the mode last picked, which here is
+  // the stored one.
+  const toggles = symbolEditorCheckedIds(frame, [...symTopBar, ...symLeftBar]);
+  toggles.add(crosshairToggleId(symCfg.window.cursor.crosshair));
 
   /**
    * A left-toolbar button or a View-menu check: the panes are the window's, everything else is
@@ -1219,7 +1221,7 @@ export function SymbolEditor({
       showHotkeys: showHotkeyList,
       showAbout: () => setAboutOpen(true),
     },
-    Object.fromEntries([...toggles].map((t) => [t, true])),
+    (aId) => symbolEditorIdChecked(frame, aId),
     isEnabled,
   );
   const menusRef = useRef<Menu[]>(menus);

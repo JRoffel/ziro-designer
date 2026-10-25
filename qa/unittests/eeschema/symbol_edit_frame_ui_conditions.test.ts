@@ -17,7 +17,9 @@ import type { TOOL_ACTION } from '@ziroeda/common/tool/tool_action.js';
 import { SCH_ACTIONS } from '@ziroeda/eeschema/tools/sch_actions.js';
 import { SYMBOL_EDIT_FRAME } from '@ziroeda/eeschema/symbol_editor/symbol_edit_frame.js';
 import {
+  symbolEditorCheckedIds,
   symbolEditorDisabledIds,
+  symbolEditorIdChecked,
   symbolEditorIdEnabled,
 } from '@ziroeda/eeschema/symbol_editor/toolbars_symbol_editor.js';
 import { wxUpdateUIEvent } from '@ziroeda/wx/wx_event.js';
@@ -395,6 +397,60 @@ describe('the bars', () => {
         { id: 'newSymbol', icon: 'newSymbol', title: 'New Symbol' },
       ]),
     ]).toEqual(['placePin', 'drawRectangle']);
+  });
+  it("light what the frame's CHECK conditions hold, inside a group too, and nothing else", () => {
+    // The window draws no toggle state of its own: HandleUpdateUIEvent asks these on every
+    // idle, so a Preferences OK, a tool flipping m_SyncPinEdit or the units changing moves the
+    // buttons with nothing to re-sync.
+    setUp();
+    t.open('U');
+    const cfg = t.frame.libeditconfig()!;
+    const before = [cfg.show_hidden_lib_pins, cfg.show_hidden_lib_fields];
+    const bar = [
+      {
+        group: 'Units',
+        actions: [
+          { id: 'unitsMm', icon: 'unitsMm', title: 'Millimeters' },
+          { id: 'unitsInches', icon: 'unitsInches', title: 'Inches' },
+          { id: 'unitsMils', icon: 'unitsMils', title: 'Mils' },
+        ],
+      },
+      { id: 'showHiddenPins', icon: 'toggleHiddenPins', title: 'Show hidden pins', toggle: true },
+      {
+        id: 'showHiddenFields',
+        icon: 'showHiddenFields',
+        title: 'Show hidden fields',
+        toggle: true,
+      },
+      { id: 'toggleSyncedPinsMode', icon: 'syncedPins', title: 'Synced pins', toggle: true },
+      { id: 'newSymbol', icon: 'newSymbol', title: 'New Symbol' },
+    ];
+
+    try {
+      cfg.show_hidden_lib_pins = true;
+      cfg.show_hidden_lib_fields = false;
+      t.frame.SetUserUnits('in');
+      t.frame.m_SyncPinEdit = true;
+      expect([...symbolEditorCheckedIds(t.frame, bar)].sort()).toEqual(
+        ['showHiddenPins', 'toggleSyncedPinsMode', 'unitsInches'].sort(),
+      );
+
+      cfg.show_hidden_lib_pins = false;
+      cfg.show_hidden_lib_fields = true;
+      t.frame.SetUserUnits('mm');
+      t.frame.m_SyncPinEdit = false;
+      expect([...symbolEditorCheckedIds(t.frame, bar)].sort()).toEqual(
+        ['showHiddenFields', 'unitsMm'].sort(),
+      );
+    } finally {
+      [cfg.show_hidden_lib_pins, cfg.show_hidden_lib_fields] = before as [boolean, boolean];
+    }
+
+    // No action behind the id, or no frame tools yet: unchecked.
+    expect(symbolEditorIdChecked(t.frame, 'noSuchAction')).toBe(false);
+    expect(
+      symbolEditorIdChecked(new SYMBOL_EDIT_FRAME({ libEdit: () => {} }), 'showHiddenFields'),
+    ).toBe(false);
   });
 });
 

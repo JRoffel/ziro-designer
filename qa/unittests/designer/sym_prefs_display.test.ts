@@ -27,10 +27,8 @@ import {
   crosshairToggleId,
   crosshairToggleMode,
   DEFAULT_TOGGLES,
-  mergeSymbolToggles,
   persistSymbolToggle,
   SESSION_TOGGLES,
-  SYMBOL_SETTING_TOGGLES,
   symbolTogglesFromSettings,
 } from '@ziroeda/eeschema/symbol_editor/toggles.js';
 
@@ -99,7 +97,6 @@ describe('the fourth checkbox is live, and reaches the canvas by its own route',
     // `toolbars_symbol_editor.cpp:85` leaves the BUTTON commented out. So it
     // belongs in the toggle set and in the persisted set, and the menu row is
     // a `chk` rather than a `stub`.
-    expect(SYMBOL_SETTING_TOGGLES.has('togglePinAltIcons')).toBe(true);
     expect(persistSymbolToggle(cfg(), 'togglePinAltIcons')).toBe(true);
     const menubar = read('../../eeschema/symbol_editor/menubar_symbol_editor.ts');
     expect(menubar).toContain("chk('Show Pin Alternate Icons', 'togglePinAltIcons')");
@@ -179,44 +176,5 @@ describe('the embedded PANEL_GAL_OPTIONS is live', () => {
     expect(src).toContain("from '@ziroeda/common/dialogs/panel_gal_options.js'");
     expect(src).toContain('win={symbolEditor.window}');
     expect(src).not.toContain('ctx.eeschema');
-  });
-});
-
-// ------------------------------------------- the file wins over the stale set
-
-describe('mergeSymbolToggles: OK in Preferences moves the buttons', () => {
-  it('re-reads every settings-backed id from the file', () => {
-    // The drift this exists to stop: `toggles` is initialised once, so without
-    // this a Display Options OK would change the canvas and leave the toolbar
-    // buttons showing the old values for the life of the frame.
-    const stale = new Set(DEFAULT_TOGGLES);
-    const c = cfg();
-    c.show_hidden_lib_pins = false;
-    c.window.grid.show = false;
-    c.window.cursor.crosshair = 'full';
-    const shown = mergeSymbolToggles(stale, c);
-    expect(shown.has('showHiddenPins')).toBe(false);
-    expect(shown.has('toggleGrid')).toBe(false);
-    expect(shown.has('crosshairFull')).toBe(true);
-    expect(shown.has('crosshairSmall')).toBe(false);
-  });
-
-  it('leaves session state exactly as the frame left it', () => {
-    // A pane the user closed must not come back because the settings moved.
-    const stale = new Set(DEFAULT_TOGGLES);
-    stale.delete('showProperties');
-    stale.add('toggleSyncedPinsMode');
-    const shown = mergeSymbolToggles(stale, cfg());
-    expect(shown.has('showProperties')).toBe(false);
-    expect(shown.has('toggleSyncedPinsMode')).toBe(true);
-  });
-
-  it('the frame draws the merged set, not the raw React state', () => {
-    const src = read('../../eeschema/symbol_editor/symbol_edit_frame_ui.tsx');
-    expect(src).toContain('mergeSymbolToggles(session, symCfg)');
-    // The session set may be read directly for the panes, which are session
-    // state; a settings-backed id read off it is the call site that goes stale.
-    for (const id of SYMBOL_SETTING_TOGGLES)
-      expect(src, `reads ${id} off the stale set`).not.toContain(`session.has('${id}')`);
   });
 });

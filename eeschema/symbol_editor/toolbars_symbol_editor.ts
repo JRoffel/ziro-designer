@@ -340,6 +340,43 @@ export function symbolEditorIdEnabled(aFrame: EDA_BASE_FRAME, aId: string): bool
   return !aFrame.ProcessUpdateUI(event) || event.GetEnabled();
 }
 
+/**
+ * `wxEVT_UPDATE_UI`'s other answer for the action behind \a aId: whether the frame's CHECK condition
+ * holds, which is what lights a toggle button and ticks a View-menu row. Upstream a toggle has no
+ * state of its own - `HandleUpdateUIEvent` asks the condition on every idle - so neither does ours.
+ * An id with no action, or an action with no condition registered, is unchecked.
+ */
+export function symbolEditorIdChecked(aFrame: EDA_BASE_FRAME, aId: string): boolean {
+  const action = actionForId(aId);
+
+  if (!action) return false;
+
+  // A frame without its tools yet has no conditions either: ProcessUpdateUI answers false.
+  const event = new wxUpdateUIEvent(action.GetUIId());
+
+  return aFrame.ProcessUpdateUI(event) && event.GetChecked();
+}
+
+/** The ids of \a aEntries' buttons, group members included, whose CHECK conditions hold. */
+export function symbolEditorCheckedIds(
+  aFrame: EDA_BASE_FRAME,
+  aEntries: readonly ToolEntry[],
+): Set<string> {
+  const out = new Set<string>();
+  const check = (aId: string): void => {
+    if (symbolEditorIdChecked(aFrame, aId)) out.add(aId);
+  };
+
+  for (const e of aEntries) {
+    if (e === 'sep' || 'spacer' in e || 'control' in e) continue;
+
+    if ('group' in e) for (const a of e.actions) check(a.id);
+    else check(e.id);
+  }
+
+  return out;
+}
+
 /** The ids of \a aEntries' buttons the frame's conditions leave disabled. */
 export function symbolEditorDisabledIds(
   aFrame: EDA_BASE_FRAME,
