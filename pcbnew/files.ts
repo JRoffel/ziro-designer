@@ -106,8 +106,17 @@ export class FILES_MIXIN {
         prlJson = null;
       }
     }
-    if (manager.GetProject(proPath)) manager.UnloadProject(manager.GetProject(proPath));
-    manager.LoadProject(proPath, proJson, prlJson);
+    // `setProject = pro.GetFullPath() != mgr->Prj().GetProjectFullName()` (files.cpp:594): a board
+    // of the project already active keeps it. Reloading it would run LIBRARY_MANAGER::
+    // ProjectChanged and drop every project library the other editors had loaded. A change to
+    // the project's files (Board Setup's OK, another session) is ours: they are read again.
+    const setProject = aFromBoardSetup || proPath !== manager.Prj().GetProjectFullName();
+
+    if (setProject) {
+      if (manager.GetProject(proPath)) manager.UnloadProject(manager.GetProject(proPath));
+      manager.LoadProject(proPath, proJson, prlJson);
+    }
+
     kb.SetProject(manager.Prj());
     // `SynchronizeNetsAndNetClasses( true )` after the dialog resets the
     // custom track/via sizes to the Default class; the load's own call

@@ -11,7 +11,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { DS_DATA_MODEL } from '@ziroeda/common/drawing_sheet/ds_data_model.js';
 import { MEMORY_FILESYSTEM, wxMountFileSystem } from '@ziroeda/wx/filefn.js';
-import { PGM_BASE, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
+import { PGM_BASE, Pgm, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
 import { HIGH_CONTRAST_MODE } from '@ziroeda/common/project/board_project_settings.js';
 import { PCB_EDIT_FRAME } from '@ziroeda/pcbnew/pcb_edit_frame.js';
 import type { PCB_DRAW_PANEL_GAL } from '@ziroeda/pcbnew/pcb_draw_panel_gal.js';
@@ -105,6 +105,26 @@ describe('PCB_EDIT_FRAME::SyncProjectSettingsIntoBoard, the open path', () => {
     frame.SyncProjectSettingsIntoBoard(FILES, 'x', true, '/p');
     expect(frame.GetDisplayOptions().m_TrackOpacity).toBe(1);
     expect(render.GetHiddenNets().size).toBe(0);
+  });
+
+  it('a board of the project already active keeps it; Board Setup and another project reload', () => {
+    const { frame } = frameOnBoard();
+    const manager = Pgm().GetSettingsManager();
+    manager.LoadProject('/p/x.kicad_pro', JSON.parse(PRO));
+    const active = manager.Prj();
+
+    // files.cpp:594 - no UnloadProject/LoadProject, so no LIBRARY_MANAGER::ProjectChanged.
+    frame.SyncProjectSettingsIntoBoard(FILES, 'x', false, '/p');
+    expect(manager.Prj() === active).toBe(true);
+    expect(frame.GetBoard()!.GetProject() === active).toBe(true);
+
+    frame.SyncProjectSettingsIntoBoard(FILES, 'x', true, '/p');
+    const reread = manager.Prj();
+    expect(reread === active).toBe(false);
+    expect(reread.GetProjectFullName()).toBe('/p/x.kicad_pro');
+
+    frame.SyncProjectSettingsIntoBoard(FILES, 'x', false, '/q');
+    expect(manager.Prj().GetProjectFullName()).toBe('/q/x.kicad_pro');
   });
 
   it("reads the project's drawing sheet from the project files", () => {

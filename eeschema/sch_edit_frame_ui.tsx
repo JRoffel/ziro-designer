@@ -4041,6 +4041,11 @@ export function SchematicEditor({
         if (docRef.current) docs.set(currentFileRef.current, docRef.current);
         if (docs.size === 0) return null;
         const { rawFiles: files, projectName: name } = liveFilesRef.current;
+        // A window not yet handed a project (the idle warm-up) opens nothing. Upstream's frame
+        // starts on an empty SCHEMATIC under the current project (SCH_EDIT_FRAME's ctor); opening
+        // the placeholder would load "/untitled.kicad_pro" over the project, and its
+        // LIBRARY_MANAGER::ProjectChanged drops every library the other editors had loaded.
+        if (!name && files.length === 0) return null;
         const root = project.current.root;
         return {
           dir: `/${name ?? root.replace(/\.[^.]*$/, '')}`,
