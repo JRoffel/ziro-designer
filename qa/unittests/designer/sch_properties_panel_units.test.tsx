@@ -3,60 +3,39 @@
 // Copyright (C) 2026 ZiroEDA and contributors.
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
 /**
- * SCH_PROPERTIES_PANEL end to end: the rows the eeschema package produces for
- * a real placed symbol, rendered by the shared widget, read as KiCad's grid.
- *
- * This is the seam the "Position X shows 2100.00" bug lived in. Neither half
- * was wrong on its own — the rows carried honest IU, and
- * `StringFromValue` in `ui/unit_binder.ts` had always been able to add the
- * unit label — but the schematic frame handed the grid the MESSAGE PANEL's
- * formatter, which does neither at the grid's precision. So a test that
- * exercises only the row provider or only the widget cannot fail on it; this
- * one mounts the subclass that binds the two together.
+ * SCH_PROPERTIES_PANEL end to end: the live panel's rows for a placed symbol, rendered by the
+ * shared widget, read as KiCad's grid - every distance cell formatted by PGPROPERTY_DISTANCE in
+ * the frame's display units (pg_properties.cpp:357), never the message panel's formatter.
  */
-import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render } from '@testing-library/react';
-import { parse } from '@ziroeda/sexpr';
-import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { readSchematic, readSymbolLib } from '@ziroeda/eeschema/sch_io/sexpr/read-schematic.js';
-import { schPropertiesFor } from '@ziroeda/eeschema/widgets/sch_properties_panel.js';
-import { itemRefById } from '@ziroeda/eeschema/tools/hittest.js';
-import { SchPropertiesPanel } from '@ziroeda/eeschema/widgets/sch_properties_panel_ui.js';
-import type { LibSymbol } from '@ziroeda/eeschema/types.js';
+import { act, cleanup, render } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { PGM_BASE, SETTINGS_MANAGER, SetPgm } from '@ziroeda/common/pgm_base.js';
 import type { StatusUnits } from '@ziroeda/common/widgets/kistatusbar_format.js';
+import { KICAD_T } from '@ziroeda/core/typeinfo.js';
+import type { SCH_SYMBOL } from '@ziroeda/eeschema/sch_symbol.js';
+import { SCH_SELECTION_TOOL } from '@ziroeda/eeschema/tools/sch_selection_tool.js';
+import { LiveSchPropertiesPanel } from '@ziroeda/eeschema/widgets/sch_properties_panel_ui.js';
+import { openProject, schFrame, schToolHarness } from '../eeschema/support/sch_tool_harness.js';
 
-afterEach(cleanup);
+// `import.meta.url` is not a file: URL under happy-dom, so the fixture is resolved off the vitest
+// root (qa/) the way the other DOM tests do.
+const DIR = resolve(process.cwd(), 'data/eeschema/props_panel');
 
-// `import.meta.url` is not a file: URL under happy-dom, so the fixture is
-// resolved off the vitest root (qa/) the way the other DOM tests do.
-const rawR = readFileSync(resolve(process.cwd(), 'data/R.kicad_sym'), 'utf8');
-const R = readSymbolLib(parse(rawR))[0]!;
-const LIB = new Map<string, LibSymbol>([[R.libId, R]]);
-const rBlock = rawR.slice(rawR.indexOf('(symbol "'), rawR.lastIndexOf(')'));
+beforeEach(() => SetPgm(new PGM_BASE(null, new SETTINGS_MANAGER())));
+afterEach(() => {
+  cleanup();
+  SetPgm(null);
+});
 
-/**
- * The symbol sits at (48.26, 48.26) mm, which is exactly 1900 mils — the
- * number Akshay's KiCad screenshot reads back as `1900 mils`.
- */
-const doc = readSchematic(
-  parse(`(kicad_sch (version 20250114) (lib_symbols ${rBlock})
-    (symbol (lib_id "R") (at 48.26 48.26 0) (unit 1) (uuid "r1")
-      (property "Reference" "R1" (at 0 0 0))
-      (property "Value" "10k" (at 0 0 0))))`),
-);
-
-/** The value cell text of one named row, as the panel paints it. */
+/** The value cell text of one named row, with R1 - at (127, 50.8) mm - selected. */
 function cellText(name: string, units: StatusUnits): string {
-  const { container } = render(
-    <SchPropertiesPanel
-      rows={schPropertiesFor(doc, LIB, itemRefById(doc, 'r1')!)}
-      selectionCount={1}
-      friendlyName="Symbol"
-      units={units}
-      onCommand={() => {}}
-    />,
-  );
+  const h = schToolHarness(schFrame({}));
+  openProject(h.frame, DIR, 'every_kind', ['every_kind.kicad_sch', 'sub.kicad_sch']);
+  const r1 = [...h.frame.GetScreen()!.Items().OfType(KICAD_T.SCH_SYMBOL_T)][0] as SCH_SYMBOL;
+  const { container } = render(<LiveSchPropertiesPanel frame={h.frame} units={units} />);
+  act(() => h.frame.GetToolManager()!.GetTool(SCH_SELECTION_TOOL)!.AddItemToSel(r1));
+
   const row = Array.from(container.querySelectorAll('.ze-pgrid-row')).find(
     (r) => r.querySelector('.ze-pgrid-name')?.textContent === name,
   );
@@ -65,27 +44,25 @@ function cellText(name: string, units: StatusUnits): string {
 }
 
 describe('every distance cell carries its unit, as PGPROPERTY_DISTANCE does', () => {
-  it('paints Position X and Y as "1900 mils", not "1900.00"', () => {
-    expect(cellText('Position X', 'mils')).toBe('1900 mils');
-    expect(cellText('Position Y', 'mils')).toBe('1900 mils');
+  it('paints Position X and Y in mils with the unit, not as a bare number', () => {
+    expect(cellText('Position X', 'mils')).toBe('5000 mils');
+    expect(cellText('Position Y', 'mils')).toBe('2000 mils');
   });
 
   it('follows the frame’s display units', () => {
-    expect(cellText('Position X', 'mm')).toBe('48.26 mm');
-    expect(cellText('Position X', 'in')).toBe('1.9 in');
+    expect(cellText('Position X', 'mm')).toBe('127 mm');
+    expect(cellText('Position X', 'in')).toBe('5 in');
   });
 
   /**
-   * `PROPERTY_DISPLAY::PT_SIZE` on "Pin Name Position Offset"
-   * (lib_symbol.cpp:2689) makes it a PGPROPERTY_SIZE, which is the same
-   * PGPROPERTY_DISTANCE. A panel that added units only to PT_COORD would pass
-   * the two assertions above and still be wrong here.
+   * `PROPERTY_DISPLAY::PT_SIZE` on "Pin Name Position Offset" (lib_symbol.cpp:2689) makes it a
+   * PGPROPERTY_SIZE, which is the same PGPROPERTY_DISTANCE.
    */
   it('paints the PT_SIZE row the same way, so the offset reads "0 mils"', () => {
     expect(cellText('Pin Name Position Offset', 'mils')).toBe('0 mils');
   });
 
-  it('leaves a non-distance row alone — Orientation is not "0 mils"', () => {
+  it('leaves a non-distance row alone - Orientation is not "0 mils"', () => {
     expect(cellText('Orientation', 'mils')).toBe('0');
   });
 });

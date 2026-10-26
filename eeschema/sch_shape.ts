@@ -107,9 +107,8 @@ export class SCH_SHAPE extends SCH_ITEM {
     this.ShapeGetMsgPanelInfo(aFrame, aList);
   }
 
-  override GetFriendlyName(): string {
-    return this.getFriendlyName();
-  }
+  // No GetFriendlyName override, unlike PCB_SHAPE's: EDA_ITEM's GetTypeDesc() names a schematic
+  // shape "Graphic", a text box "Text Box" and a table cell "Table Cell".
 
   /** `EDA_SHAPE::getFriendlyName`, the shape's own name ("Rectangle", "Arc" …). */
   getFriendlyName(): string {

@@ -42,7 +42,9 @@ describe('DIALOG_SHAPE_PROPERTIES', () => {
     // 2540 schematic IU is 0.254 mm in the frame's default units.
     expect([shown.border, shown.borderWidth]).toEqual([true, '0.254']);
     expect(shown.fill).toBe(1);
-    expect(dlg.Title()).toBe('Rectangle Properties');
+    // `wxString::Format( GetTitle(), aShape->GetFriendlyName() )` (dialog_shape_properties.cpp:44):
+    // SCH_SHAPE does not override GetFriendlyName, so EDA_ITEM's GetTypeDesc names it "Graphic".
+    expect(dlg.Title()).toBe('Graphic Properties');
     expect(dlg.IsRuleArea()).toBe(false);
   });
 

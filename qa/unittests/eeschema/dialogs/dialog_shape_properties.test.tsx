@@ -50,7 +50,8 @@ const rect = () => {
 describe('DIALOG_SHAPE_PROPERTIES_BASE', () => {
   it('a rectangle: its title, no rule-area block, the schematic fill page', () => {
     open(rect());
-    expect(screen.getByText('Rectangle Properties')).toBeTruthy();
+    // GetFriendlyName of an SCH_SHAPE is GetTypeDesc's "Graphic" (dialog_shape_properties.cpp:44).
+    expect(screen.getByText('Graphic Properties')).toBeTruthy();
     expect(screen.queryByLabelText('Do not populate')).toBeNull();
     expect(screen.getByLabelText('Fill')).toBeTruthy();
   });
