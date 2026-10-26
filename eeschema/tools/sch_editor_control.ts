@@ -29,8 +29,8 @@ import { SCH_COMMIT } from '../sch_commit.js';
 import type { SCH_EDIT_FRAME } from '../sch_edit_frame.js';
 import { RECURSE_MODE } from '@ziroeda/common/eda_item.js';
 import {
-  ANNOTATE_ALGO_T,
-  ANNOTATE_ORDER_T,
+  type ANNOTATE_ALGO_T,
+  type ANNOTATE_ORDER_T,
   SCH_REFERENCE,
   SCH_REFERENCE_LIST,
 } from '../sch_reference_list.js';
@@ -485,7 +485,7 @@ export class SCH_EDITOR_CONTROL extends SCH_TOOL_BASE<SCH_EDIT_FRAME> {
 
     const result = yield* this.RunMainStackModal(() =>
       this.m_frame!.ShowModalDialog('DIALOG_ASSIGN_NETCLASS', [], {
-        netNames: [...netNames],
+        netNames: [...netNames].sort(), // std::set<wxString> iterates in code-point order
         candidates: schematic.GetNetClassAssignmentCandidates(),
         previewer,
       }),

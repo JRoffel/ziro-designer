@@ -69,7 +69,6 @@ import type { SchScriptApi } from './sch_script_api.js';
 import { GetAssociatedDocument } from '@ziroeda/common/eda_doc.js';
 import * as KIPLATFORM_UI from '@ziroeda/kiplatform/ui.js';
 import type { STATUS_TEXT_POPUP } from '@ziroeda/common/status_popup.js';
-import { Priority } from './connectivity/nets.js';
 import {
   ensureFileExtension,
   iuToMM,
@@ -123,9 +122,6 @@ import {
   getPageSettings,
   selectionHasGroup,
   expandSelectionToGroups,
-  planNetclassAssignment,
-  selectedNets,
-  addNetclassAssignment,
   applySelectionFilter,
   clickTarget,
   defaultSelectionFilter,
@@ -1162,7 +1158,14 @@ export function SchematicEditor({
   // Keyboard-initiated grabbed move (SCH_MOVE_TOOL): M leaves connected wires
   // behind, G drags them along. A fresh nonce restarts the grab.
   // Assign Netclass: the patterns the selection produced, awaiting a class.
-  const [netclassPatterns, setNetclassPatterns] = useState<string[] | null>(null);
+  // DIALOG_ASSIGN_NETCLASS for SCH_EDITOR_CONTROL::AssignNetclass: the net-name patterns, the
+  // candidates and the previewer the tool hands over.
+  const [netclassDialog, setNetclassDialog] = useState<{
+    netNames: readonly string[];
+    candidates: readonly string[];
+    previewer: (aNetNames: readonly string[]) => void;
+    resolve: (aRetval: number) => void;
+  } | null>(null);
   // SCH_MOVE_TOOL::Main's four modes. Break and Slice split the selected
   // segment first and then run exactly this drag, which is why they are a grab
   // kind rather than an edit of their own.
@@ -1918,6 +1921,14 @@ export function SchematicEditor({
             setHeadlessPcbNetlistProvider(() => netlist);
             return new Promise<number>((resolve) => setUpdateFromPcbDialog({ resolve }));
           })();
+        }
+        if (aDialog === 'DIALOG_ASSIGN_NETCLASS') {
+          const arg = aArg as {
+            netNames: readonly string[];
+            candidates: readonly string[];
+            previewer: (aNetNames: readonly string[]) => void;
+          };
+          return new Promise<number>((resolve) => setNetclassDialog({ ...arg, resolve }));
         }
         if (aDialog === 'DIALOG_IMPORT_GFX_SCH') {
           return new Promise<number>((resolve) =>
@@ -4781,21 +4792,6 @@ export function SchematicEditor({
     reader.readAsDataURL(file);
   }, []);
 
-  /**
-   * SCH_EDITOR_CONTROL::AssignNetclass — reduce the selection to net-name
-   * patterns and open the picker. The refusals are upstream's and are shown in
-   * the error bar rather than silently doing nothing.
-   */
-  const assignNetclass = useCallback(() => {
-    if (!netlist) return;
-    const plan = planNetclassAssignment(selectedNets(netlist, selection));
-    if (plan.error) {
-      setError(plan.error);
-      return;
-    }
-    setNetclassPatterns(plan.patterns);
-  }, [netlist, selection]);
-
   const onTopAction = useCallback(
     (id: string) => {
       // the canvas-editing actions run on the frame's TOOL_MANAGER (TRANSITIONAL, W2).
@@ -4817,7 +4813,7 @@ export function SchematicEditor({
         return;
       }
       if (id === 'assignNetclass') {
-        assignNetclass();
+        runLiveAction(SCH_ACTIONS.assignNetclass);
         return;
       }
       if (id === 'open') promptOpen();
@@ -6577,38 +6573,32 @@ export function SchematicEditor({
       )}
 
       {/* Assign Netclass (DIALOG_ASSIGN_NETCLASS). */}
-      {netclassPatterns && (
+      {netclassDialog && (
         <DialogAssignNetclass
           frame="schematic"
-          netNames={new Set(netclassPatterns)}
-          // SCHEMATIC::GetNetClassAssignmentCandidates (schematic.cpp:742-758):
-          // every non-bus net driven at least by a pin, as a sorted set.
-          candidateNetNames={[
-            ...new Set(
-              (netlist?.nets ?? [])
-                .filter((n) => n.driverPriority >= Priority.Pin)
-                .map((n) => n.name),
-            ),
-          ].sort()}
+          netNames={new Set(netclassDialog.netNames)}
+          candidateNetNames={netclassDialog.candidates}
           // netSettings->GetNetclasses(): a std::map, so by name, and without Default.
-          netClasses={setup.netClasses.classes
-            .map((c) => c.name)
+          netClasses={[
+            ...(schFrameRef.current!.Prj().GetProjectFile() as PROJECT_FILE).m_NetSettings
+              .GetNetclasses()
+              .keys(),
+          ]
             .filter((n) => n !== 'Default')
             .sort()}
-          onCancel={() => setNetclassPatterns(null)}
+          onPreview={netclassDialog.previewer}
+          onCancel={() => {
+            setNetclassDialog(null);
+            netclassDialog.resolve(wxID_CANCEL);
+          }}
           onOk={(pattern, netClass) => {
-            // SetNetclassPatternAssignment( pattern, netclass ): the one pattern,
-            // bus members expanded.
-            const assignments = addNetclassAssignment(
-              setup.netClasses.assignments,
-              pattern,
-              netClass,
-            );
-            commitSetup({
-              ...setup,
-              netClasses: { ...setup.netClasses, assignments },
-            });
-            setNetclassPatterns(null);
+            // DIALOG_ASSIGN_NETCLASS::TransferDataFromWindow: the one pattern into the live
+            // project's NET_SETTINGS, then the project written, as Schematic Setup's OK writes it.
+            const projectFile = schFrameRef.current!.Prj().GetProjectFile() as PROJECT_FILE;
+            projectFile.m_NetSettings.SetNetclassPatternAssignment(pattern, netClass);
+            Pgm().GetSettingsManager().SaveProject();
+            setNetclassDialog(null);
+            netclassDialog.resolve(wxID_OK);
           }}
         />
       )}
