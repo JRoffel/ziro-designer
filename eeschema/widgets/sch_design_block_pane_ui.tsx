@@ -23,9 +23,15 @@ import { PanelDesignBlockChooser } from '@ziroeda/common/widgets/panel_design_bl
 import { Check } from '@ziroeda/common/dialogs/pref_controls.js';
 import {
   type DESIGN_BLOCK_PLACEMENT_OPTIONS,
+  type FILEDLG_IMPORT_SHEET_CONTENTS,
+  KEEP_ANNOTATIONS,
+  PLACE_AS_GROUP,
+  PLACE_AS_SHEET,
+  REPEATED_PLACEMENT,
   SCH_DESIGN_BLOCK_PANE_CHECKBOXES,
   type SCH_DESIGN_BLOCK_PANE,
 } from './sch_design_block_pane.js';
+import { CheckBox } from '@ziroeda/wx/controls.js';
 
 export function SchDesignBlockPane({
   pane,
@@ -116,5 +122,42 @@ export function SchDesignBlockPane({
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * `FILEDLG_IMPORT_SHEET_CONTENTS::AddCustomControls( customizer )` (sch_design_block_pane.cpp:181):
+ * the four boxes under the Import Sheet chooser, seeded from the hook. Each change is held in the
+ * hook; `TransferDataFromCustomControls` copies them into the settings after OK.
+ */
+export function FiledlgImportSheetContentsControls({
+  hook,
+}: {
+  hook: FILEDLG_IMPORT_SHEET_CONTENTS;
+}): JSX.Element {
+  hook.attached = true;
+  const [, repaint] = useState(0);
+  const box = (
+    aKey: keyof Omit<FILEDLG_IMPORT_SHEET_CONTENTS, 'kind' | 'attached'>,
+    aLabel: string,
+  ) => (
+    <CheckBox
+      key={aKey}
+      label={aLabel}
+      checked={hook[aKey]}
+      onChange={(aChecked) => {
+        hook[aKey] = aChecked;
+        repaint((n) => n + 1);
+      }}
+    />
+  );
+
+  return (
+    <>
+      {box('repeated_placement', REPEATED_PLACEMENT)}
+      {box('place_as_group', PLACE_AS_GROUP)}
+      {box('place_as_sheet', PLACE_AS_SHEET)}
+      {box('keep_annotations', KEEP_ANNOTATIONS)}
+    </>
   );
 }

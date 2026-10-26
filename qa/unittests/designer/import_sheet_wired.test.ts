@@ -5,20 +5,21 @@
  * File > Import > Sheet (`SCH_ACTIONS::importSheet`).
  *
  * Upstream's `SCH_DRAWING_TOOLS::ImportSheet` loads another schematic, selects
- * everything it brought in and moves it to the cursor. That is what paste
- * already does here, so the feature is paste sourced from a file — and
- * `parsePastedText` already accepts a whole `(kicad_sch …)` document, which is
- * the part that would otherwise have needed a reader of its own.
+ * everything it brought in and moves it to the cursor; the editor runs that tool.
  *
  * The guard that matters is the menubar one: an entry implemented but left
  * `disabled` is unreachable, and nothing else in the suite would notice.
  */
 import { describe, it, expect } from 'vitest';
-import { parse } from '@ziroeda/sexpr';
-import { readSchematic } from '@ziroeda/eeschema';
-import { parsePastedText } from '@ziroeda/eeschema/tools/clipboard.js';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { buildMenus } from '@ziroeda/eeschema/menubar.js';
 import type { Menu, MenuItem } from '@ziroeda/wx/menu.js';
+
+const EDITOR = readFileSync(
+  fileURLToPath(new URL('../../../eeschema/sch_edit_frame_ui.tsx', import.meta.url)),
+  'utf8',
+);
 
 /** Every handler is a no-op; we are inspecting structure, not behaviour. */
 const handlers = new Proxy({}, { get: () => () => {} }) as Parameters<typeof buildMenus>[0];
@@ -62,30 +63,15 @@ describe('the menu entry', () => {
   });
 });
 
-describe('what a picked file turns into', () => {
-  const SRC = `(kicad_sch (version 20250114) (generator "test") (paper "A4") (lib_symbols)
-    (wire (pts (xy 10 10) (xy 20 10)) (uuid "w1"))
-    (junction (at 20 10) (diameter 0) (color 0 0 0 0) (uuid "j1"))
-    (text "note" (at 30 30 0) (effects (font (size 1.27 1.27))) (uuid "t1")))`;
-  const target = () =>
-    readSchematic(parse(`(kicad_sch (version 20250114) (paper "A4") (lib_symbols))`));
-
-  it('is a placeable payload, not a replacement document', () => {
-    // The distinction the separate file input exists to protect: importing adds
-    // to the open sheet, opening replaces it.
-    const payload = parsePastedText(SRC, target(), { mode: 'unique' });
-    expect(payload).not.toBeNull();
-    expect(payload!.batch.lines).toHaveLength(1);
-    expect(payload!.batch.junctions).toHaveLength(1);
-    expect(payload!.batch.labels).toHaveLength(1);
-  });
-
-  it('and a file with nothing in it yields an empty batch, not a crash', () => {
-    const payload = parsePastedText(
-      `(kicad_sch (version 20250114) (paper "A4") (lib_symbols))`,
-      target(),
-      { mode: 'unique' },
+describe('what the editor does with it', () => {
+  it('runs SCH_DRAWING_TOOLS::ImportSheet, which asks for the file itself', () => {
+    // ImportSheet's own ShowFileDialog, with FILEDLG_IMPORT_SHEET_CONTENTS' boxes under it; the
+    // placement is tested live in qa/unittests/eeschema/sch_import_sheet_live.test.ts.
+    expect(EDITOR).toContain(
+      "else if (id === 'importSheet') runLiveAction(SCH_ACTIONS.importSheet);",
     );
-    expect(payload?.batch.lines ?? []).toHaveLength(0);
+    expect(EDITOR).toContain(
+      '<FiledlgImportSheetContentsControls hook={fileDialogRequest.hook} />',
+    );
   });
 });

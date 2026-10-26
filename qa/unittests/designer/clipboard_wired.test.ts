@@ -2,16 +2,8 @@
 // Copyright (C) 2026 ZiroEDA and contributors.
 // Portions derived from KiCad, copyright The KiCad Developers. See NOTICE.md.
 /**
- * What `SchematicEditor` hands the clipboard, and what it refuses to cut.
- *
- * `parsePastedText`'s options carry the three things `SCH_EDITOR_CONTROL::Paste`
- * reads off the frame — the paste mode the annotation toggle implies
- * (sch_editor_control.cpp:2203), the whole hierarchy that reference uniqueness
- * is measured against (:2222/:2249), and the project's annotation settings
- * (:2604-2606). All three default to something sane inside eeschema, which is
- * exactly what makes a missed call site invisible: plain Ctrl+V used to pass no
- * options at all, so it silently re-annotated with the wrong settings against
- * the wrong sheet set, and no type error or test said so.
+ * What `SchematicEditor` hands the clipboard: the browser's clipboard events run the live
+ * SCH_EDITOR_CONTROL, and no record paste path is left.
  *
  * The file is read as text because `qa`'s tsconfig cannot compile a `.tsx`;
  * `canvas_props_wired.test.ts` covers the same blind spot the same way.
@@ -25,42 +17,13 @@ const EDITOR = readFileSync(
   'utf8',
 );
 
-describe('every paste path goes through pasteOptions()', () => {
-  it('has the one record call site left, Import Sheet', () => {
-    // Ctrl+V, Paste, Paste Special and Duplicate run the live SCH_EDITOR_CONTROL now.
-    expect([...EDITOR.matchAll(/parsePastedText\(/g)].length).toBeGreaterThanOrEqual(1);
-  });
-
-  it('and not one of them calls parsePastedText without them', () => {
-    // Each call is either `parsePastedText(text, doc, pasteOptions(...))` on one
-    // line, or broken across lines with `pasteOptions(` as the third argument.
-    const calls = [...EDITOR.matchAll(/parsePastedText\((?:[^()]|\([^()]*\))*\)/g)].map(
-      (m) => m[0],
-    );
-    expect(calls.length).toBeGreaterThanOrEqual(1);
-    for (const call of calls) expect(call, call).toContain('pasteOptions(');
-  });
-});
-
-describe('pasteOptions derives the mode from the annotation toggle', () => {
-  it("is 'unique' with automatic annotation on and 'remove' with it off", () => {
-    // `pasteMode = annotateAutomatic ? UNIQUE_ANNOTATIONS : REMOVE_ANNOTATIONS`
-    // (:2203). With the toggle off KiCad clears the pasted designators rather
-    // than renumbering them.
-    expect(EDITOR).toMatch(
-      /defaultMode: PasteMode = es\.annotation\.automatic \? 'unique' : 'remove'/,
-    );
-  });
-
-  it('passes the hierarchy, not just the open sheet', () => {
-    expect(EDITOR).toMatch(/hierarchy: annotateSheets\('all', true\)/);
-  });
-
-  it('and the project annotation settings and designator tracker', () => {
-    const body = EDITOR.slice(EDITOR.indexOf('const pasteOptions = useCallback'));
-    expect(body).toContain('setup.annotation.sortOrder');
-    expect(body).toContain('setup.annotation.firstFreeAfter');
-    expect(body).toContain('tracker');
+describe('no record paste path is left in the window', () => {
+  it('nothing parses pasted text into records: every paste is SCH_EDITOR_CONTROL::Paste', () => {
+    // Ctrl+V, Paste, Paste Special and Duplicate run the live tool, and Import Sheet runs
+    // SCH_DRAWING_TOOLS::ImportSheet; the paste mode, the hierarchy and the annotation settings
+    // are what the live Paste reads off the frame (sch_editor_control.cpp:2199-2257).
+    expect(EDITOR).not.toContain('parsePastedText(');
+    expect(EDITOR).not.toContain('pasteOptions(');
   });
 });
 

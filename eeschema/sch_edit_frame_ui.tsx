@@ -31,7 +31,8 @@ import type { SCH_SHEET } from './sch_sheet.js';
 import type { SCH_SYMBOL } from './sch_symbol.js';
 import type { SCH_TABLE } from './sch_table.js';
 import type { SCH_TABLECELL } from './sch_tablecell.js';
-import type { SHEET_PROPERTIES_RESULT } from './sch_edit_frame.js';
+import type { FILEDLG_HOOK, SHEET_PROPERTIES_RESULT } from './sch_edit_frame.js';
+import { FiledlgImportSheetContentsControls } from './widgets/sch_design_block_pane_ui.js';
 import type { SCH_BITMAP } from './sch_bitmap.js';
 import type { SCH_SHAPE } from './sch_shape.js';
 import {
@@ -113,7 +114,6 @@ import {
   computeNetlist,
   withCleanup,
   refId,
-  parsePastedText,
   selectionBBox,
   emptyBBox,
   isEmpty,
@@ -130,8 +130,6 @@ import {
   clickTarget,
   defaultSelectionFilter,
   type SelectionFilterOptions,
-  type PasteMode,
-  type PasteOptions,
   annotateSymbols,
   defaultAnnotateOptions,
   setSymbolsCommand,
@@ -1549,7 +1547,6 @@ export function SchematicEditor({
    * importing brings another schematic's contents *into* this one, so the two
    * must not share a picker.
    */
-  const [importSheetOpen, setImportSheetOpen] = useState(false);
 
   const libById = useMemo<Map<string, LibSymbol>>(
     () => new Map((doc?.libSymbols ?? []).map((l) => [l.libId, l])),
@@ -1622,6 +1619,8 @@ export function SchematicEditor({
     title: string;
     defaultDir: string;
     filters: readonly ChooserFilter[];
+    /** `dlg.SetCustomizeHook( hook )`: the controls drawn under the chooser. */
+    hook?: FILEDLG_HOOK;
     resolve: (aPath: string | null) => void;
   } | null>(null);
   /** PickSymbolFromLibrary's DIALOG_SYMBOL_CHOOSER while it is up. */
@@ -1938,7 +1937,7 @@ export function SchematicEditor({
         new Promise((resolve) =>
           setTextEntryRequest({ message: aMessage, caption: aCaption, value: aValue, resolve }),
         ),
-      fileDialog: (aTitle, aDefaultDir, _aDefaultFile, aWildcard, aStyle) => {
+      fileDialog: (aTitle, aDefaultDir, _aDefaultFile, aWildcard, aStyle, aCustomizeHook) => {
         // The project's picker opens files; naming a new one to write is not ported yet.
         if (aStyle & wxFD_SAVE) {
           console.warn(`wxFileDialog(wxFD_SAVE) '${aTitle}' is not ported yet`);
@@ -1949,6 +1948,7 @@ export function SchematicEditor({
             title: aTitle,
             defaultDir: aDefaultDir,
             filters: typeof aWildcard === 'string' ? [] : aWildcard,
+            ...(aCustomizeHook ? { hook: aCustomizeHook } : {}),
             resolve,
           }),
         );
@@ -2721,44 +2721,6 @@ export function SchematicEditor({
     [doc, resolverForDoc, currentFile, currentPath],
   );
 
-  // The hierarchy as an annotation pass sees it (SCH_SHEET_LIST + the scope
-  // switch in AnnotateSymbols): every sheet in DFS order carrying its virtual
-  // page number, tagged with how the chosen scope treats it. A file used by
-  // more than one sheet instance appears once, a reference lives on the
-  // symbol here, not per sheet-instance path.
-  const annotateSheets = useCallback(
-    (scope: AnnotateOptions['scope'], recursive: boolean): AnnotateSheet[] => {
-      const docs = liveDocs();
-      // Sub-sheets of the current sheet, and (for a selection) the subtrees of
-      // any selected sheet symbol.
-      const selectedSheetPaths: string[] = [];
-      if (scope === 'selection' && recursive && doc) {
-        doc.sheets.forEach((sh, i) => {
-          if (selection.has(refId('sheet', sh.uuid, i)))
-            selectedSheetPaths.push(`${currentPath}${sh.uuid || `i${i}`}/`);
-        });
-      }
-      const seen = new Set<string>();
-      const sheets: AnnotateSheet[] = [];
-      flatSheets.forEach((s, i) => {
-        const d = docs.get(s.file);
-        if (!d || seen.has(s.file)) return;
-        seen.add(s.file);
-        const isCurrent = s.file === currentFile;
-        const belowCurrent = s.path.startsWith(currentPath) && s.path !== currentPath;
-        const inSelectedSubtree = selectedSheetPaths.some((p) => s.path.startsWith(p));
-        let sheetScope: AnnotateSheet['scope'] = 'out';
-        if (scope === 'all') sheetScope = 'full';
-        else if (isCurrent) sheetScope = scope === 'selection' ? 'selected' : 'full';
-        else if (scope === 'current_sheet' && recursive && belowCurrent) sheetScope = 'full';
-        else if (scope === 'selection' && inSelectedSubtree) sheetScope = 'full';
-        sheets.push({ file: s.file, doc: d, sheetNumber: i + 1, scope: sheetScope });
-      });
-      return sheets;
-    },
-    [liveDocs, flatSheets, currentFile, currentPath, doc, selection],
-  );
-
   /** Library symbols of every sheet taking part, for unit counts. */
   const hierarchyLibs = useCallback(
     (sheets: readonly AnnotateSheet[]): Map<string, LibSymbol> => {
@@ -2768,58 +2730,6 @@ export function SchematicEditor({
       return libs;
     },
     [libById],
-  );
-
-  /**
-   * Everything `SCH_EDITOR_CONTROL::Paste` reads off the frame and the project
-   * before it starts (sch_editor_control.cpp:2199-2257, :2604-2606):
-   *
-   *   - the PASTE_MODE the annotation toggle implies —
-   *     `pasteMode = annotateAutomatic ? UNIQUE_ANNOTATIONS : REMOVE_ANNOTATIONS`
-   *     (:2203). Plain Ctrl+V used to ignore the toggle entirely and always
-   *     re-annotate;
-   *   - the whole hierarchy, `Schematic().Hierarchy()` (:2222), because
-   *     reference uniqueness is a hierarchy-wide question (:2249). It used to
-   *     be computed against the one open sheet, so copying R5 on sheet 2 and
-   *     pasting on sheet 1 kept R5 and collided;
-   *   - the project's annotation settings and REFDES_TRACKER, so the paste's
-   *     re-annotation numbers the way the Annotate dialog would.
-   *
-   * `mode` overrides the toggle, which is what DIALOG_PASTE_SPECIAL does.
-   */
-  const pasteOptions = useCallback(
-    (mode?: PasteMode): PasteOptions => {
-      const tracker = new REFDES_TRACKER();
-      tracker.Deserialize(setup.usedDesignators);
-      tracker.SetReuseRefDes(setup.annotation.allowReuse);
-      const defaultMode: PasteMode = es.annotation.automatic ? 'unique' : 'remove';
-      const page = flatSheets.findIndex((s) => s.path === currentPath);
-      return {
-        mode: mode ?? defaultMode,
-        // Every sheet only reserves its references here; a paste renumbers
-        // nothing that was already on a sheet.
-        hierarchy: annotateSheets('all', true).map((s) => ({ ...s, scope: 'out' as const })),
-        sheetNumber: page >= 0 ? page + 1 : 1,
-        annotate: {
-          // The same project settings DIALOG_ANNOTATE seeds itself from.
-          order: setup.annotation.sortOrder,
-          algo:
-            setup.annotation.numbering === 'sheetX100'
-              ? 'sheet_100'
-              : setup.annotation.numbering === 'sheetX1000'
-                ? 'sheet_1000'
-                : 'incremental',
-          startNumber: setup.annotation.firstFreeAfter,
-          tracker,
-        },
-        // `forceRemoveAnnotations` (:2213): only an *explicit* Paste Special
-        // choice of "remove annotations" that was not already the default, and
-        // it is what stops the "already in the schematic" rule putting them
-        // back.
-        forceRemoveAnnotations: mode === 'remove' && defaultMode !== 'remove',
-      };
-    },
-    [setup, es.annotation.automatic, annotateSheets, flatSheets, currentPath],
   );
 
   /** Apply one sheet's new symbol list, on its own undo history when off-screen. */
@@ -4926,14 +4836,8 @@ export function SchematicEditor({
         runLiveAction(
           id === 'syncSheetPins' ? SCH_ACTIONS.syncSheetPins : SCH_ACTIONS.syncAllSheetsPins,
         );
-      } else if (id === 'importSheet') {
-        // `SCH_DRAWING_TOOLS::ImportSheet`. Upstream loads the file, selects
-        // everything it brought in and moves it to the cursor — which is what
-        // paste already does here, so this is paste sourced from a file rather
-        // than from the clipboard. `parsePastedText` already accepts a whole
-        // `(kicad_sch …)` document, so the reader needs nothing new.
-        setImportSheetOpen(true);
-      } else if (id === 'importGraphics') runLiveAction(SCH_ACTIONS.importGraphics);
+      } else if (id === 'importSheet') runLiveAction(SCH_ACTIONS.importSheet);
+      else if (id === 'importGraphics') runLiveAction(SCH_ACTIONS.importGraphics);
       else if (id === 'showPcbNew') onShowPcb?.();
       else if (id === 'updatePcbFromSch') onUpdatePcb?.();
       else if (id === 'updateSchFromPcb') runLiveAction(ACTIONS.updateSchematicFromPcb);
@@ -5034,7 +4938,6 @@ export function SchematicEditor({
       switchSheet,
       netlist,
       selection,
-      pasteOptions,
       runRescueSymbols,
       runLiveAction,
     ],
@@ -5691,35 +5594,6 @@ export function SchematicEditor({
             if (!file) return; // wxID_CANCEL
             const leaf = file.path.split('/').filter(Boolean).pop() ?? file.path;
             void loadText(file.text, leaf);
-          }}
-        />
-      )}
-      {/* `Import Schematic Sheet Content` over the account's tree. It was a
-          hidden `<input type="file">`, i.e. the operating system's picker,
-          which cannot see the account at all. A schematic is a project
-          document, so there is no shared folder for it - `kind` is omitted and
-          every project is listed. */}
-      {importSheetOpen && (
-        <OpenFileDialog
-          title="Import Schematic Sheet Content"
-          accept="Import"
-          filters={[kicadSchematicWildcard()]}
-          onDone={(file) => {
-            setImportSheetOpen(false);
-            if (!file) return; // wxID_CANCEL
-            setDoc((d) => {
-              // 'unique' is upstream's default: `keep_annotations` off, so the
-              // imported symbols are re-annotated rather than arriving with the
-              // source sheet's references and colliding with this one's.
-              const payload = d ? parsePastedText(file.text, d, pasteOptions('unique')) : null;
-              if (payload) {
-                setActiveTool('select');
-                setPastePending(payload);
-              } else {
-                setInfoBar('No schematic items found in that file.');
-              }
-              return d;
-            });
           }}
         />
       )}
@@ -6612,6 +6486,13 @@ export function SchematicEditor({
           filters={fileDialogRequest.filters}
           initialPath={fileDialogRequest.defaultDir || undefined}
           projectDir={project.current.root ? `/${project.current.root.replace(/\/.*$/, '')}` : null}
+          extra={
+            fileDialogRequest.hook &&
+            'kind' in fileDialogRequest.hook &&
+            fileDialogRequest.hook.kind === 'import_sheet_contents' ? (
+              <FiledlgImportSheetContentsControls hook={fileDialogRequest.hook} />
+            ) : undefined
+          }
           onDone={(file) => {
             setFileDialogRequest(null);
             fileDialogRequest.resolve(file ? wxFileDialogGetPath(file) : null);
