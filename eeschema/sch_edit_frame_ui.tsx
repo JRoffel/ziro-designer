@@ -67,7 +67,7 @@ import type { SYMBOL_LIBRARY_FILTER } from './symbol_library_common.js';
 import type { SchScriptApi } from './sch_script_api.js';
 import { GetAssociatedDocument } from '@ziroeda/common/eda_doc.js';
 import * as KIPLATFORM_UI from '@ziroeda/kiplatform/ui.js';
-import { STATUS_TEXT_POPUP } from '@ziroeda/common/status_popup.js';
+import type { STATUS_TEXT_POPUP } from '@ziroeda/common/status_popup.js';
 import { Priority } from './connectivity/nets.js';
 import {
   ensureFileExtension,
@@ -134,9 +134,6 @@ import {
   type PasteOptions,
   annotateSymbols,
   defaultAnnotateOptions,
-  symbolLibIdRows,
-  orphanCandidates,
-  libIdChangeCommand,
   setSymbolsCommand,
   type AnnotateSheet,
   type AnnotateOptions,
@@ -264,7 +261,11 @@ import {
 } from './dialogs/dialog_global_edit_text_and_graphics.js';
 import { DIALOG_CHANGE_SYMBOLS, DialogChangeSymbols } from './dialogs/dialog_change_symbols.js';
 import type { DIALOG_CHANGE_SYMBOLS_MODE } from './tools/sch_edit_tool.js';
-import { DialogEditSymbolsLibId } from './dialogs/dialog_edit_symbols_libid.js';
+import {
+  DIALOG_EDIT_SYMBOLS_LIBID,
+  DialogEditSymbolsLibId,
+} from './dialogs/dialog_edit_symbols_libid.js';
+import { SingleChoiceDialog } from '@ziroeda/common/dialogs/dialog_single_choice.js';
 import { DialogAnnotate, type AnnotateRun } from './dialogs/dialog_annotate.js';
 import type { SCH_LINE } from './sch_line.js';
 import {
@@ -1832,6 +1833,23 @@ export function SchematicEditor({
             void dlg.TransferDataToWindow();
           });
         }
+        if (aDialog === 'DIALOG_EDIT_SYMBOLS_LIBID') {
+          // InvokeDialogEditSymbolsLibId: `dlg.ShowQuasiModal(); return dlg.IsSchematicModified()`.
+          const dlg = new DIALOG_EDIT_SYMBOLS_LIBID(schFrameRef.current!, {
+            pickSymbolFromLibrary: (aPreselect) =>
+              new Promise((resolve) => setSymbolChooser({ preselect: aPreselect, resolve })),
+            singleChoice: (aMessage, aCaption, aChoices) =>
+              new Promise((resolve) =>
+                setLibIdChoice({
+                  message: aMessage,
+                  caption: aCaption,
+                  choices: aChoices,
+                  resolve,
+                }),
+              ),
+          });
+          return new Promise<number>((resolve) => setLibIdDialog({ dlg, resolve }));
+        }
         if (aDialog === 'DIALOG_TABLE_PROPERTIES') {
           const table = _aItems[0] as SCH_TABLE;
           const dlg = new DIALOG_TABLE_PROPERTIES(schFrameRef.current!, table);
@@ -2358,9 +2376,18 @@ export function SchematicEditor({
     shown: GLOBAL_EDIT_VALUES;
     resolve: (aRetval: number) => void;
   } | null>(null);
-  // DIALOG_EDIT_SYMBOLS_LIBID (Bulk Edit Symbol Library Links).
-  const [libIdsOpen, setLibIdsOpen] = useState(false);
-  const [libIdErrors, setLibIdErrors] = useState<readonly string[]>([]);
+  // DIALOG_EDIT_SYMBOLS_LIBID (Bulk Edit Symbol Library Links), and the wxSingleChoiceDialog its
+  // Map Orphans asks when a part name is found in more than one library.
+  const [libIdDialog, setLibIdDialog] = useState<{
+    dlg: DIALOG_EDIT_SYMBOLS_LIBID;
+    resolve: (aRetval: number) => void;
+  } | null>(null);
+  const [libIdChoice, setLibIdChoice] = useState<{
+    message: string;
+    caption: string;
+    choices: readonly string[];
+    resolve: (aPick: string | null) => void;
+  } | null>(null);
   // DIALOG_CHANGE_SYMBOLS, in whichever of its two modes was asked for.
   /**
    * The symbol DIALOG_CHANGE_SYMBOLS was opened ON, which it seeds all three
@@ -2862,19 +2889,6 @@ export function SchematicEditor({
       applyingRemoteRef.current = false;
     }
   }, [pendingRemoteChange, sheetInstanceRefs, currentFile, applySheetDocument]);
-
-  // Bulk Edit Symbol Library Links (DIALOG_EDIT_SYMBOLS_LIBID). A bad row keeps
-  // the dialog open on its error rather than closing on a half-applied edit.
-  const runLibIdChanges = useCallback(
-    (changes: Map<string, string>) => {
-      if (!doc) return;
-      const { command, errors } = libIdChangeCommand(doc, libById, changes);
-      setLibIdErrors(errors);
-      if (command) runCommand(command);
-      if (errors.length === 0) setLibIdsOpen(false);
-    },
-    [doc, libById, runCommand],
-  );
 
   /**
    * SCH_EDIT_TOOL's Edit with Symbol Editor. Hands the placement's symbol over
@@ -4941,10 +4955,8 @@ export function SchematicEditor({
       else if (id === 'incrementAnnotations') runLiveAction(SCH_ACTIONS.incrementAnnotations);
       else if (id === 'globalEditTextAndGraphics') runLiveAction(SCH_ACTIONS.editTextAndGraphics);
       else if (id === 'rescueSymbols') void runRescueSymbols(true);
-      else if (id === 'editSymbolLibraryLinks') {
-        setLibIdErrors([]);
-        setLibIdsOpen(true);
-      } else if (id === 'schematicSetup') {
+      else if (id === 'editSymbolLibraryLinks') runLiveAction(SCH_ACTIONS.editSymbolLibraryLinks);
+      else if (id === 'schematicSetup') {
         // The Embedded Files page lists the sheet's embedded_files section
         // (names + embed-fonts flag) fresh from the document on every open,
         // read-only until the zstd blobs can be decoded.
@@ -6227,13 +6239,24 @@ export function SchematicEditor({
                 }}
               />
             )}
-            {libIdsOpen && doc && (
+            {libIdDialog && (
               <DialogEditSymbolsLibId
-                rows={symbolLibIdRows(doc, libById)}
-                candidatesFor={(id) => orphanCandidates(id, libById)}
-                errors={libIdErrors}
-                onApply={runLibIdChanges}
-                onClose={() => setLibIdsOpen(false)}
+                dlg={libIdDialog.dlg}
+                onClose={(aResult) => {
+                  setLibIdDialog(null);
+                  libIdDialog.resolve(aResult);
+                }}
+              />
+            )}
+            {libIdChoice && (
+              <SingleChoiceDialog
+                caption={libIdChoice.caption}
+                message={libIdChoice.message}
+                choices={libIdChoice.choices.map((c) => ({ value: c, label: c }))}
+                onResult={(aPick) => {
+                  setLibIdChoice(null);
+                  libIdChoice.resolve(aPick);
+                }}
               />
             )}
             {changeSymbolsDialog && (
