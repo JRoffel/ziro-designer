@@ -37,7 +37,7 @@ import {
   imageFileWildcard,
   kicadSchematicWildcard,
 } from '@ziroeda/common/wildcards_and_files_ext.js';
-import { wxFD_FILE_MUST_EXIST, wxFD_OPEN } from '@ziroeda/wx/defs.js';
+import { wxCENTER, wxFD_FILE_MUST_EXIST, wxFD_OPEN, wxOK } from '@ziroeda/wx/defs.js';
 import { wxFileExists, wxReadFileSync } from '@ziroeda/wx/filefn.js';
 import { SCH_BITMAP } from '../sch_bitmap.js';
 import { SCH_GROUP } from '../sch_group.js';
@@ -118,6 +118,8 @@ import { SCH_TEXTBOX } from '../sch_textbox.js';
 import { LINE_MODE } from './sch_actions.js';
 import { RULE_AREA_CREATE_HELPER } from './rule_area_create_helper.js';
 import { EE_GRID_HELPER } from './ee_grid_helper.js';
+import { SCH_SELECTION } from './sch_selection.js';
+import type { IMPORT_GFX_RESULT } from '../import_gfx/dialog_import_gfx_sch.js';
 import {
   type PLACE_SYMBOL_PARAMS,
   type PLACE_SYMBOL_UNIT_PARAMS,
@@ -1343,7 +1345,7 @@ export class SCH_DRAWING_TOOLS extends SCH_TOOL_BASE<SCH_EDIT_FRAME> {
           evt.IsAction(ACTIONS.cursorClick) ||
           evt.IsAction(ACTIONS.cursorDblClick)
         ) {
-          PLACE_NEXT: for (;;) {
+          for (;;) {
             // First click creates...
             if (!item) {
               this.m_toolMgr!.RunAction(ACTIONS.selectionClear);
@@ -1476,7 +1478,7 @@ export class SCH_DRAWING_TOOLS extends SCH_TOOL_BASE<SCH_EDIT_FRAME> {
 
                 if (this.m_dialogSyncSheetPin.CanPlaceMore()) {
                   item = null;
-                  continue PLACE_NEXT;
+                  continue;
                 }
 
                 this.m_frame!.PopTool(aEvent);
@@ -2459,6 +2461,159 @@ export class SCH_DRAWING_TOOLS extends SCH_TOOL_BASE<SCH_EDIT_FRAME> {
       controls.SetAutoPan(false);
       controls.CaptureCursor(false);
       this.m_frame!.GetCanvas()?.SetCurrentCursor(KICURSOR.ARROW);
+
+      return 0;
+    } finally {
+      this.m_inDrawingTool = false;
+    }
+  }
+
+  /**
+   * `ImportGraphics( aEvent )` (sch_drawing_tools.cpp:1382): DIALOG_IMPORT_GFX_SCH's items added to
+   * the sheet at once, or carried on the cursor and dropped with a click. Also ddImportGraphics,
+   * whose parameter is the dropped file's name.
+   */
+  *ImportGraphics(aEvent: TOOL_EVENT): COROUTINE_BODY<number> {
+    if (this.m_inDrawingTool) return 0;
+
+    // REENTRANCY_GUARD guard( &m_inDrawingTool )
+    this.m_inDrawingTool = true;
+
+    try {
+      // Note: PlaceImportedGraphics() will convert PCB_SHAPE_T and PCB_TEXT_T to footprint
+      // items if needed
+      const dlg: IMPORT_GFX_RESULT = { items: [], interactive: true };
+
+      // Set filename on drag-and-drop
+      if (aEvent.HasParameter()) dlg.filenameOverride = aEvent.Parameter<string>();
+
+      const dlgResult = yield* this.RunMainStackModal(() =>
+        this.m_frame!.ShowModalDialog('DIALOG_IMPORT_GFX_SCH', [], dlg),
+      );
+
+      const list = dlg.items;
+
+      if (dlgResult !== wxID_OK) return 0;
+
+      // Ensure the list is not empty:
+      if (list.length === 0) {
+        yield* this.RunMainStackModal(() =>
+          this.m_frame!.ShowModalDialog('wxMessageBox', [], {
+            message: 'No graphic items found in file.',
+            caption: 'Message',
+            style: wxOK | wxCENTER,
+          }),
+        );
+        return 0;
+      }
+
+      this.m_toolMgr!.RunAction(ACTIONS.cancelInteractive);
+
+      const controls = this.controls();
+      const newItems: SCH_ITEM[] = []; // all new items, including group
+      const selectedItems: SCH_ITEM[] = []; // the group, or newItems if no group
+      const preview = new SCH_SELECTION();
+      const commit = new SCH_COMMIT(this.m_toolMgr!);
+
+      for (const item of list) {
+        newItems.push(item);
+        selectedItems.push(item);
+        preview.Add(item);
+      }
+
+      if (!dlg.interactive) {
+        // Place the imported drawings
+        for (const item of newItems) commit.Add(item, this.m_frame!.GetScreen());
+
+        commit.Push('Import Graphic');
+        return 0;
+      }
+
+      this.m_view!.Add(preview);
+
+      // Clear the current selection then select the drawings so that edit tools work on them
+      this.m_toolMgr!.RunAction(ACTIONS.selectionClear);
+
+      const selItems: EDA_ITEM[] = [...selectedItems];
+      this.m_toolMgr!.RunAction(ACTIONS.selectItems, selItems);
+
+      this.m_frame!.PushTool(aEvent);
+
+      const setCursor = (): void => {
+        this.m_frame!.GetCanvas()!.SetCurrentCursor(KICURSOR.MOVING);
+      };
+
+      this.Activate();
+      // Must be done after Activate() so that it gets set into the correct context
+      controls.ShowCursor(true);
+      controls.ForceCursorPosition(false);
+      // Set initial cursor
+      setCursor();
+
+      //SCOPED_DRAW_MODE scopedDrawMode( m_mode, MODE::DXF );
+      const grid = new EE_GRID_HELPER(this.m_toolMgr!);
+
+      // Now move the new items to the current cursor position:
+      let cursorPos = controls.GetCursorPosition(!aEvent.DisableGridSnapping());
+      let delta = cursorPos;
+      const currentOffset = { x: 0, y: 0 };
+
+      for (const item of selectedItems) item.Move(delta);
+
+      currentOffset.x += delta.x;
+      currentOffset.y += delta.y;
+
+      this.m_view!.Update(preview);
+
+      // Main loop: keep receiving events
+      for (let evt = yield* this.Wait(); evt; evt = yield* this.Wait()) {
+        setCursor();
+
+        grid.SetSnap(!evt.Modifier(MD_SHIFT));
+        grid.SetUseGrid(this.getView()!.GetGAL()!.GetGridSnapping() && !evt.DisableGridSnapping());
+
+        cursorPos = grid.Align(controls.GetMousePosition(), GRID_HELPER_GRIDS.GRID_GRAPHICS);
+        controls.ForceCursorPosition(true, cursorPos);
+
+        if (evt.IsCancelInteractive() || evt.IsActivate()) {
+          this.m_toolMgr!.RunAction(ACTIONS.selectionClear);
+
+          // `delete item`: the items were never added to anything.
+          break;
+        } else if (evt.IsMotion()) {
+          delta = { x: cursorPos.x - currentOffset.x, y: cursorPos.y - currentOffset.y };
+
+          for (const item of selectedItems) item.Move(delta);
+
+          currentOffset.x += delta.x;
+          currentOffset.y += delta.y;
+
+          this.m_view!.Update(preview);
+        } else if (evt.IsClick(BUT_RIGHT)) {
+          this.m_menu.ShowContextMenu(this.m_selectionTool!.GetSelection());
+        } else if (
+          evt.IsClick(BUT_LEFT) ||
+          evt.IsDblClick(BUT_LEFT) ||
+          evt.IsAction(ACTIONS.cursorClick) ||
+          evt.IsAction(ACTIONS.cursorDblClick)
+        ) {
+          // Place the imported drawings
+          for (const item of newItems) commit.Add(item, this.m_frame!.GetScreen());
+
+          commit.Push('Import Graphic');
+          break; // This is a one-shot command, not a tool
+        } else {
+          evt.SetPassEvent();
+        }
+      }
+
+      preview.Clear();
+      this.m_view!.Remove(preview);
+
+      this.m_frame!.GetCanvas()!.SetCurrentCursor(KICURSOR.ARROW);
+      controls.ForceCursorPosition(false);
+
+      this.m_frame!.PopTool(aEvent);
 
       return 0;
     } finally {
@@ -3512,6 +3667,8 @@ export class SCH_DRAWING_TOOLS extends SCH_TOOL_BASE<SCH_EDIT_FRAME> {
     this.Go(this.TwoClickPlace, SCH_ACTIONS.placeHierLabel.MakeEvent());
     this.Go(this.TwoClickPlace, SCH_ACTIONS.placeGlobalLabel.MakeEvent());
     this.Go(this.PlaceImage, SCH_ACTIONS.placeImage.MakeEvent());
+    this.Go(this.ImportGraphics, SCH_ACTIONS.importGraphics.MakeEvent());
+    this.Go(this.ImportGraphics, SCH_ACTIONS.ddImportGraphics.MakeEvent());
     this.Go(this.ImportSheet, SCH_ACTIONS.placeDesignBlock.MakeEvent());
     this.Go(this.ImportSheet, SCH_ACTIONS.importSheet.MakeEvent());
     this.Go(this.DrawSheet, SCH_ACTIONS.drawSheet.MakeEvent());

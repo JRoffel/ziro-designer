@@ -7,7 +7,7 @@
  * text, the anchor - Repeat Last Item, and Import Graphics.
  */
 import { type KIID, niluuid } from '@ziroeda/common/kiid.js';
-import { type EDA_ITEM } from '@ziroeda/common/eda_item.js';
+import type { EDA_ITEM } from '@ziroeda/common/eda_item.js';
 import { IS_MOVING, IS_NEW } from '@ziroeda/common/eda_item_flags.js';
 import { FILL_T, SHAPE_T } from '@ziroeda/common/eda_shape.js';
 import { type Color4d, COLOR4D_UNSPECIFIED } from '@ziroeda/common/gal/color4d.js';
@@ -43,15 +43,7 @@ import { EE_GRID_HELPER } from './ee_grid_helper.js';
 import { SCH_ACTIONS } from './sch_actions.js';
 import { SCH_TOOL_BASE } from './sch_tool_base.js';
 import { SYMBOL_EDITOR_PIN_TOOL } from './symbol_editor_pin_tool.js';
-
-/**
- * What DIALOG_IMPORT_GFX_SCH hands back on OK: `GetImportedItems()` and
- * `IsPlacementInteractive()`.
- */
-export interface IMPORT_GFX_RESULT {
-  items: SCH_ITEM[];
-  interactive: boolean;
-}
+import type { IMPORT_GFX_RESULT } from '../import_gfx/dialog_import_gfx_sch.js';
 
 export class SYMBOL_EDITOR_DRAWING_TOOLS extends SCH_TOOL_BASE<SYMBOL_EDIT_FRAME> {
   private m_lastTextBold = false;

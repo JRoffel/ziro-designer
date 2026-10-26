@@ -290,8 +290,6 @@ export const TREE_EXCEPTIONS: Record<string, string> = {
     "UNAUDITED: no KiCad file of this name - port it under KiCad's name, fold it into its owner, or justify it here",
   'eeschema/fieldbox.ts':
     "UNAUDITED: no KiCad file of this name - port it under KiCad's name, fold it into its owner, or justify it here",
-  'eeschema/import_gfx/graphics_importer_sch_mapping.ts':
-    "UNAUDITED: no KiCad file of this name - port it under KiCad's name, fold it into its owner, or justify it here",
   'eeschema/import_gfx/image_format.ts':
     "UNAUDITED: no KiCad file of this name - port it under KiCad's name, fold it into its owner, or justify it here",
   'eeschema/lib_tree_item.ts':

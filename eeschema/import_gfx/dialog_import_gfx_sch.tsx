@@ -30,8 +30,7 @@
 
 import { Button, Combo, RadioButton } from '@ziroeda/wx/controls.js';
 import { useMemo, useState, type JSX } from 'react';
-import { GRAPHICS_IMPORTER_SCH, type SchImportedItem } from './graphics_importer_sch.js';
-import { GRAPHICS_IMPORTER_LIB_SYMBOL } from './graphics_importer_lib_symbol.js';
+import type { GRAPHICS_IMPORTER } from '@ziroeda/common/import_gfx/graphics_importer.js';
 import {
   fileExtension,
   getImportableFileTypes,
@@ -42,31 +41,43 @@ import {
   DXF_IMPORT_PLUGIN,
   DXF_IMPORT_UNITS,
 } from '@ziroeda/common/import_gfx/dxf_import_plugin.js';
-import type { LibGraphic, SchLabel } from '../index.js';
 import type { SCH_ITEM } from '../sch_item.js';
 import { DialogShim } from '@ziroeda/common/dialog_shim.js';
+import { wxReadFileSync } from '@ziroeda/wx/filefn.js';
+
+/**
+ * What DIALOG_IMPORT_GFX_SCH hands back on OK: `GetImportedItems()` and
+ * `IsPlacementInteractive()`; and, on a drag and drop, `SetFilenameOverride`'s file.
+ */
+export interface IMPORT_GFX_RESULT {
+  items: SCH_ITEM[];
+  interactive: boolean;
+  /** `SetFilenameOverride( aFilename )`: the file dropped on the canvas, read at once. */
+  filenameOverride?: string;
+}
 
 interface Props {
-  /**
-   * OK: what to place, and whether the user asked to place it by hand.
-   *
-   * Two lists rather than one because free text is not a graphic in this
-   * model — a `(text …)` is a `SchLabel` and lives in `doc.labels`, as
-   * `GRAPHICS_IMPORTER_SCH` reports it.
-   */
-  onOk: (
-    graphics: LibGraphic[],
-    labels: SchLabel[],
-    interactive: boolean,
-    /** The symbol editor's live items, from {@link Props.libImporter}. */
-    items: SCH_ITEM[],
-  ) => void;
+  /** OK: the imported items, and whether the user asked to place them by hand. */
+  onOk: (items: SCH_ITEM[], interactive: boolean) => void;
   onCancel: () => void;
   /**
-   * The constructor's importer choice: a fresh `GRAPHICS_IMPORTER_LIB_SYMBOL( symbol, unit )` in
-   * the symbol editor, whose items come back live; none for a sheet (GRAPHICS_IMPORTER_SCH).
+   * The constructor's importer choice: a fresh `GRAPHICS_IMPORTER_SCH` for a sheet,
+   * `GRAPHICS_IMPORTER_LIB_SYMBOL( symbol, unit )` in the symbol editor.
    */
-  libImporter?: () => GRAPHICS_IMPORTER_LIB_SYMBOL;
+  importer: () => GRAPHICS_IMPORTER<SCH_ITEM>;
+  /** `SetFilenameOverride( aFilename )`: open on this file (a drag and drop), read at once. */
+  filenameOverride?: string;
+}
+
+/** The dropped file, as `onFilename` would read it: its name and text, or none. */
+function overrideFile(aPath: string | undefined): { name: string; text: string } | null {
+  if (!aPath) return null;
+
+  const bytes = wxReadFileSync(aPath);
+
+  if (!bytes) return null;
+
+  return { name: aPath.slice(aPath.lastIndexOf('/') + 1), text: new TextDecoder().decode(bytes) };
 }
 
 /**
@@ -99,14 +110,12 @@ export const DEFAULT_PARAMS: Params = {
 
 /** What one import produced, so the dialog can report before it commits. */
 export interface Imported {
-  graphics: LibGraphic[];
-  labels: SchLabel[];
   /** `GetImageWidth`/`Height`: the drawing's extent in millimetres. */
   widthMM: number;
   heightMM: number;
   /** `ReportMsg`, from both the plugin and the importer. */
   notes: string[];
-  /** `GetImportedItems()` of a symbol editor import. */
+  /** `GetImportedItems()`. */
   items: SCH_ITEM[];
   error?: string;
 }
@@ -128,14 +137,14 @@ export function runImport(
   name: string,
   text: string,
   p: Params,
-  aLibImporter?: GRAPHICS_IMPORTER_LIB_SYMBOL,
+  aImporter: GRAPHICS_IMPORTER<SCH_ITEM>,
 ): Imported {
-  const empty = { graphics: [], labels: [], widthMM: 0, heightMM: 0, notes: [], items: [] };
+  const empty = { widthMM: 0, heightMM: 0, notes: [], items: [] };
 
   const plugin = getPluginByExt(fileExtension(name));
   if (!plugin) return { ...empty, error: 'Unsupported file format.' };
 
-  const importer = aLibImporter ?? new GRAPHICS_IMPORTER_SCH();
+  const importer = aImporter;
 
   if (plugin instanceof DXF_IMPORT_PLUGIN) {
     plugin.SetUnit(p.dxfUnits);
@@ -159,22 +168,23 @@ export function runImport(
     .map((l) => l.trim())
     .filter((l) => l !== '');
 
-  const schItems: readonly SchImportedItem[] = aLibImporter
-    ? []
-    : (importer as GRAPHICS_IMPORTER_SCH).GetItems();
-
   return {
-    graphics: schItems.flatMap((i) => (i.type === 'graphic' ? [i.graphic] : [])),
-    labels: schItems.flatMap((i) => (i.type === 'text' ? [i.text] : [])),
-    items: aLibImporter ? aLibImporter.GetItems() : [],
+    items: importer.GetItems(),
     widthMM: plugin.GetImageWidth(),
     heightMM: plugin.GetImageHeight(),
     notes: [...new Set(notes)],
   };
 }
 
-export function DialogImportGfx({ onOk, onCancel, libImporter }: Props): JSX.Element {
-  const [file, setFile] = useState<{ name: string; text: string } | null>(null);
+export function DialogImportGfx({
+  onOk,
+  onCancel,
+  importer,
+  filenameOverride,
+}: Props): JSX.Element {
+  const [file, setFile] = useState<{ name: string; text: string } | null>(() =>
+    overrideFile(filenameOverride),
+  );
   const [interactive, setInteractive] = useState(true);
   const [params, setParams] = useState<Params>(DEFAULT_PARAMS);
   const [typed, setTyped] = useState<Record<string, string>>({});
@@ -190,9 +200,9 @@ export function DialogImportGfx({ onOk, onCancel, libImporter }: Props): JSX.Ele
       file.name,
       file.text,
       interactive ? { ...params, originMM: { x: 0, y: 0 } } : params,
-      libImporter?.(),
+      importer(),
     );
-  }, [file, params, interactive, libImporter]);
+  }, [file, params, interactive, importer]);
 
   const choose = async (chosen: File | undefined): Promise<void> => {
     if (!chosen) return;
@@ -232,9 +242,7 @@ export function DialogImportGfx({ onOk, onCancel, libImporter }: Props): JSX.Ele
     </label>
   );
 
-  const count = imported
-    ? imported.graphics.length + imported.labels.length + imported.items.length
-    : 0;
+  const count = imported ? imported.items.length : 0;
   const empty = imported !== null && !imported.error && count === 0;
 
   /** The drawing's extent in millimetres, from the internal units it landed in. */
@@ -326,9 +334,7 @@ export function DialogImportGfx({ onOk, onCancel, libImporter }: Props): JSX.Ele
           label="OK"
           isDefault
           disabled={!imported || empty || !!imported.error}
-          onClick={() =>
-            imported && onOk(imported.graphics, imported.labels, interactive, imported.items)
-          }
+          onClick={() => imported && onOk(imported.items, interactive)}
         />
       </div>
     </DialogShim>

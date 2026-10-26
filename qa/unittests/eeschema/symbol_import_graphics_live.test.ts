@@ -17,7 +17,7 @@ import {
 import { KICAD_T } from '@ziroeda/core/typeinfo.js';
 import { SCH_SHAPE } from '@ziroeda/eeschema/sch_shape.js';
 import { SCH_ACTIONS } from '@ziroeda/eeschema/tools/sch_actions.js';
-import type { IMPORT_GFX_RESULT } from '@ziroeda/eeschema/tools/symbol_editor_drawing_tools.js';
+import type { IMPORT_GFX_RESULT } from '@ziroeda/eeschema/import_gfx/dialog_import_gfx_sch.js';
 import { wxID_CANCEL, wxID_OK } from '@ziroeda/wx/menu.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { click, mouse } from './support/sch_tool_harness.js';

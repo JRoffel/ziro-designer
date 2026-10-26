@@ -196,8 +196,9 @@ export class GRAPHICS_IMPORTER_LIB_SYMBOL extends GRAPHICS_IMPORTER<SCH_ITEM> {
     textItem.SetTextColor(aColor);
     textItem.SetTextThickness(this.MapLineWidth(aThickness));
     textItem.SetTextAngle(new EDA_ANGLE(aOrientation, EDA_ANGLE_T.DEGREES_T));
-    textItem.SetTextWidth(aWidth * this.ImportScalingFactor().x);
-    textItem.SetTextHeight(aHeight * this.ImportScalingFactor().y);
+    // SetTextWidth( int ): the double truncates as it is passed.
+    textItem.SetTextWidth(Math.trunc(aWidth * this.ImportScalingFactor().x));
+    textItem.SetTextHeight(Math.trunc(aHeight * this.ImportScalingFactor().y));
     textItem.SetVertJustify(aVJustify);
     textItem.SetHorizJustify(aHJustify);
 

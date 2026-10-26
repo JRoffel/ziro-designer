@@ -146,7 +146,6 @@ import {
   buildSheetTree,
   repairPageNumbersOnLoad,
   findRootFile,
-  addItems,
   makeImage,
   ProjectHistory,
   type Schematic,
@@ -394,7 +393,8 @@ import {
   DialogTableProperties,
   type SCH_TABLE_DIALOG_VALUES,
 } from './dialogs/dialog_table_properties.js';
-import { DialogImportGfx } from './import_gfx/dialog_import_gfx_sch.js';
+import { DialogImportGfx, type IMPORT_GFX_RESULT } from './import_gfx/dialog_import_gfx_sch.js';
+import { GRAPHICS_IMPORTER_SCH } from './import_gfx/graphics_importer_sch.js';
 import { KISTATUSBAR_FIELDS, KiStatusBar } from '@ziroeda/common/widgets/kistatusbar.js';
 import { MsgPanel, type MsgPanelItem } from '@ziroeda/common/widgets/msgpanel_ui.js';
 import {
@@ -647,6 +647,9 @@ function resolveToken(aResolver: TextVarResolverFn | undefined, aName: string): 
   const token = { value: aName };
   return aResolver?.(token) ? token.value : '';
 }
+
+/** DIALOG_IMPORT_GFX_SCH's importer: a fresh GRAPHICS_IMPORTER_SCH for each import. */
+const newSchGraphicsImporter = (): GRAPHICS_IMPORTER_SCH => new GRAPHICS_IMPORTER_SCH();
 
 export function SchematicEditor({
   app,
@@ -1483,7 +1486,10 @@ export function SchematicEditor({
     if (payload) setSelection(new Set());
   }, []);
   /** File > Import > Graphics (Ctrl+Shift+F): the open DIALOG_IMPORT_GFX_SCH. */
-  const [importGfxOpen, setImportGfxOpen] = useState(false);
+  const [importGfx, setImportGfx] = useState<{
+    result: IMPORT_GFX_RESULT;
+    resolve: (aRetval: number) => void;
+  } | null>(null);
   /** `m_ercDialog`: the frame's DIALOG_ERC, and whether its window is shown. */
   const [ercDialog, setErcDialog] = useState<{ dialog: DIALOG_ERC; shown: boolean } | null>(null);
   const ercDialogRef = useRef(ercDialog);
@@ -1914,6 +1920,13 @@ export function SchematicEditor({
             return new Promise<number>((resolve) => setUpdateFromPcbDialog({ resolve }));
           })();
         }
+        if (aDialog === 'DIALOG_IMPORT_GFX_SCH') {
+          return new Promise<number>((resolve) =>
+            setImportGfx({ result: aArg as IMPORT_GFX_RESULT, resolve }),
+          );
+        }
+        if (aDialog === 'wxMessageBox')
+          return ShowKicadMessageDialog(aArg as KICAD_MESSAGE_DIALOG_ARG);
         if (aDialog === 'DIALOG_EESCHEMA_PAGE_SETTINGS') {
           const dlg = new DIALOG_EESCHEMA_PAGE_SETTINGS(schFrameRef.current!);
           return new Promise<number>((resolve) => setPageDialog({ dlg, resolve }));
@@ -4920,11 +4933,8 @@ export function SchematicEditor({
         // than from the clipboard. `parsePastedText` already accepts a whole
         // `(kicad_sch …)` document, so the reader needs nothing new.
         setImportSheetOpen(true);
-      } else if (id === 'importGraphics') {
-        // SCH_ACTIONS::importGraphics -> EE_GRAPHIC_TOOL::ImportGraphics: the
-        // dialog parses, and only its OK produces anything to place.
-        setImportGfxOpen(true);
-      } else if (id === 'showPcbNew') onShowPcb?.();
+      } else if (id === 'importGraphics') runLiveAction(SCH_ACTIONS.importGraphics);
+      else if (id === 'showPcbNew') onShowPcb?.();
       else if (id === 'updatePcbFromSch') onUpdatePcb?.();
       else if (id === 'updateSchFromPcb') runLiveAction(ACTIONS.updateSchematicFromPcb);
       else if (id === 'symbolEditor') onShowSymbolEditor?.();
@@ -6914,74 +6924,20 @@ export function SchematicEditor({
         />
       )}
 
-      {/* Table: choose the grid size, then place the table (SCH_TABLE). */}
-      {importGfxOpen && (
+      {/* DIALOG_IMPORT_GFX_SCH for SCH_DRAWING_TOOLS::ImportGraphics: OK fills its result. */}
+      {importGfx && (
         <DialogImportGfx
-          onCancel={() => setImportGfxOpen(false)}
-          onOk={(graphics, labels, interactive) => {
-            setImportGfxOpen(false);
-            if (graphics.length === 0 && labels.length === 0) return;
-            if (!interactive) {
-              runCommand(addItems({ graphics, labels }));
-              return;
-            }
-            // Interactive placement: the drawing rides the cursor and a click
-            // drops it, which is the paste gesture — upstream likewise hands
-            // the imported items to the placement loop as a preview.
-            //
-            //     m_toolMgr->RunAction( ACTIONS::cancelInteractive );
-            //     … preview … commitImport( newItems );
-            //
-            // The anchor is the drawing's top-left, as a paste's is
-            // (SCH_SELECTION::GetTopLeftItem).
-            let minX = Infinity;
-            let minY = Infinity;
-            for (const g of graphics) {
-              const pts =
-                g.kind === 'polyline' || g.kind === 'bezier'
-                  ? g.points
-                  : g.kind === 'circle'
-                    ? [{ x: g.center.x - g.radius, y: g.center.y - g.radius }]
-                    : g.kind === 'arc'
-                      ? [g.start, g.mid, g.end]
-                      : g.kind === 'ellipse' || g.kind === 'ellipse_arc'
-                        ? [
-                            {
-                              x: g.center.x - Math.max(g.majorRadius, g.minorRadius),
-                              y: g.center.y - Math.max(g.majorRadius, g.minorRadius),
-                            },
-                          ]
-                        : [];
-              for (const p of pts) {
-                minX = Math.min(minX, p.x);
-                minY = Math.min(minY, p.y);
-              }
-            }
-            for (const l of labels) {
-              minX = Math.min(minX, l.at.x);
-              minY = Math.min(minY, l.at.y);
-            }
-            setPastePending({
-              batch: {
-                symbols: [],
-                lines: [],
-                junctions: [],
-                noConnects: [],
-                labels,
-                sheets: [],
-                busEntries: [],
-                images: [],
-                graphics,
-                textBoxes: [],
-                directiveLabels: [],
-                tables: [],
-              },
-              libs: [],
-              refPoint: {
-                x: Number.isFinite(minX) ? minX : 0,
-                y: Number.isFinite(minY) ? minY : 0,
-              },
-            });
+          importer={newSchGraphicsImporter}
+          filenameOverride={importGfx.result.filenameOverride}
+          onCancel={() => {
+            setImportGfx(null);
+            importGfx.resolve(wxID_CANCEL);
+          }}
+          onOk={(items, interactive) => {
+            importGfx.result.items = items;
+            importGfx.result.interactive = interactive;
+            setImportGfx(null);
+            importGfx.resolve(wxID_OK);
           }}
         />
       )}

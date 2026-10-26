@@ -164,4 +164,13 @@ describe('text', () => {
     expect(t.GetTextThickness()).toBe(Math.trunc(0.3 * mmToIU(1)));
     expect([t.GetHorizJustify(), t.GetVertJustify()]).toEqual([1, 1]);
   });
+
+  it('truncates a size as the int parameter does', () => {
+    const imp = importer();
+    // 0.10005 mm -> 1000.5 IU, passed to SetTextWidth( int ) and SetTextHeight( int ).
+    imp.AddText({ x: 0, y: 0 }, 'x', 0.10005, 0.10005, 0, 0, -1, -1, COLOR4D_BLACK);
+    const t = imp.GetItems()[0] as SCH_TEXT;
+    const exact = 0.10005 * mmToIU(1);
+    expect([t.GetTextWidth(), t.GetTextHeight()]).toEqual([Math.trunc(exact), Math.trunc(exact)]);
+  });
 });

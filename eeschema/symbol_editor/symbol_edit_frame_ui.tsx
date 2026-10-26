@@ -154,7 +154,7 @@ import {
   type SelectionFilterOptions,
 } from '../tools/sch_selection_filter.js';
 import { SCH_SELECTION_TOOL } from '../tools/sch_selection_tool.js';
-import type { IMPORT_GFX_RESULT } from '../tools/symbol_editor_drawing_tools.js';
+import type { IMPORT_GFX_RESULT } from '../import_gfx/dialog_import_gfx_sch.js';
 import { symSelectionFilterShown } from '../widgets/panel_sch_selection_filter.js';
 import { SelectionFilterPanel } from '../widgets/panel_sch_selection_filter_ui.js';
 import { LiveSchPropertiesPanel } from '../widgets/sch_properties_panel_ui.js';
@@ -584,9 +584,9 @@ export function SymbolEditor({
         const symbol = frame.GetCurSymbol()!;
         return pushModal((close) => (
           <DialogImportGfx
-            libImporter={() => new GRAPHICS_IMPORTER_LIB_SYMBOL(symbol, frame.GetUnit())}
+            importer={() => new GRAPHICS_IMPORTER_LIB_SYMBOL(symbol, frame.GetUnit())}
             onCancel={() => close(wxID_CANCEL)}
-            onOk={(_graphics, _labels, interactive, items) => {
+            onOk={(items, interactive) => {
               result.items = items;
               result.interactive = interactive;
               close(wxID_OK);

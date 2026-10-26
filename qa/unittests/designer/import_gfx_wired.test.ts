@@ -42,8 +42,11 @@ describe('the way in', () => {
     expect(MENUBAR).toContain("actNoIcon('Graphics...', 'importGraphics', 'Ctrl+Shift+F')");
   });
 
-  it('the editor answers that action', () => {
-    expect(EDITOR).toContain("id === 'importGraphics'");
+  it('the editor runs SCH_DRAWING_TOOLS::ImportGraphics for it, and hosts its dialog', () => {
+    expect(EDITOR).toContain(
+      "else if (id === 'importGraphics') runLiveAction(SCH_ACTIONS.importGraphics);",
+    );
+    expect(EDITOR).toContain("aDialog === 'DIALOG_IMPORT_GFX_SCH'");
   });
 
   it('and Ctrl+Shift+F reaches it rather than Find', () => {
@@ -110,7 +113,7 @@ describe('the dialog', () => {
   it('the import re-runs when a parameter changes, not only when a file is picked', () => {
     // The scale, the origin, the width and the units all change what the
     // import *produces*, not what is done with it afterwards.
-    expect(DIALOG).toContain('}, [file, params, interactive, libImporter]);');
+    expect(DIALOG).toContain('}, [file, params, interactive, importer]);');
   });
 
   it('and what the import could not carry is shown, not swallowed', () => {
@@ -130,18 +133,5 @@ describe('the dialog', () => {
   });
 });
 
-describe('what OK does', () => {
-  it('adds what was imported directly when a position was given', () => {
-    // Both arms: a `(text …)` is a SchLabel and lives in doc.labels, so an
-    // import that only produced text would otherwise land nothing.
-    expect(EDITOR).toContain('runCommand(addItems({ graphics, labels }))');
-  });
-
-  it('and hands them to the cursor for interactive placement', () => {
-    // The paste gesture: the drawing follows the cursor and a click drops it,
-    // which is what upstream's placement loop does with the imported items.
-    expect(EDITOR).toContain('setPastePending({');
-    expect(EDITOR).toContain('graphics,');
-    expect(EDITOR).toContain('labels,');
-  });
-});
+// What OK does - the items added at once, or carried on the cursor - is SCH_DRAWING_TOOLS'
+// ImportGraphics, tested live in qa/unittests/eeschema/sch_import_graphics_live.test.ts.
